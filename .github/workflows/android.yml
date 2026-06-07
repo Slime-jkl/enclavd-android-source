@@ -1,10 +1,8 @@
 name: Build Android Release
 
 on:
-  push:
-    branches: [ "main", "master" ]
-  pull_request:
-    branches: [ "main", "master" ]
+  # Allows you to manually trigger this workflow from the GitHub Actions tab
+  workflow_dispatch:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -31,16 +29,22 @@ jobs:
     - name: Grant Execute Permission to Gradle Wrapper
       run: chmod +x gradlew
 
-    - name: Build and Sign Release APK
+    - name: Build and Sign Release APK & AAB
       env:
         SIGNING_KEY_FILE: "release-keystore.jks"
         KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
         ALIAS: ${{ secrets.ALIAS }}
-        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }} # Fixed: Changed to ALL CAPS
-      run: ./gradlew assembleRelease --stacktrace
+        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      run: ./gradlew assembleRelease bundleRelease --stacktrace
 
     - name: Upload Signed Release APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: enclavd-release-apk
         path: app/build/outputs/apk/release/app-release.apk
+
+    - name: Upload Signed Release AAB Artifact (Play Store)
+      uses: actions/upload-artifact@v4
+      with:
+        name: enclavd-release-aab
+        path: app/build/outputs/bundle/release/app-release.aab
