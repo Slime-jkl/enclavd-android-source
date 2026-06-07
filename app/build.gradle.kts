@@ -17,9 +17,10 @@ android {
     }
 
     signingConfigs {
-        release {
-            // Reads the environment variables generated during your GitHub Actions run
-            storeFile = System.getenv("SIGNING_KEY_FILE") ? file(System.getenv("SIGNING_KEY_FILE")) : null
+        create("release") {
+            // Corrected Kotlin DSL syntax for environment variables
+            val keyFile = System.getenv("SIGNING_KEY_FILE")
+            storeFile = if (!keyFile.isNullOrEmpty()) file(keyFile) else null
             storePassword = System.getenv("KEY_STORE_PASSWORD")
             keyAlias = System.getenv("ALIAS")
             keyPassword = System.getenv("KEY_PASSWORD")
@@ -27,9 +28,9 @@ android {
     }
 
     buildTypes {
-        release {
+        getByName("release") {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.release // Injects the signing keys into the release build
+            signingConfig = signingConfigs.getByName("release") // Attaches the signing config
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
