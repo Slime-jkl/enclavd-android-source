@@ -1,10 +1,13 @@
-name: Build Android APK
+name: Build Android Release
 
 on:
   push:
     branches: [ "main", "master" ]
   pull_request:
     branches: [ "main", "master" ]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   build:
@@ -24,11 +27,22 @@ jobs:
     - name: Grant Execute Permission to Gradle Wrapper
       run: chmod +x gradlew
 
-    - name: Build Debug APK
-      run: ./gradlew assembleDebug
+    - name: Build Release AAB (Play Store) & APK
+      # Generates both the Play Store Bundle (.aab) and standard Release APK (.apk)
+      run: ./gradlew bundleRelease assembleRelease --stacktrace
 
-    - name: Upload APK Artifact
+    - name: Sign Release Binaries
+      id: sign_app
+      uses: r0adkll/sign-android-release@v1
+      with:
+        releaseDirectory: app/build/outputs/apk/release
+        signingKeyBase64: ${{ secrets.SIGNING_KEY }}
+        alias: ${{ secrets.ALIAS }}
+        keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
+        keyPassword: ${{ secrets.KEY_PASSWORD }}
+
+    - name: Upload Signed Release APK Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: enclavd-debug-apk
-        path: app/build/outputs/apk/debug/app-debug.apk
+        name: enclavd-release-apk
+        path: ${{ steps.sign_app.outputs.signedReleaseFile }}
