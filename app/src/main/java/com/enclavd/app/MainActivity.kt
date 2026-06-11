@@ -19,6 +19,7 @@ import android.webkit.WebViewClient
 import android.widget.Button
 import android.widget.RelativeLayout
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 
@@ -30,9 +31,21 @@ class MainActivity : AppCompatActivity() {
     private lateinit var swipeRefresh: SwipeRefreshLayout
     private var isError = false
 
-    // File Upload variables
+    // File Upload callback variable
     private var uploadMessage: ValueCallback<Array<Uri>>? = null
-    private val FILECHOOSER_RESULTCODE = 1
+
+    // Modern Activity Result API launcher
+    private val fileChooserLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (uploadMessage == null) return@registerForActivityResult
+        
+        val data: Intent? = result.data
+        val resultUriArray = WebChromeClient.FileChooserParams.parseResult(result.resultCode, data)
+        
+        uploadMessage?.onReceiveValue(resultUriArray)
+        uploadMessage = null
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -49,7 +62,7 @@ class MainActivity : AppCompatActivity() {
         webView.settings.loadsImagesAutomatically = true
         webView.settings.allowFileAccess = true
 
-        // 1. FILE UPLOAD HANDLING (WebChromeClient)
+        // 1. FILE UPLOAD HANDLING via modern launcher
         webView.webChromeClient = object : WebChromeClient() {
             override fun onShowFileChooser(
                 webView: WebView?,
@@ -64,7 +77,9 @@ class MainActivity : AppCompatActivity() {
 
                 val intent = fileChooserParams?.createIntent()
                 try {
-                    startActivityForResult(intent, FILECHOOSER_RESULTCODE)
+                    if (intent != null) {
+                        fileChooserLauncher.launch(intent)
+                    }
                 } catch (e: ActivityNotFoundException) {
                     uploadMessage = null
                     return false
@@ -128,17 +143,6 @@ class MainActivity : AppCompatActivity() {
         swipeRefresh.setOnRefreshListener {
             webView.clearCache(true)
             webView.reload()
-        }
-    }
-
-    // 3. CAPTURE FILE SELECTION RESULT
-    @Deprecated("Deprecated in Java")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == FILECHOOSER_RESULTCODE) {
-            if (uploadMessage == null) return
-            uploadMessage?.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data))
-            uploadMessage = null
         }
     }
 
