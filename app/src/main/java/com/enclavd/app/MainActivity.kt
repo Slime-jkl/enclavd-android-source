@@ -8,6 +8,8 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
+import android.view.ContextMenu
+import android.view.MenuItem
 import android.view.View
 import android.webkit.URLUtil
 import android.webkit.ValueCallback
@@ -31,18 +33,14 @@ class MainActivity : AppCompatActivity() {
     private lateinit var swipeRefresh: SwipeRefreshLayout
     private var isError = false
 
-    // File Upload callback variable
     private var uploadMessage: ValueCallback<Array<Uri>>? = null
 
-    // Modern Activity Result API launcher
     private val fileChooserLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (uploadMessage == null) return@registerForActivityResult
-        
         val data: Intent? = result.data
         val resultUriArray = WebChromeClient.FileChooserParams.parseResult(result.resultCode, data)
-        
         uploadMessage?.onReceiveValue(resultUriArray)
         uploadMessage = null
     }
@@ -62,7 +60,9 @@ class MainActivity : AppCompatActivity() {
         webView.settings.loadsImagesAutomatically = true
         webView.settings.allowFileAccess = true
 
-        // 1. FILE UPLOAD HANDLING via modern launcher
+        // REGISTER WEBVIEW FOR CONTEXT MENU (LONG PRESS)
+        registerForContextMenu(webView)
+
         webView.webChromeClient = object : WebChromeClient() {
             override fun onShowFileChooser(
                 webView: WebView?,
@@ -88,22 +88,8 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // 2. FILE DOWNLOAD HANDLING
         webView.setDownloadListener { url, userAgent, contentDisposition, mimeType, _ ->
-            val request = DownloadManager.Request(Uri.parse(url)).apply {
-                setMimeType(mimeType)
-                addRequestHeader("User-Agent", userAgent)
-                setDescription("Downloading file...")
-                setTitle(URLUtil.guessFileName(url, contentDisposition, mimeType))
-                setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, URLUtil.guessFileName(url, contentDisposition, mimeType))
-            }
-
-            val dm = getSystemService(DOWNLOAD_SERVICE) as DownloadManager?
-            if (dm != null) {
-                dm.enqueue(request)
-                Toast.makeText(applicationContext, "Downloading File...", Toast.LENGTH_LONG).show()
-            }
+            triggerDownload(url, userAgent, contentDisposition, mimeType)
         }
 
         webView.webViewClient = object : WebViewClient() {
@@ -143,6 +129,56 @@ class MainActivity : AppCompatActivity() {
         swipeRefresh.setOnRefreshListener {
             webView.clearCache(true)
             webView.reload()
+        }
+    }
+
+    // CREATE THE LONG-PRESS CONTEXT MENU
+    override fun onCreateContextMenu(menu: ContextMenu?, v: View?, menuInfo: ContextMenu.ContextMenuInfo?) {
+        super.onCreateContextMenu(menu, v, menuInfo)
+        
+        val hitTestResult = webView.hitTestResult
+        
+        // Only show the menu if the user long-pressed an image
+        if (hitTestResult.type == WebView.HitTestResult.IMAGE_TYPE || 
+            hitTestResult.type == WebView.HitTestResult.SRC_IMAGE_TYPE) {
+            
+            menu?.setHeaderTitle("Actions")
+            menu?.add(0, 1, 0, "Save Image")
+        }
+    }
+
+    // HANDLE CONTEXT MENU ITEM CLICK
+    override fun onContextItemSelected(item: MenuItem): Boolean {
+        if (item.itemId == 1) {
+            val hitTestResult = webView.hitTestResult
+            val imageUrl = hitTestResult.extra // This gets the raw URL of the long-pressed image
+            
+            if (imageUrl != null) {
+                val userAgent = webView.settings.userAgentString
+                triggerDownload(imageUrl, userAgent, null, null)
+            } else {
+                Toast.makeText(this, "Failed to get image URL", Toast.LENGTH_SHORT).show()
+            }
+            return true
+        }
+        return super.onContextItemSelected(item)
+    }
+
+    // REUSABLE DOWNLOAD LOGIC
+    private fun triggerDownload(url: String, userAgent: String?, contentDisposition: String?, mimeType: String?) {
+        val request = DownloadManager.Request(Uri.parse(url)).apply {
+            if (mimeType != null) setMimeType(mimeType)
+            if (userAgent != null) addRequestHeader("User-Agent", userAgent)
+            setDescription("Saving image...")
+            setTitle(URLUtil.guessFileName(url, contentDisposition, mimeType))
+            setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, URLUtil.guessFileName(url, contentDisposition, mimeType))
+        }
+
+        val dm = getSystemService(DOWNLOAD_SERVICE) as DownloadManager?
+        if (dm != null) {
+            dm.enqueue(request)
+            Toast.makeText(applicationContext, "Saving Image...", Toast.LENGTH_LONG).show()
         }
     }
 
