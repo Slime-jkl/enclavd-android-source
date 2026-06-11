@@ -147,87 +147,126 @@ class MainActivity : AppCompatActivity() {
     }
 
     // MODERN MATERIAL DESIGN BOTTOM SHEET DIALOG WITH FIXED DIMENSIONS
-    private fun showMaterialBottomSheet(imageUrl: String) {
-        val bottomSheetDialog = BottomSheetDialog(this)
-        val context = this
-        
-        val linearLayout = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, 
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            )
-            setPadding(60, 60, 60, 80)
-        }
+	private fun showMaterialBottomSheet(imageUrl: String) {
+		val bottomSheetDialog = BottomSheetDialog(this)
+		val context = this
+		
+		// Main Container with Material styling
+		val linearLayout = LinearLayout(context).apply {
+			orientation = LinearLayout.VERTICAL
+			layoutParams = ViewGroup.LayoutParams(
+				ViewGroup.LayoutParams.MATCH_PARENT, 
+				ViewGroup.LayoutParams.WRAP_CONTENT
+			)
+			setPadding(0, 48, 0, 64) // Material spacing
+			
+			// Force a clean white/surface background with rounded top corners
+			val shape = android.graphics.drawable.GradientDrawable().apply {
+				setColor(android.graphics.Color.WHITE)
+				cornerRadii = floatArrayOf(40f, 40f, 40f, 40f, 0f, 0f, 0f, 0f) // Top corners rounded
+			}
+			background = shape
+		}
 
-        val title = TextView(context).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            text = "Actions"
-            textSize = 18f
-            textAlignment = View.TEXT_ALIGNMENT_CENTER
-            setPadding(0, 10, 0, 50)
-            setTextColor(resources.getColor(android.R.color.black, theme))
-        }
+		// Material 3 Drag Handle Indicator
+		val dragHandle = View(context).apply {
+			layoutParams = LinearLayout.LayoutParams(96, 12).apply {
+				gravity = android.view.Gravity.CENTER_HORIZONTAL
+				setMargins(0, 0, 0, 48)
+			}
+			val handleShape = android.graphics.drawable.GradientDrawable().apply {
+				setColor(android.graphics.Color.LTGRAY)
+				cornerRadius = 6f
+			}
+			background = handleShape
+		}
+		linearLayout.addView(dragHandle)
 
-        val saveOption = TextView(context).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            text = "Save Image"
-            textSize = 16f
-            setPadding(40, 40, 40, 40)
-            setTextColor(resources.getColor(android.R.color.holo_blue_dark, theme))
-            setOnClickListener {
-                saveImageToDCIM(imageUrl)
-                bottomSheetDialog.dismiss()
-            }
-        }
+		// Material Header/Title
+		val title = TextView(context).apply {
+			layoutParams = LinearLayout.LayoutParams(
+				LinearLayout.LayoutParams.MATCH_PARENT,
+				LinearLayout.LayoutParams.WRAP_CONTENT
+			)
+			text = "Image Options"
+			textSize = 16f
+			typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+			textAlignment = View.TEXT_ALIGNMENT_CENTER
+			setPadding(0, 0, 0, 32)
+			setTextColor(android.graphics.Color.parseColor("#49454F")) // Material Variant Color
+		}
+		linearLayout.addView(title)
 
-        linearLayout.addView(title)
-        linearLayout.addView(saveOption)
-        bottomSheetDialog.setContentView(linearLayout)
-        bottomSheetDialog.show()
-    }
+		// Material Action Row (Clickable Item)
+		val saveOption = TextView(context).apply {
+			layoutParams = LinearLayout.LayoutParams(
+				LinearLayout.LayoutParams.MATCH_PARENT,
+				LinearLayout.LayoutParams.WRAP_CONTENT
+			)
+			text = "Save Image to Gallery"
+			textSize = 18f
+			typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
+			setPadding(64, 40, 64, 40)
+			setTextColor(android.graphics.Color.parseColor("#1D1B20")) // Material Main Text Color
+			
+			// Add native Material ripple effect on click
+			val outValue = android.util.TypedValue()
+			context.theme.resolveAttribute(android.R.attr.selectableItemBackground, outValue, true)
+			setBackgroundResource(outValue.resourceId)
+			isClickable = true
+			isFocusable = true
+
+			setOnClickListener {
+				saveImageToDCIM(imageUrl)
+				bottomSheetDialog.dismiss()
+			}
+		}
+		linearLayout.addView(saveOption)
+
+		bottomSheetDialog.setContentView(linearLayout)
+		
+		// Remove default dialog background dim and shadows that break the shape
+		bottomSheetDialog.window?.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
+			?.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+			
+		bottomSheetDialog.show()
+	}
 
     // DOWNLOAD DIRECTLY TO DCIM/Enclavd & FORCE MEDIA SCANNING
-    private fun saveImageToDCIM(url: String) {
-        val userAgent = webView.settings.userAgentString
-        val fileName = URLUtil.guessFileName(url, null, "image/jpeg")
-        
-        val dcimDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM)
-        val customFolder = File(dcimDir, "Enclavd")
-        if (!customFolder.exists()) {
-            customFolder.mkdirs()
-        }
-        
-        val targetFile = File(customFolder, fileName)
+	private fun saveImageToDCIM(url: String) {
+		val userAgent = webView.settings.userAgentString
+		val fileName = URLUtil.guessFileName(url, null, "image/jpeg")
+		
+		// Explicit targeted relative path inside the public DCIM directory
+		val subPath = "Enclavd/$fileName"
 
-        val request = DownloadManager.Request(Uri.parse(url)).apply {
-            setMimeType("image/jpeg")  
-            addRequestHeader("User-Agent", userAgent)
-            setDescription("Saving image...")
-            setTitle(fileName)
-            setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            setDestinationUri(Uri.fromFile(targetFile))
-        }
+		val request = DownloadManager.Request(Uri.parse(url)).apply {
+			setMimeType("image/jpeg")  
+			addRequestHeader("User-Agent", userAgent)
+			setDescription("Saving image to Enclavd folder...")
+			setTitle(fileName)
+			setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+			
+			// This is the correct way to target subfolders in shared storage
+			setDestinationInExternalPublicDir(Environment.DIRECTORY_DCIM, subPath)
+		}
 
-        val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager?
-        if (dm != null) {
-            dm.enqueue(request)
-            Toast.makeText(applicationContext, "Saving to DCIM/Enclavd...", Toast.LENGTH_LONG).show()
+		val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager?
+		if (dm != null) {
+			dm.enqueue(request)
+			Toast.makeText(applicationContext, "Saving to DCIM/Enclavd...", Toast.LENGTH_LONG).show()
 
-            // Forces gallery visibility instantly 
-            MediaScannerConnection.scanFile(
-                applicationContext,
-                arrayOf(targetFile.absolutePath),
-                arrayOf("image/jpeg")
-            ) { _, _ -> }
-        }
-    }
+			// Get the absolute path for the media scanner to pick up the file immediately
+			val dcimDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM)
+			val targetFile = File(dcimDir, subPath)
+
+			MediaScannerConnection.scanFile(
+				applicationContext,
+				arrayOf(targetFile.absolutePath),
+				arrayOf("image/jpeg")
+			) { _, _ -> }
+		}
+	}
 
     private fun triggerStandardDownload(url: String, userAgent: String?, contentDisposition: String?, mimeType: String?) {
         val request = DownloadManager.Request(Uri.parse(url)).apply {
