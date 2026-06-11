@@ -252,33 +252,32 @@ class MainActivity : AppCompatActivity() {
 
     // DOWNLOAD DIRECTLY TO DCIM/Enclavd & FORCE MEDIA SCANNING
 	private fun saveImageToDCIM(url: String) {
-		// Generate a unique clean filename
+		// 1. Grab the User-Agent on the MAIN THREAD before starting the background worker
+		val userAgent = webView.settings.userAgentString
 		val cleanFileName = "Enclavd_${System.currentTimeMillis()}.jpg"
+		
 		Toast.makeText(applicationContext, "Saving image to DCIM/Enclavd...", Toast.LENGTH_SHORT).show()
 
-		// Bypasses DownloadManager to preserve session/cookies/headers natively
+		// 2. Safely jump to the background thread
 		thread {
 			try {
 				val connection = URL(url).openConnection() as HttpURLConnection
 				connection.requestMethod = "GET"
 				
-				// Pass the WebView's exact User-Agent string to prevent scraping blocks
-				connection.setRequestProperty("User-Agent", webView.settings.userAgentString)
+				// Use the locally stored safe string variable
+				connection.setRequestProperty("User-Agent", userAgent)
 				connection.connect()
 
 				if (connection.responseCode == HttpURLConnection.HTTP_OK) {
 					val inputStream: InputStream = connection.inputStream
 					val resolver = contentResolver
 					
-					// Set up the Scoped Storage destination metadata
 					val contentValues = ContentValues().apply {
 						put(MediaStore.MediaColumns.DISPLAY_NAME, cleanFileName)
 						put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
-						// Targets /storage/emulated/0/DCIM/Enclavd
 						put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DCIM + "/Enclavd")
 					}
 
-					// Insert into MediaStore and stream the raw bytes directly to storage
 					val imageUri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
 					if (imageUri != null) {
 						val outputStream: OutputStream? = resolver.openOutputStream(imageUri)
@@ -292,7 +291,6 @@ class MainActivity : AppCompatActivity() {
 						}
 						inputStream.close()
 
-						// Switch back to Main UI thread to alert user of execution success
 						runOnUiThread {
 							Toast.makeText(applicationContext, "Image saved successfully!", Toast.LENGTH_SHORT).show()
 						}
