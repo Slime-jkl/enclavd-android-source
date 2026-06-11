@@ -139,8 +139,8 @@ class MainActivity : AppCompatActivity() {
         val hitTestResult = webView.hitTestResult
         
         // Only show the menu if the user long-pressed an image
-        if (hitTestResult.type == WebView.HitTestResult.IMAGE_TYPE || 
-            hitTestResult.type == WebView.HitTestResult.SRC_IMAGE_TYPE) {
+	if (hitTestResult.type == WebView.HitTestResult.IMAGE_TYPE || 
+		hitTestResult.type == WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE) {
             
             menu?.setHeaderTitle("Actions")
             menu?.add(0, 1, 0, "Save Image")
