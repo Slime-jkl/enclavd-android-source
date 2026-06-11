@@ -244,8 +244,17 @@ class MainActivity : AppCompatActivity() {
 
 		bottomSheetDialog.setContentView(linearLayout)
 		
-		bottomSheetDialog.window?.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
-			?.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+	// Completely strips out the window's default wrapper background style
+		bottomSheetDialog.window?.apply {
+			// Targets the framework container inside the sheet layout hierarchy
+			findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)?.apply {
+				setBackgroundColor(android.graphics.Color.TRANSPARENT)
+				// Removes any background elevation shadows casting artifact boxes
+				elevation = 0f 
+			}
+			// Clears out parent window styling frame artifacts
+			setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+		}
 			
 		bottomSheetDialog.show()
 	}
