@@ -242,18 +242,25 @@ class MainActivity : AppCompatActivity() {
 		}
 		linearLayout.addView(saveOption)
 
-		bottomSheetDialog.setContentView(linearLayout)
+	bottomSheetDialog.setContentView(linearLayout)
 		
-	// Completely strips out the window's default wrapper background style
+		// STRIP ROOT WINDOW FRAME BOUNDS AND SHADOW ARTIFACTS
 		bottomSheetDialog.window?.apply {
-			// Targets the framework container inside the sheet layout hierarchy
-			findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)?.apply {
-				setBackgroundColor(android.graphics.Color.TRANSPARENT)
-				// Removes any background elevation shadows casting artifact boxes
-				elevation = 0f 
-			}
-			// Clears out parent window styling frame artifacts
+			// Clear background dim/frame shapes that create the square bounding box
 			setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+			
+			// Remove standard window flag constraints that enforce rectangular layer bounds
+			clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+		}
+
+		// DISK THE MATERIAL WRAPPER VIEW BACKGROUNDS
+		bottomSheetDialog.setOnShowListener {
+			val bottomSheet = bottomSheetDialog.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
+			bottomSheet?.apply {
+				// Forces the library layout envelope to drop all styles and match our layout shape
+				setBackgroundColor(android.graphics.Color.TRANSPARENT)
+				elevation = 0f
+			}
 		}
 			
 		bottomSheetDialog.show()
