@@ -28,7 +28,14 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.bottomsheet.BottomSheetDialog
+import android.content.ContentValues
+import android.provider.MediaStore
 import java.io.File
+import java.io.InputStream
+import java.io.OutputStream
+import java.net.HttpURLConnection
+import java.net.URL
+import kotlin.concurrent.thread
 
 class MainActivity : AppCompatActivity() {
 
@@ -151,65 +158,77 @@ class MainActivity : AppCompatActivity() {
 		val bottomSheetDialog = BottomSheetDialog(this)
 		val context = this
 		
-		// Main Container with Material styling
+		// Main Container matching Tailwind bg-gray-900 (#111827)
 		val linearLayout = LinearLayout(context).apply {
 			orientation = LinearLayout.VERTICAL
 			layoutParams = ViewGroup.LayoutParams(
 				ViewGroup.LayoutParams.MATCH_PARENT, 
 				ViewGroup.LayoutParams.WRAP_CONTENT
 			)
-			setPadding(0, 48, 0, 64) // Material spacing
+			setPadding(0, 48, 0, 64)
 			
-			// Force a clean white/surface background with rounded top corners
 			val shape = android.graphics.drawable.GradientDrawable().apply {
-				setColor(android.graphics.Color.WHITE)
-				cornerRadii = floatArrayOf(40f, 40f, 40f, 40f, 0f, 0f, 0f, 0f) // Top corners rounded
+				setColor(android.graphics.Color.parseColor("#111827"))
+				cornerRadii = floatArrayOf(40f, 40f, 40f, 40f, 0f, 0f, 0f, 0f)
 			}
 			background = shape
 		}
 
-		// Material 3 Drag Handle Indicator
+		// Drag Handle Indicator (Tailwind gray-700)
 		val dragHandle = View(context).apply {
 			layoutParams = LinearLayout.LayoutParams(96, 12).apply {
 				gravity = android.view.Gravity.CENTER_HORIZONTAL
 				setMargins(0, 0, 0, 48)
 			}
 			val handleShape = android.graphics.drawable.GradientDrawable().apply {
-				setColor(android.graphics.Color.LTGRAY)
+				setColor(android.graphics.Color.parseColor("#374151"))
 				cornerRadius = 6f
 			}
 			background = handleShape
 		}
 		linearLayout.addView(dragHandle)
 
-		// Material Header/Title
+		// Title (Tailwind gray-400)
 		val title = TextView(context).apply {
 			layoutParams = LinearLayout.LayoutParams(
 				LinearLayout.LayoutParams.MATCH_PARENT,
 				LinearLayout.LayoutParams.WRAP_CONTENT
 			)
 			text = "Image Options"
-			textSize = 16f
+			textSize = 14f
 			typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
 			textAlignment = View.TEXT_ALIGNMENT_CENTER
 			setPadding(0, 0, 0, 32)
-			setTextColor(android.graphics.Color.parseColor("#49454F")) // Material Variant Color
+			setTextColor(android.graphics.Color.parseColor("#9CA3AF"))
 		}
 		linearLayout.addView(title)
 
-		// Material Action Row (Clickable Item)
+		// Clickable Option Layout (Tailwind bg-gray-800 hover effect)
 		val saveOption = TextView(context).apply {
 			layoutParams = LinearLayout.LayoutParams(
 				LinearLayout.LayoutParams.MATCH_PARENT,
 				LinearLayout.LayoutParams.WRAP_CONTENT
 			)
 			text = "Save Image to Gallery"
-			textSize = 18f
+			textSize = 16f
 			typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
 			setPadding(64, 40, 64, 40)
-			setTextColor(android.graphics.Color.parseColor("#1D1B20")) // Material Main Text Color
+			setTextColor(android.graphics.Color.parseColor("#F9FAFB")) // off-white
 			
-			// Add native Material ripple effect on click
+			// Load system Image Icon and tint it white
+			val imageIcon = context.packageManager.getUserBadgedIcon(
+				context.packageManager.getDefaultActivityIcon(), 
+				android.os.Process.myUserHandle()
+			)
+			// Alternative safe system icon fallback (ic_menu_gallery)
+			val drawable = androidx.core.content.ContextCompat.getDrawable(context, android.R.drawable.ic_menu_gallery)?.apply {
+				setTint(android.graphics.Color.parseColor("#F9FAFB"))
+				setBounds(0, 0, 64, 64)
+			}
+			setCompoundDrawables(drawable, null, null, null)
+			compoundDrawablePadding = 32
+
+			// Dark theme ripple selection feedback
 			val outValue = android.util.TypedValue()
 			context.theme.resolveAttribute(android.R.attr.selectableItemBackground, outValue, true)
 			setBackgroundResource(outValue.resourceId)
@@ -225,7 +244,6 @@ class MainActivity : AppCompatActivity() {
 
 		bottomSheetDialog.setContentView(linearLayout)
 		
-		// Remove default dialog background dim and shadows that break the shape
 		bottomSheetDialog.window?.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
 			?.setBackgroundColor(android.graphics.Color.TRANSPARENT)
 			
@@ -234,37 +252,62 @@ class MainActivity : AppCompatActivity() {
 
     // DOWNLOAD DIRECTLY TO DCIM/Enclavd & FORCE MEDIA SCANNING
 	private fun saveImageToDCIM(url: String) {
-		val userAgent = webView.settings.userAgentString
-		val fileName = URLUtil.guessFileName(url, null, "image/jpeg")
-		
-		// Explicit targeted relative path inside the public DCIM directory
-		val subPath = "Enclavd/$fileName"
+		// Generate a unique clean filename
+		val cleanFileName = "Enclavd_${System.currentTimeMillis()}.jpg"
+		Toast.makeText(applicationContext, "Saving image to DCIM/Enclavd...", Toast.LENGTH_SHORT).show()
 
-		val request = DownloadManager.Request(Uri.parse(url)).apply {
-			setMimeType("image/jpeg")  
-			addRequestHeader("User-Agent", userAgent)
-			setDescription("Saving image to Enclavd folder...")
-			setTitle(fileName)
-			setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-			
-			// This is the correct way to target subfolders in shared storage
-			setDestinationInExternalPublicDir(Environment.DIRECTORY_DCIM, subPath)
-		}
+		// Bypasses DownloadManager to preserve session/cookies/headers natively
+		thread {
+			try {
+				val connection = URL(url).openConnection() as HttpURLConnection
+				connection.requestMethod = "GET"
+				
+				// Pass the WebView's exact User-Agent string to prevent scraping blocks
+				connection.setRequestProperty("User-Agent", webView.settings.userAgentString)
+				connection.connect()
 
-		val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager?
-		if (dm != null) {
-			dm.enqueue(request)
-			Toast.makeText(applicationContext, "Saving to DCIM/Enclavd...", Toast.LENGTH_LONG).show()
+				if (connection.responseCode == HttpURLConnection.HTTP_OK) {
+					val inputStream: InputStream = connection.inputStream
+					val resolver = contentResolver
+					
+					// Set up the Scoped Storage destination metadata
+					val contentValues = ContentValues().apply {
+						put(MediaStore.MediaColumns.DISPLAY_NAME, cleanFileName)
+						put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+						// Targets /storage/emulated/0/DCIM/Enclavd
+						put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DCIM + "/Enclavd")
+					}
 
-			// Get the absolute path for the media scanner to pick up the file immediately
-			val dcimDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM)
-			val targetFile = File(dcimDir, subPath)
+					// Insert into MediaStore and stream the raw bytes directly to storage
+					val imageUri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+					if (imageUri != null) {
+						val outputStream: OutputStream? = resolver.openOutputStream(imageUri)
+						if (outputStream != null) {
+							val buffer = ByteArray(4096)
+							var bytesRead: Int
+							while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+								outputStream.write(buffer, 0, bytesRead)
+							}
+							outputStream.close()
+						}
+						inputStream.close()
 
-			MediaScannerConnection.scanFile(
-				applicationContext,
-				arrayOf(targetFile.absolutePath),
-				arrayOf("image/jpeg")
-			) { _, _ -> }
+						// Switch back to Main UI thread to alert user of execution success
+						runOnUiThread {
+							Toast.makeText(applicationContext, "Image saved successfully!", Toast.LENGTH_SHORT).show()
+						}
+					}
+				} else {
+					runOnUiThread {
+						Toast.makeText(applicationContext, "Server rejected request (Error ${connection.responseCode})", Toast.LENGTH_LONG).show()
+					}
+				}
+			} catch (e: Exception) {
+				e.printStackTrace()
+				runOnUiThread {
+					Toast.makeText(applicationContext, "Save failed: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+				}
+			}
 		}
 	}
 
