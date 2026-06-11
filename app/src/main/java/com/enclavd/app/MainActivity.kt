@@ -67,12 +67,21 @@ class MainActivity : AppCompatActivity() {
         btnRetry = findViewById(R.id.btnRetry)
         swipeRefresh = findViewById(R.id.swipeRefresh)
 
+        // Web State Engine Settings
         webView.settings.javaScriptEnabled = true
         webView.settings.domStorageEnabled = true
+        webView.settings.databaseEnabled = true
         webView.settings.loadsImagesAutomatically = true
         webView.settings.allowFileAccess = true
+		
+        // Persistent Cookie Storage Architecture
+        val cookieManager = android.webkit.CookieManager.getInstance()
+        cookieManager.setAcceptCookie(true)
+        cookieManager.setAcceptThirdPartyCookies(webView, true) 
+        android.webkit.WebViewDatabase.getInstance(this)
+        cookieManager.flush()
 
-        // MATERIAL UI LONG PRESS DETECTOR
+        // Material UI Long Press Image Detector
         webView.setOnLongClickListener {
             val hitTestResult = webView.hitTestResult
             if (hitTestResult.type == WebView.HitTestResult.IMAGE_TYPE || 
@@ -147,183 +156,165 @@ class MainActivity : AppCompatActivity() {
             webView.reload()
         }
 
+        // FIXED: Cache clearing logic removed to protect active cookies and login sessions
         swipeRefresh.setOnRefreshListener {
-            webView.clearCache(true)
             webView.reload()
         }
     }
 
-    // MODERN MATERIAL DESIGN BOTTOM SHEET DIALOG WITH FIXED DIMENSIONS
-	private fun showMaterialBottomSheet(imageUrl: String) {
-		val bottomSheetDialog = BottomSheetDialog(this)
-		val context = this
+    // Material 3 Dark Themed Bottom Sheet Layout
+    private fun showMaterialBottomSheet(imageUrl: String) {
+        val bottomSheetDialog = BottomSheetDialog(this)
+        val context = this
 		
-		// Main Container matching Tailwind bg-gray-900 (#111827)
-		val linearLayout = LinearLayout(context).apply {
-			orientation = LinearLayout.VERTICAL
-			layoutParams = ViewGroup.LayoutParams(
-				ViewGroup.LayoutParams.MATCH_PARENT, 
-				ViewGroup.LayoutParams.WRAP_CONTENT
-			)
-			setPadding(0, 48, 0, 64)
+        val linearLayout = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            setPadding(0, 48, 0, 64)
 			
-			val shape = android.graphics.drawable.GradientDrawable().apply {
-				setColor(android.graphics.Color.parseColor("#111827"))
-				cornerRadii = floatArrayOf(40f, 40f, 40f, 40f, 0f, 0f, 0f, 0f)
-			}
-			background = shape
-		}
+            val shape = android.graphics.drawable.GradientDrawable().apply {
+                setColor(android.graphics.Color.parseColor("#111827")) // Tailwind bg-gray-900
+                cornerRadii = floatArrayOf(40f, 40f, 40f, 40f, 0f, 0f, 0f, 0f)
+            }
+            background = shape
+        }
 
-		// Drag Handle Indicator (Tailwind gray-700)
-		val dragHandle = View(context).apply {
-			layoutParams = LinearLayout.LayoutParams(96, 12).apply {
-				gravity = android.view.Gravity.CENTER_HORIZONTAL
-				setMargins(0, 0, 0, 48)
-			}
-			val handleShape = android.graphics.drawable.GradientDrawable().apply {
-				setColor(android.graphics.Color.parseColor("#374151"))
-				cornerRadius = 6f
-			}
-			background = handleShape
-		}
-		linearLayout.addView(dragHandle)
+        // Drag Handle (Tailwind gray-700)
+        val dragHandle = View(context).apply {
+            layoutParams = LinearLayout.LayoutParams(96, 12).apply {
+                gravity = android.view.Gravity.CENTER_HORIZONTAL
+                setMargins(0, 0, 0, 48)
+            }
+            val handleShape = android.graphics.drawable.GradientDrawable().apply {
+                setColor(android.graphics.Color.parseColor("#374151"))
+                cornerRadius = 6f
+            }
+            background = handleShape
+        }
+        linearLayout.addView(dragHandle)
 
-		// Title (Tailwind gray-400)
-		val title = TextView(context).apply {
-			layoutParams = LinearLayout.LayoutParams(
-				LinearLayout.LayoutParams.MATCH_PARENT,
-				LinearLayout.LayoutParams.WRAP_CONTENT
-			)
-			text = "Image Options"
-			textSize = 14f
-			typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
-			textAlignment = View.TEXT_ALIGNMENT_CENTER
-			setPadding(0, 0, 0, 32)
-			setTextColor(android.graphics.Color.parseColor("#9CA3AF"))
-		}
-		linearLayout.addView(title)
+        // Header Title (Tailwind gray-400)
+        val title = TextView(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            text = "Image Options"
+            textSize = 14f
+            typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+            textAlignment = View.TEXT_ALIGNMENT_CENTER
+            setPadding(0, 0, 0, 32)
+            setTextColor(android.graphics.Color.parseColor("#9CA3AF"))
+        }
+        linearLayout.addView(title)
 
-		// Clickable Option Layout (Tailwind bg-gray-800 hover effect)
-		val saveOption = TextView(context).apply {
-			layoutParams = LinearLayout.LayoutParams(
-				LinearLayout.LayoutParams.MATCH_PARENT,
-				LinearLayout.LayoutParams.WRAP_CONTENT
-			)
-			text = "Save Image to Gallery"
-			textSize = 16f
-			typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
-			setPadding(64, 40, 64, 40)
-			setTextColor(android.graphics.Color.parseColor("#F9FAFB")) // off-white
+        // Action Row Button (Tailwind text-gray-50)
+        val saveOption = TextView(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            text = "Save Image to Gallery"
+            textSize = 16f
+            typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
+            setPadding(64, 40, 64, 40)
+            setTextColor(android.graphics.Color.parseColor("#F9FAFB"))
 			
-			// Load system Image Icon and tint it white
-			val imageIcon = context.packageManager.getUserBadgedIcon(
-				context.packageManager.getDefaultActivityIcon(), 
-				android.os.Process.myUserHandle()
-			)
-			// Alternative safe system icon fallback (ic_menu_gallery)
-			val drawable = androidx.core.content.ContextCompat.getDrawable(context, android.R.drawable.ic_menu_gallery)?.apply {
-				setTint(android.graphics.Color.parseColor("#F9FAFB"))
-				setBounds(0, 0, 64, 64)
-			}
-			setCompoundDrawables(drawable, null, null, null)
-			compoundDrawablePadding = 32
+            val drawable = androidx.core.content.ContextCompat.getDrawable(context, android.R.drawable.ic_menu_gallery)?.apply {
+                setTint(android.graphics.Color.parseColor("#F9FAFB"))
+                setBounds(0, 0, 64, 64)
+            }
+            setCompoundDrawables(drawable, null, null, null)
+            compoundDrawablePadding = 32
 
-			// Dark theme ripple selection feedback
-			val outValue = android.util.TypedValue()
-			context.theme.resolveAttribute(android.R.attr.selectableItemBackground, outValue, true)
-			setBackgroundResource(outValue.resourceId)
-			isClickable = true
-			isFocusable = true
+            val outValue = android.util.TypedValue()
+            context.theme.resolveAttribute(android.R.attr.selectableItemBackground, outValue, true)
+            setBackgroundResource(outValue.resourceId)
+            isClickable = true
+            isFocusable = true
 
-			setOnClickListener {
-				saveImageToDCIM(imageUrl)
-				bottomSheetDialog.dismiss()
-			}
-		}
-		linearLayout.addView(saveOption)
+            setOnClickListener {
+                saveImageToDCIM(imageUrl)
+                bottomSheetDialog.dismiss()
+            }
+        }
+        linearLayout.addView(saveOption)
 
-	bottomSheetDialog.setContentView(linearLayout)
+        bottomSheetDialog.setContentView(linearLayout)
 		
-		// STRIP ROOT WINDOW FRAME BOUNDS AND SHADOW ARTIFACTS
-		bottomSheetDialog.window?.apply {
-			// Clear background dim/frame shapes that create the square bounding box
-			setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
-			
-			// Remove standard window flag constraints that enforce rectangular layer bounds
-			clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-		}
+        // FIXED: Transparent mask applied directly onto the platform content view holder shell
+        bottomSheetDialog.window?.apply {
+            setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+        }
 
-		// DISK THE MATERIAL WRAPPER VIEW BACKGROUNDS
-		bottomSheetDialog.setOnShowListener {
-			val bottomSheet = bottomSheetDialog.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
-			bottomSheet?.apply {
-				// Forces the library layout envelope to drop all styles and match our layout shape
-				setBackgroundColor(android.graphics.Color.TRANSPARENT)
-				elevation = 0f
-			}
-		}
+        bottomSheetDialog.setOnShowListener {
+            val bottomSheet = bottomSheetDialog.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
+            bottomSheet?.apply {
+                setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                elevation = 0f
+            }
+        }
 			
-		bottomSheetDialog.show()
-	}
+        bottomSheetDialog.show()
+    }
 
-    // DOWNLOAD DIRECTLY TO DCIM/Enclavd & FORCE MEDIA SCANNING
-	private fun saveImageToDCIM(url: String) {
-		// 1. Grab the User-Agent on the MAIN THREAD before starting the background worker
-		val userAgent = webView.settings.userAgentString
-		val cleanFileName = "Enclavd_${System.currentTimeMillis()}.jpg"
+    // Authenticated Background Stream Storage Pipeline
+    private fun saveImageToDCIM(url: String) {
+        val userAgent = webView.settings.userAgentString
+        val cleanFileName = "Enclavd_${System.currentTimeMillis()}.jpg"
 		
-		Toast.makeText(applicationContext, "Saving image to DCIM/Enclavd...", Toast.LENGTH_SHORT).show()
+        Toast.makeText(applicationContext, "Saving image to DCIM/Enclavd...", Toast.LENGTH_SHORT).show()
 
-		// 2. Safely jump to the background thread
-		thread {
-			try {
-				val connection = URL(url).openConnection() as HttpURLConnection
-				connection.requestMethod = "GET"
-				
-				// Use the locally stored safe string variable
-				connection.setRequestProperty("User-Agent", userAgent)
-				connection.connect()
+        thread {
+            try {
+                val connection = URL(url).openConnection() as HttpURLConnection
+                connection.requestMethod = "GET"
+                connection.setRequestProperty("User-Agent", userAgent)
+                connection.connect()
 
-				if (connection.responseCode == HttpURLConnection.HTTP_OK) {
-					val inputStream: InputStream = connection.inputStream
-					val resolver = contentResolver
+                if (connection.responseCode == HttpURLConnection.HTTP_OK) {
+                    val inputStream: InputStream = connection.inputStream
+                    val resolver = contentResolver
 					
-					val contentValues = ContentValues().apply {
-						put(MediaStore.MediaColumns.DISPLAY_NAME, cleanFileName)
-						put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
-						put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DCIM + "/Enclavd")
-					}
+                    val contentValues = ContentValues().apply {
+                        put(MediaStore.MediaColumns.DISPLAY_NAME, cleanFileName)
+                        put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+                        put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DCIM + "/Enclavd")
+                    }
 
-					val imageUri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-					if (imageUri != null) {
-						val outputStream: OutputStream? = resolver.openOutputStream(imageUri)
-						if (outputStream != null) {
-							val buffer = ByteArray(4096)
-							var bytesRead: Int
-							while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-								outputStream.write(buffer, 0, bytesRead)
-							}
-							outputStream.close()
-						}
-						inputStream.close()
+                    val imageUri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+                    if (imageUri != null) {
+                        val outputStream: OutputStream? = resolver.openOutputStream(imageUri)
+                        if (outputStream != null) {
+                            val buffer = ByteArray(4096)
+                            var bytesRead: Int
+                            while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                                outputStream.write(buffer, 0, bytesRead)
+                            }
+                            outputStream.close()
+                        }
+                        inputStream.close()
 
-						runOnUiThread {
-							Toast.makeText(applicationContext, "Image saved successfully!", Toast.LENGTH_SHORT).show()
-						}
-					}
-				} else {
-					runOnUiThread {
-						Toast.makeText(applicationContext, "Server rejected request (Error ${connection.responseCode})", Toast.LENGTH_LONG).show()
-					}
-				}
-			} catch (e: Exception) {
-				e.printStackTrace()
-				runOnUiThread {
-					Toast.makeText(applicationContext, "Save failed: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
-				}
-			}
-		}
-	}
+                        runOnUiThread {
+                            Toast.makeText(applicationContext, "Image saved successfully!", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                } else {
+                    runOnUiThread {
+                        Toast.makeText(applicationContext, "Server rejected request (Error ${connection.responseCode})", Toast.LENGTH_LONG).show()
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                runOnUiThread {
+                    Toast.makeText(applicationContext, "Save failed: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
 
     private fun triggerStandardDownload(url: String, userAgent: String?, contentDisposition: String?, mimeType: String?) {
         val request = DownloadManager.Request(Uri.parse(url)).apply {
@@ -358,5 +349,10 @@ class MainActivity : AppCompatActivity() {
         } else {
             super.onBackPressed()
         }
+    }
+	
+    override fun onPause() {
+        super.onPause()
+        android.webkit.CookieManager.getInstance().flush()
     }
 }
