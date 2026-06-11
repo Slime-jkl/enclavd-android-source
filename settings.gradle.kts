@@ -19,6 +19,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "ZeoChat"
+rootProject.name = "Enclavd"
 include(":app")
  

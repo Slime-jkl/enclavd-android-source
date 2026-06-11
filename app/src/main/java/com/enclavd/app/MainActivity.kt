@@ -3,14 +3,15 @@ package com.enclavd.app
 import android.annotation.SuppressLint
 import android.app.DownloadManager
 import android.content.ActivityNotFoundException
+import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
-import android.view.ContextMenu
-import android.view.MenuItem
 import android.view.View
+import android.view.ViewGroup
 import android.webkit.URLUtil
 import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
@@ -19,11 +20,15 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Button
+import android.widget.LinearLayout
 import android.widget.RelativeLayout
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import java.io.File
 
 class MainActivity : AppCompatActivity() {
 
@@ -60,8 +65,21 @@ class MainActivity : AppCompatActivity() {
         webView.settings.loadsImagesAutomatically = true
         webView.settings.allowFileAccess = true
 
-        // REGISTER WEBVIEW FOR CONTEXT MENU (LONG PRESS)
-        registerForContextMenu(webView)
+        // MATERIAL UI LONG PRESS DETECTOR
+        webView.setOnLongClickListener {
+            val hitTestResult = webView.hitTestResult
+            if (hitTestResult.type == WebView.HitTestResult.IMAGE_TYPE || 
+                hitTestResult.type == WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE) {
+                
+                val imageUrl = hitTestResult.extra
+                if (imageUrl != null) {
+                    showMaterialBottomSheet(imageUrl)
+                }
+                true
+            } else {
+                false
+            }
+        }
 
         webView.webChromeClient = object : WebChromeClient() {
             override fun onShowFileChooser(
@@ -89,7 +107,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         webView.setDownloadListener { url, userAgent, contentDisposition, mimeType, _ ->
-            triggerDownload(url, userAgent, contentDisposition, mimeType)
+            triggerStandardDownload(url, userAgent, contentDisposition, mimeType)
         }
 
         webView.webViewClient = object : WebViewClient() {
@@ -98,11 +116,7 @@ class MainActivity : AppCompatActivity() {
                 isError = false
             }
 
-            override fun onReceivedError(
-                view: WebView?,
-                request: WebResourceRequest?,
-                error: WebResourceError?
-            ) {
+            override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
                 super.onReceivedError(view, request, error)
                 isError = true
                 showErrorScreen()
@@ -132,40 +146,90 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // CREATE THE LONG-PRESS CONTEXT MENU
-    override fun onCreateContextMenu(menu: ContextMenu?, v: View?, menuInfo: ContextMenu.ContextMenuInfo?) {
-        super.onCreateContextMenu(menu, v, menuInfo)
+    // MODERN MATERIAL DESIGN BOTTOM SHEET DIALOG WITH FIXED DIMENSIONS
+    private fun showMaterialBottomSheet(imageUrl: String) {
+        val bottomSheetDialog = BottomSheetDialog(this)
+        val context = this
         
-        val hitTestResult = webView.hitTestResult
-        
-        // Only show the menu if the user long-pressed an image
-	if (hitTestResult.type == WebView.HitTestResult.IMAGE_TYPE || 
-		hitTestResult.type == WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE) {
-            
-            menu?.setHeaderTitle("Actions")
-            menu?.add(0, 1, 0, "Save Image")
+        val linearLayout = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, 
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            setPadding(60, 60, 60, 80)
         }
-    }
 
-    // HANDLE CONTEXT MENU ITEM CLICK
-    override fun onContextItemSelected(item: MenuItem): Boolean {
-        if (item.itemId == 1) {
-            val hitTestResult = webView.hitTestResult
-            val imageUrl = hitTestResult.extra // This gets the raw URL of the long-pressed image
-            
-            if (imageUrl != null) {
-                val userAgent = webView.settings.userAgentString
-                triggerDownload(imageUrl, userAgent, null, null)
-            } else {
-                Toast.makeText(this, "Failed to get image URL", Toast.LENGTH_SHORT).show()
+        val title = TextView(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            text = "Actions"
+            textSize = 18f
+            textAlignment = View.TEXT_ALIGNMENT_CENTER
+            setPadding(0, 10, 0, 50)
+            setTextColor(resources.getColor(android.R.color.black, theme))
+        }
+
+        val saveOption = TextView(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            text = "Save Image"
+            textSize = 16f
+            setPadding(40, 40, 40, 40)
+            setTextColor(resources.getColor(android.R.color.holo_blue_dark, theme))
+            setOnClickListener {
+                saveImageToDCIM(imageUrl)
+                bottomSheetDialog.dismiss()
             }
-            return true
         }
-        return super.onContextItemSelected(item)
+
+        linearLayout.addView(title)
+        linearLayout.addView(saveOption)
+        bottomSheetDialog.setContentView(linearLayout)
+        bottomSheetDialog.show()
     }
 
-    // REUSABLE DOWNLOAD LOGIC
-    private fun triggerDownload(url: String, userAgent: String?, contentDisposition: String?, mimeType: String?) {
+    // DOWNLOAD DIRECTLY TO DCIM/Enclavd & FORCE MEDIA SCANNING
+    private fun saveImageToDCIM(url: String) {
+        val userAgent = webView.settings.userAgentString
+        val fileName = URLUtil.guessFileName(url, null, "image/jpeg")
+        
+        val dcimDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM)
+        val customFolder = File(dcimDir, "Enclavd")
+        if (!customFolder.exists()) {
+            customFolder.mkdirs()
+        }
+        
+        val targetFile = File(customFolder, fileName)
+
+        val request = DownloadManager.Request(Uri.parse(url)).apply {
+            setMimeType("image/jpeg")  
+            addRequestHeader("User-Agent", userAgent)
+            setDescription("Saving image...")
+            setTitle(fileName)
+            setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            setDestinationUri(Uri.fromFile(targetFile))
+        }
+
+        val dm = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager?
+        if (dm != null) {
+            dm.enqueue(request)
+            Toast.makeText(applicationContext, "Saving to DCIM/Enclavd...", Toast.LENGTH_LONG).show()
+
+            // Forces gallery visibility instantly 
+            MediaScannerConnection.scanFile(
+                applicationContext,
+                arrayOf(targetFile.absolutePath),
+                arrayOf("image/jpeg")
+            ) { _, _ -> }
+        }
+    }
+
+    private fun triggerStandardDownload(url: String, userAgent: String?, contentDisposition: String?, mimeType: String?) {
         val request = DownloadManager.Request(Uri.parse(url)).apply {
             if (mimeType != null) setMimeType(mimeType)
             if (userAgent != null) addRequestHeader("User-Agent", userAgent)
@@ -178,7 +242,7 @@ class MainActivity : AppCompatActivity() {
         val dm = getSystemService(DOWNLOAD_SERVICE) as DownloadManager?
         if (dm != null) {
             dm.enqueue(request)
-            Toast.makeText(applicationContext, "Saving Image...", Toast.LENGTH_LONG).show()
+            Toast.makeText(applicationContext, "Saving image...", Toast.LENGTH_LONG).show()
         }
     }
 
