@@ -10,8 +10,8 @@ android {
         applicationId = "com.enclavd.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.2.4"
+        versionCode = 5
+        versionName = "1.2.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -45,6 +45,7 @@ android {
 }
 
 dependencies {
+	implementation("androidx.core:core-splashscreen:1.0.1")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
@@ -54,4 +55,5 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+
 }

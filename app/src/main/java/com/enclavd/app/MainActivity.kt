@@ -36,6 +36,7 @@ import java.io.OutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.concurrent.thread
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 
 class MainActivity : AppCompatActivity() {
 
@@ -44,6 +45,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnRetry: Button
     private lateinit var swipeRefresh: SwipeRefreshLayout
     private var isError = false
+	private lateinit var splashOverlay: RelativeLayout
 
     private var uploadMessage: ValueCallback<Array<Uri>>? = null
 
@@ -59,6 +61,7 @@ class MainActivity : AppCompatActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
+		val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
@@ -66,6 +69,7 @@ class MainActivity : AppCompatActivity() {
         layoutError = findViewById(R.id.layoutError)
         btnRetry = findViewById(R.id.btnRetry)
         swipeRefresh = findViewById(R.id.swipeRefresh)
+		splashOverlay = findViewById(R.id.splashOverlay)
 
         // Web State Engine Settings
         webView.settings.javaScriptEnabled = true
@@ -137,11 +141,13 @@ class MainActivity : AppCompatActivity() {
                 isError = true
                 showErrorScreen()
                 swipeRefresh.isRefreshing = false
+				splashOverlay.visibility = View.GONE
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 swipeRefresh.isRefreshing = false
+				splashOverlay.visibility = View.GONE
                 if (!isError) {
                     showWebView()
                 }
