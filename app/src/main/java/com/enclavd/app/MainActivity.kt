@@ -130,7 +130,21 @@ class MainActivity : AppCompatActivity() {
             triggerStandardDownload(url, userAgent, contentDisposition, mimeType)
         }
 
-        webView.webViewClient = object : WebViewClient() {
+		webView.webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                val url = request?.url.toString()
+                val host = Uri.parse(url).host ?: ""
+
+                if (host.endsWith("enclavd.com")) {
+                    return false // Stay in WebView
+                }
+
+                // Open external links in browser
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                startActivity(intent)
+                return true
+            }
+
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
                 isError = false
@@ -141,13 +155,13 @@ class MainActivity : AppCompatActivity() {
                 isError = true
                 showErrorScreen()
                 swipeRefresh.isRefreshing = false
-				splashOverlay.visibility = View.GONE
+                splashOverlay.visibility = View.GONE
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 swipeRefresh.isRefreshing = false
-				splashOverlay.visibility = View.GONE
+                splashOverlay.visibility = View.GONE
                 if (!isError) {
                     showWebView()
                 }
