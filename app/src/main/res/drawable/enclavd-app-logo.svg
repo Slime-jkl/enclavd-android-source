@@ -1,0 +1,10 @@
+<svg version="1.2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="500" height="500">
+	<defs>
+		<image  width="500" height="500" id="img1" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAfQAAAH0AQMAAADxGE3JAAAAAXNSR0IB2cksfwAAAANQTFRFAwcSGcRkDAAAAHhJREFUeJztyzENAAAMA6DVv+mJ6NfAT64T3/d93/d93/d93/d93/d93/d93/d93/d93/d93/d93/d93/d93/d93/d93/d93/d93/d93/d93/d93/d93/d93/d93/d93/d93/d93/d93/d93/d93/d93/d93/dn/gPUpgH1slVP1AAAAABJRU5ErkJggg=="/>
+	</defs>
+	<style>
+		.s0 { fill: #ffffff } 
+	</style>
+	<use id="Layer 1" href="#img1" x="0" y="0"/>
+	<path id="E-Center" fill-rule="evenodd" class="s0" d="m427.2 153.65l-18.01 10.45q45.61 89.39-5.18 183.58l14.39 12.59q-24.1 36.98-60.43 61.48l-12.7-17.73q-89.67 53.11-184.89 2.38l-9.79 18.83q-49.31-30.33-77.83-79.4l19.27-8.95q-48.14-94.61 5.8-184.91l-17.68-12.63q25.66-37.16 63.54-61.84l12.02 17.7q92.01-52.75 182.99-1.84l11.4-18.96q25.44 14.63 44.72 34.45 19.27 19.81 32.38 44.8zm-91.23 225.13l30.67-50.94v-0.79h-153.19l1.55-49.05 80-1 35-54.2-116 0.2-0.55-50.03h121.95l31.13-51.73h-233.63l26.38 45.7v173.45l-22.17 38.39z"/>
+</svg>
