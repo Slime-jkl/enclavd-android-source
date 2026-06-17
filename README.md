@@ -1,77 +1,47 @@
-# Android WebView App Template
+# Enclavd
+<center>
+<img width="2264" height="944" alt="enclavd-android" src="https://github.com/user-attachments/assets/ac709a58-21c1-4188-9f79-9a37fcec8175" />
+</center>
 
-This is a simple Android application that loads a website into a WebView. It includes a Splash Screen and a Main Activity that handles the web browsing experience.
 
-## Getting Started
 
-1.  **Open in Android Studio**:
-    - Open Android Studio.
-    - Select "Open an existing Android Studio project".
-    - Navigate to this folder and click "Open".
-2.  **Run the App**:
-    - Connect your Android device or start an Emulator.
-    - Click the green "Run" button (Play icon) in the toolbar.
+A native Android wrapper for [enclavd.com](https://enclavd.com/?utm_source=github&utm_medium=android-app&utm_campaign=android-app-source), designed to provide a fast, secure, and seamless mobile web experience.
 
----
+## Features
 
-## Configuration & Customization
+* **Native WebView Integration**: Persistent cookie management and optimized User-Agent handling.
+* **App Links**: Full support for [enclavd.com](https://enclavd.com/?utm_source=github&utm_medium=android-app&utm_campaign=android-app-source) deep linking.
+* **Media Management**: Native image downloading (saved directly to DCIM) and robust file upload support.
+* **Modern UI**: Implemented with AndroidX Splash Screen API, adaptive WebP launcher icons, and Material Design bottom sheets.
+* **Performance**: Lightweight architecture with automated error handling and native-feel navigation.
 
-You can easily customize the app by modifying a few files.
+## Build Instructions
 
-### 1. Change Website URL
+### Prerequisites
+* Android Studio (latest stable version)
+* JDK 17+
+* Android SDK (Target API 34+)
 
-To change the website that loads in the app:
+### Compilation
+1. Clone the repository: `git clone https://github.com/Slime-jkl/enclavd-android.git`
+2. Open in Android Studio: Select the root directory.
+3. Build: The project uses Gradle to manage dependencies. Once opened, sync the project and run the app configuration.
 
-1.  Open `app/src/main/res/values/strings.xml`.
-2.  Change the value of `website_url`.
-    ```xml
-    <string name="website_url">https://www.yourwebsite.com/</string>
-    ```
+## Configuration
 
-### 2. Change App Name
+* **Website URL & UTMs**: Modify `app/src/main/res/values/strings.xml` to update the base URL or adjust tracking parameters.
+* **Branding**: Colors are centralized in `app/src/main/res/values/colors.xml`.
+* **Assets**: Launcher icons are managed as adaptive WebP assets. Use the Android Studio Image Asset Studio to update branding imagery.
 
-To change the name of the app as it appears on the phone:
+## Technical Roadmap
 
-1.  Open `app/src/main/res/values/strings.xml`.
-2.  Change the value of `app_name`.
-    ```xml
-    <string name="app_name">Your App Name</string>
-    ```
+* **Current Version**: 1.2.7
+* **CI/CD**: Automated builds and integrity checks are managed via GitHub Actions (.github/workflows/android.yml).
+* **Contribution Guidelines**: 
+    * Maintain MainActivity.kt logic for intent filtering.
+    * Ensure all new UI overlays utilize Material Design components.
+    * Verify file system permissions (MediaStore) before submitting changes.
 
-### 3. Change App Icon (Logo)
+## License
 
-The main logo file is located at `app/src/main/res/drawable/logo.png`.
-
-**To update the app icon:**
-
-1.  Replace `app/src/main/res/drawable/logo.png` with your new logo file (ensure it is a PNG).
-2.  For the launcher icon (the icon on the home screen), you should use the **Image Asset Studio**:
-    - Right-click on the `app` folder in Android Studio.
-    - Go to **New** > **Image Asset**.
-    - Select your new logo image in the "Path" field.
-    - Adjust the scaling and background.
-    - Click **Next** and then **Finish**.
-
-### 4. Change Colors
-
-To change the app's theme colors (toolbar, status bar, etc.):
-
-1.  Open `app/src/main/res/values/colors.xml`.
-2.  Update the hex codes for the colors.
-    - `purple_500`: The primary color of the app (Toolbar).
-    - `brand_color`: Used for specific branding elements.
-    - `black` / `white`: Standard colors.
-
-Example:
-
-```xml
-<color name="purple_500">#E91E63</color> <!-- Change to your brand color -->
-```
-
-### 5. Customize "No Internet" Screen
-
-The app shows a custom screen when there is no internet connection.
-
-- **Icon**: The icon is located at `app/src/main/res/drawable/ic_wifi_off.xml`. You can replace `ic_wifi_off.xml` with another vector drawable.
-- **Message**: To change the text "No Internet Connection" or the error message, update the strings in `activity_main.xml` (or ideally, extract them to `strings.xml`).
-- **Layout**: You can modify the design in `app/src/main/res/layout/activity_main.xml` inside the `RelativeLayout` with ID `layoutError`.
+This project is open-sourced under the [GPL-3.0] license. See the LICENSE file for full terms.
