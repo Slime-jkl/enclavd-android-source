@@ -1,8 +1,9 @@
 <resources>
     <string name="app_name">Enclavd</string>
-	<string name="website_url">https://enclavd.com?utm_source=github-download&amp;utm_medium=android-app</string>
+	<string name="website_url">https://enclavd.com?utm_source=f-droid&amp;utm_medium=android-app</string>
     
 	<!--
+	<string name="website_url">https://enclavd.com?utm_source=github-download&amp;utm_medium=android-app</string>
 	<string name="website_url">https://enclavd.com?utm_source=google-play&amp;utm_medium=android-app</string>
 	-->
 </resources>
