@@ -18,26 +18,10 @@ android {
 
 
 
-// Only define signingConfigs if we are NOT on F-Droid
-    if (System.getenv("FDROID") == null) {
-        signingConfigs {
-            create("release") {
-                val keyFile = System.getenv("SIGNING_KEY_FILE")
-                storeFile = if (!keyFile.isNullOrEmpty()) file(keyFile) else null
-                storePassword = System.getenv("KEY_STORE_PASSWORD")
-                keyAlias = System.getenv("ALIAS")
-                keyPassword = System.getenv("KEY_PASSWORD")
-            }
-        }
-    }
 
     buildTypes {
         getByName("release") {
             isMinifyEnabled = false
-            // Only attach signing config if it exists (meaning we are NOT on F-Droid)
-            if (System.getenv("FDROID") == null) {
-                signingConfig = signingConfigs.getByName("release")
-            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
