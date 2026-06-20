@@ -17,22 +17,17 @@ android {
     }
 
 
-//Comment out for F-Droid.
-//    signingConfigs {
-//        create("release") {
-//            // Corrected Kotlin DSL syntax for environment variables
-//            val keyFile = System.getenv("SIGNING_KEY_FILE")
-//            storeFile = if (!keyFile.isNullOrEmpty()) file(keyFile) else null
-//            storePassword = System.getenv("KEY_STORE_PASSWORD")
-//            keyAlias = System.getenv("ALIAS")
-//            keyPassword = System.getenv("KEY_PASSWORD")
-//        }
-//    }
+
+    signingConfigs {
+        create("release") {
+
+        }
+    }
 
     buildTypes {
         getByName("release") {
             isMinifyEnabled = false
-//            signingConfig = signingConfigs.getByName("release") // Attaches the signing config
+
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
