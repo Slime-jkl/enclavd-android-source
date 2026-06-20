@@ -15,7 +15,7 @@
 		android:roundIcon="@drawable/logo"
 		android:supportsRtl="true"
 		android:theme="@style/Theme.Enclavd"
-		android:usesCleartextTraffic="true">
+		android:usesCleartextTraffic="false">
 
 		<activity
 			android:name=".MainActivity"
