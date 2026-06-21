@@ -29,16 +29,22 @@ android {
 		}
 	}
 
-    buildTypes {
-        getByName("release") {
-            isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("release") // Attaches the signing config
-            proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
-            )
-        }
-    }
+	buildTypes {
+		getByName("release") {
+			isMinifyEnabled = false
+			
+			// Check if the config is valid before assigning it
+			val releaseConfig = signingConfigs.getByName("release")
+			if (releaseConfig.storeFile != null) {
+				signingConfig = releaseConfig
+			}
+			
+			proguardFiles(
+				getDefaultProguardFile("proguard-android-optimize.txt"),
+				"proguard-rules.pro"
+			)
+		}
+	}
     
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
