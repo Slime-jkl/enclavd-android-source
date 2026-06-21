@@ -18,13 +18,6 @@ android {
 
 
 
-	signingConfigs {
-        create("release") {
-
-            }
-        }
-    }
-
     buildTypes {
         getByName("release") {
             isMinifyEnabled = false
