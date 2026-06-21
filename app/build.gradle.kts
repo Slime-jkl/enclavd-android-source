@@ -19,30 +19,21 @@ android {
 
 
 	signingConfigs {
-		create("release") {
-			if (System.getenv("IS_GITHUB_ACTION") == "true") {
-				storeFile = file(System.getenv("SIGNING_KEY_FILE"))
-				storePassword = System.getenv("KEY_STORE_PASSWORD")
-				keyAlias = System.getenv("ALIAS")
-				keyPassword = System.getenv("KEY_PASSWORD")
-			}
-		}
-	}
+        create("release") {
 
-	buildTypes {
+            }
+        }
+    }
+
+    buildTypes {
         getByName("release") {
             isMinifyEnabled = false
-            
-            // 2. Use 'named' to look up the configuration
-            // This is safer and handles lifecycle timing better than getByName
-            signingConfig = signingConfigs.named("release").get()
-            
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
         }
-	}
+    }
     
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
