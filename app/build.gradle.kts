@@ -20,8 +20,7 @@ android {
 
 	signingConfigs {
 		create("release") {
-			// Only attempt to set signing if the property is present
-			if (project.hasProperty("enableSigning")) {
+			if (System.getenv("IS_GITHUB_ACTION") == "true") {
 				storeFile = file(System.getenv("SIGNING_KEY_FILE"))
 				storePassword = System.getenv("KEY_STORE_PASSWORD")
 				keyAlias = System.getenv("ALIAS")

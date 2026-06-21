@@ -31,6 +31,7 @@ jobs:
 
     - name: Build and Sign Release APK & AAB
       env:
+        IS_GITHUB_ACTION: "true" # Only signs on github actions, fdroid = unsigned
         SIGNING_KEY_FILE: "release-keystore.jks"
         KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
         ALIAS: ${{ secrets.ALIAS }}
