@@ -1,0 +1,9 @@
+build_release:
+  stage: build
+  variables:
+    # This is the path your code is looking for
+    SIGNING_KEY_FILE: "release.jks"
+  script:
+    # This turns your secret into the file your code expects
+    - echo $SIGNING_KEY_BASE64 | base64 -d > release.jks
+    - ./gradlew assembleRelease

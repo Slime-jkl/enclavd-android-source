@@ -18,10 +18,22 @@ android {
 
 
 
+	signingConfigs {
+        create("release") {
+            val storePath = System.getenv("SIGNING_KEY_FILE")
+            if (!storePath.isNullOrEmpty() && file(storePath).exists()) {
+                storeFile = file(storePath)
+                storePassword = System.getenv("KEY_STORE_PASSWORD")
+                keyAlias = System.getenv("ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
+        }
+    }
 
     buildTypes {
         getByName("release") {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release") // Attaches the signing config
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
