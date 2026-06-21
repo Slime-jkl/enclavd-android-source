@@ -16,12 +16,27 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-
-
+    signingConfigs {
+        // Create the configuration conditionally
+        if (System.getenv("IS_GITHUB_ACTION") == "true") {
+            create("release") {
+                storeFile = file(System.getenv("SIGNING_KEY_FILE") ?: "")
+                storePassword = System.getenv("KEY_STORE_PASSWORD")
+                keyAlias = System.getenv("ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
+        }
+    }
 
     buildTypes {
         getByName("release") {
             isMinifyEnabled = false
+            
+            // USE THIS: findByName returns null if it doesn't exist,
+            // which the Android plugin accepts as "build unsigned".
+            // getByName crashes if it's missing.
+            signingConfig = signingConfigs.findByName("release")
+            
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
