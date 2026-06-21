@@ -1,4 +1,4 @@
-name: Build Android Release
+name: Build Unsigned
 
 on:
   # Allows you to manually trigger this workflow from the GitHub Actions tab
