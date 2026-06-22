@@ -93,8 +93,8 @@ class MainActivity : AppCompatActivity() {
 
         val window = this.window
         window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
-        window.statusBarColor = android.graphics.Color.parseColor("#0A1120")
-        window.navigationBarColor = android.graphics.Color.parseColor("#0A1120")
+        window.statusBarColor = android.graphics.Color.parseColor("#FF0A1120")
+        window.navigationBarColor = android.graphics.Color.parseColor("#FF0A1120")
         
         val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
         windowInsetsController.isAppearanceLightStatusBars = false
