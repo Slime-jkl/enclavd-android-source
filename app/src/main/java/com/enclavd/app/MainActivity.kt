@@ -52,6 +52,8 @@ import androidx.work.WorkManager
 import java.util.concurrent.TimeUnit
 import android.os.Handler
 import android.os.Looper
+import android.view.WindowManager
+import androidx.core.view.WindowCompat
 
 class MainActivity : AppCompatActivity() {
 
@@ -88,6 +90,15 @@ class MainActivity : AppCompatActivity() {
 		val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        val window = this.window
+        window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
+        window.statusBarColor = android.graphics.Color.parseColor("#0A1120")
+        window.navigationBarColor = android.graphics.Color.parseColor("#0A1120")
+        
+        val windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
+        windowInsetsController.isAppearanceLightStatusBars = false
+        windowInsetsController.isAppearanceLightNavigationBars = false
 
         webView = findViewById(R.id.webView)
         layoutError = findViewById(R.id.layoutError)
