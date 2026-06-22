@@ -5,6 +5,8 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
@@ -19,6 +21,23 @@ class NotificationWorker(
     private val context: Context,
     workerParams: WorkerParameters
 ) : CoroutineWorker(context, workerParams) {
+
+    private fun downloadBitmap(urlStr: String): Bitmap? {
+        return try {
+            val url = URL(urlStr)
+            val connection = url.openConnection() as HttpURLConnection
+            connection.doInput = true
+            connection.connect()
+            if (connection.responseCode == HttpURLConnection.HTTP_OK) {
+                BitmapFactory.decodeStream(connection.inputStream)
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
 
     override suspend fun doWork(): Result {
         return try {
@@ -55,7 +74,22 @@ class NotificationWorker(
                         if (id > lastSeenId) {
                             maxId = maxOf(maxId, id)
                             val message = notif.getString("message")
-                            showNotification(id, message)
+                            
+                            val rawAvatar = notif.optString("from_user_avatar", "")
+                            val avatarUrl = if (rawAvatar.startsWith("/")) "https://enclavd.com$rawAvatar" else rawAvatar
+                            val avatarBitmap = if (avatarUrl.isNotEmpty() && avatarUrl != "null") downloadBitmap(avatarUrl) else null
+                            
+                            var postImageBitmap: Bitmap? = null
+                            if (notif.has("post_preview") && !notif.isNull("post_preview")) {
+                                val postPreview = notif.getJSONObject("post_preview")
+                                val rawPostImage = postPreview.optString("image_url", "")
+                                val postImageUrl = if (rawPostImage.startsWith("/")) "https://enclavd.com$rawPostImage" else rawPostImage
+                                if (postImageUrl.isNotEmpty() && postImageUrl != "null") {
+                                    postImageBitmap = downloadBitmap(postImageUrl)
+                                }
+                            }
+
+                            showNotification(id, message, avatarBitmap, postImageBitmap)
                         }
                     }
                     
@@ -71,7 +105,7 @@ class NotificationWorker(
         }
     }
 
-    private fun showNotification(id: Int, message: String) {
+    private fun showNotification(id: Int, message: String, avatarBitmap: Bitmap?, postImageBitmap: Bitmap?) {
         // Ensure permission is granted (for Android 13+)
         if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             return
@@ -85,12 +119,23 @@ class NotificationWorker(
         )
 
         val builder = NotificationCompat.Builder(context, "enclavd_notifications")
-            .setSmallIcon(R.drawable.logo)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle("Enclavd")
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
+
+        if (avatarBitmap != null) {
+            builder.setLargeIcon(avatarBitmap)
+        }
+
+        if (postImageBitmap != null) {
+            builder.setStyle(NotificationCompat.BigPictureStyle()
+                .bigPicture(postImageBitmap)
+                .bigLargeIcon(null as Bitmap?) // hides large icon when expanded
+            )
+        }
 
         with(NotificationManagerCompat.from(context)) {
             notify(id, builder.build())
