@@ -27,7 +27,7 @@
         android:id="@+id/layoutError"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="?attr/colorSurface"
+        android:background="#0A1120"
         android:gravity="center"
         android:visibility="gone"
         tools:visibility="gone">
@@ -38,7 +38,7 @@
             android:layout_height="100dp"
             android:layout_centerHorizontal="true"
             android:src="@drawable/ic_wifi_off"
-            app:tint="?attr/colorOnSurface"/>
+            app:tint="#FFFFFF"/>
 
         <TextView
             android:id="@+id/txtErrorTitle"
@@ -48,7 +48,7 @@
             android:layout_centerHorizontal="true"
             android:layout_marginTop="24dp"
             android:text="No Internet Connection"
-            android:textColor="?attr/colorOnSurface"
+            android:textColor="#FFFFFF"
             android:textSize="20sp"
             android:textStyle="bold" />
 
@@ -61,7 +61,7 @@
             android:layout_marginTop="8dp"
             android:gravity="center"
             android:text="Please check your internet connection and try again."
-            android:textColor="?attr/colorOnSurface"
+            android:textColor="#FFFFFF"
             android:alpha="0.7"
             android:textSize="16sp" />
 
@@ -73,8 +73,8 @@
             android:layout_centerHorizontal="true"
             android:layout_marginTop="32dp"
             android:text="Try Again"
-            android:backgroundTint="?attr/colorPrimary"
-            android:textColor="?attr/colorOnPrimary"/>
+            android:backgroundTint="#FFFFFF"
+            android:textColor="#0A1120"/>
 
     </RelativeLayout>
 

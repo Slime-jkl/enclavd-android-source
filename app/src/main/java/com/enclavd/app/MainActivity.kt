@@ -172,7 +172,6 @@ class MainActivity : AppCompatActivity() {
         webView.loadUrl(url)
 
         btnRetry.setOnClickListener {
-            showWebView()
             webView.reload()
         }
 

@@ -8,10 +8,12 @@
 		<item name="colorSecondaryVariant">@color/brand_color</item>
 		<item name="colorOnSecondary">@color/black</item>
 		
-		<item name="android:statusBarColor">#030712</item>
+		<item name="android:statusBarColor">#0A1120</item>
 		<item name="android:windowLightStatusBar">false</item>
 		<item name="android:windowTranslucentStatus">false</item>
 		<item name="android:windowDrawsSystemBarBackgrounds">true</item>
+		<item name="android:navigationBarColor">#0A1120</item>
+		<item name="android:windowLightNavigationBar">false</item>
 	</style>
 
     <style name="Theme.App.Starting" parent="Theme.SplashScreen">
