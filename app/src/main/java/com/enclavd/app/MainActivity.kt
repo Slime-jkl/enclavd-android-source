@@ -47,8 +47,11 @@ import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import java.util.concurrent.TimeUnit
+import android.os.Handler
+import android.os.Looper
 
 class MainActivity : AppCompatActivity() {
 
@@ -58,6 +61,15 @@ class MainActivity : AppCompatActivity() {
     private lateinit var swipeRefresh: SwipeRefreshLayout
     private var isError = false
 	private lateinit var splashOverlay: RelativeLayout
+
+    private val debugHandler = Handler(Looper.getMainLooper())
+    private val debugRunnable = object : Runnable {
+        override fun run() {
+            val workRequest = OneTimeWorkRequestBuilder<NotificationWorker>().build()
+            WorkManager.getInstance(this@MainActivity).enqueue(workRequest)
+            debugHandler.postDelayed(this, 60_000) // 1 minute debug loop
+        }
+    }
 
     private var uploadMessage: ValueCallback<Array<Uri>>? = null
 
@@ -386,8 +398,15 @@ class MainActivity : AppCompatActivity() {
         }
     }
 	
+    override fun onResume() {
+        super.onResume()
+        debugHandler.removeCallbacks(debugRunnable)
+        debugHandler.post(debugRunnable)
+    }
+
     override fun onPause() {
         super.onPause()
+        debugHandler.removeCallbacks(debugRunnable)
         android.webkit.CookieManager.getInstance().flush()
     }
 
