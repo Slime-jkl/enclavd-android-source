@@ -37,6 +37,18 @@ import java.net.HttpURLConnection
 import java.net.URL
 import kotlin.concurrent.thread
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
+import androidx.work.Constraints
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import java.util.concurrent.TimeUnit
 
 class MainActivity : AppCompatActivity() {
 
@@ -70,6 +82,10 @@ class MainActivity : AppCompatActivity() {
         btnRetry = findViewById(R.id.btnRetry)
         swipeRefresh = findViewById(R.id.swipeRefresh)
 		splashOverlay = findViewById(R.id.splashOverlay)
+
+        createNotificationChannel()
+        requestNotificationPermission()
+        scheduleNotificationWorker()
 
         // Web State Engine Settings
         webView.settings.javaScriptEnabled = true
@@ -373,5 +389,43 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         android.webkit.CookieManager.getInstance().flush()
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val name = "Enclavd Notifications"
+            val descriptionText = "Notifications for likes, comments, and follows"
+            val importance = NotificationManager.IMPORTANCE_DEFAULT
+            val channel = NotificationChannel("enclavd_notifications", name, importance).apply {
+                description = descriptionText
+            }
+            val notificationManager: NotificationManager =
+                getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 101)
+            }
+        }
+    }
+
+    private fun scheduleNotificationWorker() {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val workRequest = PeriodicWorkRequestBuilder<NotificationWorker>(15, TimeUnit.MINUTES)
+            .setConstraints(constraints)
+            .build()
+
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "EnclavdNotificationWork",
+            ExistingPeriodicWorkPolicy.KEEP,
+            workRequest
+        )
     }
 }
