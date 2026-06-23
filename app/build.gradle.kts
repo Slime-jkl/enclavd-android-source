@@ -49,10 +49,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
 	
-	dependenciesInfo {
-        includeInApk = false
-        includeInBundle = false
-		}
+
 }
 
 dependencies {
