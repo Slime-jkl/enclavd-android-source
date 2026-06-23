@@ -10,8 +10,8 @@ android {
         applicationId = "com.enclavd.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 9
-        versionName = "1.2.9"
+        versionCode = 30
+        versionName = "1.3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
