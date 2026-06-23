@@ -35,7 +35,7 @@ A native Android wrapper for [enclavd.com](https://enclavd.com/?utm_source=githu
 
 ## Technical Roadmap
 
-* **Current Version**: 1.2.7
+* **Current Version**: 1.3.0
 * **CI/CD**: Automated builds and integrity checks are managed via GitHub Actions (.github/workflows/android.yml).
 * **Contribution Guidelines**: 
     * Maintain MainActivity.kt logic for intent filtering.
