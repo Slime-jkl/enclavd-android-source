@@ -242,9 +242,30 @@ class MainActivity : AppCompatActivity() {
                 // 1. Enclavd content always loads inside the WebView.
                 if (host.endsWith("enclavd.com")) return false
 
-                // 2. User-initiated navigation (tap, keyboard activation) on any
-                //    external domain → hand off to the system browser immediately.
-                //    This covers "Watch on YouTube", channel links, sign-in pages, etc.
+                // 2. Embed infrastructure allowlist — always stay in WebView, regardless
+                //    of gesture. These domains are YouTube's internal ad and player
+                //    machinery. When a user taps Play, the gesture propagates to ad-ping
+                //    requests on these domains, causing hasGesture() to return true even
+                //    though the user never intended to navigate anywhere. Sending them to
+                //    the system browser would open a raw tracking URL or crash with no
+                //    handler. They must always load silently inside the WebView.
+                val embedInfrastructure = arrayOf(
+                    "doubleclick.net",        // Google / YouTube ad serving
+                    "googlesyndication.com",  // Google ad syndication
+                    "googleadservices.com",   // Google ad services
+                    "google-analytics.com",   // Analytics pings
+                    "googletagmanager.com",   // Tag manager
+                    "googleapis.com",         // YouTube player API calls
+                    "ggpht.com",              // YouTube/Google image CDN
+                    "ytimg.com",              // YouTube image/script CDN
+                    "youtube.com",            // YouTube player & embed requests
+                    "youtu.be"                // YouTube short-link redirects
+                )
+                if (embedInfrastructure.any { host == it || host.endsWith(".$it") }) return false
+
+                // 3. User-initiated navigation (tap, keyboard) on any non-infrastructure
+                //    external domain → hand off to the system browser.
+                //    This covers article links, channel pages opened deliberately, etc.
                 if (request.hasGesture()) {
                     return try {
                         startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
@@ -254,9 +275,9 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
 
-                // 3. Background / programmatic request with no user gesture
-                //    (iframe src loads, YouTube player scripts, thumbnail fetches,
-                //    API calls, etc.) → allow inside the WebView so embeds work.
+                // 4. Background / programmatic request with no user gesture
+                //    (iframe src loads, scripts, thumbnail fetches, API calls, etc.)
+                //    → allow inside the WebView so embeds work.
                 return false
             }
 
