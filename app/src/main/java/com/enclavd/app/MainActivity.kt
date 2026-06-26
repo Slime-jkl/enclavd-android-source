@@ -116,7 +116,18 @@ class MainActivity : AppCompatActivity() {
         webView.settings.databaseEnabled = true
         webView.settings.loadsImagesAutomatically = true
         webView.settings.allowFileAccess = true
-		
+        // Required so that onCreateWindow fires for window.open / popup targets
+        // (e.g. YouTube sign-in, "Watch on YouTube" links inside iframes).
+        webView.settings.setSupportMultipleWindows(true)
+        // Spoof a modern Chrome for Android User-Agent so YouTube and other
+        // third-party embeds serve the real player/content instead of fallbacks
+        // or bot-verification gates. The UA is pinned to a stable Chrome release
+        // to avoid triggering platform-detection mismatches.
+        webView.settings.userAgentString =
+            "Mozilla/5.0 (Linux; Android 10; K) " +
+            "AppleWebKit/537.36 (KHTML, like Gecko) " +
+            "Chrome/124.0.0.0 Mobile Safari/537.36"
+
         // Persistent Cookie Storage Architecture
         val cookieManager = android.webkit.CookieManager.getInstance()
         cookieManager.setAcceptCookie(true)
@@ -141,6 +152,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         webView.webChromeClient = object : WebChromeClient() {
+
             override fun onShowFileChooser(
                 webView: WebView?,
                 filePathCallback: ValueCallback<Array<Uri>>?,
@@ -151,16 +163,68 @@ class MainActivity : AppCompatActivity() {
                     uploadMessage = null
                 }
                 uploadMessage = filePathCallback
-
                 val intent = fileChooserParams?.createIntent()
                 try {
-                    if (intent != null) {
-                        fileChooserLauncher.launch(intent)
-                    }
+                    if (intent != null) fileChooserLauncher.launch(intent)
                 } catch (e: ActivityNotFoundException) {
                     uploadMessage = null
                     return false
                 }
+                return true
+            }
+
+            // Intercept window.open() / popup navigations triggered by iframe content
+            // (e.g. "Watch on YouTube", "Sign In" inside YouTube embeds).
+            //
+            // Gate strictly on isUserGesture:
+            //   • true  → the user deliberately tapped something that opens a new window.
+            //             Extract the target URL and hand it to the system browser so
+            //             the user gets a full browser experience. The main WebView is
+            //             left completely unchanged.
+            //   • false → background / programmatic window.open (preloaders, ad iframes,
+            //             analytics). Silently discard by returning false so the WebView
+            //             engine cleans up without creating any visible state.
+            override fun onCreateWindow(
+                view: WebView?,
+                isDialog: Boolean,
+                isUserGesture: Boolean,
+                resultMsg: android.os.Message?
+            ): Boolean {
+                // Suppress all non-gesture popups immediately — nothing to do.
+                if (!isUserGesture) return false
+
+                // For user-initiated popups, try the fast path first:
+                // hitTestResult.extra already contains the tapped URL.
+                val targetUrl = view?.hitTestResult?.extra
+                if (!targetUrl.isNullOrBlank()) {
+                    try {
+                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)))
+                    } catch (e: ActivityNotFoundException) { /* no handler — silently drop */ }
+                    return true
+                }
+
+                // Fallback: the URL isn't available on the hit-test result yet
+                // (some YouTube links resolve it asynchronously). Spin up a minimal
+                // ephemeral WebView wired to the transport so the engine can deliver
+                // the URL, then intercept it, fire the system browser, and destroy
+                // the temp view immediately. The main WebView is never affected.
+                val tempWebView = WebView(this@MainActivity)
+                tempWebView.webViewClient = object : WebViewClient() {
+                    override fun shouldOverrideUrlLoading(
+                        v: WebView?,
+                        req: WebResourceRequest?
+                    ): Boolean {
+                        val url = req?.url?.toString() ?: return false
+                        try {
+                            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                        } catch (e: ActivityNotFoundException) { /* no handler */ }
+                        tempWebView.destroy()
+                        return true
+                    }
+                }
+                val transport = resultMsg?.obj as? WebView.WebViewTransport
+                transport?.webView = tempWebView
+                resultMsg?.sendToTarget()
                 return true
             }
         }
@@ -169,40 +233,67 @@ class MainActivity : AppCompatActivity() {
             triggerStandardDownload(url, userAgent, contentDisposition, mimeType)
         }
 
-		webView.webViewClient = object : WebViewClient() {
+        webView.webViewClient = object : WebViewClient() {
+
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                val url = request?.url.toString()
+                val url = request?.url?.toString() ?: return false
                 val host = Uri.parse(url).host ?: ""
 
-                if (host.endsWith("enclavd.com")) {
-                    return false // Stay in WebView
+                // 1. Enclavd content always loads inside the WebView.
+                if (host.endsWith("enclavd.com")) return false
+
+                // 2. User-initiated navigation (tap, keyboard activation) on any
+                //    external domain → hand off to the system browser immediately.
+                //    This covers "Watch on YouTube", channel links, sign-in pages, etc.
+                if (request.hasGesture()) {
+                    return try {
+                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                        true
+                    } catch (e: ActivityNotFoundException) {
+                        false
+                    }
                 }
 
-                // Open external links in browser
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                startActivity(intent)
-                return true
+                // 3. Background / programmatic request with no user gesture
+                //    (iframe src loads, YouTube player scripts, thumbnail fetches,
+                //    API calls, etc.) → allow inside the WebView so embeds work.
+                return false
             }
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
+                // onPageStarted fires only for main-frame navigations; safe to
+                // unconditionally reset the error flag here.
                 isError = false
             }
 
-            override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+            override fun onReceivedError(
+                view: WebView?,
+                request: WebResourceRequest?,
+                error: WebResourceError?
+            ) {
                 super.onReceivedError(view, request, error)
-                isError = true
-                showErrorScreen()
-                swipeRefresh.isRefreshing = false
-                splashOverlay.visibility = View.GONE
+                // Sub-resource failures (YouTube CDN, img.youtube.com, etc.) must
+                // never trigger the error screen or dismiss the splash. Only a
+                // failure on the main enclavd.com frame is treated as fatal.
+                if (request?.isForMainFrame == true) {
+                    isError = true
+                    showErrorScreen()
+                    swipeRefresh.isRefreshing = false
+                    splashOverlay.visibility = View.GONE
+                }
             }
 
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
-                swipeRefresh.isRefreshing = false
-                splashOverlay.visibility = View.GONE
-                if (!isError) {
-                    showWebView()
+                // onPageFinished fires for every completed frame load, including
+                // YouTube iframes. Guard on enclavd.com so the splash is dismissed
+                // exactly once — when the Enclavd page itself is ready.
+                val host = Uri.parse(url).host ?: ""
+                if (host.endsWith("enclavd.com")) {
+                    swipeRefresh.isRefreshing = false
+                    splashOverlay.visibility = View.GONE
+                    if (!isError) showWebView()
                 }
             }
         }
