@@ -41,12 +41,15 @@ class NotificationWorker(
 
     override suspend fun doWork(): Result {
         return try {
-            // Get session cookies
-            val cookieManager = android.webkit.CookieManager.getInstance()
-            val cookies = cookieManager.getCookie("https://enclavd.com")
-            
+            // Read the session cookie persisted by MainActivity when the WebView
+            // was last active. CookieManager.getInstance() is not usable from a
+            // background WorkManager process because the WebView process is not
+            // running, so it always returns null and the worker exits early.
+            val sharedPrefs = context.getSharedPreferences("enclavd_prefs", Context.MODE_PRIVATE)
+            val cookies = sharedPrefs.getString("session_cookie", null)
+
             if (cookies == null) {
-                Log.d("NotificationWorker", "No cookies found, skipping notification check.")
+                Log.d("NotificationWorker", "No session cookie in SharedPreferences, skipping.")
                 return Result.success()
             }
 
@@ -59,26 +62,31 @@ class NotificationWorker(
             if (connection.responseCode == HttpURLConnection.HTTP_OK) {
                 val response = connection.inputStream.bufferedReader().use { it.readText() }
                 val jsonObject = JSONObject(response)
-                
+
                 if (jsonObject.has("notifications")) {
                     val notificationsArray = jsonObject.getJSONArray("notifications")
-                    
-                    val sharedPrefs = context.getSharedPreferences("enclavd_prefs", Context.MODE_PRIVATE)
+
                     val lastSeenId = sharedPrefs.getInt("last_notification_id", 0)
                     var maxId = lastSeenId
-                    
+
                     for (i in 0 until notificationsArray.length()) {
                         val notif = notificationsArray.getJSONObject(i)
                         val id = notif.getInt("id")
-                        
-                        if (id > lastSeenId) {
+
+                        // Only show notifications that are:
+                        //   1. newer than the last one we already showed, AND
+                        //   2. unread on the server side ("read": false)
+                        // This prevents already-read notifications from being
+                        // re-fired on every worker run.
+                        val isRead = notif.optBoolean("read", true)
+                        if (id > lastSeenId && !isRead) {
                             maxId = maxOf(maxId, id)
                             val message = notif.getString("message")
-                            
+
                             val rawAvatar = notif.optString("from_user_avatar", "")
                             val avatarUrl = if (rawAvatar.startsWith("/")) "https://enclavd.com$rawAvatar" else rawAvatar
                             val avatarBitmap = if (avatarUrl.isNotEmpty() && avatarUrl != "null") downloadBitmap(avatarUrl) else null
-                            
+
                             var postImageBitmap: Bitmap? = null
                             if (notif.has("post_preview") && !notif.isNull("post_preview")) {
                                 val postPreview = notif.getJSONObject("post_preview")
@@ -92,7 +100,7 @@ class NotificationWorker(
                             showNotification(id, message, avatarBitmap, postImageBitmap)
                         }
                     }
-                    
+
                     if (maxId > lastSeenId) {
                         sharedPrefs.edit().putInt("last_notification_id", maxId).apply()
                     }

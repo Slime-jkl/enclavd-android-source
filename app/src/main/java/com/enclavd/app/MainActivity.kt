@@ -6,7 +6,6 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
-import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
@@ -30,7 +29,6 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import android.content.ContentValues
 import android.provider.MediaStore
-import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.HttpURLConnection
@@ -47,11 +45,8 @@ import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import java.util.concurrent.TimeUnit
-import android.os.Handler
-import android.os.Looper
 import android.view.WindowManager
 import androidx.core.view.WindowCompat
 
@@ -62,16 +57,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnRetry: Button
     private lateinit var swipeRefresh: SwipeRefreshLayout
     private var isError = false
+    private var hasLoadedOnce = false
 	private lateinit var splashOverlay: RelativeLayout
-
-    private val debugHandler = Handler(Looper.getMainLooper())
-    private val debugRunnable = object : Runnable {
-        override fun run() {
-            val workRequest = OneTimeWorkRequestBuilder<NotificationWorker>().build()
-            WorkManager.getInstance(this@MainActivity).enqueue(workRequest)
-            debugHandler.postDelayed(this, 60_000) // 1 minute debug loop
-        }
-    }
 
     private var uploadMessage: ValueCallback<Array<Uri>>? = null
 
@@ -314,7 +301,23 @@ class MainActivity : AppCompatActivity() {
                 if (host.endsWith("enclavd.com")) {
                     swipeRefresh.isRefreshing = false
                     splashOverlay.visibility = View.GONE
-                    if (!isError) showWebView()
+                    if (!isError) {
+                        showWebView()
+                        hasLoadedOnce = true
+
+                        // Persist the current session cookie so NotificationWorker
+                        // can authenticate while running in the background (the
+                        // WebView CookieManager is not available in background
+                        // worker processes).
+                        val cookieManager = android.webkit.CookieManager.getInstance()
+                        val cookie = cookieManager.getCookie("https://enclavd.com")
+                        if (!cookie.isNullOrEmpty()) {
+                            getSharedPreferences("enclavd_prefs", Context.MODE_PRIVATE)
+                                .edit()
+                                .putString("session_cookie", cookie)
+                                .apply()
+                        }
+                    }
                 }
             }
         }
@@ -523,13 +526,17 @@ class MainActivity : AppCompatActivity() {
 	
     override fun onResume() {
         super.onResume()
-        debugHandler.removeCallbacks(debugRunnable)
-        debugHandler.post(debugRunnable)
+        // If the app was backgrounded while an error screen was showing (e.g.
+        // due to a spurious disconnect fired by the WebView on resume), attempt
+        // a silent reload so the user doesn't have to tap "Try Again" manually.
+        if (isError && hasLoadedOnce) {
+            isError = false
+            webView.reload()
+        }
     }
 
     override fun onPause() {
         super.onPause()
-        debugHandler.removeCallbacks(debugRunnable)
         android.webkit.CookieManager.getInstance().flush()
     }
 
@@ -566,7 +573,7 @@ class MainActivity : AppCompatActivity() {
 
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(
             "EnclavdNotificationWork",
-            ExistingPeriodicWorkPolicy.KEEP,
+            ExistingPeriodicWorkPolicy.REPLACE,
             workRequest
         )
     }
