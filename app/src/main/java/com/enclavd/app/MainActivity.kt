@@ -6,7 +6,6 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
-import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
@@ -30,7 +29,6 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import android.content.ContentValues
 import android.provider.MediaStore
-import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.HttpURLConnection
@@ -47,11 +45,8 @@ import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import java.util.concurrent.TimeUnit
-import android.os.Handler
-import android.os.Looper
 import android.view.WindowManager
 import androidx.core.view.WindowCompat
 
@@ -62,16 +57,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var btnRetry: Button
     private lateinit var swipeRefresh: SwipeRefreshLayout
     private var isError = false
+    private var hasLoadedOnce = false
 	private lateinit var splashOverlay: RelativeLayout
-
-    private val debugHandler = Handler(Looper.getMainLooper())
-    private val debugRunnable = object : Runnable {
-        override fun run() {
-            val workRequest = OneTimeWorkRequestBuilder<NotificationWorker>().build()
-            WorkManager.getInstance(this@MainActivity).enqueue(workRequest)
-            debugHandler.postDelayed(this, 60_000) // 1 minute debug loop
-        }
-    }
 
     private var uploadMessage: ValueCallback<Array<Uri>>? = null
 
@@ -123,10 +110,7 @@ class MainActivity : AppCompatActivity() {
         // third-party embeds serve the real player/content instead of fallbacks
         // or bot-verification gates. The UA is pinned to a stable Chrome release
         // to avoid triggering platform-detection mismatches.
-        webView.settings.userAgentString =
-            "Mozilla/5.0 (Linux; Android 10; K) " +
-            "AppleWebKit/537.36 (KHTML, like Gecko) " +
-            "Chrome/124.0.0.0 Mobile Safari/537.36"
+        webView.settings.userAgentString = AppConstants.USER_AGENT
 
         // Persistent Cookie Storage Architecture
         val cookieManager = android.webkit.CookieManager.getInstance()
@@ -314,13 +298,29 @@ class MainActivity : AppCompatActivity() {
                 if (host.endsWith("enclavd.com")) {
                     swipeRefresh.isRefreshing = false
                     splashOverlay.visibility = View.GONE
-                    if (!isError) showWebView()
+                    if (!isError) {
+                        showWebView()
+                        hasLoadedOnce = true
+                        // Persist the current session cookie so NotificationWorker
+                        // can authenticate while running in the background (the
+                        // WebView CookieManager is not available in background
+                        // worker processes).
+                        persistSessionCookie()
+                    }
                 }
             }
         }
 
-        val url = getString(R.string.website_url)
-        webView.loadUrl(url)
+        // Restore the persisted session cookie into the WebView cookie jar
+        // before the first load, so a login survives process death even if
+        // the WebView's own cookie store lost it. Same app-private storage
+        // the background worker reads — no auth weakening.
+        restoreSessionCookie()
+
+        // Deep links (e.g. tapping a "new message" notification) carry the
+        // target URL as an intent extra; plain launches use the default site.
+        val launchUrl = intent.getStringExtra("url") ?: getString(R.string.website_url)
+        webView.loadUrl(launchUrl)
 
         btnRetry.setOnClickListener {
             webView.reload()
@@ -523,14 +523,58 @@ class MainActivity : AppCompatActivity() {
 	
     override fun onResume() {
         super.onResume()
-        debugHandler.removeCallbacks(debugRunnable)
-        debugHandler.post(debugRunnable)
+        // If the app was backgrounded while an error screen was showing (e.g.
+        // due to a spurious disconnect fired by the WebView on resume), attempt
+        // a silent reload so the user doesn't have to tap "Try Again" manually.
+        if (isError && hasLoadedOnce) {
+            isError = false
+            webView.reload()
+        }
     }
 
     override fun onPause() {
         super.onPause()
-        debugHandler.removeCallbacks(debugRunnable)
         android.webkit.CookieManager.getInstance().flush()
+        // Snapshot the session again on the way out — the user may have just
+        // logged in and the page might not have finished loading yet, so the
+        // onPageFinished save alone could miss a fresh session.
+        persistSessionCookie()
+    }
+
+    /**
+     * Snapshot the current enclavd.com cookies into app-private storage so the
+     * background NotificationWorker can authenticate while the app is closed
+     * (CookieManager is unavailable outside the WebView process).
+     */
+    private fun persistSessionCookie() {
+        val cookieManager = android.webkit.CookieManager.getInstance()
+        val cookie = cookieManager.getCookie(AppConstants.SITE_URL)
+        if (cookie.isNullOrEmpty()) return
+        getSharedPreferences("enclavd_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putString("session_cookie", cookie)
+            .apply()
+    }
+
+    /**
+     * Re-inject the persisted session cookie into the WebView cookie jar on
+     * startup. The server cookie carries an expiry, so it normally survives in
+     * CookieManager — this is belt-and-braces for process death / store loss,
+     * and it guarantees the stored cookie the worker relies on is never the
+     * only copy of the session.
+     */
+    private fun restoreSessionCookie() {
+        val stored = getSharedPreferences("enclavd_prefs", Context.MODE_PRIVATE)
+            .getString("session_cookie", null)
+        if (stored.isNullOrEmpty()) return
+        val cookieManager = android.webkit.CookieManager.getInstance()
+        stored.split(";").forEach { pair ->
+            val kv = pair.trim()
+            if (kv.isNotEmpty() && kv.contains('=')) {
+                cookieManager.setCookie(AppConstants.SITE_URL, kv)
+            }
+        }
+        cookieManager.flush()
     }
 
     private fun createNotificationChannel() {
@@ -566,7 +610,7 @@ class MainActivity : AppCompatActivity() {
 
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(
             "EnclavdNotificationWork",
-            ExistingPeriodicWorkPolicy.KEEP,
+            ExistingPeriodicWorkPolicy.REPLACE,
             workRequest
         )
     }
