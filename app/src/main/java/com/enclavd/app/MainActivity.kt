@@ -110,10 +110,7 @@ class MainActivity : AppCompatActivity() {
         // third-party embeds serve the real player/content instead of fallbacks
         // or bot-verification gates. The UA is pinned to a stable Chrome release
         // to avoid triggering platform-detection mismatches.
-        webView.settings.userAgentString =
-            "Mozilla/5.0 (Linux; Android 10; K) " +
-            "AppleWebKit/537.36 (KHTML, like Gecko) " +
-            "Chrome/124.0.0.0 Mobile Safari/537.36"
+        webView.settings.userAgentString = AppConstants.USER_AGENT
 
         // Persistent Cookie Storage Architecture
         val cookieManager = android.webkit.CookieManager.getInstance()
@@ -304,23 +301,21 @@ class MainActivity : AppCompatActivity() {
                     if (!isError) {
                         showWebView()
                         hasLoadedOnce = true
-
                         // Persist the current session cookie so NotificationWorker
                         // can authenticate while running in the background (the
                         // WebView CookieManager is not available in background
                         // worker processes).
-                        val cookieManager = android.webkit.CookieManager.getInstance()
-                        val cookie = cookieManager.getCookie("https://enclavd.com")
-                        if (!cookie.isNullOrEmpty()) {
-                            getSharedPreferences("enclavd_prefs", Context.MODE_PRIVATE)
-                                .edit()
-                                .putString("session_cookie", cookie)
-                                .apply()
-                        }
+                        persistSessionCookie()
                     }
                 }
             }
         }
+
+        // Restore the persisted session cookie into the WebView cookie jar
+        // before the first load, so a login survives process death even if
+        // the WebView's own cookie store lost it. Same app-private storage
+        // the background worker reads — no auth weakening.
+        restoreSessionCookie()
 
         val url = getString(R.string.website_url)
         webView.loadUrl(url)
@@ -538,6 +533,46 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         android.webkit.CookieManager.getInstance().flush()
+        // Snapshot the session again on the way out — the user may have just
+        // logged in and the page might not have finished loading yet, so the
+        // onPageFinished save alone could miss a fresh session.
+        persistSessionCookie()
+    }
+
+    /**
+     * Snapshot the current enclavd.com cookies into app-private storage so the
+     * background NotificationWorker can authenticate while the app is closed
+     * (CookieManager is unavailable outside the WebView process).
+     */
+    private fun persistSessionCookie() {
+        val cookieManager = android.webkit.CookieManager.getInstance()
+        val cookie = cookieManager.getCookie(AppConstants.SITE_URL)
+        if (cookie.isNullOrEmpty()) return
+        getSharedPreferences("enclavd_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putString("session_cookie", cookie)
+            .apply()
+    }
+
+    /**
+     * Re-inject the persisted session cookie into the WebView cookie jar on
+     * startup. The server cookie carries an expiry, so it normally survives in
+     * CookieManager — this is belt-and-braces for process death / store loss,
+     * and it guarantees the stored cookie the worker relies on is never the
+     * only copy of the session.
+     */
+    private fun restoreSessionCookie() {
+        val stored = getSharedPreferences("enclavd_prefs", Context.MODE_PRIVATE)
+            .getString("session_cookie", null)
+        if (stored.isNullOrEmpty()) return
+        val cookieManager = android.webkit.CookieManager.getInstance()
+        stored.split(";").forEach { pair ->
+            val kv = pair.trim()
+            if (kv.isNotEmpty() && kv.contains('=')) {
+                cookieManager.setCookie(AppConstants.SITE_URL, kv)
+            }
+        }
+        cookieManager.flush()
     }
 
     private fun createNotificationChannel() {

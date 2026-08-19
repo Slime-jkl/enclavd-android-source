@@ -27,6 +27,9 @@ class NotificationWorker(
             val url = URL(urlStr)
             val connection = url.openConnection() as HttpURLConnection
             connection.doInput = true
+            // Keep the same agent as the session so CDNs/avatars behave
+            // identically to the in-app requests.
+            connection.setRequestProperty("User-Agent", AppConstants.USER_AGENT)
             connection.connect()
             if (connection.responseCode == HttpURLConnection.HTTP_OK) {
                 BitmapFactory.decodeStream(connection.inputStream)
@@ -53,9 +56,18 @@ class NotificationWorker(
                 return Result.success()
             }
 
-            val url = URL("https://enclavd.com/handlers/notifications/get_notifications.php")
+            val url = URL(AppConstants.NOTIFICATIONS_API)
             val connection = url.openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
+            connection.connectTimeout = 15000
+            connection.readTimeout = 15000
+            // CRITICAL: the server binds each login session to the User-Agent
+            // seen at login (the WebView's pinned Chrome UA). Sending the
+            // platform-default Java UA here made the server treat the worker
+            // as a different client: it rejected the request AND revoked the
+            // session row, so notifications never arrived while the app was
+            // closed and the user was logged out on the next launch.
+            connection.setRequestProperty("User-Agent", AppConstants.USER_AGENT)
             connection.setRequestProperty("Cookie", cookies)
             connection.connect()
 
@@ -67,6 +79,9 @@ class NotificationWorker(
                     val notificationsArray = jsonObject.getJSONArray("notifications")
 
                     val lastSeenId = sharedPrefs.getInt("last_notification_id", 0)
+                    val shownKeys = sharedPrefs
+                        .getStringSet("shown_notification_keys", emptySet())
+                        ?.toMutableSet() ?: mutableSetOf()
                     var maxId = lastSeenId
 
                     for (i in 0 until notificationsArray.length()) {
@@ -79,38 +94,83 @@ class NotificationWorker(
                         // This prevents already-read notifications from being
                         // re-fired on every worker run.
                         val isRead = notif.optBoolean("read", true)
-                        if (id > lastSeenId && !isRead) {
-                            maxId = maxOf(maxId, id)
-                            val message = notif.getString("message")
+                        if (id <= lastSeenId || isRead) continue
 
-                            val rawAvatar = notif.optString("from_user_avatar", "")
-                            val avatarUrl = if (rawAvatar.startsWith("/")) "https://enclavd.com$rawAvatar" else rawAvatar
-                            val avatarBitmap = if (avatarUrl.isNotEmpty() && avatarUrl != "null") downloadBitmap(avatarUrl) else null
-
-                            var postImageBitmap: Bitmap? = null
-                            if (notif.has("post_preview") && !notif.isNull("post_preview")) {
-                                val postPreview = notif.getJSONObject("post_preview")
-                                val rawPostImage = postPreview.optString("image_url", "")
-                                val postImageUrl = if (rawPostImage.startsWith("/")) "https://enclavd.com$rawPostImage" else rawPostImage
-                                if (postImageUrl.isNotEmpty() && postImageUrl != "null") {
-                                    postImageBitmap = downloadBitmap(postImageUrl)
-                                }
-                            }
-
-                            showNotification(id, message, avatarBitmap, postImageBitmap)
+                        // Bundle re-fires: the api/v1 list bundles likes and
+                        // comments per post ("Alice & 3 others liked your
+                        // post"), so a NEW like on a post we already pushed
+                        // arrives with a NEW id but the SAME (type, post) key.
+                        // Without this guard the same message would re-fire on
+                        // every worker run — the duplicate notifications bug.
+                        val contentType = notif.optString("content_type", "")
+                        val contentId = notif.optString("content_id", "")
+                        val key = if (
+                            contentType == "post-like" ||
+                            contentType == "post-comment" ||
+                            contentType == "comment-mention"
+                        ) {
+                            "$contentType:$contentId"
+                        } else {
+                            "$contentType:$id"
                         }
+                        if (shownKeys.contains(key)) continue
+                        shownKeys.add(key)
+
+                        maxId = maxOf(maxId, id)
+                        val message = notif.getString("message")
+
+                        val rawAvatar = notif.optString("from_user_avatar", "")
+                        val avatarUrl = if (rawAvatar.startsWith("/")) "https://enclavd.com$rawAvatar" else rawAvatar
+                        val avatarBitmap = if (avatarUrl.isNotEmpty() && avatarUrl != "null") downloadBitmap(avatarUrl) else null
+
+                        var postImageBitmap: Bitmap? = null
+                        if (notif.has("post_preview") && !notif.isNull("post_preview")) {
+                            val postPreview = notif.getJSONObject("post_preview")
+                            val rawPostImage = postPreview.optString("image_url", "")
+                            // The api/v1 list serves gallery images as bare
+                            // filenames ("abc.jpg") — they live under
+                            // /public/gallery/ on the site. Absolute paths
+                            // (avatars, /assets/...) are used as-is.
+                            val postImageUrl = when {
+                                rawPostImage.isEmpty() || rawPostImage == "null" -> ""
+                                rawPostImage.startsWith("http") -> rawPostImage
+                                rawPostImage.startsWith("/") -> "https://enclavd.com$rawPostImage"
+                                else -> "https://enclavd.com/public/gallery/$rawPostImage"
+                            }
+                            if (postImageUrl.isNotEmpty()) {
+                                postImageBitmap = downloadBitmap(postImageUrl)
+                            }
+                        }
+
+                        showNotification(id, message, avatarBitmap, postImageBitmap)
                     }
 
-                    if (maxId > lastSeenId) {
-                        sharedPrefs.edit().putInt("last_notification_id", maxId).apply()
+                    if (maxId > lastSeenId || shownKeys.isNotEmpty()) {
+                        sharedPrefs.edit()
+                            .putInt("last_notification_id", maxId)
+                            .putStringSet("shown_notification_keys", pruneShownKeys(shownKeys))
+                            .apply()
                     }
                 }
             }
+            // Non-200 (401/403 = session gone, 5xx = server trouble): skip this
+            // run quietly. The session may come back after the user logs in
+            // again — the stored cookie is updated on the next page load.
             Result.success()
         } catch (e: Exception) {
             e.printStackTrace()
             Result.retry()
         }
+    }
+
+    /**
+     * Keep the shown-key set bounded. Order is not guaranteed by
+     * SharedPreferences, so when it outgrows the cap we drop the first
+     * entries arbitrarily — the worst case is a single re-fire.
+     */
+    private fun pruneShownKeys(keys: Set<String>): Set<String> {
+        if (keys.size <= 200) return keys
+        return keys.drop(100).toSet()
     }
 
     private fun showNotification(id: Int, message: String, avatarBitmap: Bitmap?, postImageBitmap: Bitmap?) {
