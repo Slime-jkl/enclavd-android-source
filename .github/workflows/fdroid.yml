@@ -1,0 +1,39 @@
+name: Build F-Droid APK (unsigned)
+
+on:
+  # Allows you to manually trigger this workflow from the GitHub Actions tab
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout main branch
+      uses: actions/checkout@v4
+      with:
+        ref: main
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'zulu'
+        java-version: '17'
+        cache: 'gradle'
+
+    - name: Grant Execute Permission to Gradle Wrapper
+      run: chmod +x gradlew
+
+    - name: Build Unsigned Release APK
+      # No signing env vars here: F-Droid builds and signs the APK itself
+      # with its own key. This workflow is a local/preview unsigned build.
+      run: ./gradlew assembleRelease --stacktrace
+
+    - name: Upload Unsigned Release APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: enclavd-fdroid-apk-unsigned
+        path: app/build/outputs/apk/release/app-release-unsigned.apk
