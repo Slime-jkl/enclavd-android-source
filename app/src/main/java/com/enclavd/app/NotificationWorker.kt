@@ -11,6 +11,7 @@ import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.app.RemoteInput
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import org.json.JSONObject
@@ -42,6 +43,31 @@ class NotificationWorker(
         }
     }
 
+    /**
+     * GET a JSON api/v1 endpoint with the session cookie and the pinned UA
+     * (see AppConstants.USER_AGENT — the server agent-binds sessions).
+     * Returns null on transport errors or non-200 (auth gone, server trouble).
+     */
+    private fun apiGet(urlStr: String, cookies: String): JSONObject? {
+        return try {
+            val connection = URL(urlStr).openConnection() as HttpURLConnection
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 15000
+            connection.readTimeout = 15000
+            connection.setRequestProperty("User-Agent", AppConstants.USER_AGENT)
+            connection.setRequestProperty("Cookie", cookies)
+            connection.connect()
+            if (connection.responseCode == HttpURLConnection.HTTP_OK) {
+                JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
     override suspend fun doWork(): Result {
         return try {
             // Read the session cookie persisted by MainActivity when the WebView
@@ -56,24 +82,15 @@ class NotificationWorker(
                 return Result.success()
             }
 
-            val url = URL(AppConstants.NOTIFICATIONS_API)
-            val connection = url.openConnection() as HttpURLConnection
-            connection.requestMethod = "GET"
-            connection.connectTimeout = 15000
-            connection.readTimeout = 15000
-            // CRITICAL: the server binds each login session to the User-Agent
-            // seen at login (the WebView's pinned Chrome UA). Sending the
-            // platform-default Java UA here made the server treat the worker
-            // as a different client: it rejected the request AND revoked the
-            // session row, so notifications never arrived while the app was
-            // closed and the user was logged out on the next launch.
-            connection.setRequestProperty("User-Agent", AppConstants.USER_AGENT)
-            connection.setRequestProperty("Cookie", cookies)
-            connection.connect()
-
-            if (connection.responseCode == HttpURLConnection.HTTP_OK) {
-                val response = connection.inputStream.bufferedReader().use { it.readText() }
-                val jsonObject = JSONObject(response)
+            /* ── Notifications (likes / comments / mentions / follows) ── */
+            val jsonObject = apiGet(AppConstants.NOTIFICATIONS_API, cookies)
+            if (jsonObject != null) {
+                // CSRF token for notification quick replies — the api/v1 list
+                // response exposes the session's token so the worker can POST.
+                val csrf = jsonObject.optString("csrf_token", "")
+                if (csrf.isNotEmpty()) {
+                    sharedPrefs.edit().putString("csrf_token", csrf).apply()
+                }
 
                 if (jsonObject.has("notifications")) {
                     val notificationsArray = jsonObject.getJSONArray("notifications")
@@ -153,6 +170,42 @@ class NotificationWorker(
                     }
                 }
             }
+
+            /* ── Messages (unread, with quick reply) ── */
+            val messagesJson = apiGet(AppConstants.MESSAGES_API, cookies)
+            if (messagesJson != null && messagesJson.has("messages")) {
+                val messagesArray = messagesJson.getJSONArray("messages")
+                val shownMsgKeys = sharedPrefs
+                    .getStringSet("shown_message_keys", emptySet())
+                    ?.toMutableSet() ?: mutableSetOf()
+
+                for (i in 0 until messagesArray.length()) {
+                    val msg = messagesArray.getJSONObject(i)
+                    val messageId = msg.getInt("message_id")
+                    // Unread messages stay unread until read in-app or replied
+                    // to, so dedupe by message id to avoid re-firing the same
+                    // notification every worker run.
+                    val key = "msg:$messageId"
+                    if (shownMsgKeys.contains(key)) continue
+                    shownMsgKeys.add(key)
+
+                    val conversationId = msg.getInt("conversation_id")
+                    val senderName = msg.optString("sender_name", "Enclavd")
+                    val text = msg.optString("message", "")
+                    val rawAvatar = msg.optString("sender_avatar", "")
+                    val avatarUrl = if (rawAvatar.startsWith("/")) "https://enclavd.com$rawAvatar" else rawAvatar
+                    val avatarBitmap = if (avatarUrl.isNotEmpty() && avatarUrl != "null") downloadBitmap(avatarUrl) else null
+                    val csrf = sharedPrefs.getString("csrf_token", "") ?: ""
+
+                    showMessageNotification(messageId, conversationId, senderName, text, avatarBitmap, cookies, csrf)
+                }
+
+                if (shownMsgKeys.isNotEmpty()) {
+                    sharedPrefs.edit()
+                        .putStringSet("shown_message_keys", pruneShownKeys(shownMsgKeys))
+                        .apply()
+                }
+            }
             // Non-200 (401/403 = session gone, 5xx = server trouble): skip this
             // run quietly. The session may come back after the user logs in
             // again — the stored cookie is updated on the next page load.
@@ -207,6 +260,77 @@ class NotificationWorker(
 
         with(NotificationManagerCompat.from(context)) {
             notify(id, builder.build())
+        }
+    }
+
+    /**
+     * Show a "New message from X" notification with a quick-reply action.
+     * Tapping the notification deep-links into the conversation; replying
+     * hands off to MessageReplyReceiver, which posts through api/v1.
+     */
+    private fun showMessageNotification(
+        messageId: Int,
+        conversationId: Int,
+        senderName: String,
+        message: String,
+        avatarBitmap: Bitmap?,
+        cookies: String,
+        csrf: String
+    ) {
+        // Ensure permission is granted (for Android 13+)
+        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            return
+        }
+
+        val notificationId = AppConstants.MESSAGE_NOTIFICATION_OFFSET + messageId
+
+        // Tap → open the conversation in the WebView.
+        val openIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            putExtra("url", "${AppConstants.SITE_URL}/messages?conversation=$conversationId")
+        }
+        val openPendingIntent = PendingIntent.getActivity(
+            context, messageId, openIntent, PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // Reply → MessageReplyReceiver posts through api/v1/messages.
+        val replyIntent = Intent(context, MessageReplyReceiver::class.java).apply {
+            putExtra(MessageReplyReceiver.EXTRA_CONVERSATION_ID, conversationId)
+            putExtra(MessageReplyReceiver.EXTRA_COOKIE, cookies)
+            putExtra(MessageReplyReceiver.EXTRA_CSRF, csrf)
+            putExtra(MessageReplyReceiver.EXTRA_NOTIFICATION_ID, notificationId)
+        }
+        val replyPendingIntent = PendingIntent.getBroadcast(
+            context,
+            messageId,
+            replyIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        val replyAction = NotificationCompat.Action.Builder(
+            R.drawable.ic_notification,
+            "Reply",
+            replyPendingIntent
+        ).addRemoteInput(
+            RemoteInput.Builder(MessageReplyReceiver.EXTRA_REPLY)
+                .setLabel("Reply")
+                .build()
+        ).build()
+
+        val builder = NotificationCompat.Builder(context, "enclavd_notifications")
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle("New message from $senderName")
+            .setContentText(message)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setContentIntent(openPendingIntent)
+            .addAction(replyAction)
+            .setAutoCancel(true)
+
+        if (avatarBitmap != null) {
+            builder.setLargeIcon(avatarBitmap)
+        }
+
+        with(NotificationManagerCompat.from(context)) {
+            notify(notificationId, builder.build())
         }
     }
 }

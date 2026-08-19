@@ -317,8 +317,10 @@ class MainActivity : AppCompatActivity() {
         // the background worker reads — no auth weakening.
         restoreSessionCookie()
 
-        val url = getString(R.string.website_url)
-        webView.loadUrl(url)
+        // Deep links (e.g. tapping a "new message" notification) carry the
+        // target URL as an intent extra; plain launches use the default site.
+        val launchUrl = intent.getStringExtra("url") ?: getString(R.string.website_url)
+        webView.loadUrl(launchUrl)
 
         btnRetry.setOnClickListener {
             webView.reload()

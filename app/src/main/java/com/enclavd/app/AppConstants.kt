@@ -23,4 +23,14 @@ object AppConstants {
 
     /** api/v1 notifications list endpoint (bundled, newest 5). */
     const val NOTIFICATIONS_API = "https://enclavd.com/api/v1/notifications?list=1"
+
+    /** api/v1 unread-messages endpoint (newest 10, does not mark read). */
+    const val MESSAGES_API = "https://enclavd.com/api/v1/messages?unread=1"
+
+    /**
+     * Notification id offset for messages. Post/comment notification ids are
+     * the raw DB ids; message ids come from a separate auto-increment space,
+     * so they are offset to never collide and overwrite each other.
+     */
+    const val MESSAGE_NOTIFICATION_OFFSET = 1_000_000
 }

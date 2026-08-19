@@ -37,6 +37,10 @@
             </intent-filter>
 		</activity>
 
+		<receiver
+			android:name=".MessageReplyReceiver"
+			android:exported="false" />
+
 	</application>
 
 </manifest>
