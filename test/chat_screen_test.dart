@@ -208,6 +208,11 @@ void main() {
 
     expect(fake.sentTexts, ['hello bob']);
     expect(find.text('hello bob'), findsOneWidget);
+    // Regression: the merge must NOT collapse the thread to just the new
+    // bubble (the ..clear()..addAll(_merge()) cascade read the cleared
+    // list and dropped history — the vanish/reappear glitch).
+    expect(find.text('hi'), findsOneWidget,
+        reason: 'history must survive sending');
     // Input cleared immediately (site behavior).
     expect(
         tester.widget<TextField>(find.byType(TextField)).controller!.text, '');
@@ -260,6 +265,10 @@ void main() {
       await tester.pump();
 
       expect(find.text('live ping'), findsOneWidget);
+      // Regression: a WS-arriving message must merge into the thread, not
+      // replace it (the cascade cleared the list before merging).
+      expect(find.text('hi'), findsOneWidget,
+          reason: 'history must survive a live inbound message');
       // The new inbound message was marked read server-side.
       expect(fake.lastMarkedRead, 7);
 

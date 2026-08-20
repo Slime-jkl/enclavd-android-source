@@ -124,7 +124,11 @@ class RealtimeService {
     try {
       final token = await _token();
       if (token == null) {
+        // Token fetch failed (cold jar, transient /feed refresh blip) —
+        // schedule a retry like any other failure; never give up silently
+        // or the screen stays deaf for the whole session.
         _wsConnecting = false;
+        _scheduleWsReconnect();
         return;
       }
       final client = _httpClientFactory();
@@ -238,7 +242,10 @@ class RealtimeService {
     try {
       final token = await _token();
       if (token == null) {
+        // Same as the WS path: a transient /feed refresh failure must not
+        // leave the badge stream dead — retry within the reconnect budget.
         _sseConnecting = false;
+        _scheduleSseReconnect();
         return;
       }
       final client = _httpClientFactory();

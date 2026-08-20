@@ -37,6 +37,7 @@ class RealtimeHarness {
   bool dropOnConnect = false;
   final List<String> feedRequests = [];
   final List<String> sseRequests = [];
+  int feedFailures = 0; // answer the next N /feed requests with 500
 
   int get port => server.port;
 
@@ -67,6 +68,12 @@ class RealtimeHarness {
         );
       } else if (req.uri.path == '/feed') {
         h.feedRequests.add(req.uri.path);
+        if (h.feedFailures > 0) {
+          h.feedFailures--;
+          req.response.statusCode = HttpStatus.internalServerError;
+          await req.response.close();
+          return;
+        }
         req.response.headers.set(
           'set-cookie',
           'enclavd_rt=1.9999999999.abcdef; Path=/; HttpOnly',
@@ -155,6 +162,24 @@ void main() {
     expect(h.feedRequests, isNotEmpty, reason: '/feed must be fetched');
     expect(h.wsTokens.single, '1.9999999999.abcdef',
         reason: 'token from the /feed Set-Cookie');
+
+    service.dispose();
+    await h.close();
+  });
+
+  test('a failed token refresh retries instead of giving up', () async {
+    final h = await RealtimeHarness.start();
+    h.feedFailures = 1; // first /feed answers 500, second succeeds
+    final service = await buildService(h); // empty jar — token fetch needed
+
+    service.join(42);
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+
+    expect(h.feedRequests.length, greaterThanOrEqualTo(2),
+        reason: 'a 500 on the token refresh must not end the attempt');
+    expect(h.wsConnects, 1, reason: 'the retried attempt connects');
+    expect(h.wsTokens.single, '1.9999999999.abcdef',
+        reason: 'token from the successful retry');
 
     service.dispose();
     await h.close();

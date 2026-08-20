@@ -157,10 +157,15 @@ class _ChatScreenState extends State<ChatScreen> {
       createdAt: event.data['timestamp'] as String? ?? _nowDbString(),
     );
     if (!mounted) return;
+    // Merge BEFORE clearing: the cascade ..clear()..addAll(_merge(...))
+    // evaluates _merge AFTER clear(), so an inline merge reads the
+    // already-empty list and the whole thread collapses to one bubble
+    // (the vanish/reappear glitch). Compute first, then swap in.
+    final merged = _merge([live]);
     setState(() {
       _messages
         ..clear()
-        ..addAll(_merge([live]));
+        ..addAll(merged);
     });
     // The other side already read everything when they sent, but our own
     // inbox badge clears server-side only via mark_read — fire it.
@@ -312,10 +317,13 @@ class _ChatScreenState extends State<ChatScreen> {
         isRead: false,
         createdAt: _nowDbString(),
       );
+      // Same merge-before-clear rule as _onLiveMessage: an inline merge
+      // inside the cascade would read the cleared list and drop history.
+      final merged = _merge([sent]);
       setState(() {
         _messages
           ..clear()
-          ..addAll(_merge([sent]));
+          ..addAll(merged);
         _sending = false;
       });
     } on ApiException catch (e) {
