@@ -354,6 +354,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           );
         }
         return PostCard(
+          // Key by post id (see feed_screen: prevents stale like-state
+          // reuse when the list refreshes).
+          key: ValueKey(_posts[index - 2].id),
           post: _posts[index - 2],
           apiBaseUrl: AppConfig.apiBaseUrl,
           social: _services.social,

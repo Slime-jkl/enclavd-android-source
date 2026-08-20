@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
@@ -67,6 +68,10 @@ class _PostCardState extends State<PostCard> {
   // 64px heart scales 1→4 and fades out over 0.5s at the card's center.
   bool _burst = false;
 
+  // Drag-to-like tray (site's pointerdown drag): visible while the heart
+  // is being held, darkens the card and shows the drop hint.
+  bool _dragActive = false;
+
   @override
   void initState() {
     super.initState();
@@ -121,6 +126,29 @@ class _PostCardState extends State<PostCard> {
     if (_liked || _likeBusy) return;
     _toggleLike();
     _showBurst();
+  }
+
+  /// Site click parity (likes.js): a tap on an ALREADY-liked heart unlikes;
+  /// a tap on an unliked heart does NOT like — it shows the hint tooltip
+  /// ("Drag the heart onto the post to like it").
+  void _onHeartTap() {
+    if (_likeBusy) return;
+    if (_liked) {
+      _toggleLike();
+    } else {
+      _toast('Drag the heart onto the post to like it');
+    }
+  }
+
+  /// Long-press on the heart starts the drag → the tray appears (site's
+  /// pointerdown drag). No-op when already liked (drag is only for liking).
+  void _beginDrag() {
+    if (_liked || _likeBusy) return;
+    setState(() => _dragActive = true);
+  }
+
+  void _endDrag() {
+    if (mounted) setState(() => _dragActive = false);
   }
 
   void _showBurst() {
@@ -225,74 +253,125 @@ class _PostCardState extends State<PostCard> {
   Widget build(BuildContext context) {
     return Card(
       clipBehavior: Clip.antiAlias,
-      // Drop target: dragging the like button onto the post likes it
-      // (like-only, never unlikes).
-      child: DragTarget<String>(
-        onAcceptWithDetails: (_) => _likeFromGesture(),
-        builder: (context, candidates, rejected) {
-          return GestureDetector(
-            // Double-tap the post to like — the site's dblclick → heart
-            // burst (showHeartAnimation). Like-only.
-            behavior: HitTestBehavior.opaque,
-            onDoubleTap: _likeFromGesture,
-            child: Stack(
-              children: [
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _AuthorRow(
-                        post: widget.post,
-                        apiBaseUrl: widget.apiBaseUrl,
-                        onEdit: widget.onEditPost,
-                        onDelete: widget.onDeletePost,
-                      ),
-                      const SizedBox(height: 8),
-                      _PostContent(post: widget.post),
-                      if (widget.post.image != null &&
-                          widget.post.image!.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        _PostImage(
-                            post: widget.post, apiBaseUrl: widget.apiBaseUrl),
-                      ],
-                      const Divider(height: 24),
-                      _ActionRow(
-                        liked: _liked,
-                        likeCount: _likeCount,
-                        commentCount: _commentCount,
-                        onLike: _toggleLike,
-                        onLikers: _openLikers,
-                        onComments: _openComments,
-                      ),
-                      if (_commentsOpen) ...[
-                        const SizedBox(height: 8),
-                        _CommentsSection(
-                          comments: _comments,
-                          loading: _commentsLoading,
-                          error: _commentsError,
-                          sending: _commentSending,
-                          controller: _commentController,
-                          onSend: _sendComment,
-                          onDelete: _deleteComment,
-                          apiBaseUrl: widget.apiBaseUrl,
-                        ),
-                      ],
-                    ],
+      child: GestureDetector(
+        // Double-tap the post to like — the site's dblclick → heart burst.
+        // Like-only (never unlikes).
+        behavior: HitTestBehavior.opaque,
+        onDoubleTap: _likeFromGesture,
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _AuthorRow(
+                    post: widget.post,
+                    apiBaseUrl: widget.apiBaseUrl,
+                    onEdit: widget.onEditPost,
+                    onDelete: widget.onDeletePost,
                   ),
-                ),
-                // Heart burst on double-tap (site's showHeartAnimation).
-                if (_burst)
-                  const Positioned.fill(
-                    child: IgnorePointer(
-                      child: Center(child: _HeartBurst()),
+                  const SizedBox(height: 8),
+                  // The drop target is the CONTENT area (the site's
+                  // contentBounds: text + image) — dropping the heart on the
+                  // action row or the author row is not a like.
+                  DragTarget<String>(
+                    onAcceptWithDetails: (_) => _likeFromGesture(),
+                    builder: (context, candidates, rejected) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _PostContent(post: widget.post),
+                        if (widget.post.image != null &&
+                            widget.post.image!.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          _PostImage(
+                              post: widget.post, apiBaseUrl: widget.apiBaseUrl),
+                        ],
+                      ],
                     ),
                   ),
-              ],
+                  const Divider(height: 24),
+                  _ActionRow(
+                    liked: _liked,
+                    likeCount: _likeCount,
+                    commentCount: _commentCount,
+                    onLike: _onHeartTap,
+                    onLikers: _openLikers,
+                    onComments: _openComments,
+                    onDragStarted: _beginDrag,
+                    onDragEnded: _endDrag,
+                  ),
+                  // "Liked by N" — tappable → the likers sheet.
+                  if (_likeCount > 0)
+                    _LikedByRow(count: _likeCount, onTap: _openLikers),
+                  if (_commentsOpen) ...[
+                    const SizedBox(height: 8),
+                    _CommentsSection(
+                      comments: _comments,
+                      loading: _commentsLoading,
+                      error: _commentsError,
+                      sending: _commentSending,
+                      controller: _commentController,
+                      onSend: _sendComment,
+                      onDelete: _deleteComment,
+                      apiBaseUrl: widget.apiBaseUrl,
+                    ),
+                  ],
+                ],
+              ),
             ),
-          );
-        },
+            // Drag tray (site's pointerdown drag): darken the whole card and
+            // show the dashed "Drag the heart here to like" drop zone while
+            // the heart is held.
+            if (_dragActive)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Container(
+                    color: const Color(0xFF0F172A).withValues(alpha: 0.6),
+                    alignment: Alignment.center,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 28, vertical: 12),
+                      child: CustomPaint(
+                        painter: _DashedBorderPainter(
+                          color: const Color(0xFFF87171).withValues(alpha: 0.9),
+                          radius: BorderRadius.circular(12),
+                          dashLength: 6,
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color:
+                                const Color(0xFF0F172A).withValues(alpha: 0.75),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Center(
+                            child: Text(
+                              'Drag the heart here to like',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Color(0xFFFECACA), // red-200
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            // Heart burst on double-tap (site's showHeartAnimation).
+            if (_burst)
+              const Positioned.fill(
+                child: IgnorePointer(
+                  child: Center(child: _HeartBurst()),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -626,6 +705,8 @@ class _ActionRow extends StatelessWidget {
     required this.onLike,
     required this.onLikers,
     required this.onComments,
+    required this.onDragStarted,
+    required this.onDragEnded,
   });
 
   final bool liked;
@@ -634,27 +715,35 @@ class _ActionRow extends StatelessWidget {
   final VoidCallback onLike;
   final VoidCallback onLikers;
   final VoidCallback onComments;
+  final VoidCallback onDragStarted;
+  final VoidCallback onDragEnded;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        // The like button is draggable — drop it onto the post to like
-        // (the card is the DragTarget). A plain tap still toggles.
-        Draggable<String>(
+        // The heart is a LongPressDraggable (site: pointerdown drag):
+        // HOLD the heart to start the drag — the "drag the heart here to
+        // like" tray appears and dropping it on the post content likes it.
+        // A plain TAP never likes an unliked post (onLike handles that).
+        LongPressDraggable<String>(
           data: 'like',
           feedback: const FaIcon(FontAwesomeIcons.heart,
-              color: EnclavdColors.likeActive, size: 28),
+              color: EnclavdColors.likeActive, size: 40),
           childWhenDragging: Opacity(
-            opacity: 0.35,
+            opacity: 0.3,
             child: FaIcon(
               FontAwesomeIcons.heart,
+              key: const ValueKey('like-heart'),
               color: liked
                   ? EnclavdColors.likeActive
                   : EnclavdColors.textSecondary,
               size: 20,
             ),
           ),
+          onDragStarted: onDragStarted,
+          onDragEnd: (_) => onDragEnded(),
+          onDraggableCanceled: (_, __) => onDragEnded(),
           child: InkWell(
             onTap: onLike,
             borderRadius: BorderRadius.circular(8),
@@ -663,6 +752,7 @@ class _ActionRow extends StatelessWidget {
               // Site uses a solid fa-heart that turns red when liked.
               child: FaIcon(
                 FontAwesomeIcons.heart,
+                key: const ValueKey('like-heart'),
                 color: liked
                     ? EnclavdColors.likeActive
                     : EnclavdColors.textSecondary,
@@ -712,6 +802,73 @@ class _ActionRow extends StatelessWidget {
       ],
     );
   }
+}
+
+/// "Liked by N" line under the action row — tappable → the likers sheet
+/// (the user's requested explicit affordance; the site's count also opens
+/// the showLikers modal).
+class _LikedByRow extends StatelessWidget {
+  const _LikedByRow({required this.count, required this.onTap});
+
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(6),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          child: Text(
+            'Liked by $count',
+            style: const TextStyle(
+              color: EnclavdColors.textSecondary,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Dashed rounded-rect border — the site's `2px dashed` drop tray.
+class _DashedBorderPainter extends CustomPainter {
+  const _DashedBorderPainter({
+    required this.color,
+    required this.radius,
+    required this.dashLength,
+  });
+
+  final Color color;
+  final BorderRadius radius;
+  final double dashLength;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+    final path = Path()
+      ..addRRect(RRect.fromRectAndRadius(Offset.zero & size, radius.topLeft));
+    for (final metric in path.computeMetrics()) {
+      var d = 0.0;
+      while (d < metric.length) {
+        final end = math.min(d + dashLength, metric.length);
+        canvas.drawPath(metric.extractPath(d, end), paint);
+        d += dashLength * 2;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedBorderPainter oldDelegate) =>
+      oldDelegate.color != color || oldDelegate.radius != radius;
 }
 
 /// Lazy-loaded comments: list (newest first) + composer.

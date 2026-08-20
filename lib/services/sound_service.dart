@@ -16,21 +16,37 @@ class SoundService {
 
   static final SoundService instance = SoundService._();
 
+  /// Master mute — also the test hook (audioplayers has no platform channel
+  /// under `flutter test`, so widget tests set this to avoid unhandled
+  /// MissingPluginExceptions).
+  static bool muted = false;
+
   AudioPlayer? _like;
   AudioPlayer? _action;
 
-  Future<void> like() =>
-      _play(_like ??= AudioPlayer(), 'sounds/like_sound.mp3');
+  Future<void> like() async {
+    if (muted) return;
+    await _play(_player(like: true), 'sounds/like_sound.mp3');
+  }
 
-  Future<void> action() =>
-      _play(_action ??= AudioPlayer(), 'sounds/action_sound.mp3');
+  Future<void> action() async {
+    if (muted) return;
+    await _play(_player(like: false), 'sounds/action_sound.mp3');
+  }
+
+  AudioPlayer _player({required bool like}) {
+    if (like) {
+      return _like ??= AudioPlayer();
+    }
+    return _action ??= AudioPlayer();
+  }
 
   Future<void> _play(AudioPlayer player, String asset) async {
     try {
       await player.stop();
       await player.play(AssetSource(asset));
     } catch (_) {
-      // Audio unavailable — never throw into the UI flow.
+      // Audio unavailable (tests, headless) — never break the UI.
     }
   }
 }

@@ -333,6 +333,10 @@ class _FeedScreenState extends State<FeedScreen> {
           );
         }
         return PostCard(
+          // Key by post id so ListView.builder never reuses a card's State
+          // (like count/liked flags) for a different post after a refresh —
+          // that reuse made brand-new posts show a stale "1 like".
+          key: ValueKey(_posts[index].id),
           post: _posts[index],
           apiBaseUrl: AppConfig.apiBaseUrl,
           social: _services!.social,
