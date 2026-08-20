@@ -277,6 +277,10 @@ class _ComposeScreenState extends State<ComposeScreen> {
                 minLines: 3,
                 maxLines: 8,
                 textCapitalization: TextCapitalization.sentences,
+                // Pin the input to the top of its box: without this the
+                // EditableText can center vertically in M3 when the box is
+                // taller than the content.
+                textAlignVertical: TextAlignVertical.top,
                 style: base.copyWith(color: Colors.transparent),
                 cursorColor: EnclavdColors.textPrimary,
                 decoration: const InputDecoration(
@@ -288,6 +292,13 @@ class _ComposeScreenState extends State<ComposeScreen> {
                   border: InputBorder.none,
                   counterText: '',
                   hintStyle: TextStyle(color: Colors.transparent),
+                  // CRITICAL: zero out the content padding. The global
+                  // inputDecorationTheme sets (14,14) — leaked into this
+                  // field it offsets the cursor/text of the transparent
+                  // input by 14px down-right from the highlight layer
+                  // beneath (the visible text), which is the reported
+                  // "cursor is not where the text is" mismatch.
+                  contentPadding: EdgeInsets.zero,
                 ),
               ),
             ],

@@ -79,5 +79,22 @@ void main() {
           as TextSpan;
       expect(tag.style?.color, EnclavdColors.link);
     });
+
+    testWidgets(
+        'input layer is zero-padded + top-aligned so the cursor lands on '
+        'the visible text (the reported mismatch)', (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        theme: buildEnclavdTheme(),
+        home: const ComposeScreen(),
+      ));
+      final field = tester.widget<TextField>(find.byType(TextField));
+      // The global inputDecorationTheme sets contentPadding (14,14) — the
+      // transparent input MUST override it to zero or its cursor/text sit
+      // 14px down-right of the highlight layer beneath (visible text).
+      expect(field.decoration?.contentPadding, EdgeInsets.zero);
+      // M3 can vertically center the EditableText when the box is taller
+      // than the content — pin to top so it matches the highlight layer.
+      expect(field.textAlignVertical, TextAlignVertical.top);
+    });
   });
 }
