@@ -6,6 +6,7 @@ import '../config/app_config.dart';
 import '../main.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/post_card.dart';
+import '../widgets/shimmer.dart';
 import 'login_screen.dart';
 
 /// Feed screen — the ranked feed via GET /api/v1/posts.
@@ -158,7 +159,16 @@ class _FeedScreenState extends State<FeedScreen> {
 
   Widget _buildBody() {
     if (!_initialLoadDone && _loading) {
-      return const Center(child: CircularProgressIndicator());
+      // Skeleton cards while the first page loads — never a bare spinner.
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        children: const [
+          PostCardSkeleton(),
+          PostCardSkeleton(),
+          PostCardSkeleton(),
+        ],
+      );
     }
     if (_error != null && _posts.isEmpty) {
       return _ErrorView(
@@ -173,15 +183,10 @@ class _FeedScreenState extends State<FeedScreen> {
       itemCount: _posts.length + (_loading ? 1 : 0),
       itemBuilder: (context, index) {
         if (index >= _posts.length) {
+          // Small inline shimmer for the next page instead of a spinner.
           return const Padding(
-            padding: EdgeInsets.all(24),
-            child: Center(
-              child: SizedBox(
-                width: 24,
-                height: 24,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
+            padding: EdgeInsets.symmetric(vertical: 12),
+            child: Center(child: ShimmerBox(width: 160, height: 22)),
           );
         }
         return PostCard(

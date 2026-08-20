@@ -80,10 +80,14 @@ jobs:
             DEFINES="$DEFINES --dart-define=ENCLAVD_FEATURE_NOTIFICATIONS=true"
           fi
 
-          if [ "${{ github.event.inputs.build_type }}" = "release" ]; then
-            flutter build apk --release $DEFINES
-          else
+          if [ "${{ github.event.inputs.build_type }}" = "debug" ]; then
+            # Debug only via workflow_dispatch (JIT: good for hot-reload
+            # iteration, feels laggy on-device — never the push default).
             flutter build apk --debug $DEFINES
+          else
+            # Release by default: the push-built APK is what gets installed
+            # on phones. AOT-compiled, no IME/typing jank.
+            flutter build apk --release $DEFINES
           fi
 
       - name: Upload APK artifact

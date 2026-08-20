@@ -21,6 +21,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _email = TextEditingController();
   final _password = TextEditingController();
+  final _emailFocus = FocusNode();
+  final _passwordFocus = FocusNode();
   bool _rememberMe = true;
   bool _busy = false;
   String? _error;
@@ -30,6 +32,8 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _email.dispose();
     _password.dispose();
+    _emailFocus.dispose();
+    _passwordFocus.dispose();
     super.dispose();
   }
 
@@ -100,7 +104,9 @@ class _LoginScreenState extends State<LoginScreen> {
                         ],
                         TextFormField(
                           controller: _email,
+                          focusNode: _emailFocus,
                           keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.next,
                           autofillHints: const [AutofillHints.username],
                           decoration: const InputDecoration(
                             labelText: 'Email address',
@@ -109,11 +115,14 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           validator: (v) =>
                               (v == null || v.trim().isEmpty) ? 'Enter your email' : null,
+                          onFieldSubmitted: (_) => _passwordFocus.requestFocus(),
                         ),
                         const SizedBox(height: 16),
                         TextFormField(
                           controller: _password,
+                          focusNode: _passwordFocus,
                           obscureText: true,
+                          textInputAction: TextInputAction.done,
                           autofillHints: const [AutofillHints.password],
                           decoration: const InputDecoration(
                             labelText: 'Password',

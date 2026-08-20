@@ -4,6 +4,8 @@ import '../api/auth_service.dart';
 import '../api/feed_service.dart';
 import '../api/social_service.dart';
 import '../theme/enclavd_theme.dart';
+import 'enclavd_image.dart';
+import 'shimmer.dart';
 
 /// Post card — visual port of feed/components/post_card.php, now with
 /// interactive like + comments.
@@ -232,10 +234,9 @@ class _AuthorRow extends StatelessWidget {
             ),
           ),
           clipBehavior: Clip.antiAlias,
-          child: Image.network(
+          child: EnclavdImage(
             resolveMediaUrl(apiBaseUrl, avatarPath: post.profilePictureUrl),
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => const Icon(Icons.person, size: 18),
           ),
         ),
         const SizedBox(width: 8),
@@ -351,7 +352,7 @@ class _PostContentState extends State<_PostContent> {
   }
 }
 
-/// Post image (plain network load in the engagement milestone).
+/// Post image with shimmer-while-loading + fade-in (EnclavdImage).
 class _PostImage extends StatelessWidget {
   const _PostImage({required this.post, required this.apiBaseUrl});
 
@@ -360,19 +361,13 @@ class _PostImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
+    return EnclavdImage(
+      resolveMediaUrl(apiBaseUrl, galleryName: post.image),
+      fit: BoxFit.contain,
+      width: double.infinity,
+      errorIcon: Icons.broken_image_outlined,
       borderRadius: BorderRadius.circular(8),
-      child: Image.network(
-        resolveMediaUrl(apiBaseUrl, galleryName: post.image),
-        fit: BoxFit.contain,
-        width: double.infinity,
-        errorBuilder: (_, __, ___) => Container(
-          height: 120,
-          color: EnclavdColors.cardSecondary,
-          child: const Icon(Icons.broken_image_outlined,
-              color: EnclavdColors.textSecondary),
-        ),
-      ),
+      placeholderHeight: 160,
     );
   }
 }
@@ -469,15 +464,12 @@ class _CommentsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (loading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 12),
-        child: Center(
-          child: SizedBox(
-            width: 22,
-            height: 22,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-        ),
+      return const Column(
+        children: [
+          ShimmerBox(width: double.infinity, height: 40),
+          SizedBox(height: 8),
+          ShimmerBox(width: double.infinity, height: 40),
+        ],
       );
     }
     if (error != null) {
@@ -590,11 +582,9 @@ class _CommentRow extends StatelessWidget {
               ),
             ),
             clipBehavior: Clip.antiAlias,
-            child: Image.network(
+            child: EnclavdImage(
               resolveMediaUrl(apiBaseUrl, avatarPath: comment.profilePictureUrl),
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) =>
-                  const Icon(Icons.person, size: 14),
             ),
           ),
           const SizedBox(width: 8),
