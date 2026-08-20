@@ -2,12 +2,14 @@ import 'api_client.dart';
 
 /// A single post card from GET /api/v1/posts.
 ///
-/// Field contract (posts.php $map_post): id, content, created_at,
-/// feed_score, like_count, comment_count, user_liked, warning_count,
-/// username, profile_picture_url, personality_type, is_active, rank, image.
+/// Field contract (posts.php $map_post): id, author_id, content,
+/// created_at, feed_score, like_count, comment_count, user_liked,
+/// warning_count, username, profile_picture_url, personality_type,
+/// is_active, rank, image.
 class Post {
   const Post({
     required this.id,
+    this.authorId = 0,
     required this.content,
     required this.createdAt,
     required this.feedScore,
@@ -24,6 +26,7 @@ class Post {
   });
 
   final int id;
+  final int authorId;
   final String content;
   final String createdAt;
   final double? feedScore;
@@ -40,6 +43,7 @@ class Post {
 
   factory Post.fromJson(Map<String, dynamic> json) => Post(
         id: (json['id'] as num?)?.toInt() ?? 0,
+        authorId: (json['author_id'] as num?)?.toInt() ?? 0,
         content: json['content'] as String? ?? '',
         createdAt: json['created_at'] as String? ?? '',
         feedScore: (json['feed_score'] as num?)?.toDouble(),
@@ -59,19 +63,24 @@ class Post {
   bool get isBlocked => isActive == 'false';
 }
 
-/// One page of the ranked feed + the keyset cursor for the next page.
+/// One page of posts + the keyset cursor for the next page.
+///
+/// The ranked feed pages on (last_score, last_id); a user's profile posts
+/// page on (last_created_at, last_id) — only one of the two is set.
 class FeedPage {
   const FeedPage({
     required this.posts,
     required this.hasMore,
     required this.lastScore,
     required this.lastId,
+    this.lastCreatedAt,
   });
 
   final List<Post> posts;
   final bool hasMore;
   final double? lastScore;
   final int? lastId;
+  final String? lastCreatedAt;
 
   bool get isEmpty => posts.isEmpty;
 
@@ -85,6 +94,7 @@ class FeedPage {
       hasMore: json['has_more'] as bool? ?? false,
       lastScore: (json['last_score'] as num?)?.toDouble(),
       lastId: (json['last_id'] as num?)?.toInt(),
+      lastCreatedAt: json['last_created_at'] as String?,
     );
   }
 }
@@ -118,6 +128,23 @@ class FeedService {
       lastScore: previous.lastScore!,
       lastId: previous.lastId!,
     );
+  }
+
+  /// A single author's posts (profile screen) — newest first, chronological
+  /// (posts.php ?user_id=N), keyset on (last_created_at, last_id).
+  Future<FeedPage> userPosts(
+    int userId, {
+    int limit = 10,
+    String? lastCreatedAt,
+    int? lastId,
+  }) async {
+    final json = await _api.getJson('/api/v1/posts', query: {
+      'user_id': '$userId',
+      'limit': '$limit',
+      if (lastCreatedAt != null) 'last_created_at': lastCreatedAt,
+      if (lastId != null) 'last_id': '$lastId',
+    });
+    return FeedPage.fromJson(json);
   }
 
   Future<FeedPage> _fetch({

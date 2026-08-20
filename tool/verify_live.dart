@@ -17,6 +17,7 @@ import 'dart:io';
 import 'package:enclavd/api/api_client.dart';
 import 'package:enclavd/api/auth_service.dart';
 import 'package:enclavd/api/feed_service.dart';
+import 'package:enclavd/api/profile_service.dart';
 import 'package:enclavd/api/social_service.dart';
 
 class MemStore implements SessionStore {
@@ -48,6 +49,7 @@ Future<void> main() async {
   final auth = AuthService(api, apiBaseUrl: base);
   final feed = FeedService(api);
   final social = SocialService(api);
+  final profileService = ProfileService(api);
 
   var failures = 0;
   void check(String label, bool ok, [String? detail]) {
@@ -99,7 +101,45 @@ Future<void> main() async {
         imgUrl.contains('/public/gallery/'), imgUrl);
   }
 
-  // ── 5. Likes — toggle ON, verify, toggle OFF (leave state untouched) ───
+  // ── 5. Profile — header, own posts (keyset), self-follow guard ─────────
+  check('feed post carries author_id', p0.authorId > 0, '#${p0.id} → ${p0.authorId}');
+  final prof = await profileService.fetchProfile(p0.authorId);
+  check('profile GET returns the author', prof.username == p0.username,
+      '${prof.username} rank=${prof.rank}');
+  check('profile is the dev account (is_own)', prof.isOwn, 'id=${prof.id}');
+  check('profile stats populated',
+      prof.followerCount >= 0 && prof.followingCount >= 0 && prof.postCount > 0,
+      'followers=${prof.followerCount} following=${prof.followingCount} posts=${prof.postCount}');
+  check('joined date formats', formatJoinedDate(prof.dateCreated).isNotEmpty,
+      formatJoinedDate(prof.dateCreated));
+
+  final up1 = await feed.userPosts(p0.authorId, limit: 3);
+  check('user posts page 1 returns posts', up1.posts.isNotEmpty,
+      '${up1.posts.length} posts');
+  check('user posts are all by the author',
+      up1.posts.every((p) => p.authorId == p0.authorId));
+  if (up1.hasMore && up1.lastCreatedAt != null) {
+    final up2 = await feed.userPosts(p0.authorId,
+        limit: 3, lastCreatedAt: up1.lastCreatedAt, lastId: up1.lastId);
+    check('user posts page 2 via keyset returns posts', up2.posts.isNotEmpty,
+        '${up2.posts.length} posts');
+    check('user posts page 2 has no overlap',
+        !up2.posts.any((p) => p.id == up1.posts.first.id));
+  } else {
+    check('user posts page 2 via keyset returns posts', true,
+        'skipped — no more');
+  }
+
+  // Self-follow must be rejected with 400 (server-side guard).
+  var selfFollowBlocked = false;
+  try {
+    await profileService.toggleFollow(p0.authorId);
+  } on ApiException catch (e) {
+    selfFollowBlocked = e.status == 400;
+  }
+  check('self-follow guard rejects with 400', selfFollowBlocked);
+
+  // ── 6. Likes — toggle ON, verify, toggle OFF (leave state untouched) ───
   // NOTE: the target post may already be liked by the dev user — first
   // toggle flips the current state, second toggle restores it.
   final target = p0;

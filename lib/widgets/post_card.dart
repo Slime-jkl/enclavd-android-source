@@ -7,6 +7,7 @@ import '../api/social_service.dart';
 import '../theme/enclavd_theme.dart';
 import 'cached_image.dart';
 import 'enclavd_image.dart';
+import '../screens/profile_screen.dart';
 import 'shimmer.dart';
 
 /// Post card — visual port of feed/components/post_card.php, now with
@@ -222,77 +223,84 @@ class _AuthorRow extends StatelessWidget {
     final personality = PersonalityColors.forType(post.personalityType);
     return Row(
       children: [
-        // 35px circular avatar, personality-colored border (border_color),
-        // falls back to default-avatar on error — matches the site's onerror.
-        Container(
-          width: 35,
-          height: 35,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: EnclavdColors.cardSecondary,
-            border: Border.all(
-              color: personality ?? EnclavdColors.border,
-              width: 2,
+        // Avatar + username open the author's profile (site: click through
+        // the profile tooltip).
+        GestureDetector(
+          onTap: () => _openProfile(context, post.authorId),
+          child: Container(
+            width: 35,
+            height: 35,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: EnclavdColors.cardSecondary,
+              border: Border.all(
+                color: personality ?? EnclavdColors.border,
+                width: 2,
+              ),
             ),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: EnclavdImage(
-            resolveMediaUrl(apiBaseUrl, avatarPath: post.profilePictureUrl),
-            fit: BoxFit.cover,
+            clipBehavior: Clip.antiAlias,
+            child: EnclavdImage(
+              resolveMediaUrl(apiBaseUrl, avatarPath: post.profilePictureUrl),
+              fit: BoxFit.cover,
+            ),
           ),
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Flexible(
-                    child: Text(
-                      post.username,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: post.isBlocked
-                            ? RankColors.forRank('Blocked')
-                            : RankColors.forRank(post.rank),
-                        fontWeight: FontWeight.w600,
-                        decoration:
-                            post.isBlocked ? TextDecoration.lineThrough : null,
-                        decorationColor: RankColors.forRank('Blocked'),
-                      ),
-                    ),
-                  ),
-                  if (post.personalityType != null) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: EnclavdColors.cardSecondary,
-                        borderRadius: BorderRadius.circular(999),
-                      ),
+          child: GestureDetector(
+            onTap: () => _openProfile(context, post.authorId),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
                       child: Text(
-                        post.personalityType!.toUpperCase(),
+                        post.username,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 10,
+                          color: post.isBlocked
+                              ? RankColors.forRank('Blocked')
+                              : RankColors.forRank(post.rank),
                           fontWeight: FontWeight.w600,
-                          color: personality ?? EnclavdColors.textSecondary,
+                          decoration: post.isBlocked
+                              ? TextDecoration.lineThrough
+                              : null,
+                          decorationColor: RankColors.forRank('Blocked'),
                         ),
                       ),
                     ),
+                    if (post.personalityType != null) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: EnclavdColors.cardSecondary,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          post.personalityType!.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: personality ?? EnclavdColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
+                    if (post.warningCount > 0) ...[
+                      const SizedBox(width: 6),
+                      const FaIcon(FontAwesomeIcons.triangleExclamation,
+                          color: EnclavdColors.warning, size: 14),
+                      Text('${post.warningCount}',
+                          style: const TextStyle(
+                              color: EnclavdColors.warning, fontSize: 10)),
+                    ],
                   ],
-                  if (post.warningCount > 0) ...[
-                    const SizedBox(width: 6),
-                    const FaIcon(FontAwesomeIcons.triangleExclamation,
-                        color: EnclavdColors.warning, size: 14),
-                    Text('${post.warningCount}',
-                        style: const TextStyle(
-                            color: EnclavdColors.warning, fontSize: 10)),
-                  ],
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
         ),
         const SizedBox(width: 8),
@@ -302,6 +310,13 @@ class _AuthorRow extends StatelessWidget {
               const TextStyle(color: EnclavdColors.textSecondary, fontSize: 12),
         ),
       ],
+    );
+  }
+
+  void _openProfile(BuildContext context, int authorId) {
+    if (authorId <= 0) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => ProfileScreen(userId: authorId)),
     );
   }
 }
@@ -653,22 +668,25 @@ class _CommentRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: EnclavdColors.cardSecondary,
-              border: Border.all(
-                color: personality ?? EnclavdColors.border,
-                width: 1.5,
+          GestureDetector(
+            onTap: () => _openProfile(context, comment.userId),
+            child: Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: EnclavdColors.cardSecondary,
+                border: Border.all(
+                  color: personality ?? EnclavdColors.border,
+                  width: 1.5,
+                ),
               ),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: EnclavdImage(
-              resolveMediaUrl(apiBaseUrl,
-                  avatarPath: comment.profilePictureUrl),
-              fit: BoxFit.cover,
+              clipBehavior: Clip.antiAlias,
+              child: EnclavdImage(
+                resolveMediaUrl(apiBaseUrl,
+                    avatarPath: comment.profilePictureUrl),
+                fit: BoxFit.cover,
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -679,13 +697,16 @@ class _CommentRow extends StatelessWidget {
                 Row(
                   children: [
                     Flexible(
-                      child: Text(
-                        comment.username,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: rankColorFromCssClass(comment.nameColor),
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
+                      child: GestureDetector(
+                        onTap: () => _openProfile(context, comment.userId),
+                        child: Text(
+                          comment.username,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: rankColorFromCssClass(comment.nameColor),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
                         ),
                       ),
                     ),
@@ -716,6 +737,13 @@ class _CommentRow extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  void _openProfile(BuildContext context, int authorId) {
+    if (authorId <= 0) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => ProfileScreen(userId: authorId)),
     );
   }
 }
