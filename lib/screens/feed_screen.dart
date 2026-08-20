@@ -9,6 +9,7 @@ import '../api/auth_service.dart';
 import '../api/feed_service.dart';
 import '../config/app_config.dart';
 import '../main.dart';
+import '../services/message_notifications.dart';
 import '../services/realtime_service.dart';
 import '../services/sound_service.dart';
 import '../theme/enclavd_theme.dart';
@@ -73,8 +74,14 @@ class _FeedScreenState extends State<FeedScreen> {
         Timer.periodic(const Duration(seconds: 30), (_) => _loadUnread());
     final realtime = _services!.realtime;
     _realtimeSub = realtime.events.listen((event) {
-      if (event.type == 'message_unread' && event.unreadCount != null) {
-        if (mounted && event.unreadCount != _unreadMessages) {
+      if (event.type == 'message_unread') {
+        // Badge ping = a new message somewhere: surface it as a device
+        // notification with a drawer reply (skipped while the messages
+        // screen is open and the app is foregrounded).
+        MessageNotifications.instance?.handleUnreadPing();
+        if (event.unreadCount != null &&
+            mounted &&
+            event.unreadCount != _unreadMessages) {
           setState(() => _unreadMessages = event.unreadCount!);
         }
       }

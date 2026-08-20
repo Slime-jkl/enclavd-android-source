@@ -7,6 +7,7 @@ import '../api/api_client.dart';
 import '../api/messages_service.dart';
 import '../config/app_config.dart';
 import '../main.dart';
+import '../services/message_notifications.dart';
 import '../services/realtime_service.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/enclavd_avatar.dart';
@@ -96,6 +97,9 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    // Reading a thread counts as "messages screen open" for the
+    // notification-suppression rule.
+    MessageNotifications.instance?.setMessagesOpen(true);
     _load();
     _pollTimer = Timer.periodic(ChatScreen.pollInterval, (_) => _poll());
     _realtimeSub = widget.realtime.events.listen(_onRealtime);
@@ -104,6 +108,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    MessageNotifications.instance?.setMessagesOpen(false);
     _pollTimer?.cancel();
     _typingStopTimer?.cancel();
     _realtimeSub?.cancel();

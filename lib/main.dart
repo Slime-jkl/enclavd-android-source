@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -13,6 +15,7 @@ import 'screens/feed_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/splash_screen.dart';
+import 'services/message_notifications.dart';
 import 'services/realtime_service.dart';
 import 'theme/enclavd_theme.dart';
 
@@ -31,7 +34,7 @@ void main() {
 class AppServices {
   AppServices._(
       this.apiClient, this.auth, this.feed, this.social, this.profile,
-      this.posts, this.messages, this.realtime);
+      this.posts, this.messages, this.realtime, this.notifications);
 
   final ApiClient apiClient;
   final AuthService auth;
@@ -41,6 +44,7 @@ class AppServices {
   final PostsService posts;
   final MessagesService messages;
   final RealtimeService realtime;
+  final MessageNotifications notifications;
 
   static Future<AppServices> create() async {
     final prefs = await SharedPreferences.getInstance();
@@ -48,6 +52,20 @@ class AppServices {
     final api = ApiClient(store: store);
     await api.restoreSession();
     final auth = AuthService(api, apiBaseUrl: AppConfig.apiBaseUrl);
+    // One MessageNotifications for the app's lifetime: first create wins,
+    // later ones reuse it so the plugin initializes once and the
+    // messages-open count stays consistent across screen instances.
+    var notifications = MessageNotifications.instance;
+    if (notifications == null) {
+      notifications = MessageNotifications(
+        notifier: FlutterLocalNotifier(
+          onResponse: (r) => MessageNotifications.instance?.handleResponse(r),
+        ),
+        messagesFactory: () async => MessagesService(api),
+      );
+      MessageNotifications.instance = notifications;
+      unawaited(notifications.init());
+    }
     return AppServices._(
         api,
         auth,
@@ -56,7 +74,8 @@ class AppServices {
         ProfileService(api),
         PostsService(api),
         MessagesService(api),
-        RealtimeService(api));
+        RealtimeService(api),
+        notifications);
   }
 }
 

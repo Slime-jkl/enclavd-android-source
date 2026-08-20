@@ -8,6 +8,7 @@ import '../api/auth_service.dart';
 import '../api/messages_service.dart';
 import '../config/app_config.dart';
 import '../main.dart';
+import '../services/message_notifications.dart';
 import '../services/realtime_service.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/enclavd_avatar.dart';
@@ -67,6 +68,10 @@ class _MessagesScreenState extends State<MessagesScreen> {
   @override
   void initState() {
     super.initState();
+    // In the messages area: suppress message notifications while this is
+    // the visible screen (the app-lifecycle check in the service handles
+    // the minimized case).
+    MessageNotifications.instance?.setMessagesOpen(true);
     _init();
     _pollTimer =
         Timer.periodic(MessagesScreen.pollInterval, (_) => _silentRefresh());
@@ -74,6 +79,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
   @override
   void dispose() {
+    MessageNotifications.instance?.setMessagesOpen(false);
     _pollTimer?.cancel();
     _realtimeSub?.cancel();
     // Leave every room this screen joined (the pushed ChatScreen leaves

@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../config/app_config.dart';
+import '../services/message_notifications.dart';
 import '../services/sound_service.dart';
 import '../theme/enclavd_theme.dart';
 
@@ -24,8 +25,10 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   static const _prefsKey = 'sounds_enabled';
+  static const _notifPrefsKey = MessageNotifications.enabledPrefsKey;
 
   bool? _soundsEnabled; // null until loaded
+  bool? _notificationsEnabled; // null until loaded
 
   @override
   void initState() {
@@ -37,8 +40,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final prefs = await SharedPreferences.getInstance();
     final enabled = prefs.getBool(_prefsKey) ?? true;
     SoundService.muted = !enabled;
+    final notifications = prefs.getBool(_notifPrefsKey) ?? true;
     if (!mounted) return;
-    setState(() => _soundsEnabled = enabled);
+    setState(() {
+      _soundsEnabled = enabled;
+      _notificationsEnabled = notifications;
+    });
   }
 
   Future<void> _toggleSounds(bool enabled) async {
@@ -46,6 +53,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     SoundService.muted = !enabled;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_prefsKey, enabled);
+  }
+
+  Future<void> _toggleNotifications(bool enabled) async {
+    setState(() => _notificationsEnabled = enabled);
+    await MessageNotifications.instance?.setEnabled(enabled);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_notifPrefsKey, enabled);
   }
 
   Future<void> _openSite(String path) async {
@@ -62,6 +76,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final sounds = _soundsEnabled;
+    final notifications = _notificationsEnabled;
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: SafeArea(
@@ -98,6 +113,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       title: const Text('Sound effects'),
                       subtitle: const Text(
                           'Like and action sounds, like on the website'),
+                    ),
+            ),
+            const SizedBox(height: 10),
+            Material(
+              color: EnclavdColors.card,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: EnclavdColors.border),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: notifications == null
+                  ? const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Center(
+                          child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2))),
+                    )
+                  : SwitchListTile(
+                      value: notifications,
+                      onChanged: _toggleNotifications,
+                      activeTrackColor: EnclavdColors.primaryButton,
+                      secondary: const FaIcon(FontAwesomeIcons.bell,
+                          color: EnclavdColors.link, size: 18),
+                      title: const Text('Message notifications'),
+                      subtitle: const Text(
+                          'Device notifications with quick reply when '
+                          'someone messages you'),
                     ),
             ),
             const SizedBox(height: 20),

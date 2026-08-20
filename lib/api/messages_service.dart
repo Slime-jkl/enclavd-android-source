@@ -183,6 +183,52 @@ class MessagesService {
     });
     return (json['unread_count'] as num?)?.toInt() ?? 0;
   }
+
+  /// The newest unread messages (the worker shape: GET ?unread=1),
+  /// newest first, LIMIT 10. Read-only — nothing is marked read.
+  Future<List<UnreadMessage>> unreadMessages() async {
+    final json = await _api.getJson('/api/v1/messages', query: {
+      'unread': '1',
+    });
+    final raw = json['messages'] as List<dynamic>? ?? const [];
+    return [
+      for (final m in raw)
+        if (m is Map<String, dynamic>) UnreadMessage.fromJson(m),
+    ];
+  }
+}
+
+/// One unread message (GET /api/v1/messages?unread=1 worker shape) — the
+/// payload the notification system renders: who sent it, what they said and
+/// which conversation a drawer reply should target.
+class UnreadMessage {
+  const UnreadMessage({
+    required this.messageId,
+    required this.conversationId,
+    required this.senderId,
+    required this.senderName,
+    required this.senderAvatar,
+    required this.message,
+    required this.createdAt,
+  });
+
+  final int messageId;
+  final int conversationId;
+  final int senderId;
+  final String senderName;
+  final String senderAvatar; // root-relative path
+  final String message;
+  final String createdAt; // DB UTC wall-clock
+
+  factory UnreadMessage.fromJson(Map<String, dynamic> json) => UnreadMessage(
+        messageId: (json['message_id'] as num?)?.toInt() ?? 0,
+        conversationId: (json['conversation_id'] as num?)?.toInt() ?? 0,
+        senderId: (json['sender_id'] as num?)?.toInt() ?? 0,
+        senderName: json['sender_name'] as String? ?? '',
+        senderAvatar: json['sender_avatar'] as String? ?? '',
+        message: json['message'] as String? ?? '',
+        createdAt: json['created_at'] as String? ?? '',
+      );
 }
 
 /// EnclavdTime.parse port (assets/js/time.js): the DB stores every
