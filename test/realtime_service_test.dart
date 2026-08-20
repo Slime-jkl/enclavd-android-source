@@ -38,6 +38,8 @@ class RealtimeHarness {
   final List<String> feedRequests = [];
   final List<String> sseRequests = [];
   int feedFailures = 0; // answer the next N /feed requests with 500
+  int sseFailures = 0; // answer the next N /events requests with 500
+  bool keepSseOpen = false; // keep the SSE stream open (no close)
 
   int get port => server.port;
 
@@ -82,7 +84,17 @@ class RealtimeHarness {
         await req.response.close();
       } else if (req.uri.path == '/events') {
         h.sseRequests.add(req.uri.queryParameters['token'] ?? '');
+        if (h.sseFailures > 0) {
+          h.sseFailures--;
+          req.response.statusCode = HttpStatus.internalServerError;
+          await req.response.close();
+          return;
+        }
         req.response.headers.set('content-type', 'text/event-stream');
+        if (h.keepSseOpen) {
+          await req.response.flush();
+          return; // stream stays open — no events, no close
+        }
         req.response.write('event: message_unread\n'
             'data: {"unread_count":3}\n\n'
             ': ping\n\n'
@@ -290,13 +302,52 @@ void main() {
     await service.connectSse();
     await done.future.timeout(const Duration(seconds: 2));
 
-    expect(h.sseRequests.single, '1.9999999999.abcdef',
+    expect(h.sseRequests.first, '1.9999999999.abcdef',
         reason: 'token from the /feed cookie');
     expect(received, hasLength(2));
     expect(received[0].type, 'message_unread');
     expect(received[0].unreadCount, 3);
     expect(received[1].unreadCount, 0);
     expect(received.map((e) => e.type), everyElement('message_unread'));
+
+    service.dispose();
+    await h.close();
+  });
+
+  test('SSE reconnects indefinitely — the badge stream never gives up',
+      () async {
+    final h = await RealtimeHarness.start();
+    h.sseFailures = 10; // more than the old 5-attempt budget
+    final service = await buildService(h);
+    final done = Completer<void>();
+    service.events.listen((e) {
+      if (e.type == 'message_unread' && !done.isCompleted) done.complete();
+    });
+
+    await service.connectSse();
+    await done.future.timeout(const Duration(seconds: 3));
+
+    expect(h.sseRequests.length, greaterThan(RealtimeService.maxReconnectAttempts),
+        reason: '10 failures → the 11th attempt connects (no give-up)');
+
+    service.dispose();
+    await h.close();
+  });
+
+  test('connectSse is a no-op while a stream is already active', () async {
+    final h = await RealtimeHarness.start();
+    h.keepSseOpen = true;
+    final service = await buildService(h);
+
+    // Do NOT await the first connect: with the stream kept open it only
+    // returns when the stream ends — that is exactly the live state the
+    // second call must detect.
+    unawaited(service.connectSse());
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    await service.connectSse(); // must return immediately (stream active)
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+
+    expect(h.sseRequests, hasLength(1), reason: 'one live stream only');
 
     service.dispose();
     await h.close();

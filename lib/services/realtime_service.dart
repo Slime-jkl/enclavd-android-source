@@ -237,7 +237,7 @@ class RealtimeService {
   }
 
   Future<void> _connectSse() async {
-    if (_disposed || _sseConnecting) return;
+    if (_disposed || _sseConnecting || _sseClient != null) return;
     _sseConnecting = true;
     try {
       final token = await _token();
@@ -298,10 +298,19 @@ class RealtimeService {
 
   void _scheduleSseReconnect() {
     if (_disposed) return;
-    _sseAttempts++;
-    if (_sseAttempts > maxReconnectAttempts) return;
     _sseReconnectTimer?.cancel();
-    _sseReconnectTimer = Timer(_reconnectDelay, _connectSse);
+    // EventSource parity: SSE auto-reconnects FOREVER — no attempt budget.
+    // The site's badge stream must never die silently for the whole session
+    // (Android drops idle sockets; a 5-attempt budget would exhaust in 15s
+    // and leave the badge/notification path on the 30s poll only). Backoff
+    // grows past the first attempts so a dead network doesn't hammer; an
+    // explicit connectSse() (feed foreground resume) resets the backoff.
+    // A 401 still stops retrying — a dead session is the REST 401 flow's job.
+    final delay = _sseAttempts < 5
+        ? _reconnectDelay
+        : _reconnectDelay * 10; // prod: 3s -> 30s; tests scale too
+    _sseAttempts++;
+    _sseReconnectTimer = Timer(delay, _connectSse);
   }
 
   /// The realtime token: the enclavd_rt cookie the ApiClient captured from

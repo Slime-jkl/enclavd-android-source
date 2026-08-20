@@ -37,7 +37,7 @@ class FeedScreen extends StatefulWidget {
   State<FeedScreen> createState() => _FeedScreenState();
 }
 
-class _FeedScreenState extends State<FeedScreen> {
+class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   AppServices? _services;
   CurrentUser? _me;
 
@@ -57,6 +57,7 @@ class _FeedScreenState extends State<FeedScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _scrollController.addListener(_onScroll);
     _init();
   }
@@ -91,10 +92,22 @@ class _FeedScreenState extends State<FeedScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _unreadTimer?.cancel();
     _realtimeSub?.cancel();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  /// Site parity (visibilitychange): returning to the app reconciles —
+  /// Android drops idle SSE sockets, so resume reconnects the stream (the
+  /// service's own retry also covers it, but this makes it instant) and
+  /// refreshes the badge + notification state right away.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    _services?.realtime.connectSse();
+    _loadUnread();
   }
 
   /// The header avatar + drawer header need the current user (api/v1/me).
@@ -114,8 +127,15 @@ class _FeedScreenState extends State<FeedScreen> {
     if (services == null) return;
     try {
       final count = await services.messages.unreadCount();
-      if (!mounted || count == _unreadMessages) return;
-      setState(() => _unreadMessages = count);
+      if (mounted && count != _unreadMessages) {
+        setState(() => _unreadMessages = count);
+      }
+      // Every poll also evaluates the notification path. The SSE stream is
+      // the instant trigger; the poll is the guaranteed fallback (a dead
+      // socket must not mean "no device notification ever"). The service
+      // dedupes by newest message id, so this never double-notifies when
+      // SSE is alive.
+      MessageNotifications.instance?.handleUnreadPing();
     } catch (_) {
       // Non-fatal: the badge keeps its last known value.
     }
