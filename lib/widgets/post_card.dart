@@ -27,7 +27,9 @@ import 'shimmer.dart';
 ///   · personality badge · warning count ⚠ · relative time (right)
 ///   content (pre-line, clamped, "Show more")
 ///   image (when present; /public/gallery/<name>)
-///   like ♥ (tappable, optimistic) · comment count (tappable → comments)
+///   action row: like ♥ (tappable, optimistic) · comment count (tappable →
+///     comments) left-aligned, "Liked by N" (tappable → likers) opposite
+///     (site's justify-between layout)
 ///   comments section (lazy-loaded on first open, composer at the bottom)
 class PostCard extends StatefulWidget {
   const PostCard({
@@ -305,9 +307,6 @@ class _PostCardState extends State<PostCard> {
                     onDragStarted: _beginDrag,
                     onDragEnded: _endDrag,
                   ),
-                  // "Liked by N" — tappable → the likers sheet.
-                  if (_likeCount > 0)
-                    _LikedByRow(count: _likeCount, onTap: _openLikers),
                   if (_commentsOpen) ...[
                     const SizedBox(height: 8),
                     _CommentsSection(
@@ -772,116 +771,115 @@ class _ActionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        // The heart is a LongPressDraggable (site: pointerdown drag):
-        // HOLD the heart to start the drag — the "drag the heart here to
-        // like" tray appears and dropping it on the post content likes it.
-        // A plain TAP never likes an unliked post (onLike handles that).
-        LongPressDraggable<String>(
-          data: 'like',
-          feedback: const FaIcon(FontAwesomeIcons.heart,
-              color: EnclavdColors.likeActive, size: 40),
-          childWhenDragging: Opacity(
-            opacity: 0.3,
-            child: FaIcon(
-              FontAwesomeIcons.heart,
-              key: const ValueKey('like-heart'),
-              color: liked
-                  ? EnclavdColors.likeActive
-                  : EnclavdColors.textSecondary,
-              size: 20,
-            ),
+        // Left group (site: `flex items-center gap-6`, aligned left):
+        // heart (drag source) + like count + comment button.
+        Expanded(
+          child: Row(
+            children: [
+              // The heart is a LongPressDraggable (site: pointerdown drag):
+              // HOLD the heart to start the drag — the "drag the heart here to
+              // like" tray appears and dropping it on the post content likes it.
+              // A plain TAP never likes an unliked post (onLike handles that).
+              LongPressDraggable<String>(
+                data: 'like',
+                feedback: const FaIcon(FontAwesomeIcons.heart,
+                    color: EnclavdColors.likeActive, size: 40),
+                childWhenDragging: Opacity(
+                  opacity: 0.3,
+                  child: FaIcon(
+                    FontAwesomeIcons.heart,
+                    key: const ValueKey('like-heart'),
+                    color: liked
+                        ? EnclavdColors.likeActive
+                        : EnclavdColors.textSecondary,
+                    size: 20,
+                  ),
+                ),
+                onDragStarted: onDragStarted,
+                onDragEnd: (_) => onDragEnded(),
+                onDraggableCanceled: (_, __) => onDragEnded(),
+                child: InkWell(
+                  onTap: onLike,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                    // Site uses a solid fa-heart that turns red when liked.
+                    child: FaIcon(
+                      FontAwesomeIcons.heart,
+                      key: const ValueKey('like-heart'),
+                      color: liked
+                          ? EnclavdColors.likeActive
+                          : EnclavdColors.textSecondary,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              // Like count — tappable → "Liked by" list (site: count opens the
+              // showLikers modal).
+              InkWell(
+                onTap: onLikers,
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  child: Text('$likeCount',
+                      style: TextStyle(
+                          color: liked
+                              ? EnclavdColors.likeActive
+                              : EnclavdColors.textSecondary)),
+                ),
+              ),
+              const SizedBox(width: 20),
+              InkWell(
+                onTap: onComments,
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  child: Row(
+                    children: [
+                      // Site: fa-comments when there are comments, fa-comment when empty.
+                      FaIcon(
+                        commentCount > 0
+                            ? FontAwesomeIcons.comments
+                            : FontAwesomeIcons.comment,
+                        color: EnclavdColors.textSecondary,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 6),
+                      Text('$commentCount',
+                          style:
+                              const TextStyle(color: EnclavdColors.textSecondary)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-          onDragStarted: onDragStarted,
-          onDragEnd: (_) => onDragEnded(),
-          onDraggableCanceled: (_, __) => onDragEnded(),
-          child: InkWell(
-            onTap: onLike,
-            borderRadius: BorderRadius.circular(8),
+        ),
+        // "Liked by N" — inline, opposite the buttons (site's justify-between
+        // action bar: `textSecondary text-sm` wrapper, textLink button). The
+        // count is also tappable → the same likers sheet.
+        if (likeCount > 0)
+          InkWell(
+            onTap: onLikers,
+            borderRadius: BorderRadius.circular(6),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-              // Site uses a solid fa-heart that turns red when liked.
-              child: FaIcon(
-                FontAwesomeIcons.heart,
-                key: const ValueKey('like-heart'),
-                color: liked
-                    ? EnclavdColors.likeActive
-                    : EnclavdColors.textSecondary,
-                size: 20,
+              child: Text(
+                'Liked by $likeCount',
+                style: const TextStyle(
+                  color: EnclavdColors.link, // textLink: text-blue-400
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
             ),
           ),
-        ),
-        const SizedBox(width: 6),
-        // Like count — tappable → "Liked by" list (site: count opens the
-        // showLikers modal).
-        InkWell(
-          onTap: onLikers,
-          borderRadius: BorderRadius.circular(8),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-            child: Text('$likeCount',
-                style: TextStyle(
-                    color: liked
-                        ? EnclavdColors.likeActive
-                        : EnclavdColors.textSecondary)),
-          ),
-        ),
-        const SizedBox(width: 20),
-        InkWell(
-          onTap: onComments,
-          borderRadius: BorderRadius.circular(8),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-            child: Row(
-              children: [
-                // Site: fa-comments when there are comments, fa-comment when empty.
-                FaIcon(
-                  commentCount > 0
-                      ? FontAwesomeIcons.comments
-                      : FontAwesomeIcons.comment,
-                  color: EnclavdColors.textSecondary,
-                  size: 20,
-                ),
-                const SizedBox(width: 6),
-                Text('$commentCount',
-                    style: const TextStyle(color: EnclavdColors.textSecondary)),
-              ],
-            ),
-          ),
-        ),
       ],
-    );
-  }
-}
-
-/// "Liked by N" line under the action row — tappable → the likers sheet
-/// (the user's requested explicit affordance; the site's count also opens
-/// the showLikers modal).
-class _LikedByRow extends StatelessWidget {
-  const _LikedByRow({required this.count, required this.onTap});
-
-  final int count;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(6),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-          child: Text(
-            'Liked by $count',
-            style: const TextStyle(
-              color: EnclavdColors.textSecondary,
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

@@ -195,6 +195,22 @@ void main() {
           reason: 'likers sheet lists the liker');
     });
 
+    testWidgets(
+        '"Liked by N" sits INLINE opposite the buttons — same row, right '
+        'side (site justify-between)', (tester) async {
+      await pumpPost(tester, _post(likeCount: 3));
+
+      final heartCenter = tester.getCenter(heart());
+      final likedByCenter = tester.getCenter(find.text('Liked by 3'));
+
+      expect((likedByCenter.dy - heartCenter.dy).abs() < 12, isTrue,
+          reason: 'same vertical line as the like/comment buttons (inline, '
+              'not a row below them)');
+      expect(likedByCenter.dx > heartCenter.dx + 100, isTrue,
+          reason: 'on the OPPOSITE end of the row — buttons stay '
+              'left-aligned, Liked by goes right');
+    });
+
     testWidgets('"Liked by" row hidden when there are no likes',
         (tester) async {
       await pumpPost(tester, _post());
