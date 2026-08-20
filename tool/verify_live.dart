@@ -12,8 +12,8 @@
 // Exit 0 = the full login → me → feed → next-page flow works with the
 // native client's session handling (cookie jar + UA binding).
 
-import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:enclavd/api/api_client.dart';
 import 'package:enclavd/api/auth_service.dart';
@@ -21,6 +21,7 @@ import 'package:enclavd/api/feed_service.dart';
 import 'package:enclavd/api/posts_service.dart';
 import 'package:enclavd/api/profile_service.dart';
 import 'package:enclavd/api/social_service.dart';
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 
 class MemStore implements SessionStore {
@@ -151,14 +152,19 @@ Future<void> main() async {
   check('self-follow guard rejects with 400', selfFollowBlocked);
 
   // ── 6. Posts — create (with image) → update → delete roundtrip ─────────
-  // 1x1 transparent PNG (standard fixture) — the server validates it via
-  // getimagesizefromstring.
-  final tinyPng = base64Decode(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==');
+  // A realistic-size JPEG generated in-process (1400×1400, q90) — the
+  // multipart create path must carry payloads like a real camera photo
+  // (the editor bakes ≤1200px, so this is even bigger than app output).
+  final bigJpeg = img.encodeJpg(
+    img.fill(img.Image(width: 1400, height: 1400),
+        color: img.ColorRgb8(60, 120, 200)),
+    quality: 90,
+  );
   final postStamp = DateTime.now().millisecondsSinceEpoch;
   final newId = await postsService.createPost(
     content: 'native-app verify post $postStamp #verifytest',
-    image: XFile.fromData(tinyPng, name: 'verify.png', mimeType: 'image/png'),
+    image: XFile.fromData(Uint8List.fromList(bigJpeg),
+        name: 'verify.jpg', mimeType: 'image/jpeg'),
   );
   check('post create returns an id', newId > 0, '#$newId');
 
@@ -170,6 +176,12 @@ Future<void> main() async {
   final upPage = await feed.userPosts(1, limit: 20);
   check('created post appears in user posts',
       upPage.posts.any((p) => p.id == newId));
+
+  // Pull-to-refresh path: the newer-than delta must surface the new post
+  // against an older id sampled from the feed.
+  final delta = await feed.newerThan(p0.id, limit: 10);
+  check('newer-than delta surfaces the new post',
+      delta.posts.any((p) => p.id == newId), '${delta.posts.length} delta');
 
   final updMsg = await postsService.updatePost(
     postId: newId,

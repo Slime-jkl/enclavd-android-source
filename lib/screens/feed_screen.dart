@@ -29,7 +29,7 @@ class FeedScreen extends StatefulWidget {
 }
 
 class _FeedScreenState extends State<FeedScreen> {
-  late final AppServices _services;
+  AppServices? _services;
 
   final _scrollController = ScrollController();
   final List<Post> _posts = [];
@@ -42,6 +42,12 @@ class _FeedScreenState extends State<FeedScreen> {
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
+    _init();
+  }
+
+  Future<void> _init() async {
+    _services = await AppServices.create();
+    if (!mounted) return;
     _loadFirst();
   }
 
@@ -52,7 +58,6 @@ class _FeedScreenState extends State<FeedScreen> {
   }
 
   Future<void> _loadFirst() async {
-    _services = await AppServices.create();
     if (!mounted) return;
     setState(() {
       _loading = true;
@@ -60,7 +65,7 @@ class _FeedScreenState extends State<FeedScreen> {
     });
     try {
       final page =
-          await _services.feed.firstPage(limit: AppConfig.feedPageSize);
+          await _services!.feed.firstPage(limit: AppConfig.feedPageSize);
       if (!mounted) return;
       setState(() {
         _posts
@@ -80,7 +85,7 @@ class _FeedScreenState extends State<FeedScreen> {
             : e.message;
       });
       if (e.status == 401) {
-        await _services.apiClient.clearSession();
+        await _services!.apiClient.clearSession();
         if (mounted) {
           Navigator.of(context)
               .pushNamedAndRemoveUntil(LoginScreen.routeName, (_) => false);
@@ -108,7 +113,7 @@ class _FeedScreenState extends State<FeedScreen> {
     if (_lastPage == null || !_lastPage!.hasMore) return;
     setState(() => _loading = true);
     try {
-      final page = await _services.feed
+      final page = await _services!.feed
           .nextPage(_lastPage!, limit: AppConfig.feedPageSize);
       if (!mounted) return;
       setState(() {
@@ -126,7 +131,66 @@ class _FeedScreenState extends State<FeedScreen> {
   }
 
   Future<void> _refresh() async {
-    await _loadFirst();
+    final services = _services;
+    if (services == null) {
+      await _loadFirst();
+      SoundService.instance.action();
+      return;
+    }
+    // 1) Delta of posts newer than anything we have — surfaces new posts
+    //    the ranked first page may have buried (the site's "new posts"
+    //    check, posts.php ?after_id).
+    final maxId = _posts.fold<int>(0, (m, p) => p.id > m ? p.id : m);
+    FeedPage? delta;
+    if (maxId > 0) {
+      try {
+        delta =
+            await services.feed.newerThan(maxId, limit: AppConfig.feedPageSize);
+      } catch (_) {
+        delta = null; // best-effort; the full reload below still runs
+      }
+    }
+    // 2) Full ranked first page (fresh scores/counts), merged with the
+    //    delta by post id — new posts first, then the ranked list.
+    try {
+      final page = await services.feed.firstPage(limit: AppConfig.feedPageSize);
+      if (!mounted) return;
+      final seen = <int>{};
+      final merged = <Post>[
+        for (final p in [...?delta?.posts, ...page.posts])
+          if (seen.add(p.id)) p,
+      ];
+      setState(() {
+        _posts
+          ..clear()
+          ..addAll(merged);
+        _lastPage = page;
+        _loading = false;
+        _error = null;
+        _initialLoadDone = true;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _initialLoadDone = true;
+        if (_posts.isEmpty) _error = e.message;
+      });
+      if (e.status == 401) {
+        await services.apiClient.clearSession();
+        if (mounted) {
+          Navigator.of(context)
+              .pushNamedAndRemoveUntil(LoginScreen.routeName, (_) => false);
+        }
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _initialLoadDone = true;
+        if (_posts.isEmpty) _error = 'Failed to load the feed.';
+      });
+    }
     // Site's action_sound on an explicit refresh.
     SoundService.instance.action();
   }
@@ -172,7 +236,7 @@ class _FeedScreenState extends State<FeedScreen> {
     if (confirmed != true || !mounted) return;
 
     try {
-      await _services.posts.deletePost(postId: post.id, content: post.content);
+      await _services!.posts.deletePost(postId: post.id, content: post.content);
       if (!mounted) return;
       setState(() => _posts.removeWhere((p) => p.id == post.id));
       _toast('Post deleted');
@@ -271,7 +335,7 @@ class _FeedScreenState extends State<FeedScreen> {
         return PostCard(
           post: _posts[index],
           apiBaseUrl: AppConfig.apiBaseUrl,
-          social: _services.social,
+          social: _services!.social,
           onEditPost: _editPost,
           onDeletePost: _deletePost,
         );

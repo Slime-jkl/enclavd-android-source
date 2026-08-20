@@ -10,7 +10,7 @@ import 'api_client_test.dart' show Harness;
 
 void main() {
   group('PostsService.createPost', () {
-    test('sends urlencoded form + base64 image + CSRF header', () async {
+    test('sends multipart form + base64 image + CSRF header', () async {
       String? body;
       String? contentType;
       String? csrf;
@@ -35,16 +35,21 @@ void main() {
           .createPost(content: 'hello #tag', image: image);
 
       expect(id, 99);
-      expect(contentType, 'application/x-www-form-urlencoded');
+      expect(contentType, 'multipart/form-data');
       expect(csrf, 'tok-post');
-      expect(body, contains('content=hello+%23tag'));
-      expect(body, contains('is_base64_image=1'));
-      expect(body, contains('image_data=data%3Aimage%2Fjpeg%3Bbase64%2CAQID'));
+      // The site's post_form.php wire format (enctype multipart): one part
+      // per field, raw values (no url-encoding) inside the boundary.
+      expect(body, contains('name="content"'));
+      expect(body, contains('hello #tag'));
+      expect(body, contains('name="is_base64_image"'));
+      expect(body, contains('\r\n\r\n1\r\n'));
+      expect(body, contains('name="image_data"'));
+      expect(body, contains('data:image/jpeg;base64,AQID'));
 
       await h.close();
     });
 
-    test('text-only post sends is_base64_image=0 and no image_data', () async {
+    test('text-only post sends is_base64_image=0 and no image data', () async {
       String? body;
       final h = await Harness.start((req) async {
         if (req.uri.path == '/feed') {
@@ -58,8 +63,9 @@ void main() {
 
       final id = await PostsService(h.client).createPost(content: 'plain text');
       expect(id, 7);
-      expect(body, contains('is_base64_image=0'));
-      expect(body, isNot(contains('image_data')));
+      expect(body, contains('name="is_base64_image"'));
+      expect(body, contains('\r\n\r\n0\r\n'));
+      expect(body, isNot(contains('AQID')));
 
       await h.close();
     });

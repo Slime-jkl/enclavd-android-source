@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -201,6 +202,24 @@ class ApiClient {
     return _csrfToken;
   }
 
+  /// HTTP POST of multipart/form-data — the wire format the site's
+  /// post_form.php uses (`enctype="multipart/form-data"`). Same
+  /// session/CSRF handling as postForm; used by post create so image
+  /// payloads ride the exact same path as the web composer.
+  Future<RawResponse> postFormMultipart(
+    String path,
+    Map<String, String> fields, {
+    Map<String, String>? headers,
+  }) =>
+      _exchange(
+        method: 'POST',
+        path: path,
+        formFields: fields,
+        multipart: true,
+        headers: headers,
+        followRedirects: false,
+      );
+
   /// HTTP GET against the JSON api/v1 (extensionless path).
   Future<Map<String, dynamic>> getJson(
     String path, {
@@ -304,6 +323,7 @@ class ApiClient {
     Map<String, String>? formFields,
     Map<String, String>? headers,
     Map<String, dynamic>? jsonBody,
+    bool multipart = false,
     bool followRedirects = true,
     int hop = 0,
   }) async {
@@ -324,10 +344,22 @@ class ApiClient {
       }
       headers?.forEach(request.headers.set);
       if (formFields != null) {
-        request.headers.contentType = ContentType(
-            'application', 'x-www-form-urlencoded',
-            charset: 'utf-8');
-        request.write(const UrlQueryEncoder().encode(formFields));
+        if (multipart) {
+          final boundary = 'enclavd_${DateTime.now().microsecondsSinceEpoch}';
+          request.headers.contentType = ContentType(
+            'multipart',
+            'form-data',
+            parameters: {'boundary': boundary},
+          );
+          final body = _buildMultipartBody(formFields, boundary);
+          request.contentLength = body.length;
+          request.add(body);
+        } else {
+          request.headers.contentType = ContentType(
+              'application', 'x-www-form-urlencoded',
+              charset: 'utf-8');
+          request.write(const UrlQueryEncoder().encode(formFields));
+        }
       }
       if (jsonBody != null) {
         request.write(jsonEncode(jsonBody));
@@ -430,6 +462,22 @@ class ApiClient {
       path: p,
       query: q == null ? null : Uri(queryParameters: q).query,
     );
+  }
+
+  /// Encodes form fields as a multipart/form-data body (RFC 2046) with the
+  /// given boundary. Text-only parts — the image itself travels as base64
+  /// inside `image_data`, exactly like the site's ied output.
+  List<int> _buildMultipartBody(Map<String, String> fields, String boundary) {
+    final buf = BytesBuilder();
+    void write(String s) => buf.add(utf8.encode(s));
+    fields.forEach((key, value) {
+      write('--$boundary\r\n');
+      write('Content-Disposition: form-data; name="$key"\r\n\r\n');
+      write(value);
+      write('\r\n');
+    });
+    write('--$boundary--\r\n');
+    return buf.takeBytes();
   }
 
   String _errorFrom(RawResponse resp) {

@@ -46,7 +46,7 @@ class PostsService {
     }
 
     final token = await _api.fetchCsrfToken();
-    final resp = await _api.postForm(
+    final resp = await _api.postFormMultipart(
       '/api/v1/posts',
       fields,
       headers: {

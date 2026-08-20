@@ -161,6 +161,17 @@ class FeedService {
     return Post.fromJson(raw);
   }
 
+  /// Delta of posts newer than [afterId] (posts.php ?after_id=N) — the
+  /// "new posts" check. Still score-ranked among themselves; used by the
+  /// pull-to-refresh to surface posts the ranked first page buried.
+  Future<FeedPage> newerThan(int afterId, {int limit = 10}) async {
+    final json = await _api.getJson('/api/v1/posts', query: {
+      'after_id': '$afterId',
+      'limit': '$limit',
+    });
+    return FeedPage.fromJson(json);
+  }
+
   Future<FeedPage> _fetch({
     int limit = 10,
     double? lastScore,

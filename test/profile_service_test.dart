@@ -187,6 +187,55 @@ void main() {
 
       await h.close();
     });
+
+    test('newerThan sends after_id (new-posts delta)', () async {
+      String? query;
+      final h = await Harness.start((req) async {
+        if (req.uri.path == '/api/v1/posts') {
+          query = req.uri.query;
+          Harness.respond(
+            req,
+            body: jsonEncode({
+              'success': true,
+              'posts': [
+                {
+                  'id': 219,
+                  'author_id': 2,
+                  'content': 'new',
+                  'created_at': '2026-08-20 09:00:00',
+                  'feed_score': 1.5,
+                  'like_count': 0,
+                  'comment_count': 0,
+                  'user_liked': false,
+                  'warning_count': 0,
+                  'username': 'Other',
+                  'profile_picture_url': '/a.png',
+                  'personality_type': null,
+                  'is_active': 'true',
+                  'rank': 'Member',
+                  'image': null,
+                  'is_owner': false,
+                },
+              ],
+              'has_more': false,
+              'last_score': null,
+              'last_id': null,
+            }),
+          );
+        } else {
+          Harness.respond(req, status: 404);
+        }
+      });
+
+      final page = await FeedService(h.client).newerThan(218, limit: 10);
+      expect(query, 'after_id=218&limit=10');
+      expect(page.posts, hasLength(1));
+      expect(page.posts.first.id, 219);
+      expect(page.hasMore, false);
+      expect(page.lastScore, isNull);
+
+      await h.close();
+    });
   });
 
   group('formatJoinedDate', () {

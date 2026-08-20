@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
@@ -12,17 +13,21 @@ import '../main.dart';
 import '../services/sound_service.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/enclavd_image.dart';
+import 'image_editor_screen.dart';
 
 /// Post composer — port of the site's post_form.php / edit modal.
 ///
 /// Create mode: text (500 max, live "N/500 characters" counter) + optional
-/// image (fa-image → gallery, compressed at pick time to 1600px/q80 like the
-/// site's ied editor; preview with fa-xmark remove; server requires text OR
+/// image (fa-image → gallery → the image editor for crop/resize/filters —
+/// ied port — then preview with fa-xmark remove; server requires text OR
 /// image). Submit = fa-paper-plane "Post".
 ///
 /// Edit mode: content prefilled, image shown read-only (the api/v1 update
 /// action only replaces content — the gallery row is untouched). Submit =
-/// fa-save "Save".
+/// fa-floppy-disk "Save".
+///
+/// While typing, #hashtags and links render BLUE exactly like the site's
+/// Quill composer (a transparent input layer over a highlighted Text.rich).
 ///
 /// Pops with `true` on success so the caller refreshes.
 class ComposeScreen extends StatefulWidget {
@@ -40,7 +45,12 @@ class ComposeScreen extends StatefulWidget {
 class _ComposeScreenState extends State<ComposeScreen> {
   late final TextEditingController _controller;
   final _focus = FocusNode();
+
+  /// The attached image: an XFile from the picker OR the editor's baked
+  /// output (in-memory bytes; [bytes] non-null then).
   XFile? _image;
+  Uint8List? _imageBytes; // set when _image came from the editor
+
   bool _busy = false;
   String? _error;
 
@@ -60,14 +70,26 @@ class _ComposeScreenState extends State<ComposeScreen> {
   }
 
   Future<void> _pickImage() async {
-    final picked = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 1600,
-      maxHeight: 1600,
-      imageQuality: 80, // ied-equivalent compression (JPEG)
-    );
+    final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
     if (picked == null || !mounted) return;
-    setState(() => _image = picked);
+
+    // The editor bakes a bounded JPEG (≤1200px, q85) — this also guarantees
+    // a small upload payload regardless of what the picker returned (the
+    // Android photo picker ignores maxWidth/imageQuality, which previously
+    // let multi-MB originals through and blew past the server's
+    // post_max_size).
+    final edited = await Navigator.of(context).push<Uint8List>(
+      MaterialPageRoute(
+          builder: (_) => ImageEditorScreen(imagePath: picked.path)),
+    );
+    if (!mounted) return;
+    if (edited == null) return; // cancelled in the editor
+
+    setState(() {
+      _image =
+          XFile.fromData(edited, name: 'edited.jpg', mimeType: 'image/jpeg');
+      _imageBytes = edited;
+    });
   }
 
   Future<void> _submit() async {
@@ -128,34 +150,7 @@ class _ComposeScreenState extends State<ComposeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TextField(
-                controller: _controller,
-                focusNode: _focus,
-                minLines: 3,
-                maxLines: 8,
-                maxLength: 500,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: InputDecoration(
-                  hintText:
-                      _isEdit ? 'Edit your post…' : "What's on your mind?",
-                  // Mirrors post_form.php's "N/500 characters" (textSecondary,
-                  // bottom-right).
-                  counter: Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Align(
-                      alignment: Alignment.centerRight,
-                      child: ValueListenableBuilder<TextEditingValue>(
-                        valueListenable: _controller,
-                        builder: (context, value, _) => Text(
-                          '${value.text.characters.length}/500 characters',
-                          style: const TextStyle(
-                              color: EnclavdColors.textSecondary, fontSize: 12),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+              _highlighted(),
               if (_error != null) ...[
                 const SizedBox(height: 8),
                 Container(
@@ -178,7 +173,12 @@ class _ComposeScreenState extends State<ComposeScreen> {
                 _image != null
                     ? _ImagePreview(
                         path: _image!.path,
-                        onRemove: () => setState(() => _image = null))
+                        bytes: _imageBytes,
+                        onRemove: () => setState(() {
+                          _image = null;
+                          _imageBytes = null;
+                        }),
+                      )
                     : OutlinedButton.icon(
                         onPressed: _busy ? null : _pickImage,
                         style: OutlinedButton.styleFrom(
@@ -236,13 +236,118 @@ class _ComposeScreenState extends State<ComposeScreen> {
       ),
     );
   }
+
+  /// #hashtags and links → blue spans (the site's composer highlighting).
+  Widget _highlighted() => _buildHighlightedField(_controller, _focus);
+
+  static Widget _buildHighlightedField(
+      TextEditingController controller, FocusNode focus) {
+    const base = TextStyle(
+      color: EnclavdColors.textPrimary,
+      fontSize: 16,
+      height: 1.5,
+    );
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: EnclavdColors.cardSecondary,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: EnclavdColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Stack(
+            children: [
+              // Highlight layer — rendered exactly like the input below it.
+              IgnorePointer(
+                child: ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: controller,
+                  builder: (context, value, _) => Text.rich(
+                    TextSpan(children: highlightComposerSpans(value.text)),
+                    style: base,
+                    maxLines: 8,
+                    overflow: TextOverflow.clip,
+                  ),
+                ),
+              ),
+              TextField(
+                controller: controller,
+                focusNode: focus,
+                minLines: 3,
+                maxLines: 8,
+                textCapitalization: TextCapitalization.sentences,
+                style: base.copyWith(color: Colors.transparent),
+                cursorColor: EnclavdColors.textPrimary,
+                decoration: const InputDecoration(
+                  isDense: true,
+                  border: InputBorder.none,
+                  counterText: '',
+                  hintStyle: TextStyle(color: Colors.transparent),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          // Mirrors post_form.php's "N/500 characters" (textSecondary, right).
+          Align(
+            alignment: Alignment.centerRight,
+            child: ValueListenableBuilder<TextEditingValue>(
+              valueListenable: controller,
+              builder: (context, value, _) => Text(
+                '${value.text.characters.length}/500 characters',
+                style: const TextStyle(
+                    color: EnclavdColors.textSecondary, fontSize: 12),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-/// Picked-image preview (site: max-h-300 object-contain rounded + × remove).
-class _ImagePreview extends StatelessWidget {
-  const _ImagePreview({required this.path, required this.onRemove});
+/// #hashtags and links → blue spans (the site's composer highlighting).
+/// Public so tests can assert the tokenizer.
+List<InlineSpan> highlightComposerSpans(String text) {
+  const hashtag =
+      TextStyle(color: EnclavdColors.link, fontSize: 16, height: 1.5);
+  const link = TextStyle(
+    color: EnclavdColors.link,
+    fontSize: 16,
+    height: 1.5,
+    decoration: TextDecoration.underline,
+    decorationColor: EnclavdColors.link,
+  );
+  final re = RegExp(r'https?://[^\s]+|www\.[^\s]+|#[A-Za-z0-9_]+');
+  final spans = <InlineSpan>[];
+  var last = 0;
+  for (final m in re.allMatches(text)) {
+    if (m.start > last) {
+      spans.add(TextSpan(text: text.substring(last, m.start)));
+    }
+    final token = m.group(0)!;
+    final isUrl = token.startsWith('http') || token.startsWith('www');
+    spans.add(TextSpan(text: token, style: isUrl ? link : hashtag));
+    last = m.end;
+  }
+  if (last < text.length) {
+    spans.add(TextSpan(text: text.substring(last)));
+  }
+  return spans;
+}
 
-  final String path;
+/// Picked/edited image preview (site: max-h-300 object-contain rounded +
+/// × remove). Shows editor bytes when present, else the picker file.
+class _ImagePreview extends StatelessWidget {
+  const _ImagePreview({
+    required this.path,
+    required this.bytes,
+    required this.onRemove,
+  });
+
+  final String? path;
+  final Uint8List? bytes;
   final VoidCallback onRemove;
 
   @override
@@ -253,8 +358,11 @@ class _ImagePreview extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxHeight: 300),
-            child: Image.file(File(path),
-                fit: BoxFit.contain, width: double.infinity),
+            child: bytes != null
+                ? Image.memory(bytes!,
+                    fit: BoxFit.contain, width: double.infinity)
+                : Image.file(File(path!),
+                    fit: BoxFit.contain, width: double.infinity),
           ),
         ),
         Positioned(
