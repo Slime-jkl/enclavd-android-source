@@ -10,15 +10,13 @@ void main() {
       for (var i = 0; i < 20; i++) {
         final row = i ~/ 5;
         final col = i % 5;
-        expect(m[i], closeTo(row == col ? 1.0 : 0.0, 1e-9),
-            reason: 'entry $i');
+        expect(m[i], closeTo(row == col ? 1.0 : 0.0, 1e-9), reason: 'entry $i');
       }
     });
 
     test('clarendon chains contrast(1.2) then saturate(1.35)', () {
-      final m = IedFilter.presets
-          .firstWhere((f) => f.id == 'clarendon')
-          .matrix();
+      final m =
+          IedFilter.presets.firstWhere((f) => f.id == 'clarendon').matrix();
       // Saturated R-row starts 0.213+0.787*1.35; contrast(1.2) scales it.
       expect(m[0], closeTo((0.213 + 0.787 * 1.35) * 1.2, 1e-6));
     });
@@ -45,8 +43,7 @@ void main() {
       img.fill(image, color: img.ColorRgb8(100, 150, 200));
       final before = image.getPixel(0, 0).r.toInt();
 
-      IedFilter.applyToImage(
-          image, filterById('clarendon').matrix());
+      IedFilter.applyToImage(image, filterById('clarendon').matrix());
       final after = image.getPixel(0, 0).r.toInt();
 
       expect(after, isNot(before));
