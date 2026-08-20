@@ -10,6 +10,7 @@ import '../main.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/enclavd_avatar.dart';
 import '../widgets/post_card.dart';
+import '../widgets/rank_badge.dart';
 import '../widgets/shimmer.dart';
 import 'compose_screen.dart';
 
@@ -435,23 +436,9 @@ class _ProfileHeader extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Rank chip (site: rank badge above the username).
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: rankColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Text(
-                        profile.rank,
-                        style: TextStyle(
-                          color: rankColor,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
+                    // Rank badge (site: getRankStyles badge above the
+                    // username — same chip as the likers sheet).
+                    RankBadge(rank: profile.rank),
                     const SizedBox(height: 4),
                     Row(
                       children: [
@@ -562,7 +549,7 @@ class _ProfileHeader extends StatelessWidget {
                   style: TextStyle(
                       color: EnclavdColors.textSecondary, fontSize: 12)),
               const Spacer(),
-              Text('${profile.prestige}',
+              Text(formatPrestige(profile.prestige),
                   style: const TextStyle(
                       color: EnclavdColors.textSecondary, fontSize: 12)),
               const SizedBox(width: 6),
@@ -577,7 +564,11 @@ class _ProfileHeader extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 6),
-          // Prestige bar: /1,000,000 like prestige-bar.php, clamped at 100%.
+          // Prestige bar (site: prestige-bar.php). The site ALWAYS shows a
+          // pulsing 20%-opacity gradient across the whole track — the fill
+          // alone (prestige/1,000,000) is sub-pixel for normal values and
+          // looked invisible. Track = gray-700/50 + 20% gradient; fill on
+          // top, clamped at 100%.
           Container(
             height: 10,
             decoration: BoxDecoration(
@@ -585,19 +576,41 @@ class _ProfileHeader extends StatelessWidget {
               borderRadius: BorderRadius.circular(999),
             ),
             clipBehavior: Clip.antiAlias,
-            child: FractionallySizedBox(
-              widthFactor: (profile.prestige / 1000000).clamp(0.0, 1.0),
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Color(0xFF7C3AED), // violet-600
-                      Color(0xFFC026D3), // fuchsia-600
-                      Color(0xFF0891B2), // cyan-600
-                    ],
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // Always-visible 20% gradient (the site's animate-pulse).
+                const DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [
+                        Color(0x337C3AED), // violet-600/20
+                        Color(0x33C026D3), // fuchsia-600/20
+                        Color(0x330891B2), // cyan-600/20
+                      ],
+                    ),
                   ),
                 ),
-              ),
+                FractionallySizedBox(
+                  alignment: Alignment.centerLeft,
+                  widthFactor: (profile.prestige / 1000000).clamp(0.0, 1.0),
+                  child: const DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
+                        colors: [
+                          Color(0xFF7C3AED), // violet-600
+                          Color(0xFFC026D3), // fuchsia-600
+                          Color(0xFF0891B2), // cyan-600
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 14),
@@ -654,26 +667,42 @@ class _FollowButton extends StatelessWidget {
     final label = following
         ? 'Following'
         : (profile.isFollowingYou ? 'Follow Back' : 'Follow');
-    return OutlinedButton.icon(
-      onPressed: busy ? null : onPressed,
-      style: OutlinedButton.styleFrom(
-        foregroundColor:
-            following ? EnclavdColors.textPrimary : EnclavdColors.link,
-        backgroundColor: following
-            ? EnclavdColors.link.withValues(alpha: 0.15)
-            : Colors.transparent,
-        side: BorderSide(
-            color: following
-                ? EnclavdColors.link.withValues(alpha: 0.4)
-                : EnclavdColors.link.withValues(alpha: 0.5)),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+    // Site .follow-button (input.css): SOLID, not outlined — blue-900 with
+    // white text when not following, gray-950 with gray-300 text when
+    // following; rounded-lg, h-8, text-sm. A hairline border is added to
+    // the following state so it stays visible on touch (the site gets that
+    // from hover).
+    return SizedBox(
+      height: 32, // h-8
+      child: TextButton.icon(
+        onPressed: busy ? null : onPressed,
+        style: TextButton.styleFrom(
+          foregroundColor:
+              following ? const Color(0xFFD1D5DB) : Colors.white, // gray-300
+          backgroundColor:
+              following ? const Color(0xFF030712) : EnclavdColors.primaryButton,
+          disabledForegroundColor: following
+              ? const Color(0xFF6B7280)
+              : Colors.white.withValues(alpha: 0.7),
+          disabledBackgroundColor: following
+              ? const Color(0xFF030712).withValues(alpha: 0.6)
+              : EnclavdColors.primaryButton.withValues(alpha: 0.6),
+          padding: const EdgeInsets.symmetric(horizontal: 16), // px-4
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8), // rounded-lg
+            side: following
+                ? const BorderSide(color: EnclavdColors.border) // gray-800
+                : BorderSide.none,
+          ),
+          textStyle:
+              const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+        ),
+        icon: FaIcon(
+          following ? FontAwesomeIcons.userCheck : FontAwesomeIcons.userPlus,
+          size: 13,
+        ),
+        label: Text(label),
       ),
-      icon: FaIcon(
-        following ? FontAwesomeIcons.userCheck : FontAwesomeIcons.userPlus,
-        size: 13,
-      ),
-      label: Text(label),
     );
   }
 }
@@ -750,4 +779,16 @@ class _ErrorView extends StatelessWidget {
       ],
     );
   }
+}
+
+/// The site's prestige display: number_format(prestige, 0, '.', '.') —
+/// dot thousands separators ("1.234.567"), not commas.
+String formatPrestige(int value) {
+  final s = value.toString();
+  final out = StringBuffer();
+  for (var i = 0; i < s.length; i++) {
+    if (i > 0 && (s.length - i) % 3 == 0) out.write('.');
+    out.write(s[i]);
+  }
+  return out.toString();
 }
