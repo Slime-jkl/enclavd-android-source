@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'api/api_client.dart';
 import 'api/auth_service.dart';
 import 'api/feed_service.dart';
+import 'api/messages_service.dart';
 import 'api/posts_service.dart';
 import 'api/profile_service.dart';
 import 'api/social_service.dart';
@@ -28,7 +29,7 @@ void main() {
 /// Everything the screens need is created here once and passed down.
 class AppServices {
   AppServices._(this.apiClient, this.auth, this.feed, this.social, this.profile,
-      this.posts);
+      this.posts, this.messages);
 
   final ApiClient apiClient;
   final AuthService auth;
@@ -36,6 +37,7 @@ class AppServices {
   final SocialService social;
   final ProfileService profile;
   final PostsService posts;
+  final MessagesService messages;
 
   static Future<AppServices> create() async {
     final prefs = await SharedPreferences.getInstance();
@@ -44,7 +46,7 @@ class AppServices {
     await api.restoreSession();
     final auth = AuthService(api, apiBaseUrl: AppConfig.apiBaseUrl);
     return AppServices._(api, auth, FeedService(api), SocialService(api),
-        ProfileService(api), PostsService(api));
+        ProfileService(api), PostsService(api), MessagesService(api));
   }
 }
 

@@ -12,6 +12,7 @@ import '../widgets/enclavd_avatar.dart';
 import '../widgets/post_card.dart';
 import '../widgets/rank_badge.dart';
 import '../widgets/shimmer.dart';
+import 'chat_screen.dart';
 import 'compose_screen.dart';
 
 /// Profile screen — the "top part" of the site's profile page (profile.php)
@@ -41,6 +42,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _profileLoading = true;
   String? _profileError;
   bool _followBusy = false;
+  bool _messageBusy = false;
 
   final List<Post> _posts = [];
   FeedPage? _lastPage;
@@ -270,6 +272,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  /// Opens (or creates) the 1-on-1 conversation with this member and
+  /// pushes the thread — the site's profile "Message" button +
+  /// startConversation().
+  Future<void> _openConversation() async {
+    final profile = _profile;
+    if (profile == null || profile.isOwn || profile.isBlocked) return;
+    setState(() => _messageBusy = true);
+    try {
+      final me = await _services.auth.me();
+      if (me == null) {
+        throw const ApiException('Could not start a conversation.');
+      }
+      final conversationId = await _services.messages.start(profile.id);
+      if (!mounted) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ChatScreen(
+            conversationId: conversationId,
+            myUserId: me.id,
+            messages: _services.messages,
+            participantId: profile.id,
+            participantName: profile.username,
+            participantAvatar: profile.profilePictureUrl,
+            participantPersonality: profile.personalityType,
+            participantIsOnline: profile.isOnline,
+          ),
+        ),
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+            const SnackBar(content: Text('Could not start a conversation.')));
+    } finally {
+      if (mounted) setState(() => _messageBusy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final profile = _profile;
@@ -322,7 +368,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           return _ProfileHeader(
               profile: profile!,
               onFollow: _toggleFollow,
-              followBusy: _followBusy);
+              followBusy: _followBusy,
+              onMessage: _openConversation,
+              messageBusy: _messageBusy);
         }
         if (index == 1) {
           return const Padding(
@@ -375,11 +423,15 @@ class _ProfileHeader extends StatelessWidget {
     required this.profile,
     required this.onFollow,
     required this.followBusy,
+    required this.onMessage,
+    required this.messageBusy,
   });
 
   final Profile profile;
   final VoidCallback onFollow;
   final bool followBusy;
+  final VoidCallback onMessage;
+  final bool messageBusy;
 
   @override
   Widget build(BuildContext context) {
@@ -521,10 +573,28 @@ class _ProfileHeader extends StatelessWidget {
                     ),
                     if (!profile.isOwn) ...[
                       const SizedBox(height: 12),
-                      _FollowButton(
-                        profile: profile,
-                        busy: followBusy,
-                        onPressed: onFollow,
+                      // Site: Follow + Message in one row (message flips to
+                      // a disabled "Send Message" for blocked members).
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _FollowButton(
+                              profile: profile,
+                              busy: followBusy,
+                              onPressed: onFollow,
+                            ),
+                          ),
+                          if (AppConfig.enableChat) ...[
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _MessageButton(
+                                profile: profile,
+                                busy: messageBusy,
+                                onPressed: onMessage,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ],
                   ],
@@ -702,6 +772,59 @@ class _FollowButton extends StatelessWidget {
           size: 13,
         ),
         label: Text(label),
+      ),
+    );
+  }
+}
+
+/// Message / Send Message — port of profile.php's two-state button next to
+/// Follow: outlined blue (border-blue-500/50, text-blue-400, transparent)
+/// with fa-envelope while active; a disabled gray fa-ban "Send Message"
+/// when the member is blocked.
+class _MessageButton extends StatelessWidget {
+  const _MessageButton({
+    required this.profile,
+    required this.busy,
+    required this.onPressed,
+  });
+
+  final Profile profile;
+  final bool busy;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final blocked = profile.isBlocked;
+    return SizedBox(
+      height: 32, // h-8 (matches .follow-button)
+      child: TextButton.icon(
+        onPressed: (blocked || busy) ? null : onPressed,
+        style: TextButton.styleFrom(
+          foregroundColor: blocked
+              ? const Color(0xFF6B7280) // text-gray-500
+              : EnclavdColors.link, // text-blue-400
+          backgroundColor: blocked
+              ? const Color(0xFF1F2937) // bg-gray-800
+              : Colors.transparent,
+          disabledForegroundColor: const Color(0xFF6B7280),
+          disabledBackgroundColor: const Color(0xFF1F2937),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8), // rounded-lg
+            side: BorderSide(
+              color: blocked
+                  ? const Color(0xFF374151) // border-gray-700
+                  : const Color(0x805FA5FA), // border-blue-500/50
+            ),
+          ),
+          textStyle:
+              const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+        ),
+        icon: FaIcon(
+          blocked ? FontAwesomeIcons.ban : FontAwesomeIcons.envelope,
+          size: 13,
+        ),
+        label: Text(blocked ? 'Send Message' : 'Message'),
       ),
     );
   }

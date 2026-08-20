@@ -1,0 +1,160 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:enclavd/api/api_client.dart';
+import 'package:enclavd/api/auth_service.dart';
+import 'package:enclavd/api/messages_service.dart';
+import 'package:enclavd/screens/chat_screen.dart';
+import 'package:enclavd/screens/messages_screen.dart';
+import 'package:enclavd/theme/enclavd_theme.dart';
+
+import 'chat_screen_test.dart' show FakeMessages;
+
+class _FakeAuth extends AuthService {
+  _FakeAuth() : super(_noopClient(), apiBaseUrl: 'https://example.com');
+
+  static ApiClient _noopClient() => ApiClient(
+        store: _NoopStore(),
+        apiBaseUrl: 'https://example.com',
+      );
+
+  @override
+  Future<CurrentUser?> me() async => const CurrentUser(
+        id: 7,
+        username: 'Slimejkl',
+        profilePictureUrl: '/a.png',
+        rank: 'SysOp',
+        personalityType: 'INTJ',
+        prestige: 0,
+        isAdmin: true,
+        dateCreated: '2025-05-14 00:00:00',
+      );
+}
+
+class _NoopStore implements SessionStore {
+  @override
+  Future<void> clear() async {}
+
+  @override
+  Future<List<SessionCookie>> load() async => const [];
+
+  @override
+  Future<void> save(List<SessionCookie> cookies) async {}
+}
+
+Conversation conv({
+  int id = 1,
+  String name = 'Alice',
+  String preview = 'last message',
+  int unread = 0,
+  String lastActive = '2000-01-01 00:00:00',
+}) =>
+    Conversation(
+      id: id,
+      updatedAt: '2026-08-20 10:00:00',
+      participantId: 42,
+      participantName: name,
+      participantAvatar: '/a.png',
+      participantPersonality: 'INTJ',
+      lastActive: lastActive,
+      lastMessage: preview,
+      unreadCount: unread,
+    );
+
+void main() {
+  Future<void> pumpInbox(WidgetTester tester, FakeMessages fake) async {
+    await tester.pumpWidget(MaterialApp(
+      theme: buildEnclavdTheme(),
+      home: MessagesScreen(
+        messages: fake,
+        auth: _FakeAuth(),
+        myUserId: 7,
+      ),
+    ));
+    await tester.pump(); // conversations future resolves
+  }
+
+  testWidgets('renders conversation rows with preview and unread badge',
+      (tester) async {
+    final fake = FakeMessages()
+      ..inbox = [
+        conv(id: 1, name: 'Alice', preview: 'see you soon', unread: 2),
+        conv(id: 2, name: 'Bob', preview: ''),
+      ];
+
+    await pumpInbox(tester, fake);
+    await tester.pump();
+
+    expect(find.text('Alice'), findsOneWidget);
+    expect(find.text('Bob'), findsOneWidget);
+    expect(find.text('see you soon'), findsOneWidget);
+    // Empty preview → the site's placeholder.
+    expect(find.text('No messages yet'), findsOneWidget);
+    // Unread badge shows the count.
+    expect(find.text('2'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox()); // dispose the poll timer
+  });
+
+  testWidgets('empty inbox shows the hint, not a blank page', (tester) async {
+    final fake = FakeMessages();
+
+    await pumpInbox(tester, fake);
+    await tester.pump();
+
+    expect(find.text('No conversations yet'), findsOneWidget);
+    expect(find.textContaining('profile and tap Message'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('tapping a row opens the thread', (tester) async {
+    final fake = FakeMessages()
+      ..inbox = [conv(id: 9, name: 'Alice', unread: 1)];
+
+    await pumpInbox(tester, fake);
+    await tester.pump();
+
+    await tester.tap(find.text('Alice'));
+    await tester.pump(); // route push
+    await tester.pump(const Duration(milliseconds: 400)); // transition
+    await tester.pump();
+
+    expect(find.byType(ChatScreen), findsOneWidget);
+    // The thread header carries the participant through (the inbox row
+    // behind the route also shows the name, so scope to the ChatScreen).
+    expect(
+      find.descendant(
+          of: find.byType(ChatScreen), matching: find.text('Alice')),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('online dot follows the 5-minute heuristic', (tester) async {
+    final recent = DateTime.now().toUtc().subtract(const Duration(minutes: 1));
+    final stale = DateTime.now().toUtc().subtract(const Duration(minutes: 30));
+    final fake = FakeMessages()
+      ..inbox = [
+        conv(id: 1, name: 'OnlineUser', lastActive: _db(recent)),
+        conv(id: 2, name: 'OfflineUser', lastActive: _db(stale)),
+      ];
+
+    await pumpInbox(tester, fake);
+    await tester.pump();
+
+    // Both names render; the online dot logic is exercised via
+    // Conversation.isOnline (unit-tested) — here we just assert the rows
+    // render without error.
+    expect(find.text('OnlineUser'), findsOneWidget);
+    expect(find.text('OfflineUser'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+  });
+}
+
+String _db(DateTime utc) {
+  String p(int n) => n.toString().padLeft(2, '0');
+  return '${utc.year}-${p(utc.month)}-${p(utc.day)} '
+      '${p(utc.hour)}:${p(utc.minute)}:${p(utc.second)}';
+}

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -15,6 +17,7 @@ import '../widgets/shimmer.dart';
 import '../widgets/user_menu_drawer.dart';
 import 'compose_screen.dart';
 import 'login_screen.dart';
+import 'messages_screen.dart';
 
 /// Feed screen — the ranked feed via GET /api/v1/posts.
 ///
@@ -44,6 +47,10 @@ class _FeedScreenState extends State<FeedScreen> {
   bool _initialLoadDone = false;
   String? _error;
 
+  // Unread messages badge (site header: paper-plane icon + red count).
+  int _unreadMessages = 0;
+  Timer? _unreadTimer;
+
   @override
   void initState() {
     super.initState();
@@ -56,6 +63,18 @@ class _FeedScreenState extends State<FeedScreen> {
     if (!mounted) return;
     _loadMe();
     _loadFirst();
+    _loadUnread();
+    // The site's header badge is SSE-driven with a 30s poll fallback —
+    // the app has no realtime client, so the fallback IS the badge.
+    _unreadTimer =
+        Timer.periodic(const Duration(seconds: 30), (_) => _loadUnread());
+  }
+
+  @override
+  void dispose() {
+    _unreadTimer?.cancel();
+    _scrollController.dispose();
+    super.dispose();
   }
 
   /// The header avatar + drawer header need the current user (api/v1/me).
@@ -69,10 +88,34 @@ class _FeedScreenState extends State<FeedScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
+  /// Header badge count (single COUNT query — cheap enough to poll).
+  Future<void> _loadUnread() async {
+    final services = _services;
+    if (services == null) return;
+    try {
+      final count = await services.messages.unreadCount();
+      if (!mounted || count == _unreadMessages) return;
+      setState(() => _unreadMessages = count);
+    } catch (_) {
+      // Non-fatal: the badge keeps its last known value.
+    }
+  }
+
+  /// Opens the inbox (site: paper-plane header link). Refresh the badge
+  /// on return — the thread marked things read while we were away.
+  Future<void> _openMessages() async {
+    final services = _services;
+    if (services == null) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => MessagesScreen(
+          messages: services.messages,
+          auth: services.auth,
+          myUserId: _me?.id,
+        ),
+      ),
+    );
+    if (mounted) _loadUnread();
   }
 
   Future<void> _loadFirst() async {
@@ -299,6 +342,44 @@ class _FeedScreenState extends State<FeedScreen> {
         titleSpacing: 16,
         title: Image.asset('assets/images/enclavd-logo-white.png', height: 22),
         actions: [
+          // Site header: the paper-plane messages link (red unread badge,
+          // 99+ capped) sits before the user menu trigger.
+          if (AppConfig.enableChat) ...[
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                IconButton(
+                  icon: const FaIcon(FontAwesomeIcons.paperPlane,
+                      size: 22, color: EnclavdColors.textSecondary),
+                  tooltip: 'Messages',
+                  onPressed: _openMessages,
+                ),
+                if (_unreadMessages > 0)
+                  Positioned(
+                    top: 2,
+                    right: 2,
+                    child: Container(
+                      height: 16, // h-4 w-4
+                      constraints: const BoxConstraints(minWidth: 16),
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFEF4444), // bg-red-500
+                        borderRadius: BorderRadius.all(Radius.circular(999)),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        _unreadMessages > 99 ? '99+' : '$_unreadMessages',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10, // text-[11px] at h-4
+                          height: 1,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: InkWell(

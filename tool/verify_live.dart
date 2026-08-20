@@ -18,6 +18,7 @@ import 'dart:typed_data';
 import 'package:enclavd/api/api_client.dart';
 import 'package:enclavd/api/auth_service.dart';
 import 'package:enclavd/api/feed_service.dart';
+import 'package:enclavd/api/messages_service.dart';
 import 'package:enclavd/api/posts_service.dart';
 import 'package:enclavd/api/profile_service.dart';
 import 'package:enclavd/api/social_service.dart';
@@ -55,6 +56,7 @@ Future<void> main() async {
   final social = SocialService(api);
   final profileService = ProfileService(api);
   final postsService = PostsService(api);
+  final messages = MessagesService(api);
 
   var failures = 0;
   void check(String label, bool ok, [String? detail]) {
@@ -301,6 +303,43 @@ Future<void> main() async {
   final afterDelete = await social.listComments(target.id);
   check('list no longer has the deleted comment',
       !afterDelete.any((c) => c.id == created.id));
+
+  // ── 8b. Messages — inbox → start → send → history → read state ─────────
+  // The dev account already has conversations; the inbox must parse.
+  final inbox = await messages.conversations();
+  check('conversations() returns the inbox', inbox.isNotEmpty,
+      '${inbox.length} conversations');
+  final first = inbox.first;
+  check('conversation row populated', first.participantId > 0 &&
+      first.participantName.isNotEmpty &&
+      first.participantAvatar.isNotEmpty, first.participantName);
+  check('unread badge parses', first.unreadCount >= 0);
+
+  // start() with user 3 reuses the existing 1-on-1 conversation.
+  final convId = await messages.start(3);
+  check('start() returns a conversation id', convId > 0, '#$convId');
+
+  final msgStamp = DateTime.now().millisecondsSinceEpoch;
+  final sentId = await messages.send(convId, 'live verify $msgStamp');
+  check('send() returns a message id', sentId > 0, '#$sentId');
+
+  final history = await messages.messages(convId);
+  check('history contains the sent message',
+      history.any((m) => m.id == sentId && m.message.contains('$msgStamp')),
+      '${history.length} messages');
+  final sent = history.firstWhere((m) => m.id == sentId);
+  check('own message carries is_read=false', sent.isRead == false,
+      'is_read=${sent.isRead}');
+  check('sender_name populated', sent.senderName == 'Developer',
+      sent.senderName);
+
+  final unread = await messages.unreadCount();
+  check('unreadCount() parses', unread >= 0, 'unread=$unread');
+
+  await messages.markRead(convId);
+  final afterRead = await messages.unreadCount();
+  check('markRead() leaves the count parseable', afterRead >= 0,
+      'unread=$afterRead');
 
   // ── 9. Logout (JSON body + CSRF header via api/v1/auth) ────────────────
   await auth.logout();
