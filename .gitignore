@@ -1,0 +1,31 @@
+# Flutter/Dart
+.dart_tool/
+.packages
+.flutter-plugins
+.flutter-plugins-dependencies
+build/
+pubspec.lock.bak
+
+# Android (Flutter runner)
+android/.gradle/
+android/local.properties
+android/.idea/
+*.keystore
+*.jks
+
+# iOS (Flutter runner)
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/*.xcodeproj/xcuserdata/
+ios/Flutter/ephemeral/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Enclavd dev scratch
+*.log
+.DS_Store

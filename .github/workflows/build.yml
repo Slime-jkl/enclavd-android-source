@@ -1,0 +1,125 @@
+name: Build native app (Flutter)
+
+on:
+  # Always build on every push to native-dev: the branch is built by CI,
+  # never on a device.
+  push:
+    branches: [ "native-dev" ]
+  # Manual trigger for a specific flavor / build type.
+  workflow_dispatch:
+    inputs:
+      flavor:
+        description: 'Build flavor (feature switches)'
+        type: choice
+        default: 'play'
+        options: ['play', 'fdroid', 'dev']
+      build_type:
+        description: 'APK type'
+        type: choice
+        default: 'debug'
+        options: ['debug', 'release']
+      build_ios:
+        description: 'Also compile the iOS runner (macOS, no codesign)'
+        type: boolean
+        default: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # On push every flavor is built (they share one compile step after
+        # the first, so the extra cost is small). Each flavor's feature
+        # switches are applied as --dart-define at build time.
+        flavor: [play, fdroid, dev]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter 3.47.1
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.1'
+          channel: 'stable'
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Static analysis (flutter analyze)
+        run: flutter analyze --fatal-infos
+
+      - name: Unit tests
+        run: flutter test
+
+      - name: Build APK
+        run: |
+          # ── Global build-step feature switches (AppConfig) ──────────────
+          # Every flavor is defined here; the app reads them at compile time
+          # via String.fromEnvironment / bool.fromEnvironment. Add a switch:
+          # add the --dart-define line in the right flavor block, then use
+          # AppConfig.<name> in code.
+          DEFINES="--dart-define=ENCLAVD_FLAVOR=${{ matrix.flavor }}"
+          if [ "${{ matrix.flavor }}" = "play" ]; then
+            # Play Store build: full features, production API.
+            DEFINES="$DEFINES --dart-define=ENCLAVD_FEATURE_NOTIFICATIONS=true --dart-define=ENCLAVD_FEATURE_CHAT=true --dart-define=ENCLAVD_FEATURE_SEARCH=true"
+          fi
+          if [ "${{ matrix.flavor }}" = "fdroid" ]; then
+            # F-Droid build: no GMS-bound features (notifications off),
+            # production API, otherwise the same app.
+            DEFINES="$DEFINES --dart-define=ENCLAVD_FEATURE_NOTIFICATIONS=false --dart-define=ENCLAVD_FEATURE_CHAT=true --dart-define=ENCLAVD_FEATURE_SEARCH=true"
+          fi
+          if [ "${{ matrix.flavor }}" = "dev" ]; then
+            # Dev build: same production API as every flavor — the app ALWAYS
+            # talks to enclavd.com (a phone can't reach a local dev box).
+            # Debug builds give hot reload + full logging; nothing else differs.
+            DEFINES="$DEFINES --dart-define=ENCLAVD_FEATURE_NOTIFICATIONS=true"
+          fi
+
+          if [ "${{ github.event.inputs.build_type }}" = "release" ]; then
+            flutter build apk --release $DEFINES
+          else
+            flutter build apk --debug $DEFINES
+          fi
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: enclavd-${{ matrix.flavor }}-apk
+          path: build/app/outputs/flutter-apk/app-*.apk
+          if-no-files-found: error
+
+  # iOS runner: present in the repo (ios/) so the project is cross-platform
+  # from day one, but compilation needs a macOS runner. Gate it behind the
+  # build_ios dispatch input so the Android pipeline stays fast. No codesign:
+  # signing is added when the iOS release pipeline is actually started.
+  ios:
+    if: github.event.inputs.build_ios == 'true'
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter 3.47.1
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.1'
+          channel: 'stable'
+          cache: true
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Compile iOS runner (no codesign)
+        run: flutter build ios --debug --no-codesign
+
+      - name: Upload iOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: enclavd-ios
+          path: build/ios/iphoneos/*.app
+          if-no-files-found: error

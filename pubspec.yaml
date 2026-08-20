@@ -1,0 +1,33 @@
+name: enclavd
+description: "Enclavd — native app (Flutter). One codebase for Android and iOS, talking to the api/v1 backend."
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # The ONLY external package: app-private key/value persistence for the
+  # session cookie jar. Everything else uses the Flutter SDK + dart:io.
+  shared_preferences: ^2.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+
+  fonts:
+    - family: Montserrat
+      fonts:
+        - asset: assets/fonts/Montserrat/Montserrat-VariableFont_wght.ttf
+        - asset: assets/fonts/Montserrat/Montserrat-Italic-VariableFont_wght.ttf
+          style: italic
+
+  assets:
+    - assets/images/default-avatar.png
+    - assets/images/default-logo.png
