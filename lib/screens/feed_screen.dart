@@ -10,7 +10,7 @@ import 'login_screen.dart';
 
 /// Feed screen — the ranked feed via GET /api/v1/posts.
 ///
-/// - First load: fresh page (server refreshes materialized scores first).
+/// - First load: skeleton cards (shimmer) instead of a bare spinner.
 /// - Infinite scroll: keyset cursor (last_score + last_id) from the previous
 ///   page; stop when has_more is false.
 /// - Pull-to-refresh: refetch page one.
@@ -187,6 +187,7 @@ class _FeedScreenState extends State<FeedScreen> {
         return PostCard(
           post: _posts[index],
           apiBaseUrl: AppConfig.apiBaseUrl,
+          social: _services.social,
         );
       },
     );

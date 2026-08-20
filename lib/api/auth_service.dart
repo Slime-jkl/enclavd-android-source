@@ -163,33 +163,17 @@ class AuthService {
   }
 
   /// POST /api/v1/auth {action:'logout'} — the api/v1 session endpoint.
-  /// Requires the CSRF token; we read it from any rendered page meta tag
-  /// (header.php emits <meta name="csrf-token" content="...">).
+  /// JSON body + X-CSRF-Token header (api/v1 endpoints read JSON via
+  /// api_input() and gate on api_csrf_guard(); a form body 400s).
   Future<void> logout() async {
     try {
-      final token = await _fetchCsrfToken();
-      if (token != null) {
-        await _api.postForm('/api/v1/auth', {
-          'action': 'logout',
-          if (token.isNotEmpty) 'csrf_token': token,
-        });
-      }
+      await _api.postJson('/api/v1/auth', {'action': 'logout'});
     } on ApiException {
       // Logout must never hard-fail the UI — clear locally regardless.
     }
     // Clear BOTH the in-memory jar and the persisted store, or a failed
     // server-side logout would leave the app "logged in" until restart.
     await _api.clearSession();
-  }
-
-  /// Reads the CSRF token from any HTML page that renders it.
-  Future<String?> _fetchCsrfToken() async {
-    final resp = await _api.getPage('/feed');
-    if (resp.status != 200) return null;
-    final match = RegExp(
-      r'<meta\s+name="csrf-token"\s+content="([^"]+)"',
-    ).firstMatch(resp.body);
-    return match?.group(1);
   }
 
   /// On a failed login/register the server 302s back to the form page with a

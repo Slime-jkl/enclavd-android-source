@@ -141,9 +141,11 @@ class ApiClient {
   bool get hasSession => _jar.any((c) => c.name == 'enclavd_sid');
 
   /// Drops the in-memory jar AND the persisted store. Used on logout and
-  /// whenever the server says the session is dead (401).
+  /// whenever the server says the session is dead (401). The CSRF token dies
+  /// with the PHP session too, so the memoized copy is dropped as well.
   Future<void> clearSession() async {
     _jar = const [];
+    _csrfToken = null;
     await store.clear();
   }
 
@@ -204,6 +206,81 @@ class ApiClient {
     throw const ApiException('Invalid response from server');
   }
 
+  /// HTTP POST of a JSON body against the api/v1 (extensionless path).
+  ///
+  /// api/v1 endpoints read their bodies with api_input() (json_decode) and
+  /// gate every state change behind api_csrf_guard(), which accepts the
+  /// X-CSRF-Token header. We therefore send:
+  ///   Content-Type: application/json
+  ///   X-CSRF-Token: <token from the PHP session's rendered meta>
+  ///
+  /// The CSRF token is memoized per app session (it lives in the PHP session
+  /// behind the `sid` cookie, stable until logout). A 403 invalidates the
+  /// cache and retries once (the server may have rotated it).
+  Future<Map<String, dynamic>> postJson(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
+    // First call in the session: fetch the token before attempting.
+    _csrfToken ??= await _fetchCsrfToken();
+
+    final resp = await _postJsonOnce(path, body, _csrfToken);
+    if (resp.status == 403) {
+      // Token rotated or rejected — refetch and retry exactly once.
+      _csrfToken = null;
+      final retry = await _postJsonOnce(path, body, await _fetchCsrfToken());
+      if (retry.status < 200 || retry.status >= 300) {
+        throw ApiException(_errorFrom(retry), status: retry.status);
+      }
+      return _decodeJson(retry);
+    }
+    if (resp.status < 200 || resp.status >= 300) {
+      throw ApiException(_errorFrom(resp), status: resp.status);
+    }
+    return _decodeJson(resp);
+  }
+
+  Future<RawResponse> _postJsonOnce(
+    String path,
+    Map<String, dynamic> body,
+    String? csrfToken,
+  ) =>
+      _exchange(
+        method: 'POST',
+        path: path,
+        headers: {
+          HttpHeaders.contentTypeHeader: 'application/json; charset=utf-8',
+          if (csrfToken != null && csrfToken.isNotEmpty)
+            AppConfig.hdrCsrf: csrfToken,
+        },
+        jsonBody: body,
+        followRedirects: false,
+      );
+
+  Map<String, dynamic> _decodeJson(RawResponse resp) {
+    try {
+      final decoded = jsonDecode(resp.body);
+      if (decoded is Map<String, dynamic>) return decoded;
+    } catch (_) {}
+    throw const ApiException('Invalid response from server');
+  }
+
+  /// Memoized CSRF token (from any page's rendered meta tag). Null until
+  /// first fetched; a 403 from postJson clears it and refetches once.
+  String? _csrfToken;
+
+  /// Fetches the CSRF token from the rendered meta tag. The PHP session
+  /// (sid cookie) holds it; header.php emits it on every page.
+  Future<String?> _fetchCsrfToken() async {
+    final resp = await getPage('/feed');
+    if (resp.status != 200) return null;
+    final match = RegExp(
+      r'<meta\s+name="csrf-token"\s+content="([^"]+)"',
+    ).firstMatch(resp.body);
+    _csrfToken = match?.group(1);
+    return _csrfToken;
+  }
+
   /// Core exchange: builds the request, sends cookies, captures Set-Cookie.
   ///
   /// `followRedirects` is true only for plain GETs (page fetches, api/v1
@@ -214,6 +291,8 @@ class ApiClient {
     required String path,
     Map<String, String>? query,
     Map<String, String>? formFields,
+    Map<String, String>? headers,
+    Map<String, dynamic>? jsonBody,
     bool followRedirects = true,
     int hop = 0,
   }) async {
@@ -232,10 +311,14 @@ class ApiClient {
           _jar.map((c) => '${c.name}=${c.value}').join('; '),
         );
       }
+      headers?.forEach(request.headers.set);
       if (formFields != null) {
         request.headers.contentType =
             ContentType('application', 'x-www-form-urlencoded', charset: 'utf-8');
         request.write(const UrlQueryEncoder().encode(formFields));
+      }
+      if (jsonBody != null) {
+        request.write(jsonEncode(jsonBody));
       }
 
       final response = await request.close().timeout(AppConfig.receiveTimeout);

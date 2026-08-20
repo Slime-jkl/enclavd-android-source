@@ -17,6 +17,7 @@ import 'dart:io';
 import 'package:enclavd/api/api_client.dart';
 import 'package:enclavd/api/auth_service.dart';
 import 'package:enclavd/api/feed_service.dart';
+import 'package:enclavd/api/social_service.dart';
 
 class MemStore implements SessionStore {
   List<SessionCookie> cookies = const [];
@@ -46,6 +47,7 @@ Future<void> main() async {
 
   final auth = AuthService(api, apiBaseUrl: base);
   final feed = FeedService(api);
+  final social = SocialService(api);
 
   var failures = 0;
   void check(String label, bool ok, [String? detail]) {
@@ -97,7 +99,46 @@ Future<void> main() async {
         imgUrl.contains('/public/gallery/'), imgUrl);
   }
 
-  // ── 5. Logout (CSRF fetch + api/v1/auth) ───────────────────────────────
+  // ── 5. Likes — toggle ON, verify, toggle OFF (leave state untouched) ───
+  // NOTE: the target post may already be liked by the dev user — first
+  // toggle flips the current state, second toggle restores it.
+  final target = p0;
+  final like1 = await social.toggleLike(target.id);
+  check('first toggle flips to ${target.userLiked ? 'unliked' : 'liked'}',
+      like1.liked != target.userLiked, 'action=${like1.action}');
+  // Count must move by exactly ±1 from the sampled value.
+  final expected1 = target.likeCount + (target.userLiked ? -1 : 1);
+  check('count moves by ±1 after first toggle', like1.likeCount == expected1,
+      'count=${like1.likeCount} (expected $expected1)');
+  final like2 = await social.toggleLike(target.id);
+  check('second toggle restores original state', like2.liked == target.userLiked,
+      'action=${like2.action}');
+  // Two toggles return the count to the value sampled from the feed.
+  check('like count back to original', like2.likeCount == target.likeCount,
+      'count=${like2.likeCount} (orig=${target.likeCount})');
+
+  // ── 6. Comments — create → list → delete (leave state untouched) ───────
+  final before = await social.listComments(target.id);
+  final stamp = DateTime.now().millisecondsSinceEpoch;
+  final (created, countAfterCreate) =
+      await social.createComment(target.id, 'native-app verify $stamp');
+  check('comment created', created.id > 0 && created.content.contains('$stamp'),
+      '#${created.id}');
+  check('comment count reflects create', countAfterCreate == before.length + 1,
+      '$countAfterCreate vs ${before.length + 1}');
+
+  final afterCreate = await social.listComments(target.id);
+  check('list shows the new comment',
+      afterCreate.any((c) => c.id == created.id && c.isOwner));
+
+  final countAfterDelete = await social.deleteComment(created.id, target.id);
+  check('comment delete returns previous count',
+      countAfterDelete == before.length, '$countAfterDelete vs ${before.length}');
+  final afterDelete = await social.listComments(target.id);
+  check('list no longer has the deleted comment',
+      !afterDelete.any((c) => c.id == created.id));
+
+  // ── 7. Logout (JSON body + CSRF header via api/v1/auth) ────────────────
   await auth.logout();
   check('logout clears the local jar', store.cookies.isEmpty);
   final afterLogout = await auth.me();

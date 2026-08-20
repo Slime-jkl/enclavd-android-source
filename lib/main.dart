@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'api/api_client.dart';
 import 'api/auth_service.dart';
 import 'api/feed_service.dart';
+import 'api/social_service.dart';
 import 'config/app_config.dart';
 import 'screens/feed_screen.dart';
 import 'screens/login_screen.dart';
@@ -24,11 +25,12 @@ void main() {
 /// Simple service container — no DI framework, constructor injection only.
 /// Everything the screens need is created here once and passed down.
 class AppServices {
-  AppServices._(this.apiClient, this.auth, this.feed);
+  AppServices._(this.apiClient, this.auth, this.feed, this.social);
 
   final ApiClient apiClient;
   final AuthService auth;
   final FeedService feed;
+  final SocialService social;
 
   static Future<AppServices> create() async {
     final prefs = await SharedPreferences.getInstance();
@@ -36,7 +38,7 @@ class AppServices {
     final api = ApiClient(store: store);
     await api.restoreSession();
     final auth = AuthService(api, apiBaseUrl: AppConfig.apiBaseUrl);
-    return AppServices._(api, auth, FeedService(api));
+    return AppServices._(api, auth, FeedService(api), SocialService(api));
   }
 }
 
