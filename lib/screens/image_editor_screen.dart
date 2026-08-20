@@ -214,10 +214,25 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
     }
     return Column(
       children: [
-        Expanded(child: _preview()),
-        _toolTabs(),
-        if (_tabCrop) _cropTools() else _filterTools(),
-        const SizedBox(height: 8),
+        // Card-backed preview so letterboxed areas never look "transparent"
+        // against the page background.
+        Expanded(
+          child: Container(
+            color: EnclavdColors.card,
+            child: _preview(),
+          ),
+        ),
+        // SafeArea keeps the tool rows above the system navigation bar.
+        SafeArea(
+          top: false,
+          child: Column(
+            children: [
+              _toolTabs(),
+              if (_tabCrop) _cropTools() else _filterTools(),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -322,24 +337,19 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
 
   Widget _cropTools() {
     return SizedBox(
-      height: 52,
+      height: 48,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         children: [
           for (final (label, ratio) in _ratios)
             Padding(
               padding: const EdgeInsets.only(right: 8),
-              child: ChoiceChip(
-                label: Text(label),
-                selected: _ratio == ratio,
-                onSelected: (_) => setState(() => _ratio = ratio),
-                selectedColor: EnclavdColors.link.withValues(alpha: 0.2),
-                labelStyle: TextStyle(
-                  fontSize: 12,
-                  color: _ratio == ratio
-                      ? EnclavdColors.link
-                      : EnclavdColors.textPrimary,
+              child: Center(
+                child: _pill(
+                  label,
+                  selected: _ratio == ratio,
+                  onTap: () => setState(() => _ratio = ratio),
                 ),
               ),
             ),
@@ -350,28 +360,54 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
 
   Widget _filterTools() {
     return SizedBox(
-      height: 68,
+      height: 48,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         children: [
           for (final f in IedFilter.presets)
             Padding(
               padding: const EdgeInsets.only(right: 8),
-              child: ChoiceChip(
-                label: Text(f.label),
-                selected: _filter.id == f.id,
-                onSelected: (_) => setState(() => _filter = f),
-                selectedColor: EnclavdColors.link.withValues(alpha: 0.2),
-                labelStyle: TextStyle(
-                  fontSize: 12,
-                  color: _filter.id == f.id
-                      ? EnclavdColors.link
-                      : EnclavdColors.textPrimary,
+              child: Center(
+                child: _pill(
+                  f.label,
+                  selected: _filter.id == f.id,
+                  onTap: () => setState(() => _filter = f),
                 ),
               ),
             ),
         ],
+      ),
+    );
+  }
+
+  /// Theme-styled pill (the site's rounded-full filter buttons) — plain
+  /// Material ChoiceChips draw light M3 outlines that look broken on the
+  /// dark design system.
+  Widget _pill(String label,
+      {required bool selected, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected
+              ? EnclavdColors.link.withValues(alpha: 0.15)
+              : EnclavdColors.cardSecondary,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected ? EnclavdColors.link : EnclavdColors.divider,
+            width: 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: selected ? EnclavdColors.link : EnclavdColors.textPrimary,
+          ),
+        ),
       ),
     );
   }

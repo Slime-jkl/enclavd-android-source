@@ -1,4 +1,4 @@
-import 'package:flutter/painting.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:enclavd/screens/compose_screen.dart';
 import 'package:enclavd/theme/enclavd_theme.dart';
@@ -44,6 +44,40 @@ void main() {
 
     test('empty text yields no spans', () {
       expect(highlightComposerSpans(''), isEmpty);
+    });
+  });
+
+  group('composer field', () {
+    testWidgets('typed text renders WHITE behind the transparent input',
+        (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        theme: buildEnclavdTheme(),
+        home: const ComposeScreen(),
+      ));
+      await tester.enterText(find.byType(TextField), 'hello world');
+      await tester.pump();
+
+      // The highlight layer is the only place the text is visible — the
+      // input above it is transparent. It must carry the theme's white.
+      final rich = tester.widget<Text>(find.byWidgetPredicate(
+          (w) => w is Text && w.textSpan?.toPlainText() == 'hello world'));
+      expect(rich.style?.color, EnclavdColors.textPrimary);
+    });
+
+    testWidgets('hashtags in the composer highlight in blue', (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        theme: buildEnclavdTheme(),
+        home: const ComposeScreen(),
+      ));
+      await tester.enterText(find.byType(TextField), 'go #viral now');
+      await tester.pump();
+
+      final rich = tester.widget<Text>(find.byWidgetPredicate(
+          (w) => w is Text && w.textSpan?.toPlainText() == 'go #viral now'));
+      final spans = (rich.textSpan as TextSpan).children!;
+      final tag = spans.firstWhere((s) => s is TextSpan && s.text == '#viral')
+          as TextSpan;
+      expect(tag.style?.color, EnclavdColors.link);
     });
   });
 }

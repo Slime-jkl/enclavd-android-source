@@ -280,6 +280,10 @@ class _ComposeScreenState extends State<ComposeScreen> {
                 style: base.copyWith(color: Colors.transparent),
                 cursorColor: EnclavdColors.textPrimary,
                 decoration: const InputDecoration(
+                  // CRITICAL: never let the theme's filled/fillColor apply —
+                  // an opaque fill would cover the white highlight layer
+                  // beneath this transparent input.
+                  filled: false,
                   isDense: true,
                   border: InputBorder.none,
                   counterText: '',
