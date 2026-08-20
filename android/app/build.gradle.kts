@@ -10,7 +10,11 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        coreLibraryDesugaringEnabled = true // flutter_local_notifications (java.time)
+        // AGP 9.x new-DSL naming: the boolean getter is
+        // isCoreLibraryDesugaringEnabled() — the old property name without
+        // the 'is' prefix only existed on the legacy internal class and no
+        // longer resolves (CI: "Unresolved reference").
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
