@@ -27,6 +27,7 @@ class EnclavdImage extends StatelessWidget {
     this.errorAsset = 'assets/images/default-avatar.png',
     this.borderRadius,
     this.placeholderHeight,
+    this.placeholderShape = BoxShape.rectangle,
   });
 
   final String url;
@@ -36,6 +37,11 @@ class EnclavdImage extends StatelessWidget {
   final String errorAsset;
   final BorderRadius? borderRadius;
   final double? placeholderHeight;
+
+  /// Shape of the loading shimmer — avatars pass [BoxShape.circle] so the
+  /// placeholder is a circle too (a rounded-square shimmer inside a
+  /// circular avatar reads as "squared image in a circle").
+  final BoxShape placeholderShape;
 
   @override
   Widget build(BuildContext context) {
@@ -79,6 +85,7 @@ class EnclavdImage extends StatelessWidget {
       width: width,
       height: placeholderHeight ?? height ?? 140,
       borderRadius: 8,
+      shape: placeholderShape,
     );
   }
 

@@ -15,6 +15,7 @@ import '../services/sound_service.dart';
 import '../theme/enclavd_theme.dart';
 import '../utils/content_spans.dart';
 import 'cached_image.dart';
+import 'enclavd_avatar.dart';
 import 'enclavd_image.dart';
 import 'likers_sheet.dart';
 import 'shimmer.dart';
@@ -427,22 +428,11 @@ class _AuthorRow extends StatelessWidget {
         // the profile tooltip).
         GestureDetector(
           onTap: () => _openProfile(context, post.authorId),
-          child: Container(
-            width: 35,
-            height: 35,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: EnclavdColors.cardSecondary,
-              border: Border.all(
-                color: personality ?? EnclavdColors.border,
-                width: 2,
-              ),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: EnclavdImage(
-              resolveMediaUrl(apiBaseUrl, avatarPath: post.profilePictureUrl),
-              fit: BoxFit.cover,
-            ),
+          child: EnclavdAvatar(
+            size: 35,
+            url:
+                resolveMediaUrl(apiBaseUrl, avatarPath: post.profilePictureUrl),
+            borderColor: personality,
           ),
         ),
         const SizedBox(width: 8),
@@ -1055,23 +1045,11 @@ class _CommentRow extends StatelessWidget {
         children: [
           GestureDetector(
             onTap: () => _openProfile(context, comment.userId),
-            child: Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: EnclavdColors.cardSecondary,
-                border: Border.all(
-                  color: personality ?? EnclavdColors.border,
-                  width: 1.5,
-                ),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: EnclavdImage(
-                resolveMediaUrl(apiBaseUrl,
-                    avatarPath: comment.profilePictureUrl),
-                fit: BoxFit.cover,
-              ),
+            child: EnclavdAvatar(
+              size: 28,
+              url: resolveMediaUrl(apiBaseUrl,
+                  avatarPath: comment.profilePictureUrl),
+              borderColor: personality,
             ),
           ),
           const SizedBox(width: 8),

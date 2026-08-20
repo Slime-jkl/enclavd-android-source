@@ -8,7 +8,7 @@ import '../api/profile_service.dart';
 import '../config/app_config.dart';
 import '../main.dart';
 import '../theme/enclavd_theme.dart';
-import '../widgets/enclavd_image.dart';
+import '../widgets/enclavd_avatar.dart';
 import '../widgets/post_card.dart';
 import '../widgets/shimmer.dart';
 import 'compose_screen.dart';
@@ -405,20 +405,11 @@ class _ProfileHeader extends StatelessWidget {
               // Avatar with personality border + online dot.
               Stack(
                 children: [
-                  Container(
-                    width: 64,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: EnclavdColors.cardSecondary,
-                      border: Border.all(color: borderColor, width: 2),
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: EnclavdImage(
-                      resolveMediaUrl(AppConfig.apiBaseUrl,
-                          avatarPath: profile.profilePictureUrl),
-                      fit: BoxFit.cover,
-                    ),
+                  EnclavdAvatar(
+                    size: 64,
+                    url: resolveMediaUrl(AppConfig.apiBaseUrl,
+                        avatarPath: profile.profilePictureUrl),
+                    borderColor: borderColor,
                   ),
                   if (!profile.isOwn)
                     Positioned(

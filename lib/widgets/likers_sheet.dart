@@ -5,7 +5,7 @@ import '../api/auth_service.dart';
 import '../api/social_service.dart';
 import '../screens/profile_screen.dart';
 import '../theme/enclavd_theme.dart';
-import 'enclavd_image.dart';
+import 'enclavd_avatar.dart';
 import 'shimmer.dart';
 
 /// "Liked by" list — port of the site's showLikers modal (likes.js):
@@ -167,23 +167,11 @@ class _LikerRow extends StatelessWidget {
             // 40px avatar — personality border, the app's feed/comments
             // convention ("like on feed"; the site modal uses the rank
             // border instead, which would break app consistency).
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: EnclavdColors.cardSecondary,
-                border: Border.all(
-                  color: personality ?? EnclavdColors.border,
-                  width: 2,
-                ),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: EnclavdImage(
-                resolveMediaUrl(apiBaseUrl,
-                    avatarPath: liker.profilePictureUrl),
-                fit: BoxFit.cover,
-              ),
+            EnclavdAvatar(
+              size: 40,
+              url: resolveMediaUrl(apiBaseUrl,
+                  avatarPath: liker.profilePictureUrl),
+              borderColor: personality,
             ),
             const SizedBox(width: 12),
             Expanded(
