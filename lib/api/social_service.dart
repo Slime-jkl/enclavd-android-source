@@ -87,15 +87,44 @@ class Liker {
   final String rank;
   final String likedAt;
 
-  factory Liker.fromJson(Map<String, dynamic> json) => Liker(
-        id: (json['id'] as num?)?.toInt() ?? 0,
-        username: json['username'] as String? ?? '',
-        profilePictureUrl: json['profile_picture_url'] as String? ??
-            '/assets/default-avatar.png',
-        personalityType: json['personality_type'] as String?,
-        rank: json['rank'] as String? ?? 'Member',
-        likedAt: json['liked_at'] as String? ?? '',
-      );
+  /// Prod's likers payload predates the raw fields: it sends
+  /// `personality_badge` / `rank_styles` as HTML instead of plain
+  /// `personality_type` / `rank`. Parse the HTML as a fallback so the
+  /// modal colors/pills/badges work against BOTH payload shapes.
+  factory Liker.fromJson(Map<String, dynamic> json) {
+    final styles = json['rank_styles'];
+    final stylesMap =
+        styles is Map<String, dynamic> ? styles : const <String, dynamic>{};
+    final personalityBadge = json['personality_badge'] as String? ?? '';
+    final rankBadge = stylesMap['badge'] as String? ?? '';
+    return Liker(
+      id: (json['id'] as num?)?.toInt() ?? 0,
+      username: json['username'] as String? ?? '',
+      profilePictureUrl: json['profile_picture_url'] as String? ??
+          '/assets/default-avatar.png',
+      personalityType: (json['personality_type'] as String?) ??
+          _mbtiFromBadge(personalityBadge),
+      rank:
+          (json['rank'] as String?) ?? _rankFromBadge(rankBadge) ?? 'Member',
+      likedAt: json['liked_at'] as String? ?? '',
+    );
+  }
+
+  /// `<span ...>INTJ</span>` → `INTJ` (personality_badge HTML).
+  static String? _mbtiFromBadge(String html) {
+    if (html.isEmpty) return null;
+    final m = RegExp(r'>\s*([A-Z]{4})\s*<').firstMatch(html);
+    return m?.group(1);
+  }
+
+  /// `<a ...><i ...></i>SysOp</a>` → `SysOp` (rank_styles.badge HTML).
+  static String? _rankFromBadge(String html) {
+    if (html.isEmpty) return null;
+    final m = RegExp(r'>([^<>]+)</a>').firstMatch(html);
+    if (m == null) return null;
+    final name = m.group(1)!.trim();
+    return name.isEmpty ? null : name;
+  }
 }
 
 /// SocialService — likes + comments over api/v1 (JSON + CSRF).

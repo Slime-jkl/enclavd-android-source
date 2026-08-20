@@ -333,6 +333,64 @@ void main() {
       await h.close();
     });
   });
+
+  group('Liker.fromJson (raw fields + prod HTML fallbacks)', () {
+    test('raw fields win when present', () {
+      final l = Liker.fromJson({
+        'id': 1,
+        'username': 'Slimejkl',
+        'profile_picture_url': '/a.jpg',
+        'personality_type': 'INTJ',
+        'rank': 'SysOp',
+        'liked_at': 'August 20, 2026 at 1:43 PM',
+      });
+      expect(l.personalityType, 'INTJ');
+      expect(l.rank, 'SysOp');
+    });
+
+    test('prod payload (no raw fields) parses personality from the badge HTML',
+        () {
+      // The exact shape prod returns today (older likes.php): HTML
+      // personality_badge + rank_styles, no raw personality_type/rank.
+      final l = Liker.fromJson({
+        'id': 1,
+        'username': 'Slimejkl',
+        'profile_picture_url': '/public/avatars/a.jpg',
+        'personality_badge':
+            '<span class="inline-flex items-center px-2 py-0.75 text-[0.7rem] rounded-full font-medium text-fuchsia-600">INTJ</span>',
+        'liked_at': 'August 20, 2026 at 1:43 PM',
+        'rank_styles': {
+          'badge':
+              '<a class="inline-flex items-center px-1 py-0.5 rounded text-xs font-medium whitespace-nowrap bg-purple-700 text-gray-950 border border-purple-500 hover:opacity-80 transition-opacity"><i class="fas fa-code"></i>SysOp</a>',
+          'name_color': 'text-purple-400 hover:text-purple-300',
+        },
+      });
+      expect(l.personalityType, 'INTJ');
+      expect(l.rank, 'SysOp');
+    });
+
+    test('Founding Member (two-word rank) parses from the badge HTML', () {
+      final l = Liker.fromJson({
+        'id': 22,
+        'username': 'vaporycoder',
+        'personality_badge':
+            '<span class="... text-amber-600">INFJ</span>',
+        'rank_styles': {
+          'badge':
+              '<a class="..."><i class="fas fa-crown"></i>Founding Member</a>',
+        },
+      });
+      expect(l.personalityType, 'INFJ');
+      expect(l.rank, 'Founding Member');
+    });
+
+    test('missing personality/rank HTML falls back to defaults', () {
+      final l = Liker.fromJson({'id': 3, 'username': 'nobody'});
+      expect(l.personalityType, isNull);
+      expect(l.rank, 'Member');
+      expect(l.profilePictureUrl, '/assets/default-avatar.png');
+    });
+  });
 }
 
 /// Seeds a session and records whether clear() ran.
