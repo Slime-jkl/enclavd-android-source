@@ -1,3 +1,4 @@
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
 
 import '../main.dart';
@@ -61,20 +62,24 @@ class _SplashScreenState extends State<SplashScreen> {
     return Scaffold(
       body: Center(
         child: _error == null
-            ? const Column(
+            ? Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.bolt, color: Color(0xFF60A5FA), size: 64),
-                  SizedBox(height: 16),
-                  Text('Enclavd', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-                  SizedBox(height: 8),
-                  Text('Loading…', style: TextStyle(color: Color(0xFF9CA3AF))),
+                  Image.asset('assets/images/default-logo.png', height: 72),
+                  const SizedBox(height: 16),
+                  const Text('Enclavd',
+                      style:
+                          TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  const Text('Loading…',
+                      style: TextStyle(color: Color(0xFF9CA3AF))),
                 ],
               )
             : Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.wifi_off, color: Color(0xFF9CA3AF), size: 56),
+                  const FaIcon(FontAwesomeIcons.wifi,
+                      color: Color(0xFF9CA3AF), size: 56),
                   const SizedBox(height: 16),
                   const Text('Can\'t reach Enclavd right now.'),
                   const SizedBox(height: 16),

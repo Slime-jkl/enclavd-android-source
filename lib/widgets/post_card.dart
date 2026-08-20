@@ -1,9 +1,11 @@
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
 
 import '../api/auth_service.dart';
 import '../api/feed_service.dart';
 import '../api/social_service.dart';
 import '../theme/enclavd_theme.dart';
+import 'cached_image.dart';
 import 'enclavd_image.dart';
 import 'shimmer.dart';
 
@@ -255,7 +257,8 @@ class _AuthorRow extends StatelessWidget {
                             ? RankColors.forRank('Blocked')
                             : RankColors.forRank(post.rank),
                         fontWeight: FontWeight.w600,
-                        decoration: post.isBlocked ? TextDecoration.lineThrough : null,
+                        decoration:
+                            post.isBlocked ? TextDecoration.lineThrough : null,
                         decorationColor: RankColors.forRank('Blocked'),
                       ),
                     ),
@@ -263,7 +266,8 @@ class _AuthorRow extends StatelessWidget {
                   if (post.personalityType != null) ...[
                     const SizedBox(width: 6),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
                         color: EnclavdColors.cardSecondary,
                         borderRadius: BorderRadius.circular(999),
@@ -280,7 +284,7 @@ class _AuthorRow extends StatelessWidget {
                   ],
                   if (post.warningCount > 0) ...[
                     const SizedBox(width: 6),
-                    const Icon(Icons.warning_amber_rounded,
+                    const FaIcon(FontAwesomeIcons.triangleExclamation,
                         color: EnclavdColors.warning, size: 14),
                     Text('${post.warningCount}',
                         style: const TextStyle(
@@ -294,7 +298,8 @@ class _AuthorRow extends StatelessWidget {
         const SizedBox(width: 8),
         Text(
           relativeTime(post.createdAt),
-          style: const TextStyle(color: EnclavdColors.textSecondary, fontSize: 12),
+          style:
+              const TextStyle(color: EnclavdColors.textSecondary, fontSize: 12),
         ),
       ],
     );
@@ -352,7 +357,9 @@ class _PostContentState extends State<_PostContent> {
   }
 }
 
-/// Post image with shimmer-while-loading + fade-in (EnclavdImage).
+/// Post image — port of the site's `feed-image w-auto max-h-[50vh] mx-auto`:
+/// capped at half the viewport height (a very tall image must never blow the
+/// card up), centered, tap → fullscreen viewer (site's openImageModal).
 class _PostImage extends StatelessWidget {
   const _PostImage({required this.post, required this.apiBaseUrl});
 
@@ -361,13 +368,80 @@ class _PostImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return EnclavdImage(
-      resolveMediaUrl(apiBaseUrl, galleryName: post.image),
-      fit: BoxFit.contain,
-      width: double.infinity,
-      errorIcon: Icons.broken_image_outlined,
-      borderRadius: BorderRadius.circular(8),
-      placeholderHeight: 160,
+    final url = resolveMediaUrl(apiBaseUrl, galleryName: post.image);
+    return Center(
+      child: GestureDetector(
+        onTap: () => _viewFullImage(context, url),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            EnclavdImage(
+              url,
+              fit: BoxFit.contain,
+              // max-h-[50vh] from the site's feed-image class.
+              height: MediaQuery.sizeOf(context).height * 0.5,
+              errorAsset: 'assets/images/no-image.jpg',
+              borderRadius: BorderRadius.circular(8),
+              placeholderHeight: 160,
+            ),
+            // The site shows a fa-expand overlay on hover; on touch there's
+            // no hover, so keep a subtle always-on hint that it opens.
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.45),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const FaIcon(FontAwesomeIcons.expand,
+                    size: 13, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Fullscreen viewer, mirroring the site's black/90 modal: full-res image
+  /// (no cacheWidth downscale), pinch-zoom, tap or × to close.
+  void _viewFullImage(BuildContext context, String url) {
+    showDialog<void>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.92),
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.zero,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () => Navigator.of(dialogContext).pop(),
+                child: InteractiveViewer(
+                  maxScale: 5,
+                  child: Center(
+                    child: Image(
+                      image: CachedNetworkImageProvider(url),
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 24,
+              right: 24,
+              child: IconButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                icon: const FaIcon(FontAwesomeIcons.xmark,
+                    color: Colors.white, size: 22),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -399,12 +473,13 @@ class _ActionRow extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
             child: Row(
               children: [
-                Icon(
-                  liked ? Icons.favorite : Icons.favorite_border,
+                // Site uses a solid fa-heart that turns red when liked.
+                FaIcon(
+                  FontAwesomeIcons.heart,
                   color: liked
                       ? EnclavdColors.likeActive
                       : EnclavdColors.textSecondary,
-                  size: 22,
+                  size: 20,
                 ),
                 const SizedBox(width: 6),
                 Text('$likeCount',
@@ -424,12 +499,17 @@ class _ActionRow extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
             child: Row(
               children: [
-                const Icon(Icons.chat_bubble_outline,
-                    color: EnclavdColors.textSecondary, size: 22),
+                // Site: fa-comments when there are comments, fa-comment when empty.
+                FaIcon(
+                  commentCount > 0
+                      ? FontAwesomeIcons.comments
+                      : FontAwesomeIcons.comment,
+                  color: EnclavdColors.textSecondary,
+                  size: 20,
+                ),
                 const SizedBox(width: 6),
                 Text('$commentCount',
-                    style:
-                        const TextStyle(color: EnclavdColors.textSecondary)),
+                    style: const TextStyle(color: EnclavdColors.textSecondary)),
               ],
             ),
           ),
@@ -473,7 +553,8 @@ class _CommentsSection extends StatelessWidget {
       );
     }
     if (error != null) {
-      return Text(error!, style: const TextStyle(color: EnclavdColors.textSecondary));
+      return Text(error!,
+          style: const TextStyle(color: EnclavdColors.textSecondary));
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -499,7 +580,8 @@ class _CommentsSection extends StatelessWidget {
                 decoration: const InputDecoration(
                   hintText: 'Add a comment…',
                   isDense: true,
-                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 ),
               ),
             ),
@@ -512,7 +594,8 @@ class _CommentsSection extends StatelessWidget {
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Icon(Icons.send, color: EnclavdColors.link),
+                  : const FaIcon(FontAwesomeIcons.paperPlane,
+                      size: 18, color: EnclavdColors.link),
             ),
           ],
         ),
@@ -583,7 +666,8 @@ class _CommentRow extends StatelessWidget {
             ),
             clipBehavior: Clip.antiAlias,
             child: EnclavdImage(
-              resolveMediaUrl(apiBaseUrl, avatarPath: comment.profilePictureUrl),
+              resolveMediaUrl(apiBaseUrl,
+                  avatarPath: comment.profilePictureUrl),
               fit: BoxFit.cover,
             ),
           ),
@@ -615,8 +699,8 @@ class _CommentRow extends StatelessWidget {
                       const SizedBox(width: 6),
                       GestureDetector(
                         onTap: () => onDelete(comment),
-                        child: const Icon(Icons.delete_outline,
-                            size: 15, color: EnclavdColors.textSecondary),
+                        child: const FaIcon(FontAwesomeIcons.trashCan,
+                            size: 14, color: EnclavdColors.textSecondary),
                       ),
                     ],
                   ],

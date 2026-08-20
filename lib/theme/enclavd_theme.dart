@@ -107,11 +107,12 @@ ThemeData buildEnclavdTheme() {
       style: ElevatedButton.styleFrom(
         backgroundColor: EnclavdColors.primaryButton,
         foregroundColor: EnclavdColors.textPrimary,
-        disabledBackgroundColor: EnclavdColors.primaryButton.withValues(alpha: 0.5),
+        disabledBackgroundColor:
+            EnclavdColors.primaryButton.withValues(alpha: 0.5),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8), // rounded-lg
-          side: const BorderSide(
-              color: Color(0x801E40AF)), // border-blue-800/50
+          side:
+              const BorderSide(color: Color(0x801E40AF)), // border-blue-800/50
         ),
         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
       ),

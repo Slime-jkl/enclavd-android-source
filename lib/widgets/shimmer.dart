@@ -81,8 +81,9 @@ class ShimmerBox extends StatelessWidget {
         decoration: BoxDecoration(
           color: EnclavdColors.cardSecondary,
           shape: shape,
-          borderRadius:
-              shape == BoxShape.circle ? null : BorderRadius.circular(borderRadius),
+          borderRadius: shape == BoxShape.circle
+              ? null
+              : BorderRadius.circular(borderRadius),
         ),
       ),
     );

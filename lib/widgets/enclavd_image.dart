@@ -2,7 +2,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../theme/enclavd_theme.dart';
 import 'cached_image.dart';
 import 'shimmer.dart';
 
@@ -13,7 +12,8 @@ import 'shimmer.dart';
 ///  - decodes at display size (cacheWidth) instead of full resolution —
 ///    avatars are served full-size, so without this a 35px avatar decodes a
 ///    500px image into memory on every card (the feed's scroll-jank cause);
-///  - falls back to a placeholder icon on error.
+///  - falls back to an asset on error, mirroring the site's onerror
+///    handlers (avatar → default-avatar.png, post image → no-image.jpg).
 ///
 /// Backed by CachedNetworkImageProvider (disk cache), so repeat views and
 /// cold starts don't re-download the same bytes.
@@ -24,7 +24,7 @@ class EnclavdImage extends StatelessWidget {
     this.width,
     this.height,
     this.fit = BoxFit.cover,
-    this.errorIcon = Icons.person,
+    this.errorAsset = 'assets/images/default-avatar.png',
     this.borderRadius,
     this.placeholderHeight,
   });
@@ -33,7 +33,7 @@ class EnclavdImage extends StatelessWidget {
   final double? width;
   final double? height;
   final BoxFit fit;
-  final IconData errorIcon;
+  final String errorAsset;
   final BorderRadius? borderRadius;
   final double? placeholderHeight;
 
@@ -83,12 +83,13 @@ class EnclavdImage extends StatelessWidget {
   }
 
   Widget _fallback(BuildContext context) {
-    return Container(
+    // Same as the site's onerror: swap in a local asset (default avatar for
+    // avatars, no-image.jpg for post images) instead of a bare icon.
+    return Image.asset(
+      errorAsset,
       width: width,
       height: placeholderHeight ?? height,
-      color: EnclavdColors.cardSecondary,
-      alignment: Alignment.center,
-      child: Icon(errorIcon, color: EnclavdColors.textSecondary, size: 22),
+      fit: BoxFit.cover,
     );
   }
 }

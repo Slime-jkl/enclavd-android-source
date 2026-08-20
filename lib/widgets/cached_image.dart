@@ -21,7 +21,8 @@ import 'package:path_provider/path_provider.dart';
 ///    immutable — 1-year cache headers — so staleness is a non-issue; we
 ///    still cap the directory size).
 ///  - Errors fall through to the caller's errorBuilder (e.g. default avatar).
-class CachedNetworkImageProvider extends ImageProvider<CachedNetworkImageProvider> {
+class CachedNetworkImageProvider
+    extends ImageProvider<CachedNetworkImageProvider> {
   CachedNetworkImageProvider(this.url, {this.httpClientFactory});
 
   final String url;
@@ -33,7 +34,8 @@ class CachedNetworkImageProvider extends ImageProvider<CachedNetworkImageProvide
   static const int _maxFiles = 300;
 
   @override
-  Future<CachedNetworkImageProvider> obtainKey(ImageConfiguration configuration) =>
+  Future<CachedNetworkImageProvider> obtainKey(
+          ImageConfiguration configuration) =>
       SynchronousFuture(this);
 
   @override

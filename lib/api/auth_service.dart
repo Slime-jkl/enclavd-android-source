@@ -24,13 +24,15 @@ class CurrentUser {
   final String dateCreated;
 
   /// Absolute URL for the avatar (server sends a root-relative path).
-  String avatarUrl(String base) =>
-      profilePictureUrl.startsWith('/') ? '$base$profilePictureUrl' : profilePictureUrl;
+  String avatarUrl(String base) => profilePictureUrl.startsWith('/')
+      ? '$base$profilePictureUrl'
+      : profilePictureUrl;
 
   factory CurrentUser.fromJson(Map<String, dynamic> json) => CurrentUser(
         id: (json['id'] as num?)?.toInt() ?? 0,
         username: json['username'] as String? ?? '',
-        profilePictureUrl: json['profile_picture_url'] as String? ?? '/assets/default-avatar.png',
+        profilePictureUrl: json['profile_picture_url'] as String? ??
+            '/assets/default-avatar.png',
         rank: json['rank'] as String? ?? 'Member',
         personalityType: json['personality_type'] as String?,
         prestige: (json['prestige'] as num?)?.toInt() ?? 0,
@@ -136,7 +138,8 @@ class AuthService {
       'email': email.trim(),
       'password': password,
       'password_confirm': password,
-      if (invitation != null && invitation.isNotEmpty) 'invitation': invitation.trim(),
+      if (invitation != null && invitation.isNotEmpty)
+        'invitation': invitation.trim(),
       if (acceptPrivacy) 'privacy_policy': 'on',
       if (acceptTerms) 'terms': 'on',
     });

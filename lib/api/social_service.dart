@@ -54,8 +54,8 @@ class Comment {
         postId: (json['post_id'] as num?)?.toInt() ?? 0,
         userId: (json['user_id'] as num?)?.toInt() ?? 0,
         username: json['username'] as String? ?? '',
-        profilePictureUrl:
-            json['profile_picture_url'] as String? ?? '/assets/default-avatar.png',
+        profilePictureUrl: json['profile_picture_url'] as String? ??
+            '/assets/default-avatar.png',
         personalityType: json['personality_type'] as String?,
         nameColor: json['name_color'] as String? ?? 'text-gray-400',
         hasWarnings: json['has_warnings'] as bool? ?? false,
@@ -90,7 +90,8 @@ class SocialService {
   /// Fetches the comment list for a post (newest first — server sorts
   /// created_at DESC).
   Future<List<Comment>> listComments(int postId) async {
-    final json = await _api.getJson('/api/v1/comments', query: {'post_id': '$postId'});
+    final json =
+        await _api.getJson('/api/v1/comments', query: {'post_id': '$postId'});
     final raw = json['comments'] as List<dynamic>? ?? const [];
     return [
       for (final c in raw)

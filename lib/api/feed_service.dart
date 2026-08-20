@@ -48,7 +48,8 @@ class Post {
         userLiked: json['user_liked'] as bool? ?? false,
         warningCount: (json['warning_count'] as num?)?.toInt() ?? 0,
         username: json['username'] as String? ?? '',
-        profilePictureUrl: json['profile_picture_url'] as String? ?? '/assets/default-avatar.png',
+        profilePictureUrl: json['profile_picture_url'] as String? ??
+            '/assets/default-avatar.png',
         personalityType: json['personality_type'] as String?,
         isActive: json['is_active'] as String? ?? 'true',
         rank: json['rank'] as String? ?? 'Member',
@@ -104,11 +105,12 @@ class FeedService {
 
   final ApiClient _api;
 
-  Future<FeedPage> firstPage({int limit = 10}) =>
-      _fetch(limit: limit);
+  Future<FeedPage> firstPage({int limit = 10}) => _fetch(limit: limit);
 
   Future<FeedPage> nextPage(FeedPage previous, {int limit = 10}) {
-    if (!previous.hasMore || previous.lastScore == null || previous.lastId == null) {
+    if (!previous.hasMore ||
+        previous.lastScore == null ||
+        previous.lastId == null) {
       throw const ApiException('No more posts');
     }
     return _fetch(

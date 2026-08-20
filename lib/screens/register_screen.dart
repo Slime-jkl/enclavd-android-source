@@ -1,3 +1,4 @@
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
 
 import '../main.dart';
@@ -13,6 +14,9 @@ import 'login_screen.dart';
 ///   privacy_policy + terms  checkboxes (required)
 /// On success the server 302s to /login (email verification is on), and the
 /// flash message tells the user to check their inbox.
+///
+/// No autofillHints (Android autofill detaches the IME after the first
+/// keystroke — same keyboard bug as login).
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -95,127 +99,141 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Request Network Entry')),
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 480),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (_error != null) ...[
-                      _Banner(message: _error!, isError: true),
-                      const SizedBox(height: 16),
-                    ],
-                    if (_success != null) ...[
-                      _Banner(message: _success!, isError: false),
-                      const SizedBox(height: 16),
-                    ],
-                    TextFormField(
-                      controller: _username,
-                      autofillHints: const [AutofillHints.newUsername],
-                      decoration: const InputDecoration(
-                        labelText: 'Username *',
-                        hintText: 'Choose a username',
-                        prefixIcon: Icon(Icons.person_outline),
+        child: LayoutBuilder(
+          builder: (context, viewport) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: viewport.maxHeight - 48),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 480),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (_error != null) ...[
+                            _Banner(message: _error!, isError: true),
+                            const SizedBox(height: 16),
+                          ],
+                          if (_success != null) ...[
+                            _Banner(message: _success!, isError: false),
+                            const SizedBox(height: 16),
+                          ],
+                          TextFormField(
+                            controller: _username,
+                            decoration: const InputDecoration(
+                              labelText: 'Username *',
+                              hintText: 'Choose a username',
+                              prefixIcon:
+                                  FaIcon(FontAwesomeIcons.user, size: 18),
+                            ),
+                            validator: (v) {
+                              final s = v?.trim() ?? '';
+                              if (s.isEmpty) return 'Username is required';
+                              if (!RegExp(r'^[a-zA-Z0-9_]{3,20}$')
+                                  .hasMatch(s)) {
+                                return '3–20 characters, letters, numbers, underscores only';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _email,
+                            keyboardType: TextInputType.emailAddress,
+                            decoration: const InputDecoration(
+                              labelText: 'Email address *',
+                              hintText: 'you@example.com',
+                              prefixIcon:
+                                  FaIcon(FontAwesomeIcons.envelope, size: 18),
+                            ),
+                            validator: (v) {
+                              final s = v?.trim() ?? '';
+                              if (s.isEmpty) return 'Email is required';
+                              if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+                                  .hasMatch(s)) {
+                                return 'Enter a valid email address';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _password,
+                            obscureText: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Password *',
+                              prefixIcon:
+                                  FaIcon(FontAwesomeIcons.lock, size: 18),
+                            ),
+                            validator: (v) {
+                              if (v == null || v.isEmpty) {
+                                return 'Password is required';
+                              }
+                              if (v.length < 6) return 'At least 6 characters';
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _passwordConfirm,
+                            obscureText: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Confirm Password *',
+                              prefixIcon:
+                                  FaIcon(FontAwesomeIcons.lock, size: 18),
+                            ),
+                            validator: (v) => v != _password.text
+                                ? 'Passwords do not match'
+                                : null,
+                          ),
+                          const SizedBox(height: 16),
+                          CheckboxListTile(
+                            value: _acceptPrivacy,
+                            onChanged: (v) =>
+                                setState(() => _acceptPrivacy = v ?? false),
+                            title: const Text('I accept the Privacy Policy'),
+                            controlAffinity: ListTileControlAffinity.leading,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                          CheckboxListTile(
+                            value: _acceptTerms,
+                            onChanged: (v) =>
+                                setState(() => _acceptTerms = v ?? false),
+                            title: const Text('I accept the Terms of Service'),
+                            controlAffinity: ListTileControlAffinity.leading,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                          const SizedBox(height: 24),
+                          ElevatedButton(
+                            onPressed: _busy ? null : _submit,
+                            child: _busy
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2, color: Colors.white),
+                                  )
+                                : const Text('Register'),
+                          ),
+                          const SizedBox(height: 16),
+                          TextButton(
+                            onPressed: () {
+                              Navigator.of(context)
+                                  .pushReplacementNamed(LoginScreen.routeName);
+                            },
+                            child: const Text('Sign in instead'),
+                          ),
+                        ],
                       ),
-                      validator: (v) {
-                        final s = v?.trim() ?? '';
-                        if (s.isEmpty) return 'Username is required';
-                        if (!RegExp(r'^[a-zA-Z0-9_]{3,20}$').hasMatch(s)) {
-                          return '3–20 characters, letters, numbers, underscores only';
-                        }
-                        return null;
-                      },
                     ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _email,
-                      keyboardType: TextInputType.emailAddress,
-                      autofillHints: const [AutofillHints.email],
-                      decoration: const InputDecoration(
-                        labelText: 'Email address *',
-                        hintText: 'you@example.com',
-                        prefixIcon: Icon(Icons.mail_outline),
-                      ),
-                      validator: (v) {
-                        final s = v?.trim() ?? '';
-                        if (s.isEmpty) return 'Email is required';
-                        if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(s)) {
-                          return 'Enter a valid email address';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _password,
-                      obscureText: true,
-                      autofillHints: const [AutofillHints.newPassword],
-                      decoration: const InputDecoration(
-                        labelText: 'Password *',
-                        prefixIcon: Icon(Icons.lock_outline),
-                      ),
-                      validator: (v) {
-                        if (v == null || v.isEmpty) return 'Password is required';
-                        if (v.length < 6) return 'At least 6 characters';
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _passwordConfirm,
-                      obscureText: true,
-                      autofillHints: const [AutofillHints.newPassword],
-                      decoration: const InputDecoration(
-                        labelText: 'Confirm Password *',
-                        prefixIcon: Icon(Icons.lock_outline),
-                      ),
-                      validator: (v) =>
-                          v != _password.text ? 'Passwords do not match' : null,
-                    ),
-                    const SizedBox(height: 16),
-                    CheckboxListTile(
-                      value: _acceptPrivacy,
-                      onChanged: (v) => setState(() => _acceptPrivacy = v ?? false),
-                      title: const Text('I accept the Privacy Policy'),
-                      controlAffinity: ListTileControlAffinity.leading,
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                    CheckboxListTile(
-                      value: _acceptTerms,
-                      onChanged: (v) => setState(() => _acceptTerms = v ?? false),
-                      title: const Text('I accept the Terms of Service'),
-                      controlAffinity: ListTileControlAffinity.leading,
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton(
-                      onPressed: _busy ? null : _submit,
-                      child: _busy
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white),
-                            )
-                          : const Text('Register'),
-                    ),
-                    const SizedBox(height: 16),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.of(context)
-                            .pushReplacementNamed(LoginScreen.routeName);
-                      },
-                      child: const Text('Sign in instead'),
-                    ),
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
         ),
       ),
     );

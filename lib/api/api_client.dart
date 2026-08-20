@@ -313,8 +313,9 @@ class ApiClient {
       }
       headers?.forEach(request.headers.set);
       if (formFields != null) {
-        request.headers.contentType =
-            ContentType('application', 'x-www-form-urlencoded', charset: 'utf-8');
+        request.headers.contentType = ContentType(
+            'application', 'x-www-form-urlencoded',
+            charset: 'utf-8');
         request.write(const UrlQueryEncoder().encode(formFields));
       }
       if (jsonBody != null) {
@@ -325,7 +326,8 @@ class ApiClient {
       // Parse Set-Cookie headers (multiple may be present) — we only keep
       // name=value; flags are server-side protections we don't replay.
       final setCookies = <SessionCookie>[];
-      for (final raw in response.headers[HttpHeaders.setCookieHeader] ?? <String>[]) {
+      for (final raw
+          in response.headers[HttpHeaders.setCookieHeader] ?? <String>[]) {
         final pair = raw.split(';').first;
         final eq = pair.indexOf('=');
         if (eq > 0) {
@@ -382,7 +384,9 @@ class ApiClient {
       for (final c in _jar) c.name: c.value,
       for (final c in fresh) c.name: c.value,
     };
-    final next = [for (final e in map.entries) SessionCookie(name: e.key, value: e.value)];
+    final next = [
+      for (final e in map.entries) SessionCookie(name: e.key, value: e.value)
+    ];
     if (next.length != _jar.length) {
       _jar = next;
       return true;

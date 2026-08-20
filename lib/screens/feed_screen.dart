@@ -1,3 +1,4 @@
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
 
 import '../api/api_client.dart';
@@ -56,7 +57,8 @@ class _FeedScreenState extends State<FeedScreen> {
       _error = null;
     });
     try {
-      final page = await _services.feed.firstPage(limit: AppConfig.feedPageSize);
+      final page =
+          await _services.feed.firstPage(limit: AppConfig.feedPageSize);
       if (!mounted) return;
       setState(() {
         _posts
@@ -127,23 +129,27 @@ class _FeedScreenState extends State<FeedScreen> {
     final services = await AppServices.create();
     await services.auth.logout();
     if (!mounted) return;
-    Navigator.of(context).pushNamedAndRemoveUntil(LoginScreen.routeName, (_) => false);
+    Navigator.of(context)
+        .pushNamedAndRemoveUntil(LoginScreen.routeName, (_) => false);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Row(
+        // Site header: logo mark + brand name (header.php).
+        title: Row(
           children: [
-            Icon(Icons.bolt, color: EnclavdColors.link, size: 26),
-            SizedBox(width: 8),
-            Text('Enclavd', style: TextStyle(fontWeight: FontWeight.bold)),
+            Image.asset('assets/images/default-logo.png', height: 26),
+            const SizedBox(width: 8),
+            const Text('Enclavd',
+                style: TextStyle(fontWeight: FontWeight.bold)),
           ],
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout, color: EnclavdColors.textSecondary),
+            icon: const FaIcon(FontAwesomeIcons.arrowRightFromBracket,
+                color: EnclavdColors.textSecondary, size: 20),
             tooltip: 'Log out',
             onPressed: _logout,
           ),
@@ -211,7 +217,9 @@ class _ErrorView extends StatelessWidget {
       physics: const AlwaysScrollableScrollPhysics(),
       children: [
         const SizedBox(height: 120),
-        Icon(Icons.cloud_off, color: EnclavdColors.textSecondary.withValues(alpha: 0.6), size: 56),
+        FaIcon(FontAwesomeIcons.cloudArrowDown,
+            color: EnclavdColors.textSecondary.withValues(alpha: 0.6),
+            size: 56),
         const SizedBox(height: 16),
         Center(
           child: Text(
