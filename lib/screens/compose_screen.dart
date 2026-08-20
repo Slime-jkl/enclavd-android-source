@@ -9,6 +9,7 @@ import '../api/auth_service.dart';
 import '../api/feed_service.dart';
 import '../config/app_config.dart';
 import '../main.dart';
+import '../services/sound_service.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/enclavd_image.dart';
 
@@ -96,6 +97,8 @@ class _ComposeScreenState extends State<ComposeScreen> {
         );
       } else {
         await services.posts.createPost(content: content, image: _image);
+        // Site: action_sound when a new post is successfully created.
+        SoundService.instance.action();
       }
       if (!mounted) return;
       Navigator.of(context).pop(true);

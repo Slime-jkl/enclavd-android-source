@@ -218,7 +218,20 @@ Future<void> main() async {
   check('like count back to original', like2.likeCount == target.likeCount,
       'count=${like2.likeCount} (orig=${target.likeCount})');
 
-  // ── 6. Comments — create → list → delete (leave state untouched) ───────
+  // ── 7b. Likers list — must match the post's like state ────────────────
+  final likers = await social.likers(target.id);
+  // The roundtrip restored the original state, so the dev user is listed
+  // exactly when the post ended liked.
+  check(
+      'likers list matches final like state',
+      likers.any((l) => l.username == 'Developer') == target.userLiked,
+      '${likers.length} likers');
+  if (likers.isNotEmpty) {
+    check('liker carries raw rank + personality',
+        likers.any((l) => l.rank.isNotEmpty && l.personalityType != null));
+  }
+
+  // ── 8. Comments — create → list → delete (leave state untouched) ───────
   final before = await social.listComments(target.id);
   final stamp = DateTime.now().millisecondsSinceEpoch;
   final (created, countAfterCreate) =
@@ -241,7 +254,7 @@ Future<void> main() async {
   check('list no longer has the deleted comment',
       !afterDelete.any((c) => c.id == created.id));
 
-  // ── 7. Logout (JSON body + CSRF header via api/v1/auth) ────────────────
+  // ── 9. Logout (JSON body + CSRF header via api/v1/auth) ────────────────
   await auth.logout();
   check('logout clears the local jar', store.cookies.isEmpty);
   final afterLogout = await auth.me();

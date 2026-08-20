@@ -27,7 +27,8 @@ void main() {
           contentType = req.headers.contentType?.mimeType;
           csrfHeader = req.headers.value('x-csrf-token');
           rawBody = await utf8.decoder.bind(req).join();
-          Harness.respond(req, status: 200,
+          Harness.respond(req,
+              status: 200,
               body: '{"success":true,"action":"liked","like_count":5}');
         } else {
           Harness.respond(req, status: 404);
@@ -63,9 +64,11 @@ void main() {
           posts++;
           if (posts == 1) {
             // Stale cached token → 403 (token was rotated server-side).
-            Harness.respond(req, status: 403, body: '{"error":"Invalid CSRF token"}');
+            Harness.respond(req,
+                status: 403, body: '{"error":"Invalid CSRF token"}');
           } else {
-            Harness.respond(req, status: 200,
+            Harness.respond(req,
+                status: 200,
                 body: '{"success":true,"action":"unliked","like_count":4}');
           }
         } else {
@@ -86,7 +89,8 @@ void main() {
         if (req.uri.path == '/feed') {
           Harness.respond(req, body: '<meta name="csrf-token" content="tok">');
         } else {
-          Harness.respond(req, status: 422,
+          Harness.respond(req,
+              status: 422,
               body: '{"error":"Only prior commenters can be mentioned"}');
         }
       });
@@ -94,7 +98,8 @@ void main() {
       await expectLater(
         h.client.postJson('/api/v1/comments', {'action': 'create'}),
         throwsA(isA<ApiException>()
-            .having((e) => e.message, 'message', 'Only prior commenters can be mentioned')
+            .having((e) => e.message, 'message',
+                'Only prior commenters can be mentioned')
             .having((e) => e.status, 'status', 422)),
       );
 
@@ -103,8 +108,7 @@ void main() {
 
     test('clearSession drops the memoized CSRF token', () async {
       final h = await Harness.start((req) async {
-        Harness.respond(
-            req, body: '<meta name="csrf-token" content="tok-1">');
+        Harness.respond(req, body: '<meta name="csrf-token" content="tok-1">');
       });
 
       await h.client.getPage('/feed'); // warms the token cache
@@ -113,7 +117,8 @@ void main() {
       final h2 = await Harness.start((req) async {
         if (req.uri.path == '/feed') {
           fetched++;
-          Harness.respond(req, body: '<meta name="csrf-token" content="tok-2">');
+          Harness.respond(req,
+              body: '<meta name="csrf-token" content="tok-2">');
         } else {
           Harness.respond(req, status: 200, body: '{"ok":true}');
         }
@@ -134,7 +139,8 @@ void main() {
         if (req.uri.path == '/feed') {
           Harness.respond(req, body: '<meta name="csrf-token" content="t">');
         } else if (req.uri.path == '/api/v1/likes') {
-          Harness.respond(req, status: 200,
+          Harness.respond(req,
+              status: 200,
               body: '{"success":true,"action":"unliked","like_count":3}');
         } else {
           Harness.respond(req, status: 404);
@@ -237,8 +243,8 @@ void main() {
         if (req.uri.path == '/feed') {
           Harness.respond(req, body: '<meta name="csrf-token" content="t">');
         } else if (req.uri.path == '/api/v1/comments') {
-          Harness.respond(req, status: 200,
-              body: '{"success":true,"comment_count":2}');
+          Harness.respond(req,
+              status: 200, body: '{"success":true,"comment_count":2}');
         } else {
           Harness.respond(req, status: 404);
         }
@@ -251,8 +257,50 @@ void main() {
     });
   });
 
+  group('SocialService.likers', () {
+    test('GETs /api/v1/likes?post_id=N and parses raw liker fields', () async {
+      String? query;
+      final h = await Harness.start((req) async {
+        if (req.uri.path == '/api/v1/likes') {
+          query = req.uri.query;
+          Harness.respond(
+            req,
+            body: jsonEncode({
+              'success': true,
+              'likers': [
+                {
+                  'id': 1,
+                  'username': 'Developer',
+                  'profile_picture_url': '/public/avatars/a.jpg',
+                  'personality_type': 'INTJ',
+                  'rank': 'SysOp',
+                  'liked_at': 'August 12, 2026 at 10:32 AM',
+                },
+              ],
+            }),
+          );
+        } else {
+          Harness.respond(req, status: 404);
+        }
+      });
+
+      final likers = await SocialService(h.client).likers(42);
+      expect(query, 'post_id=42');
+      expect(likers, hasLength(1));
+      final l = likers.first;
+      expect(l.id, 1);
+      expect(l.username, 'Developer');
+      expect(l.personalityType, 'INTJ');
+      expect(l.rank, 'SysOp');
+      expect(l.likedAt, 'August 12, 2026 at 10:32 AM');
+
+      await h.close();
+    });
+  });
+
   group('AuthService.logout (JSON contract)', () {
-    test('sends JSON body + CSRF header to /api/v1/auth (not a form)', () async {
+    test('sends JSON body + CSRF header to /api/v1/auth (not a form)',
+        () async {
       String? contentType;
       String? csrfHeader;
       String? rawBody;

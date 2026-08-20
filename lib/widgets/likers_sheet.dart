@@ -1,0 +1,274 @@
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:flutter/material.dart';
+
+import '../api/auth_service.dart';
+import '../api/social_service.dart';
+import '../screens/profile_screen.dart';
+import '../theme/enclavd_theme.dart';
+import 'enclavd_image.dart';
+import 'shimmer.dart';
+
+/// "Liked by" list — port of the site's showLikers modal (likes.js):
+/// black overlay, "Liked by" header with × close, rows of 40px avatars
+/// (rank-colored border), rank-colored usernames, personality + rank chips,
+/// and the server-formatted "August 12, 2026 at 10:32 AM" timestamp.
+/// Tapping a row opens that member's profile.
+class LikersSheet extends StatefulWidget {
+  const LikersSheet({
+    super.key,
+    required this.postId,
+    required this.social,
+    required this.apiBaseUrl,
+  });
+
+  final int postId;
+  final SocialService social;
+  final String apiBaseUrl;
+
+  @override
+  State<LikersSheet> createState() => _LikersSheetState();
+}
+
+class _LikersSheetState extends State<LikersSheet> {
+  List<Liker>? _likers;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final likers = await widget.social.likers(widget.postId);
+      if (!mounted) return;
+      setState(() {
+        _likers = likers;
+        _loading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Could not load likes.';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.8;
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Header (site: "Liked by" + fa-times close).
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+            child: Row(
+              children: [
+                const Text('Liked by',
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                const Spacer(),
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const FaIcon(FontAwesomeIcons.xmark,
+                      size: 18, color: EnclavdColors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: EnclavdColors.divider),
+          Flexible(child: _buildBody()),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) {
+      return ListView(
+        shrinkWrap: true,
+        children: const [
+          _LikerRowSkeleton(),
+          _LikerRowSkeleton(),
+          _LikerRowSkeleton(),
+        ],
+      );
+    }
+    if (_error != null) {
+      return Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(_error!,
+              style: const TextStyle(color: EnclavdColors.textSecondary)),
+          const SizedBox(height: 12),
+          ElevatedButton(onPressed: _load, child: const Text('Retry')),
+        ],
+      );
+    }
+    final likers = _likers ?? const [];
+    if (likers.isEmpty) {
+      return const Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          FaIcon(FontAwesomeIcons.heart,
+              size: 40, color: EnclavdColors.textSecondary),
+          SizedBox(height: 12),
+          Text('No likes yet',
+              style: TextStyle(color: EnclavdColors.textSecondary)),
+        ],
+      );
+    }
+    return ListView.separated(
+      shrinkWrap: true,
+      itemCount: likers.length,
+      separatorBuilder: (_, index) =>
+          const Divider(height: 1, color: EnclavdColors.divider),
+      itemBuilder: (context, index) => _LikerRow(
+        liker: likers[index],
+        apiBaseUrl: widget.apiBaseUrl,
+      ),
+    );
+  }
+}
+
+class _LikerRow extends StatelessWidget {
+  const _LikerRow({required this.liker, required this.apiBaseUrl});
+
+  final Liker liker;
+  final String apiBaseUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    final rankColor = RankColors.forRank(liker.rank);
+    final personality = PersonalityColors.forType(liker.personalityType);
+    return InkWell(
+      onTap: () {
+        Navigator.of(context).pop(); // close the sheet first
+        Navigator.of(context).push(MaterialPageRoute<void>(
+          builder: (_) => ProfileScreen(userId: liker.id),
+        ));
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            // 40px avatar with the rank border color (site: border-2
+            // ${rank_styles.border_color}).
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: EnclavdColors.cardSecondary,
+                border: Border.all(
+                  color: personality ?? EnclavdColors.border,
+                  width: 2,
+                ),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: EnclavdImage(
+                resolveMediaUrl(apiBaseUrl,
+                    avatarPath: liker.profilePictureUrl),
+                fit: BoxFit.cover,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          liker.username,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: rankColor,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                      if (liker.personalityType != null) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: EnclavdColors.cardSecondary,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            liker.personalityType!.toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                              color: personality ?? EnclavdColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(width: 6),
+                      // Rank chip (site: rank badge next to the username).
+                      Text(
+                        liker.rank,
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: rankColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    liker.likedAt,
+                    style: const TextStyle(
+                        color: EnclavdColors.textSecondary, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LikerRowSkeleton extends StatelessWidget {
+  const _LikerRowSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          ShimmerBox(width: 40, height: 40, shape: BoxShape.circle),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ShimmerBox(width: 120, height: 14),
+                SizedBox(height: 6),
+                ShimmerBox(width: 180, height: 12),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

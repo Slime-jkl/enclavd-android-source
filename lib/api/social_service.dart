@@ -16,7 +16,6 @@ class LikeResult {
 }
 
 /// A single comment from GET/POST /api/v1/comments.
-///
 /// Field contract (comments.php api_comment_item): id, post_id, user_id,
 /// username, profile_picture_url, personality_type, name_color,
 /// warning_count, has_warnings, created_at (ALREADY relative-formatted by
@@ -65,6 +64,40 @@ class Comment {
       );
 }
 
+/// A user who liked a post (GET /api/v1/likes?post_id=N).
+///
+/// Field contract (likes.php GET): id, username, profile_picture_url,
+/// personality_type, rank, personality_badge (HTML — unused here),
+/// liked_at (server-formatted "August 12, 2026 at 10:32 AM"),
+/// rank_styles (HTML — unused here).
+class Liker {
+  const Liker({
+    required this.id,
+    required this.username,
+    required this.profilePictureUrl,
+    required this.personalityType,
+    required this.rank,
+    required this.likedAt,
+  });
+
+  final int id;
+  final String username;
+  final String profilePictureUrl;
+  final String? personalityType;
+  final String rank;
+  final String likedAt;
+
+  factory Liker.fromJson(Map<String, dynamic> json) => Liker(
+        id: (json['id'] as num?)?.toInt() ?? 0,
+        username: json['username'] as String? ?? '',
+        profilePictureUrl: json['profile_picture_url'] as String? ??
+            '/assets/default-avatar.png',
+        personalityType: json['personality_type'] as String?,
+        rank: json['rank'] as String? ?? 'Member',
+        likedAt: json['liked_at'] as String? ?? '',
+      );
+}
+
 /// SocialService — likes + comments over api/v1 (JSON + CSRF).
 ///
 /// Contracts (both verified against the live handlers):
@@ -85,6 +118,17 @@ class SocialService {
   Future<LikeResult> toggleLike(int postId) async {
     final json = await _api.postJson('/api/v1/likes', {'post_id': postId});
     return LikeResult.fromJson(json);
+  }
+
+  /// The users who liked a post, newest first (likes.php GET — public).
+  Future<List<Liker>> likers(int postId) async {
+    final json =
+        await _api.getJson('/api/v1/likes', query: {'post_id': '$postId'});
+    final raw = json['likers'] as List<dynamic>? ?? const [];
+    return [
+      for (final l in raw)
+        if (l is Map<String, dynamic>) Liker.fromJson(l),
+    ];
   }
 
   /// Fetches the comment list for a post (newest first — server sorts

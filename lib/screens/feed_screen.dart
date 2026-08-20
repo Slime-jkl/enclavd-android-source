@@ -5,6 +5,7 @@ import '../api/api_client.dart';
 import '../api/feed_service.dart';
 import '../config/app_config.dart';
 import '../main.dart';
+import '../services/sound_service.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/post_card.dart';
 import '../widgets/shimmer.dart';
@@ -124,7 +125,11 @@ class _FeedScreenState extends State<FeedScreen> {
     }
   }
 
-  Future<void> _refresh() => _loadFirst();
+  Future<void> _refresh() async {
+    await _loadFirst();
+    // Site's action_sound on an explicit refresh.
+    SoundService.instance.action();
+  }
 
   Future<void> _openComposer() async {
     final created = await Navigator.of(context).push<bool>(
