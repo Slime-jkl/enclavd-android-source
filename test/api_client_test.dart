@@ -14,7 +14,8 @@ class MemorySessionStore implements SessionStore {
   Future<List<SessionCookie>> load() async => List.of(_cookies);
 
   @override
-  Future<void> save(List<SessionCookie> cookies) async => _cookies = List.of(cookies);
+  Future<void> save(List<SessionCookie> cookies) async =>
+      _cookies = List.of(cookies);
 
   @override
   Future<void> clear() async => _cookies = [];
@@ -176,7 +177,8 @@ void main() {
       if (req.uri.path == '/feed' && !req.uri.path.endsWith('/')) {
         Harness.respond(req, status: 301, headers: {'location': '/feed/'});
       } else if (req.uri.path == '/feed/') {
-        Harness.respond(req, body: '<meta name="csrf-token" content="csrf123">');
+        Harness.respond(req,
+            body: '<meta name="csrf-token" content="csrf123">');
       } else {
         Harness.respond(req, status: 404);
       }

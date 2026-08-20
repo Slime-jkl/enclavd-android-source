@@ -82,7 +82,8 @@ void main() {
   group('relativeTime (format_date port)', () {
     test('just now', () {
       expect(
-        relativeTime(_iso(DateTime.now().subtract(const Duration(seconds: 20)))),
+        relativeTime(
+            _iso(DateTime.now().subtract(const Duration(seconds: 20)))),
         'now',
       );
     });
@@ -136,10 +137,13 @@ void main() {
 
   group('RankColors', () {
     test('known ranks map to their Tailwind colors', () {
-      expect(RankColors.forRank('SysOp'), const Color(0xFFC084FC)); // purple-400
+      expect(
+          RankColors.forRank('SysOp'), const Color(0xFFC084FC)); // purple-400
       expect(RankColors.forRank('Admin'), const Color(0xFFF87171)); // red-400
-      expect(RankColors.forRank('Officer'), const Color(0xFF60A5FA)); // blue-400
-      expect(RankColors.forRank('Founding Member'), const Color(0xFFFACC15)); // yellow-400
+      expect(
+          RankColors.forRank('Officer'), const Color(0xFF60A5FA)); // blue-400
+      expect(RankColors.forRank('Founding Member'),
+          const Color(0xFFFACC15)); // yellow-400
       expect(RankColors.forRank('Labcoat'), const Color(0xFFFFFFFF));
     });
 
@@ -150,10 +154,13 @@ void main() {
 
   group('PersonalityColors', () {
     test('archetype groups map to their accent colors', () {
-      expect(PersonalityColors.forType('INTJ'), const Color(0xFFC026D3)); // fuchsia
-      expect(PersonalityColors.forType('ENFP'), const Color(0xFFD97706)); // amber
+      expect(PersonalityColors.forType('INTJ'),
+          const Color(0xFFC026D3)); // fuchsia
+      expect(
+          PersonalityColors.forType('ENFP'), const Color(0xFFD97706)); // amber
       expect(PersonalityColors.forType('ISFJ'), const Color(0xFFDC2626)); // red
-      expect(PersonalityColors.forType('ESTP'), const Color(0xFF2563EB)); // blue
+      expect(
+          PersonalityColors.forType('ESTP'), const Color(0xFF2563EB)); // blue
     });
 
     test('case-insensitive + unknown → null', () {

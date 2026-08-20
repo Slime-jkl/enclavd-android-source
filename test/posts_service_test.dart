@@ -16,8 +16,8 @@ void main() {
       String? csrf;
       final h = await Harness.start((req) async {
         if (req.uri.path == '/feed') {
-          Harness.respond(
-              req, body: '<meta name="csrf-token" content="tok-post">');
+          Harness.respond(req,
+              body: '<meta name="csrf-token" content="tok-post">');
         } else if (req.uri.path == '/api/v1/posts') {
           contentType = req.headers.contentType?.mimeType;
           csrf = req.headers.value('x-csrf-token');
@@ -29,7 +29,8 @@ void main() {
         }
       });
 
-      final image = XFile.fromData(Uint8List.fromList([1, 2, 3]), name: 'pic.jpg');
+      final image =
+          XFile.fromData(Uint8List.fromList([1, 2, 3]), name: 'pic.jpg');
       final id = await PostsService(h.client)
           .createPost(content: 'hello #tag', image: image);
 
@@ -68,7 +69,8 @@ void main() {
         if (req.uri.path == '/feed') {
           Harness.respond(req, body: '<meta name="csrf-token" content="t">');
         } else {
-          Harness.respond(req, status: 400,
+          Harness.respond(req,
+              status: 400,
               body: '{"error":"Post must contain either text or an image"}');
         }
       });
@@ -90,13 +92,14 @@ void main() {
       String? csrf;
       final h = await Harness.start((req) async {
         if (req.uri.path == '/feed') {
-          Harness.respond(
-              req, body: '<meta name="csrf-token" content="tok-upd">');
+          Harness.respond(req,
+              body: '<meta name="csrf-token" content="tok-upd">');
         } else if (req.uri.path == '/api/v1/posts') {
           body = await utf8.decoder.bind(req).join();
           csrf = req.headers.value('x-csrf-token');
           Harness.respond(req,
-              body: '{"success":true,"message":"Post updated successfully","content":"new text"}');
+              body:
+                  '{"success":true,"message":"Post updated successfully","content":"new text"}');
         } else {
           Harness.respond(req, status: 404);
         }
@@ -147,8 +150,7 @@ void main() {
   group('extractHashtags', () {
     test('dedupes and ignores invalid characters', () {
       expect(PostsService.extractHashtags('no tags here'), isEmpty);
-      expect(PostsService.extractHashtags('#one #two #one'),
-          ['one', 'two']);
+      expect(PostsService.extractHashtags('#one #two #one'), ['one', 'two']);
       expect(PostsService.extractHashtags('x #a_b-c'), ['a_b']);
     });
   });

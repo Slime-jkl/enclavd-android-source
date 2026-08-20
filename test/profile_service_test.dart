@@ -180,9 +180,7 @@ void main() {
 
       // Next page carries the cursor.
       await feedService.userPosts(1,
-          limit: 10,
-          lastCreatedAt: page.lastCreatedAt,
-          lastId: page.lastId);
+          limit: 10, lastCreatedAt: page.lastCreatedAt, lastId: page.lastId);
       expect(query, contains('user_id=1'));
       expect(query, contains('last_created_at=2026-08-12+10%3A32%3A59'));
       expect(query, contains('last_id=218'));

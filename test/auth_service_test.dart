@@ -161,7 +161,8 @@ void main() {
   group('AuthService.me + logout', () {
     test('me() returns null on 401 (dead session)', () async {
       final h = await Harness.start((req) async {
-        Harness.respond(req, status: 401, body: '{"error":"Not authenticated"}');
+        Harness.respond(req,
+            status: 401, body: '{"error":"Not authenticated"}');
       });
 
       final service = AuthService(h.client, apiBaseUrl: h.client.apiBaseUrl);
@@ -235,7 +236,8 @@ void main() {
   group('resolveMediaUrl', () {
     test('avatars are root-relative → prefixed with base', () {
       expect(
-        resolveMediaUrl('https://enclavd.com', avatarPath: '/public/avatars/a.jpg'),
+        resolveMediaUrl('https://enclavd.com',
+            avatarPath: '/public/avatars/a.jpg'),
         'https://enclavd.com/public/avatars/a.jpg',
       );
     });
