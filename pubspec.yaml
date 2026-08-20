@@ -12,16 +12,18 @@ dependencies:
   # Minimal external deps: SharedPreferences (session cookie jar),
   # path_provider (image disk cache dir), font_awesome_flutter (the site's
   # own icon set — visual fidelity), image_picker (post image attach),
-  # audioplayers (the site's like/action sound files) and image (pure-Dart
+  # audioplayers (the site's like/action sound files), image (pure-Dart
   # pixel work for the post-image editor — crop/filter/resize, no native
-  # code). The plugin ones are flutter.dev or the canonical community
-  # package; everything else is SDK.
+  # code) and url_launcher (post-body links open in the system browser,
+  # the site's target=_blank). The plugin ones are flutter.dev or the
+  # canonical community package; everything else is SDK.
   shared_preferences: ^2.3.0
   path_provider: ^2.1.0
   font_awesome_flutter: ^11.0.0
   image_picker: ^1.1.2
   audioplayers: ^6.0.0
   image: ^4.2.0
+  url_launcher: ^6.3.0
 
 dev_dependencies:
   flutter_test:

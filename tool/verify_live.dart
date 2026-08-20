@@ -212,6 +212,42 @@ Future<void> main() async {
   }
   check('empty post rejected with 400', emptyBlocked);
 
+  // ── 6b. Hashtags + entity decoding — the hashtag page contract ────────
+  // A post whose content carries an apostrophe (stored as &#039;), a URL and
+  // a unique hashtag. Post.fromJson must decode the entity (the "I&#0139;m"
+  // bug), and GET /api/v1/posts?tag=… must surface the post with a total.
+  final tagStamp = DateTime.now().millisecondsSinceEpoch;
+  final tagName = 'verifytag$tagStamp';
+  final htId = await postsService.createPost(
+    content: "I'm testing #$tagName https://example.com/x",
+  );
+  check('hashtag post create returns an id', htId > 0, '#$htId');
+
+  final htPost = await feed.fetchPost(htId);
+  check('apostrophe is decoded (no &#039; in content)',
+      htPost.content.contains("I'm") && !htPost.content.contains('&#'),
+      htPost.content);
+
+  final tagPage = await feed.tagPosts(tagName, limit: 5);
+  check('tag page returns the post', tagPage.posts.any((p) => p.id == htId),
+      '${tagPage.posts.length} posts, total=${tagPage.total}');
+  check('tag page total counts it', (tagPage.total ?? 0) >= 1,
+      'total=${tagPage.total}');
+  check('tag page posts are newest first', tagPage.posts.first.id == htId,
+      '#${tagPage.posts.first.id}');
+
+  // A tag with no posts → empty page, total 0.
+  final emptyTag = await feed.tagPosts('notag$tagStamp', limit: 5);
+  check('unknown tag returns empty page', emptyTag.posts.isEmpty,
+      'total=${emptyTag.total}');
+
+  // Delete it; the tag page must no longer list it.
+  await postsService.deletePost(
+      postId: htId, content: "I'm testing #$tagName https://example.com/x");
+  final tagAfter = await feed.tagPosts(tagName, limit: 5);
+  check('deleted post leaves the tag page',
+      !tagAfter.posts.any((p) => p.id == htId), '${tagAfter.posts.length} left');
+
   // ── 7. Likes — toggle ON, verify, toggle OFF (leave state untouched) ───
   // NOTE: the target post may already be liked by the dev user — first
   // toggle flips the current state, second toggle restores it.

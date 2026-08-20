@@ -48,6 +48,17 @@ void main() {
       final post = Post.fromJson({'id': 1, 'is_active': 'false'});
       expect(post.isBlocked, isTrue);
     });
+
+    test('content html entities are decoded once (the apostrophe bug)', () {
+      final post = Post.fromJson({
+        'id': 1,
+        'content': "I&#039;m here &amp; it&#039;s fine",
+      });
+      expect(post.content, "I'm here & it's fine");
+      // Never double-decoded.
+      final twice = Post.fromJson({'id': 2, 'content': '&amp;lt;'});
+      expect(twice.content, '&lt;');
+    });
   });
 
   group('FeedPage.fromJson', () {
@@ -76,6 +87,23 @@ void main() {
       expect(page.hasMore, isFalse);
       expect(page.lastScore, isNull);
       expect(page.lastId, isNull);
+    });
+
+    test('hashtag branch carries total + last_created_at keyset', () {
+      final page = FeedPage.fromJson({
+        'success': true,
+        'posts': [
+          {'id': 3, 'content': 'a'},
+        ],
+        'has_more': true,
+        'last_created_at': '2026-08-12 10:32:59',
+        'last_id': 3,
+        'total': 42,
+      });
+      expect(page.total, 42);
+      expect(page.lastCreatedAt, '2026-08-12 10:32:59');
+      expect(page.lastId, 3);
+      expect(page.hasMore, isTrue);
     });
   });
 

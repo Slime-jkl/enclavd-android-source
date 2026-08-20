@@ -1,4 +1,5 @@
 import 'api_client.dart';
+import '../utils/html_entities.dart';
 
 /// A single post card from GET /api/v1/posts.
 ///
@@ -46,7 +47,12 @@ class Post {
   factory Post.fromJson(Map<String, dynamic> json) => Post(
         id: (json['id'] as num?)?.toInt() ?? 0,
         authorId: (json['author_id'] as num?)?.toInt() ?? 0,
-        content: json['content'] as String? ?? '',
+        // The backend stores content htmlspecialchars-encoded (apostrophes
+        // are &#039; etc.); decode exactly once so the app shows what the
+        // site's browser shows. The tokenizer (content_spans.dart) then runs
+        // on clean text — a '#' is always a real hashtag.
+        content:
+            decodeHtmlEntities(json['content'] as String? ?? ''),
         createdAt: json['created_at'] as String? ?? '',
         feedScore: (json['feed_score'] as num?)?.toDouble(),
         likeCount: (json['like_count'] as num?)?.toInt() ?? 0,
@@ -69,7 +75,9 @@ class Post {
 /// One page of posts + the keyset cursor for the next page.
 ///
 /// The ranked feed pages on (last_score, last_id); a user's profile posts
-/// page on (last_created_at, last_id) — only one of the two is set.
+/// and a hashtag page page on (last_created_at, last_id) — only one of the
+/// two cursors is set. [total] is only populated by the hashtag branch
+/// (every post carrying the tag, for the page header count).
 class FeedPage {
   const FeedPage({
     required this.posts,
@@ -77,6 +85,7 @@ class FeedPage {
     required this.lastScore,
     required this.lastId,
     this.lastCreatedAt,
+    this.total,
   });
 
   final List<Post> posts;
@@ -84,6 +93,7 @@ class FeedPage {
   final double? lastScore;
   final int? lastId;
   final String? lastCreatedAt;
+  final int? total;
 
   bool get isEmpty => posts.isEmpty;
 
@@ -98,6 +108,7 @@ class FeedPage {
       lastScore: (json['last_score'] as num?)?.toDouble(),
       lastId: (json['last_id'] as num?)?.toInt(),
       lastCreatedAt: json['last_created_at'] as String?,
+      total: (json['total'] as num?)?.toInt(),
     );
   }
 }
@@ -143,6 +154,24 @@ class FeedService {
   }) async {
     final json = await _api.getJson('/api/v1/posts', query: {
       'user_id': '$userId',
+      'limit': '$limit',
+      if (lastCreatedAt != null) 'last_created_at': lastCreatedAt,
+      if (lastId != null) 'last_id': '$lastId',
+    });
+    return FeedPage.fromJson(json);
+  }
+
+  /// Posts carrying a hashtag (hashtag page, posts.php ?tag=TAG) — newest
+  /// first, chronological, keyset on (last_created_at, last_id). The page
+  /// also carries [FeedPage.total] (every post with the tag, for the header).
+  Future<FeedPage> tagPosts(
+    String tag, {
+    int limit = 10,
+    String? lastCreatedAt,
+    int? lastId,
+  }) async {
+    final json = await _api.getJson('/api/v1/posts', query: {
+      'tag': tag,
       'limit': '$limit',
       if (lastCreatedAt != null) 'last_created_at': lastCreatedAt,
       if (lastId != null) 'last_id': '$lastId',

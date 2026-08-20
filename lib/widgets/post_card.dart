@@ -2,14 +2,18 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../api/auth_service.dart';
 import '../api/feed_service.dart';
 import '../api/social_service.dart';
+import '../screens/hashtag_screen.dart';
 import '../screens/profile_screen.dart';
 import '../services/sound_service.dart';
 import '../theme/enclavd_theme.dart';
+import '../utils/content_spans.dart';
 import 'cached_image.dart';
 import 'enclavd_image.dart';
 import 'likers_sheet.dart';
@@ -556,7 +560,9 @@ class _AuthorRow extends StatelessWidget {
   }
 }
 
-/// Content with the site's show-more heuristic.
+/// Content with the site's show-more heuristic. #hashtags and URLs render
+/// blue and tappable (the site's convertHashtagsToLinks/convertUrlsToLinks):
+/// hashtag → the hashtag page, link → the system browser (target=_blank).
 class _PostContent extends StatefulWidget {
   const _PostContent({required this.post});
 
@@ -568,6 +574,50 @@ class _PostContent extends StatefulWidget {
 
 class _PostContentState extends State<_PostContent> {
   bool _expanded = false;
+
+  // Tap recognizers owned by this State — must be disposed (postContentSpans
+  // hands ownership to the caller; creating them in build() leaks otherwise).
+  final List<TapGestureRecognizer> _recognizers = [];
+  List<InlineSpan>? _cachedSpans;
+
+  @override
+  void dispose() {
+    for (final r in _recognizers) {
+      r.dispose();
+    }
+    super.dispose();
+  }
+
+  List<InlineSpan> _spans() {
+    final cached = _cachedSpans;
+    if (cached != null) return cached;
+    final spans = postContentSpans(
+      widget.post.content,
+      onHashtag: (tag) => _openHashtag(tag),
+      onUrl: (url) => _openUrl(url),
+      recognizers: _recognizers,
+    );
+    _cachedSpans = spans;
+    return spans;
+  }
+
+  /// Hashtag tap → the hashtag page (the site's /feed/tag/<tag>).
+  void _openHashtag(String tag) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => HashtagScreen(tag: tag)),
+    );
+  }
+
+  /// Link tap → the system browser, like the site's target="_blank".
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      // Never let a link open break the feed (defensive, like SoundService).
+    }
+  }
 
   bool get _needsOverflow {
     final content = widget.post.content;
@@ -582,8 +632,8 @@ class _PostContentState extends State<_PostContent> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          widget.post.content,
+        Text.rich(
+          TextSpan(children: _spans()),
           maxLines: needs && !_expanded ? 4 : null,
           overflow: needs && !_expanded ? TextOverflow.ellipsis : null,
           style: const TextStyle(
