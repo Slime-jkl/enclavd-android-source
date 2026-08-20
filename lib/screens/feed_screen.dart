@@ -1,14 +1,18 @@
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../api/api_client.dart';
+import '../api/auth_service.dart';
 import '../api/feed_service.dart';
 import '../config/app_config.dart';
 import '../main.dart';
 import '../services/sound_service.dart';
 import '../theme/enclavd_theme.dart';
+import '../widgets/enclavd_avatar.dart';
 import '../widgets/post_card.dart';
 import '../widgets/shimmer.dart';
+import '../widgets/user_menu_drawer.dart';
 import 'compose_screen.dart';
 import 'login_screen.dart';
 
@@ -30,7 +34,9 @@ class FeedScreen extends StatefulWidget {
 
 class _FeedScreenState extends State<FeedScreen> {
   AppServices? _services;
+  CurrentUser? _me;
 
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
   final _scrollController = ScrollController();
   final List<Post> _posts = [];
   FeedPage? _lastPage;
@@ -48,7 +54,19 @@ class _FeedScreenState extends State<FeedScreen> {
   Future<void> _init() async {
     _services = await AppServices.create();
     if (!mounted) return;
+    _loadMe();
     _loadFirst();
+  }
+
+  /// The header avatar + drawer header need the current user (api/v1/me).
+  Future<void> _loadMe() async {
+    try {
+      final me = await _services!.auth.me();
+      if (!mounted) return;
+      setState(() => _me = me);
+    } catch (_) {
+      // Non-fatal: the header falls back to a placeholder avatar.
+    }
   }
 
   @override
@@ -263,28 +281,61 @@ class _FeedScreenState extends State<FeedScreen> {
         .pushNamedAndRemoveUntil(LoginScreen.routeName, (_) => false);
   }
 
+  void _openSite(String path) {
+    launchUrl(
+      Uri.parse('${AppConfig.apiBaseUrl}$path'),
+      mode: LaunchMode.externalApplication,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final me = _me;
     return Scaffold(
+      key: _scaffoldKey,
       appBar: AppBar(
-        // Site header: logo mark + brand name (header.php).
-        title: Row(
-          children: [
-            Image.asset('assets/images/default-logo.png', height: 26),
-            const SizedBox(width: 8),
-            const Text('Enclavd',
-                style: TextStyle(fontWeight: FontWeight.bold)),
-          ],
-        ),
+        // Site header (header.php): the text-only wordmark on the left,
+        // the user menu trigger (avatar + chevron) opposite it.
+        titleSpacing: 16,
+        title: Image.asset('assets/images/enclavd-logo-white.png', height: 22),
         actions: [
-          IconButton(
-            icon: const FaIcon(FontAwesomeIcons.arrowRightFromBracket,
-                color: EnclavdColors.textSecondary, size: 20),
-            tooltip: 'Log out',
-            onPressed: _logout,
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: InkWell(
+              onTap: () => _scaffoldKey.currentState?.openEndDrawer(),
+              borderRadius: BorderRadius.circular(20),
+              child: Row(
+                children: [
+                  if (me != null)
+                    EnclavdAvatar(
+                      size: 32,
+                      url: me.avatarUrl(AppConfig.apiBaseUrl),
+                      borderColor: PersonalityColors.forType(me.personalityType),
+                    )
+                  else
+                    Container(
+                      width: 32,
+                      height: 32,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: EnclavdColors.cardSecondary,
+                      ),
+                      child: const FaIcon(FontAwesomeIcons.user,
+                          size: 15, color: EnclavdColors.textSecondary),
+                    ),
+                  const SizedBox(width: 6),
+                  const FaIcon(FontAwesomeIcons.chevronDown,
+                      size: 12, color: EnclavdColors.textSecondary),
+                ],
+              ),
+            ),
           ),
         ],
       ),
+      // The side menu opposite the logo (site's user-menu dropdown).
+      endDrawer: _services == null
+          ? null
+          : UserMenuDrawer(auth: _services!.auth, onSignOut: _logout),
       body: RefreshIndicator(
         onRefresh: _refresh,
         color: EnclavdColors.link,
@@ -296,6 +347,39 @@ class _FeedScreenState extends State<FeedScreen> {
         foregroundColor: Colors.white,
         tooltip: 'Create post',
         child: const FaIcon(FontAwesomeIcons.pen, size: 20),
+      ),
+      // Main navigation like the site's bottom bar: Home/Updates/Domains.
+      bottomNavigationBar: NavigationBar(
+        backgroundColor: EnclavdColors.card,
+        indicatorColor: EnclavdColors.primaryButton.withValues(alpha: 0.35),
+        selectedIndex: 0, // the feed is the app's home — always selected
+        onDestinationSelected: (index) {
+          if (index == 1) _openSite('/articles');
+          if (index == 2) _openSite('/domain');
+        },
+        destinations: const [
+          NavigationDestination(
+            icon: FaIcon(FontAwesomeIcons.barsStaggered,
+                color: EnclavdColors.textSecondary),
+            selectedIcon:
+                FaIcon(FontAwesomeIcons.barsStaggered, color: EnclavdColors.link),
+            label: 'Feed',
+          ),
+          NavigationDestination(
+            icon: FaIcon(FontAwesomeIcons.newspaper,
+                color: EnclavdColors.textSecondary),
+            selectedIcon:
+                FaIcon(FontAwesomeIcons.newspaper, color: EnclavdColors.link),
+            label: 'Updates',
+          ),
+          NavigationDestination(
+            icon: FaIcon(FontAwesomeIcons.globe,
+                color: EnclavdColors.textSecondary),
+            selectedIcon:
+                FaIcon(FontAwesomeIcons.globe, color: EnclavdColors.link),
+            label: 'Domains',
+          ),
+        ],
       ),
     );
   }
