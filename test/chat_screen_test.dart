@@ -22,6 +22,7 @@ class FakeMessages extends MessagesService {
   List<ChatMessage> history = [];
   List<Conversation> inbox = [];
   int? lastMarkedRead;
+  int markReadCalls = 0;
   int nextMessageId = 100;
   final List<String> sentTexts = [];
   int unreadAnswer = 0;
@@ -35,6 +36,7 @@ class FakeMessages extends MessagesService {
   @override
   Future<void> markRead(int conversationId) async {
     lastMarkedRead = conversationId;
+    markReadCalls++;
   }
 
   @override
@@ -278,6 +280,29 @@ void main() {
       await tester.pump();
 
       expect(find.text('nope'), findsNothing);
+
+      await tester.pumpWidget(const SizedBox());
+    });
+
+    testWidgets('messageId 0 (legacy publisher) is ignored, poll reconciles',
+        (tester) async {
+      final fake = FakeMessages()
+        ..history = [msg(id: 1, senderId: 42, message: 'hi')];
+      final (realtime, _) = await pumpChat(tester, fake);
+      await tester.pump();
+
+      // The old send_message.php fanned out messageId 0 — accepting it
+      // would collapse the dedupe and swallow later messages.
+      realtime.emit(const RealtimeEvent(
+        type: 'message',
+        data: {'conversationId': 7, 'senderId': 42, 'messageId': 0, 'message': 'ghost'},
+      ));
+      await tester.pump();
+
+      expect(find.text('ghost'), findsNothing);
+      // mark-read already ran once on load (inbound id 1); the id-0 frame
+      // must not add another.
+      expect(fake.markReadCalls, 1, reason: 'no mark-read for id 0');
 
       await tester.pumpWidget(const SizedBox());
     });

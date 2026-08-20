@@ -134,10 +134,14 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// A new inbound message pushed by the sidecar (our own sends come back
   /// via the REST response; the server excludes the sender from the room).
+  /// messageId <= 0 is rejected: legacy publishers (the site's old
+  /// send_message.php) used to fan out messageId 0, which would collapse
+  /// every dedupe — the REST poll reconciles real rows anyway.
   void _onLiveMessage(RealtimeEvent event) {
     final messageId = event.messageId;
     final senderId = event.senderId;
     if (messageId == null ||
+        messageId <= 0 ||
         senderId == null ||
         senderId == widget.myUserId) {
       return;
@@ -428,9 +432,12 @@ class _ChatScreenState extends State<ChatScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       itemCount: _messages.length,
       itemBuilder: (context, index) {
-        // reverse:true walks the list newest-first.
+        // reverse:true walks the list newest-first. Key by message id so a
+        // poll/WS merge never reuses a bubble's element for another
+        // message (positional reuse flickered on-device).
         final message = _messages[_messages.length - 1 - index];
         return _MessageBubble(
+          key: ValueKey(message.id),
           message: message,
           isMine: message.isFrom(widget.myUserId),
           showTime: _visibleTimes.contains(message.id),
@@ -555,6 +562,7 @@ class _ChatScreenState extends State<ChatScreen> {
 /// One bubble — sent vs received, tap toggles its timestamp (site parity).
 class _MessageBubble extends StatelessWidget {
   const _MessageBubble({
+    super.key,
     required this.message,
     required this.isMine,
     required this.showTime,
