@@ -7,6 +7,7 @@ import '../api/api_client.dart';
 import '../api/messages_service.dart';
 import '../config/app_config.dart';
 import '../main.dart';
+import '../services/realtime_service.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/enclavd_avatar.dart';
 import 'login_screen.dart';
@@ -21,21 +22,23 @@ import 'profile_screen.dart';
 ///   - Timestamps are hidden by default; tapping a bubble toggles its
 ///     time line (site behavior — EnclavdTime.absolute format).
 ///   - Read receipts on sent bubbles: single check = sent, double check
-///     blue-400 = seen (server is_read; the other side's 'read' event is
-///     what flips it — we see it on the next poll).
-///   - Opening the thread marks inbound messages read (POST mark_read,
-///     fire-and-forget) — the sender's receipts flip server-side.
-///   - Receiving while open: the thread polls the history every 5s and
-///     merges by id (the app has no WebSocket client; the sidecar is a
-///     dumb transport and the site itself keeps a REST fallback). The
-///     list is `reverse: true`, so a reader at the bottom stays pinned
-///     when new messages arrive and a reader scrolled up is not yanked.
+///     blue-400 = seen (the other side's 'read' WS event flips them).
+///   - Typing indicator (site .typing-indicator, blue-300/80 italic) fed
+///     by the sidecar's typing frames; the app pings once per input burst
+///     and stops after 3s (messages.js parity).
+///
+/// LIVE path: the screen joins the conversation's WebSocket room (the Go
+/// sidecar) so messages/read/typing frames arrive instantly. REST stays
+/// the source of truth and the fallback: a 15s reconcile poll merges by id
+/// and refreshes receipts — the site's own "WS primary, REST on focus"
+/// pattern, and it keeps working if the socket gives up.
 class ChatScreen extends StatefulWidget {
   const ChatScreen({
     super.key,
     required this.conversationId,
     required this.myUserId,
     required this.messages,
+    required this.realtime,
     this.participantId,
     this.participantName = '',
     this.participantAvatar,
@@ -46,6 +49,7 @@ class ChatScreen extends StatefulWidget {
   final int conversationId;
   final int myUserId;
   final MessagesService messages;
+  final RealtimeService realtime;
 
   /// The other member — header tap opens their profile (site: the
   /// conversation title links to /profile/<participant_id>).
@@ -55,8 +59,8 @@ class ChatScreen extends StatefulWidget {
   final String? participantPersonality;
   final bool participantIsOnline;
 
-  /// Poll cadence for new messages while the thread is open.
-  static const Duration pollInterval = Duration(seconds: 5);
+  /// Reconcile/fallback cadence while the thread is open (WS is primary).
+  static const Duration pollInterval = Duration(seconds: 15);
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -71,6 +75,7 @@ class _ChatScreenState extends State<ChatScreen> {
   String? _error;
   bool _sending = false;
   Timer? _pollTimer;
+  StreamSubscription<RealtimeEvent>? _realtimeSub;
 
   /// Highest inbound message id already marked read — the server sends
   /// inbound messages with is_read:null (read-state is per-viewer, so the
@@ -81,18 +86,108 @@ class _ChatScreenState extends State<ChatScreen> {
   /// on open, without a POST on every poll.
   int _maxInboundId = 0;
 
+  /// Typing ping state (site messages.js: once per burst, stop after 3s).
+  bool _typingPingSent = false;
+  Timer? _typingStopTimer;
+
+  /// The OTHER member is typing (sidecar typing frame).
+  bool _otherTyping = false;
+
   @override
   void initState() {
     super.initState();
     _load();
     _pollTimer = Timer.periodic(ChatScreen.pollInterval, (_) => _poll());
+    _realtimeSub = widget.realtime.events.listen(_onRealtime);
+    widget.realtime.join(widget.conversationId);
   }
 
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _typingStopTimer?.cancel();
+    _realtimeSub?.cancel();
+    // The site's blur handler stops the ping on leaving.
+    if (_typingPingSent) {
+      widget.realtime.sendTyping(widget.conversationId, false);
+    }
+    widget.realtime.leave(widget.conversationId);
     _input.dispose();
     super.dispose();
+  }
+
+  /// Live frames for THIS conversation (the room join gates delivery).
+  void _onRealtime(RealtimeEvent event) {
+    if (event.conversationId != widget.conversationId) return;
+    switch (event.type) {
+      case 'message':
+        _onLiveMessage(event);
+      case 'read':
+        _onLiveRead(event);
+      case 'typing':
+        final typing = event.isTyping;
+        if (mounted && typing != _otherTyping) {
+          setState(() => _otherTyping = typing);
+        }
+    }
+  }
+
+  /// A new inbound message pushed by the sidecar (our own sends come back
+  /// via the REST response; the server excludes the sender from the room).
+  void _onLiveMessage(RealtimeEvent event) {
+    final messageId = event.messageId;
+    final senderId = event.senderId;
+    if (messageId == null ||
+        senderId == null ||
+        senderId == widget.myUserId) {
+      return;
+    }
+    if (_messages.any((m) => m.id == messageId)) return; // dedupe
+    final live = ChatMessage(
+      id: messageId,
+      conversationId: widget.conversationId,
+      senderId: senderId,
+      senderName: '',
+      message: event.message,
+      isRead: null,
+      createdAt: event.data['timestamp'] as String? ?? _nowDbString(),
+    );
+    if (!mounted) return;
+    setState(() {
+      _messages
+        ..clear()
+        ..addAll(_merge([live]));
+    });
+    // The other side already read everything when they sent, but our own
+    // inbox badge clears server-side only via mark_read — fire it.
+    _markReadIfNeeded([live]);
+  }
+
+  /// The other participant opened the thread — every sent receipt flips to
+  /// the seen (double-check) state (site handleReadReceipt).
+  void _onLiveRead(RealtimeEvent event) {
+    final readerId = event.readerId;
+    if (readerId == null || readerId == widget.myUserId) return;
+    if (!_messages.any((m) => m.isFrom(widget.myUserId) && m.isRead != true)) {
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      for (var i = 0; i < _messages.length; i++) {
+        final m = _messages[i];
+        if (m.isFrom(widget.myUserId) && m.isRead != true) {
+          _messages[i] = ChatMessage(
+            id: m.id,
+            conversationId: m.conversationId,
+            senderId: m.senderId,
+            senderName: m.senderName,
+            message: m.message,
+            isRead: true,
+            createdAt: m.createdAt,
+          );
+        }
+      }
+    });
   }
 
   /// First load: history + mark-read in one pass. A failing mark_read must
@@ -196,6 +291,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final text = _input.text.trim();
     if (text.isEmpty || _sending) return;
     _input.clear();
+    _stopTypingPing(); // we're sending — no longer typing
     setState(() => _sending = true);
     try {
       final messageId = await widget.messages.send(widget.conversationId, text);
@@ -298,11 +394,17 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         ),
       ),
-      body: Column(
-        children: [
-          Expanded(child: _buildThread()),
-          _buildInputBar(),
-        ],
+      body: SafeArea(
+        // Gesture-nav phones draw content under the system bar — the
+        // input bar must sit above it (reported on-device bug).
+        top: false,
+        child: Column(
+          children: [
+            Expanded(child: _buildThread()),
+            _buildTypingIndicator(),
+            _buildInputBar(),
+          ],
+        ),
       ),
     );
   }
@@ -344,6 +446,43 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  /// Typing ping, site messages.js parity: send true once per burst (not
+  /// on every keystroke), false after 3s of silence or on send/blur.
+  void _onInputChanged(String _) {
+    if (_input.text.trim().isNotEmpty && !_typingPingSent) {
+      _typingPingSent = true;
+      widget.realtime.sendTyping(widget.conversationId, true);
+    }
+    _typingStopTimer?.cancel();
+    _typingStopTimer = Timer(const Duration(seconds: 3), _stopTypingPing);
+  }
+
+  void _stopTypingPing() {
+    _typingStopTimer?.cancel();
+    if (_typingPingSent) {
+      _typingPingSent = false;
+      widget.realtime.sendTyping(widget.conversationId, false);
+    }
+  }
+
+  /// The site's .typing-indicator (px-4 pb-1 text-xs text-blue-300/80
+  /// italic) — shown only while the other member is typing.
+  Widget _buildTypingIndicator() {
+    if (!_otherTyping) return const SizedBox.shrink();
+    return Container(
+      alignment: Alignment.centerLeft,
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 2),
+      child: const Text(
+        'Typing...',
+        style: TextStyle(
+          fontSize: 12, // text-xs
+          fontStyle: FontStyle.italic,
+          color: Color(0xCC93C5FD), // text-blue-300/80
+        ),
+      ),
+    );
+  }
+
   Widget _buildInputBar() {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
@@ -360,6 +499,7 @@ class _ChatScreenState extends State<ChatScreen> {
               minLines: 1,
               maxLines: 4,
               textInputAction: TextInputAction.send,
+              onChanged: _onInputChanged,
               onSubmitted: (_) => _send(),
               // NO autofillHints — they detach the IME on Android.
               style: const TextStyle(

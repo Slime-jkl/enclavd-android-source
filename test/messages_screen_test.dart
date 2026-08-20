@@ -5,9 +5,10 @@ import 'package:enclavd/api/auth_service.dart';
 import 'package:enclavd/api/messages_service.dart';
 import 'package:enclavd/screens/chat_screen.dart';
 import 'package:enclavd/screens/messages_screen.dart';
+import 'package:enclavd/services/realtime_service.dart';
 import 'package:enclavd/theme/enclavd_theme.dart';
 
-import 'chat_screen_test.dart' show FakeMessages;
+import 'chat_screen_test.dart' show FakeMessages, FakeRealtime;
 
 class _FakeAuth extends AuthService {
   _FakeAuth() : super(_noopClient(), apiBaseUrl: 'https://example.com');
@@ -61,16 +62,20 @@ Conversation conv({
     );
 
 void main() {
-  Future<void> pumpInbox(WidgetTester tester, FakeMessages fake) async {
+  Future<(FakeRealtime, FakeMessages)> pumpInbox(
+      WidgetTester tester, FakeMessages fake) async {
+    final realtime = FakeRealtime();
     await tester.pumpWidget(MaterialApp(
       theme: buildEnclavdTheme(),
       home: MessagesScreen(
         messages: fake,
         auth: _FakeAuth(),
         myUserId: 7,
+        realtime: realtime,
       ),
     ));
     await tester.pump(); // conversations future resolves
+    return (realtime, fake);
   }
 
   testWidgets('renders conversation rows with preview and unread badge',
@@ -81,7 +86,7 @@ void main() {
         conv(id: 2, name: 'Bob', preview: ''),
       ];
 
-    await pumpInbox(tester, fake);
+    final (realtime, _) = await pumpInbox(tester, fake);
     await tester.pump();
 
     expect(find.text('Alice'), findsOneWidget);
@@ -91,6 +96,8 @@ void main() {
     expect(find.text('No messages yet'), findsOneWidget);
     // Unread badge shows the count.
     expect(find.text('2'), findsOneWidget);
+    // Every conversation room is joined for live delivery.
+    expect(realtime.joined, containsAll([1, 2]));
 
     await tester.pumpWidget(const SizedBox()); // dispose the poll timer
   });
@@ -148,6 +155,28 @@ void main() {
     // render without error.
     expect(find.text('OnlineUser'), findsOneWidget);
     expect(find.text('OfflineUser'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('live message frame refreshes previews and unread badges',
+      (tester) async {
+    final fake = FakeMessages()
+      ..inbox = [conv(id: 1, name: 'Alice', preview: 'old', unread: 0)];
+    final (realtime, _) = await pumpInbox(tester, fake);
+    await tester.pump();
+
+    // The other side sends — the inbox re-fetches and reorders instantly.
+    fake.inbox = [conv(id: 1, name: 'Alice', preview: 'new msg', unread: 1)];
+    realtime.emit(const RealtimeEvent(
+      type: 'message',
+      data: {'conversationId': 1, 'senderId': 42, 'messageId': 500, 'message': 'new msg'},
+    ));
+    await tester.pump(); // event → refresh future resolves
+    await tester.pump(); // setState frame
+
+    expect(find.text('new msg'), findsOneWidget);
+    expect(find.text('1'), findsOneWidget); // unread badge now visible
 
     await tester.pumpWidget(const SizedBox());
   });

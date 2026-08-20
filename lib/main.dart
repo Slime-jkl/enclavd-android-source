@@ -13,6 +13,7 @@ import 'screens/feed_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/splash_screen.dart';
+import 'services/realtime_service.dart';
 import 'theme/enclavd_theme.dart';
 
 /// Enclavd — native app (Flutter).
@@ -28,8 +29,9 @@ void main() {
 /// Simple service container — no DI framework, constructor injection only.
 /// Everything the screens need is created here once and passed down.
 class AppServices {
-  AppServices._(this.apiClient, this.auth, this.feed, this.social, this.profile,
-      this.posts, this.messages);
+  AppServices._(
+      this.apiClient, this.auth, this.feed, this.social, this.profile,
+      this.posts, this.messages, this.realtime);
 
   final ApiClient apiClient;
   final AuthService auth;
@@ -38,6 +40,7 @@ class AppServices {
   final ProfileService profile;
   final PostsService posts;
   final MessagesService messages;
+  final RealtimeService realtime;
 
   static Future<AppServices> create() async {
     final prefs = await SharedPreferences.getInstance();
@@ -45,8 +48,15 @@ class AppServices {
     final api = ApiClient(store: store);
     await api.restoreSession();
     final auth = AuthService(api, apiBaseUrl: AppConfig.apiBaseUrl);
-    return AppServices._(api, auth, FeedService(api), SocialService(api),
-        ProfileService(api), PostsService(api), MessagesService(api));
+    return AppServices._(
+        api,
+        auth,
+        FeedService(api),
+        SocialService(api),
+        ProfileService(api),
+        PostsService(api),
+        MessagesService(api),
+        RealtimeService(api));
   }
 }
 

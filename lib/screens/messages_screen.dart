@@ -8,6 +8,7 @@ import '../api/auth_service.dart';
 import '../api/messages_service.dart';
 import '../config/app_config.dart';
 import '../main.dart';
+import '../services/realtime_service.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/enclavd_avatar.dart';
 import 'chat_screen.dart';
@@ -21,25 +22,30 @@ import 'chat_screen.dart';
 /// message preview (truncated, white/60 — 'No messages yet' when empty).
 /// Unread rows keep the site's faint highlight (white/[0.05]).
 ///
-/// Receiving while the inbox is open: a silent 15s poll refreshes
-/// previews and unread counts (the app has no WebSocket client; this is
-/// the site's own 30s REST-fallback pattern, just tighter). The list also
-/// refreshes when a thread is closed.
+/// LIVE path: the inbox joins every conversation's WebSocket room (bounded
+/// by the sidecar's per-client room cap) so inbound messages and
+/// conversation updates refresh previews + unread badges instantly. A 15s
+/// poll remains as the reconcile/fallback — the site's own REST pattern.
 class MessagesScreen extends StatefulWidget {
   const MessagesScreen({
     super.key,
     this.messages,
     this.auth,
     this.myUserId,
+    this.realtime,
   });
 
   /// Injected for tests; when null the screen builds its own AppServices.
   final MessagesService? messages;
   final AuthService? auth;
   final int? myUserId;
+  final RealtimeService? realtime;
 
-  /// Poll cadence for the inbox while it is visible.
+  /// Poll cadence for the inbox while it is visible (WS is primary).
   static const Duration pollInterval = Duration(seconds: 15);
+
+  /// The sidecar caps rooms per client (REALTIME_MAX_ROOMS_PER_CLIENT).
+  static const int maxJoinedRooms = 20;
 
   @override
   State<MessagesScreen> createState() => _MessagesScreenState();
@@ -47,13 +53,16 @@ class MessagesScreen extends StatefulWidget {
 
 class _MessagesScreenState extends State<MessagesScreen> {
   MessagesService? _messages;
+  RealtimeService? _realtime;
   int? _myUserId;
 
   final List<Conversation> _conversations = [];
+  final Set<int> _joinedRooms = {};
   bool _loading = true;
   bool _loadedOnce = false;
   String? _error;
   Timer? _pollTimer;
+  StreamSubscription<RealtimeEvent>? _realtimeSub;
 
   @override
   void initState() {
@@ -66,6 +75,12 @@ class _MessagesScreenState extends State<MessagesScreen> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _realtimeSub?.cancel();
+    // Leave every room this screen joined (the pushed ChatScreen leaves
+    // its own room when it pops — order is chat first, then us).
+    for (final conversationId in _joinedRooms) {
+      _realtime?.leave(conversationId);
+    }
     super.dispose();
   }
 
@@ -77,6 +92,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
     }
     final messages = widget.messages ?? services!.messages;
     final auth = widget.auth ?? services!.auth;
+    final realtime = widget.realtime ?? services!.realtime;
 
     var myUserId = widget.myUserId;
     if (myUserId == null) {
@@ -89,8 +105,19 @@ class _MessagesScreenState extends State<MessagesScreen> {
     }
     if (!mounted) return;
     _messages = messages;
+    _realtime = realtime;
     _myUserId = myUserId;
+    _realtimeSub = realtime.events.listen(_onRealtime);
     _loadConversations();
+  }
+
+  /// Live frames: a message anywhere or a conversation change refreshes
+  /// the list (previews + unread counts) instantly.
+  void _onRealtime(RealtimeEvent event) {
+    if (event.type != 'message' && event.type != 'conversation_update') {
+      return;
+    }
+    _silentRefresh();
   }
 
   Future<void> _loadConversations() async {
@@ -110,6 +137,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
         _loading = false;
         _loadedOnce = true;
       });
+      _joinRooms(conversations);
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -153,8 +181,23 @@ class _MessagesScreenState extends State<MessagesScreen> {
           ..clear()
           ..addAll(conversations);
       });
+      _joinRooms(conversations);
     } catch (_) {
       // Silent.
+    }
+  }
+
+  /// Live delivery needs a room subscription per conversation — join every
+  /// row the sidecar allows (per-client cap), and any NEW rows the next
+  /// refresh brings in. Idempotent.
+  void _joinRooms(List<Conversation> conversations) {
+    final realtime = _realtime;
+    if (realtime == null) return;
+    for (final conversation in conversations) {
+      if (_joinedRooms.length >= MessagesScreen.maxJoinedRooms) break;
+      if (_joinedRooms.add(conversation.id)) {
+        realtime.join(conversation.id);
+      }
     }
   }
 
@@ -175,13 +218,15 @@ class _MessagesScreenState extends State<MessagesScreen> {
   Future<void> _openConversation(Conversation conversation) async {
     final myUserId = _myUserId;
     final messages = _messages;
-    if (myUserId == null || messages == null) return;
+    final realtime = _realtime;
+    if (myUserId == null || messages == null || realtime == null) return;
     await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => ChatScreen(
           conversationId: conversation.id,
           myUserId: myUserId,
           messages: messages,
+          realtime: realtime,
           participantId: conversation.participantId,
           participantName: conversation.participantName,
           participantAvatar: conversation.participantAvatar,
@@ -204,7 +249,12 @@ class _MessagesScreenState extends State<MessagesScreen> {
       body: RefreshIndicator(
         onRefresh: _loadConversations,
         color: EnclavdColors.link,
-        child: _buildBody(),
+        child: SafeArea(
+          // Gesture-nav phones draw content under the system bar — the
+          // last row must stay reachable above it.
+          top: false,
+          child: _buildBody(),
+        ),
       ),
     );
   }

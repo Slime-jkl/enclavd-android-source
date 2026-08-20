@@ -1,0 +1,374 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+import '../api/api_client.dart';
+import '../config/app_config.dart';
+
+/// One parsed realtime frame (WebSocket or SSE), the app's unified event.
+///
+/// The sidecar (services/realtime) is a DUMB TRANSPORT: PHP publishes after
+/// its DB write, the Go hub fans out to WebSocket rooms (chat) and SSE
+/// streams (badges/notifications). Field names follow the sidecar's wire
+/// protocol (docs/realtime/protocol.md) — camelCase on WS frames,
+/// snake_case in SSE payloads (e.g. message_unread → unread_count).
+class RealtimeEvent {
+  const RealtimeEvent({required this.type, this.data = const {}});
+
+  /// 'message' | 'typing' | 'read' | 'presence' | 'conversation_update' |
+  /// 'history' | 'error' | 'message_unread' | 'notification' | 'new_post'
+  final String type;
+  final Map<String, dynamic> data;
+
+  int? get conversationId => (data['conversationId'] as num?)?.toInt();
+  int? get senderId => (data['senderId'] as num?)?.toInt();
+  int? get messageId => (data['messageId'] as num?)?.toInt();
+  int? get readerId => (data['readerId'] as num?)?.toInt();
+  int? get userId => (data['userId'] as num?)?.toInt();
+  String get message => data['message'] as String? ?? '';
+  bool get isTyping => data['isTyping'] as bool? ?? false;
+  int? get unreadCount => (data['unread_count'] as num?)?.toInt();
+  String get errorMessage => data['message'] as String? ?? '';
+
+  @override
+  String toString() => 'RealtimeEvent($type, $data)';
+}
+
+/// RealtimeService — the app's WebSocket + SSE client for the Go sidecar.
+///
+/// Architecture (mirrors the site): WebSocket is the LIVE path for chat
+/// (message/typing/read frames, room join/leave), SSE is the LIVE path for
+/// the header badge (message_unread). REST stays the source of truth and
+/// the fallback: the screens keep their polls, exactly like the site's
+/// "WS primary + 30s poll fallback" design.
+///
+/// Auth: the sidecar accepts `?token=` for non-browser clients. The token
+/// (enclavd_rt, "<uid>.<expiry>.<hmac>") is issued by PHP on every logged-in
+/// page render and lands in the app's cookie jar on the /feed fetches the
+/// ApiClient already makes. [connect] reads it from the jar and refreshes
+/// it via GET /feed when missing or within 5 minutes of expiry.
+///
+/// Reliability: reconnect with backoff (3s, max 5 attempts — the site's own
+/// numbers), re-joining tracked rooms on reconnect. When the service gives
+/// up, the REST polls carry the feature; an explicit [connectWs] from a
+/// screen resets the budget.
+class RealtimeService {
+  RealtimeService(
+    this._api, {
+    String? baseUrl,
+    HttpClient Function()? httpClientFactory,
+    Duration reconnectDelay = const Duration(seconds: 3),
+  })  : _baseUrl = baseUrl ?? AppConfig.apiBaseUrl,
+        _httpClientFactory = httpClientFactory ?? _defaultHttpClient,
+        _reconnectDelay = reconnectDelay;
+
+  final ApiClient _api;
+  final String _baseUrl;
+  final HttpClient Function() _httpClientFactory;
+  final Duration _reconnectDelay;
+
+  /// Reconnect budget (site parity: MAX_RECONNECT_ATTEMPTS = 5, 3s delay).
+  static const int maxReconnectAttempts = 5;
+  static const Duration pingInterval = Duration(seconds: 30);
+  static const Duration tokenRefreshSkew = Duration(minutes: 5);
+
+  static HttpClient _defaultHttpClient() {
+    final client = HttpClient();
+    client.userAgent = AppConfig.userAgent;
+    client.connectionTimeout = AppConfig.connectTimeout;
+    if (AppConfig.allowInsecureTls) {
+      client.badCertificateCallback = (cert, host, port) => true;
+    }
+    return client;
+  }
+
+  /// Unified event stream (WS frames + SSE events). Broadcast: late
+  /// listeners only see events after subscribing.
+  final _events = StreamController<RealtimeEvent>.broadcast();
+  Stream<RealtimeEvent> get events => _events.stream;
+
+  // ── WebSocket state ──────────────────────────────────────────────────
+  WebSocket? _ws;
+  bool _wsConnecting = false;
+  int _wsAttempts = 0;
+  Timer? _wsReconnectTimer;
+  Timer? _wsPingTimer;
+
+  /// Rooms this client wants to hear. Replayed as join frames on every
+  /// (re)connect so a reconnect never leaves a screen deaf.
+  final Set<int> _joined = {};
+
+  // ── SSE state ────────────────────────────────────────────────────────
+  bool _sseConnecting = false;
+  int _sseAttempts = 0;
+  Timer? _sseReconnectTimer;
+  HttpClient? _sseClient;
+
+  bool _disposed = false;
+
+  bool get isWsConnected => _ws != null;
+  bool get isConnecting => _wsConnecting || _sseConnecting;
+
+  /// Opens the WebSocket (idempotent). An explicit call from a screen
+  /// resets the reconnect budget — a fresh attempt after the service gave
+  /// up is always allowed.
+  Future<void> connectWs() async {
+    if (_disposed) return;
+    _wsAttempts = 0;
+    await _connectWs();
+  }
+
+  Future<void> _connectWs() async {
+    if (_disposed || _ws != null || _wsConnecting) return;
+    _wsConnecting = true;
+    try {
+      final token = await _token();
+      if (token == null) {
+        _wsConnecting = false;
+        return;
+      }
+      final client = _httpClientFactory();
+      final url = _wsUri(token).toString();
+      final ws = await WebSocket.connect(url, customClient: client);
+      if (_disposed) {
+        await ws.close();
+        return;
+      }
+      _ws = ws;
+      _wsConnecting = false;
+      // NOTE: the attempt budget is NOT reset here — a connection that
+      // drops right after the handshake must keep counting toward the
+      // limit, or an unstable link would loop forever. The budget resets
+      // only on an explicit connectWs() (a screen opening a chat).
+      // Re-join every tracked room (covers the first connect too).
+      for (final conversationId in _joined) {
+        _sendWs({'type': 'join', 'conversationId': conversationId});
+      }
+      _wsPingTimer?.cancel();
+      _wsPingTimer =
+          Timer.periodic(pingInterval, (_) => _sendWs({'type': 'ping'}));
+      ws.listen(_onWsData, onError: (_) => _onWsClosed(), onDone: _onWsClosed);
+    } on WebSocketException {
+      _wsConnecting = false;
+      _scheduleWsReconnect();
+    } on SocketException {
+      _wsConnecting = false;
+      _scheduleWsReconnect();
+    } catch (_) {
+      _wsConnecting = false;
+      _scheduleWsReconnect();
+    }
+  }
+
+  void _onWsData(dynamic raw) {
+    if (raw is! String) return;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map<String, dynamic>) {
+        _events.add(RealtimeEvent(
+          type: decoded['type'] as String? ?? '',
+          data: decoded,
+        ));
+      }
+    } catch (_) {
+      // Malformed frame — drop (the sidecar is a dumb transport; REST
+      // reconciliation on the next poll fixes any gap).
+    }
+  }
+
+  void _onWsClosed() {
+    _wsPingTimer?.cancel();
+    try {
+      _ws?.close();
+    } catch (_) {}
+    _ws = null;
+    _scheduleWsReconnect();
+  }
+
+  void _scheduleWsReconnect() {
+    if (_disposed) return;
+    _wsAttempts++;
+    if (_wsAttempts > maxReconnectAttempts) return; // REST fallback carries
+    _wsReconnectTimer?.cancel();
+    _wsReconnectTimer = Timer(_reconnectDelay, _connectWs);
+  }
+
+  /// Joins a conversation room. Recorded immediately so a reconnect
+  /// re-joins it; the frame is sent when the socket is up (a pending
+  /// connection triggers one).
+  void join(int conversationId) {
+    if (_disposed) return;
+    _joined.add(conversationId);
+    _sendWs({'type': 'join', 'conversationId': conversationId});
+    if (_ws == null && !_wsConnecting) connectWs();
+  }
+
+  void leave(int conversationId) {
+    _joined.remove(conversationId);
+    _sendWs({'type': 'leave', 'conversationId': conversationId});
+  }
+
+  /// Ephemeral typing ping (broadcast to the room minus self; the server
+  /// rate-limits floods). The caller owns the once-per-burst/3s-stop logic
+  /// (site parity, messages.js).
+  void sendTyping(int conversationId, bool isTyping) {
+    _sendWs({'type': 'typing', 'conversationId': conversationId, 'isTyping': isTyping});
+  }
+
+  void _sendWs(Map<String, dynamic> frame) {
+    final ws = _ws;
+    if (ws == null) return;
+    try {
+      ws.add(jsonEncode(frame));
+    } catch (_) {}
+  }
+
+  /// Opens the SSE stream (header badge events). Same token + budget
+  /// rules as the WebSocket; a 401 (dead session) stops retrying — the
+  /// REST 401 flow owns that path.
+  Future<void> connectSse() async {
+    if (_disposed || _sseConnecting) return;
+    _sseAttempts = 0;
+    await _connectSse();
+  }
+
+  Future<void> _connectSse() async {
+    if (_disposed || _sseConnecting) return;
+    _sseConnecting = true;
+    try {
+      final token = await _token();
+      if (token == null) {
+        _sseConnecting = false;
+        return;
+      }
+      final client = _httpClientFactory();
+      final request = await client.getUrl(_eventsUri(token));
+      request.headers.set(HttpHeaders.acceptHeader, 'text/event-stream');
+      final response = await request.close();
+      _sseConnecting = false;
+      if (response.statusCode != HttpStatus.ok) {
+        client.close();
+        if (response.statusCode == HttpStatus.unauthorized) return;
+        _scheduleSseReconnect();
+        return;
+      }
+      _sseClient = client;
+      var eventType = '';
+      await for (final line in response
+          .transform(utf8.decoder)
+          .transform(const LineSplitter())) {
+        if (_disposed) break;
+        if (line.startsWith('event:')) {
+          eventType = line.substring(6).trim();
+        } else if (line.startsWith('data:')) {
+          final payload = line.substring(5).trim();
+          if (eventType.isNotEmpty && payload.isNotEmpty) {
+            try {
+              final decoded = jsonDecode(payload);
+              if (decoded is Map<String, dynamic>) {
+                _events.add(RealtimeEvent(type: eventType, data: decoded));
+              }
+            } catch (_) {}
+          }
+          eventType = '';
+        }
+        // ':' lines are heartbeat comments — ignored.
+      }
+      client.close();
+      _sseClient = null;
+      _scheduleSseReconnect();
+    } on SocketException {
+      _sseConnecting = false;
+      _scheduleSseReconnect();
+    } on HttpException {
+      _sseConnecting = false;
+      _scheduleSseReconnect();
+    } catch (_) {
+      _sseConnecting = false;
+      _scheduleSseReconnect();
+    }
+  }
+
+  void _scheduleSseReconnect() {
+    if (_disposed) return;
+    _sseAttempts++;
+    if (_sseAttempts > maxReconnectAttempts) return;
+    _sseReconnectTimer?.cancel();
+    _sseReconnectTimer = Timer(_reconnectDelay, _connectSse);
+  }
+
+  /// The realtime token: the enclavd_rt cookie the ApiClient captured from
+  /// a page render, refreshed via GET /feed when missing or expiring.
+  Future<String?> _token() async {
+    final rt = _api.sessionCookies
+        .where((c) => c.name == 'enclavd_rt')
+        .toList();
+    if (rt.isNotEmpty && !_tokenExpiring(rt.first.value)) {
+      return rt.first.value;
+    }
+    try {
+      // Any logged-in page render re-issues the cookie (header.php →
+      // realtime_emit_cookie). /feed is the page the app already fetches
+      // for CSRF, so no new surface.
+      final resp = await _api.getPage('/feed');
+      if (resp.status != 200) return null;
+      final fresh = _api.sessionCookies
+          .where((c) => c.name == 'enclavd_rt')
+          .toList();
+      return fresh.isEmpty ? null : fresh.first.value;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Token format "<uid>.<unixExpiry>.<hmac>" — the expiry is embedded and
+  /// parseable, so the client refreshes before the sidecar starts rejecting.
+  bool _tokenExpiring(String token) {
+    final parts = token.split('.');
+    if (parts.length != 3) return true;
+    final expiry = int.tryParse(parts[1]);
+    if (expiry == null) return true;
+    final now = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
+    return expiry - now < tokenRefreshSkew.inSeconds;
+  }
+
+  Uri _wsUri(String token) {
+    final base = Uri.parse(_baseUrl);
+    final scheme = base.scheme == 'https' ? 'wss' : 'ws';
+    return Uri(
+      scheme: scheme,
+      host: base.host,
+      port: base.hasPort ? base.port : null,
+      path: '/ws',
+      queryParameters: {'token': token},
+    );
+  }
+
+  Uri _eventsUri(String token) {
+    final base = Uri.parse(_baseUrl);
+    return Uri(
+      scheme: base.scheme,
+      host: base.host,
+      port: base.hasPort ? base.port : null,
+      path: '/events',
+      queryParameters: {'token': token},
+    );
+  }
+
+  /// Closes both transports and stops all timers. Call on logout — the
+  /// token dies with the session, so the streams would 401 shortly anyway.
+  void dispose() {
+    _disposed = true;
+    _wsReconnectTimer?.cancel();
+    _sseReconnectTimer?.cancel();
+    _wsPingTimer?.cancel();
+    try {
+      _ws?.close();
+    } catch (_) {}
+    _ws = null;
+    _sseClient?.close();
+    _sseClient = null;
+    _joined.clear();
+    _events.close();
+  }
+}

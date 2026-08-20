@@ -292,6 +292,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             conversationId: conversationId,
             myUserId: me.id,
             messages: _services.messages,
+            realtime: _services.realtime,
             participantId: profile.id,
             participantName: profile.username,
             participantAvatar: profile.profilePictureUrl,

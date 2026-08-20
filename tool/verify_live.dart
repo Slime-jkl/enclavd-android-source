@@ -12,6 +12,7 @@
 // Exit 0 = the full login → me → feed → next-page flow works with the
 // native client's session handling (cookie jar + UA binding).
 
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -22,6 +23,7 @@ import 'package:enclavd/api/messages_service.dart';
 import 'package:enclavd/api/posts_service.dart';
 import 'package:enclavd/api/profile_service.dart';
 import 'package:enclavd/api/social_service.dart';
+import 'package:enclavd/services/realtime_service.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 
@@ -340,6 +342,33 @@ Future<void> main() async {
   final afterRead = await messages.unreadCount();
   check('markRead() leaves the count parseable', afterRead >= 0,
       'unread=$afterRead');
+
+  // ── 8c. Realtime — WebSocket connect → join → history ack ─────────────
+  // The real RealtimeService against the dev sidecar (through Apache's
+  // /ws proxy): token from the jar, WS handshake, join frame, and the
+  // server's join ack ('history') arriving back. The full inbound-message
+  // fan-out is proven separately (tool/verify_realtime.dart orchestration).
+  final realtime = RealtimeService(
+    api,
+    baseUrl: base,
+    httpClientFactory: () {
+      final c = HttpClient();
+      c.userAgent = 'EnclavdNative/1.0';
+      c.badCertificateCallback = (cert, host, port) => true; // dev self-signed
+      return c;
+    },
+  );
+  final historyAck = Completer<bool>();
+  final wsSub = realtime.events.listen((e) {
+    if (e.type == 'history') historyAck.complete(true);
+  });
+  realtime.join(convId);
+  final wsOk = await historyAck.future
+      .timeout(const Duration(seconds: 8), onTimeout: () => false);
+  check('WS join returns the history ack', wsOk,
+      wsOk ? '#$convId joined' : 'no ack within 8s');
+  wsSub.cancel();
+  realtime.dispose();
 
   // ── 9. Logout (JSON body + CSRF header via api/v1/auth) ────────────────
   await auth.logout();

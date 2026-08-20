@@ -9,6 +9,7 @@ import '../api/auth_service.dart';
 import '../api/feed_service.dart';
 import '../config/app_config.dart';
 import '../main.dart';
+import '../services/realtime_service.dart';
 import '../services/sound_service.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/enclavd_avatar.dart';
@@ -50,6 +51,7 @@ class _FeedScreenState extends State<FeedScreen> {
   // Unread messages badge (site header: paper-plane icon + red count).
   int _unreadMessages = 0;
   Timer? _unreadTimer;
+  StreamSubscription<RealtimeEvent>? _realtimeSub;
 
   @override
   void initState() {
@@ -65,14 +67,25 @@ class _FeedScreenState extends State<FeedScreen> {
     _loadFirst();
     _loadUnread();
     // The site's header badge is SSE-driven with a 30s poll fallback —
-    // the app has no realtime client, so the fallback IS the badge.
+    // the app runs the same pairing: SSE events update it instantly,
+    // the poll covers a dead stream.
     _unreadTimer =
         Timer.periodic(const Duration(seconds: 30), (_) => _loadUnread());
+    final realtime = _services!.realtime;
+    _realtimeSub = realtime.events.listen((event) {
+      if (event.type == 'message_unread' && event.unreadCount != null) {
+        if (mounted && event.unreadCount != _unreadMessages) {
+          setState(() => _unreadMessages = event.unreadCount!);
+        }
+      }
+    });
+    realtime.connectSse();
   }
 
   @override
   void dispose() {
     _unreadTimer?.cancel();
+    _realtimeSub?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
@@ -112,6 +125,7 @@ class _FeedScreenState extends State<FeedScreen> {
           messages: services.messages,
           auth: services.auth,
           myUserId: _me?.id,
+          realtime: services.realtime,
         ),
       ),
     );
@@ -317,6 +331,8 @@ class _FeedScreenState extends State<FeedScreen> {
   }
 
   Future<void> _logout() async {
+    // The realtime token dies with the session — close the streams first.
+    _services?.realtime.dispose();
     final services = await AppServices.create();
     await services.auth.logout();
     if (!mounted) return;
