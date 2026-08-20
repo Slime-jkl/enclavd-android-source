@@ -11,6 +11,7 @@ import '../theme/enclavd_theme.dart';
 import '../widgets/enclavd_image.dart';
 import '../widgets/post_card.dart';
 import '../widgets/shimmer.dart';
+import 'compose_screen.dart';
 
 /// Profile screen — the "top part" of the site's profile page (profile.php)
 /// + that member's posts via GET /api/v1/posts?user_id=N.
@@ -177,6 +178,56 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _refresh() => _loadAll();
 
+  Future<void> _editPost(Post post) async {
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => ComposeScreen(post: post)),
+    );
+    if (saved == true && mounted) _loadFirstPosts();
+  }
+
+  Future<void> _deletePost(Post post) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete this post?'),
+        content: const Text('This cannot be undone. The post and its image '
+            '(if any) will be permanently removed.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Delete',
+                style: TextStyle(color: EnclavdColors.likeActive)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await _services.posts.deletePost(postId: post.id, content: post.content);
+      if (!mounted) return;
+      setState(() => _posts.removeWhere((p) => p.id == post.id));
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('Post deleted')));
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(e.message)));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+            const SnackBar(content: Text('Could not delete the post.')));
+    }
+  }
+
   Future<void> _toggleFollow() async {
     final profile = _profile;
     if (profile == null || profile.isOwn || _followBusy) return;
@@ -306,6 +357,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           post: _posts[index - 2],
           apiBaseUrl: AppConfig.apiBaseUrl,
           social: _services.social,
+          onEditPost: _editPost,
+          onDeletePost: _deletePost,
         );
       },
     );

@@ -26,11 +26,19 @@ class PostCard extends StatefulWidget {
     required this.post,
     required this.apiBaseUrl,
     required this.social,
+    this.onEditPost,
+    this.onDeletePost,
   });
 
   final Post post;
   final String apiBaseUrl;
   final SocialService social;
+
+  /// Wired by the owning screen (feed / profile). When both are non-null and
+  /// the post is the viewer's own, a ⋮ menu with Edit/Delete shows — the
+  /// port of the site's post_menu.php.
+  final void Function(Post post)? onEditPost;
+  final void Function(Post post)? onDeletePost;
 
   @override
   State<PostCard> createState() => _PostCardState();
@@ -176,7 +184,12 @@ class _PostCardState extends State<PostCard> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _AuthorRow(post: widget.post, apiBaseUrl: widget.apiBaseUrl),
+            _AuthorRow(
+              post: widget.post,
+              apiBaseUrl: widget.apiBaseUrl,
+              onEdit: widget.onEditPost,
+              onDelete: widget.onDeletePost,
+            ),
             const SizedBox(height: 8),
             _PostContent(post: widget.post),
             if (widget.post.image != null && widget.post.image!.isNotEmpty) ...[
@@ -211,12 +224,19 @@ class _PostCardState extends State<PostCard> {
   }
 }
 
-/// Author row: avatar + username + badges + relative time.
+/// Author row: avatar + username + badges + relative time (+ own-post menu).
 class _AuthorRow extends StatelessWidget {
-  const _AuthorRow({required this.post, required this.apiBaseUrl});
+  const _AuthorRow({
+    required this.post,
+    required this.apiBaseUrl,
+    this.onEdit,
+    this.onDelete,
+  });
 
   final Post post;
   final String apiBaseUrl;
+  final void Function(Post post)? onEdit;
+  final void Function(Post post)? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -309,6 +329,44 @@ class _AuthorRow extends StatelessWidget {
           style:
               const TextStyle(color: EnclavdColors.textSecondary, fontSize: 12),
         ),
+        // Own-post actions menu (site's post_menu.php: ellipsis → Edit /
+        // Delete). Only rendered for the viewer's own posts.
+        if (post.isOwner && (onEdit != null || onDelete != null))
+          PopupMenuButton<String>(
+            icon: const FaIcon(FontAwesomeIcons.ellipsis,
+                size: 16, color: EnclavdColors.textSecondary),
+            padding: EdgeInsets.zero,
+            onSelected: (value) {
+              if (value == 'edit' && onEdit != null) onEdit!(post);
+              if (value == 'delete' && onDelete != null) onDelete!(post);
+            },
+            itemBuilder: (context) => [
+              if (onEdit != null)
+                const PopupMenuItem(
+                  value: 'edit',
+                  child: Row(
+                    children: [
+                      FaIcon(FontAwesomeIcons.pen,
+                          size: 14, color: EnclavdColors.textSecondary),
+                      SizedBox(width: 8),
+                      Text('Edit Post'),
+                    ],
+                  ),
+                ),
+              if (onDelete != null)
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      FaIcon(FontAwesomeIcons.trashCan,
+                          size: 14, color: EnclavdColors.textSecondary),
+                      SizedBox(width: 8),
+                      Text('Delete Post'),
+                    ],
+                  ),
+                ),
+            ],
+          ),
       ],
     );
   }

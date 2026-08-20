@@ -181,14 +181,25 @@ class ApiClient {
     String path,
     Map<String, String> fields, {
     Map<String, String>? query,
+    Map<String, String>? headers,
   }) =>
       _exchange(
         method: 'POST',
         path: path,
         query: query,
         formFields: fields,
+        headers: headers,
         followRedirects: false,
       );
+
+  /// The memoized CSRF token, fetching it on first use (parsed from the
+  /// /feed meta tag). Form POSTs to api/v1 (e.g. post create) include it as
+  /// the X-CSRF-Token header; api_csrf_guard() accepts either the header or
+  /// a csrf_token form field.
+  Future<String?> fetchCsrfToken() async {
+    _csrfToken ??= await _fetchCsrfToken();
+    return _csrfToken;
+  }
 
   /// HTTP GET against the JSON api/v1 (extensionless path).
   Future<Map<String, dynamic>> getJson(

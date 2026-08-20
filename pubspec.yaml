@@ -10,12 +10,14 @@ dependencies:
   flutter:
     sdk: flutter
   # Minimal external deps: SharedPreferences (session cookie jar),
-  # path_provider (image disk cache dir) and font_awesome_flutter (the site's
-  # own icon set — visual fidelity). shared_preferences/path_provider are
-  # flutter.dev's first-party plugins; everything else is SDK + dart:io.
+  # path_provider (image disk cache dir), font_awesome_flutter (the site's
+  # own icon set — visual fidelity) and image_picker (post image attach).
+  # The first three are flutter.dev's first-party plugins; font_awesome is
+  # the canonical FA package. Everything else is SDK + dart:io.
   shared_preferences: ^2.3.0
   path_provider: ^2.1.0
   font_awesome_flutter: ^11.0.0
+  image_picker: ^1.1.2
 
 dev_dependencies:
   flutter_test:

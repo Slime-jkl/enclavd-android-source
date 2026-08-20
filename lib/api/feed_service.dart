@@ -23,6 +23,7 @@ class Post {
     required this.isActive,
     required this.rank,
     required this.image,
+    this.isOwner = false,
   });
 
   final int id;
@@ -40,6 +41,7 @@ class Post {
   final String isActive; // 'true' / 'false' (string from the DB)
   final String rank;
   final String? image; // BARE gallery filename when present
+  final bool isOwner;
 
   factory Post.fromJson(Map<String, dynamic> json) => Post(
         id: (json['id'] as num?)?.toInt() ?? 0,
@@ -58,6 +60,7 @@ class Post {
         isActive: json['is_active'] as String? ?? 'true',
         rank: json['rank'] as String? ?? 'Member',
         image: json['image'] as String?,
+        isOwner: json['is_owner'] as bool? ?? false,
       );
 
   bool get isBlocked => isActive == 'false';
@@ -145,6 +148,17 @@ class FeedService {
       if (lastId != null) 'last_id': '$lastId',
     });
     return FeedPage.fromJson(json);
+  }
+
+  /// A single post by id (posts.php ?post_id=N).
+  Future<Post> fetchPost(int postId) async {
+    final json =
+        await _api.getJson('/api/v1/posts', query: {'post_id': '$postId'});
+    final raw = json['post'];
+    if (raw is! Map<String, dynamic>) {
+      throw const ApiException('Invalid post response');
+    }
+    return Post.fromJson(raw);
   }
 
   Future<FeedPage> _fetch({

@@ -8,6 +8,7 @@ import '../main.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/post_card.dart';
 import '../widgets/shimmer.dart';
+import 'compose_screen.dart';
 import 'login_screen.dart';
 
 /// Feed screen — the ranked feed via GET /api/v1/posts.
@@ -125,6 +126,66 @@ class _FeedScreenState extends State<FeedScreen> {
 
   Future<void> _refresh() => _loadFirst();
 
+  Future<void> _openComposer() async {
+    final created = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const ComposeScreen()),
+    );
+    if (created == true && mounted) {
+      // The new post is score-ranked with the author boost — a first-page
+      // refetch surfaces it (mirrors the site prepending the rendered card).
+      _loadFirst();
+    }
+  }
+
+  Future<void> _editPost(Post post) async {
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => ComposeScreen(post: post)),
+    );
+    if (saved == true && mounted) _loadFirst();
+  }
+
+  Future<void> _deletePost(Post post) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete this post?'),
+        content: const Text('This cannot be undone. The post and its image '
+            '(if any) will be permanently removed.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Delete',
+                style: TextStyle(color: EnclavdColors.likeActive)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await _services.posts.deletePost(postId: post.id, content: post.content);
+      if (!mounted) return;
+      setState(() => _posts.removeWhere((p) => p.id == post.id));
+      _toast('Post deleted');
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      _toast(e.message);
+    } catch (_) {
+      if (!mounted) return;
+      _toast('Could not delete the post.');
+    }
+  }
+
+  void _toast(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
   Future<void> _logout() async {
     final services = await AppServices.create();
     await services.auth.logout();
@@ -159,6 +220,13 @@ class _FeedScreenState extends State<FeedScreen> {
         onRefresh: _refresh,
         color: EnclavdColors.link,
         child: _buildBody(),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _openComposer,
+        backgroundColor: EnclavdColors.primaryButton,
+        foregroundColor: Colors.white,
+        tooltip: 'Create post',
+        child: const FaIcon(FontAwesomeIcons.pen, size: 20),
       ),
     );
   }
@@ -199,6 +267,8 @@ class _FeedScreenState extends State<FeedScreen> {
           post: _posts[index],
           apiBaseUrl: AppConfig.apiBaseUrl,
           social: _services.social,
+          onEditPost: _editPost,
+          onDeletePost: _deletePost,
         );
       },
     );
