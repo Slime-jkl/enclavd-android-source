@@ -26,9 +26,9 @@ import 'image_editor_screen.dart';
 /// action only replaces content — the gallery row is untouched). Submit =
 /// fa-floppy-disk "Save".
 ///
-/// While typing, #hashtags and links render BLUE exactly like the site's
-/// Quill composer (a transparent input layer over a highlighted Text.rich).
-///
+/// The composer input is a plain multiline field (Instagram/Facebook-style)
+/// — no highlight-while-typing; the container draws the box, and no focus
+/// outline is drawn. #hashtags/links still render blue in the feed cards.
 /// Pops with `true` on success so the caller refreshes.
 class ComposeScreen extends StatefulWidget {
   const ComposeScreen({super.key, this.post});
@@ -150,7 +150,7 @@ class _ComposeScreenState extends State<ComposeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _highlighted(),
+              _composerField(),
               if (_error != null) ...[
                 const SizedBox(height: 8),
                 Container(
@@ -237,11 +237,12 @@ class _ComposeScreenState extends State<ComposeScreen> {
     );
   }
 
-  /// #hashtags and links → blue spans (the site's composer highlighting).
-  Widget _highlighted() => _buildHighlightedField(_controller, _focus);
-
-  static Widget _buildHighlightedField(
-      TextEditingController controller, FocusNode focus) {
+  /// The composer input — a plain multiline field like Instagram/Facebook:
+  /// visible white text, the Container draws the box, and NO focus outline
+  /// (the theme's blue focusedBorder is suppressed on every state).
+  /// #hashtags/links are NOT highlighted while typing (feed rendering is
+  /// unaffected — that happens in the post cards).
+  Widget _composerField() {
     const base = TextStyle(
       color: EnclavdColors.textPrimary,
       fontSize: 16,
@@ -257,58 +258,40 @@ class _ComposeScreenState extends State<ComposeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Stack(
-            children: [
-              // Highlight layer — rendered exactly like the input below it.
-              IgnorePointer(
-                child: ValueListenableBuilder<TextEditingValue>(
-                  valueListenable: controller,
-                  builder: (context, value, _) => Text.rich(
-                    TextSpan(children: highlightComposerSpans(value.text)),
-                    style: base,
-                    maxLines: 8,
-                    overflow: TextOverflow.clip,
-                  ),
-                ),
-              ),
-              TextField(
-                controller: controller,
-                focusNode: focus,
-                minLines: 3,
-                maxLines: 8,
-                textCapitalization: TextCapitalization.sentences,
-                // Pin the input to the top of its box: without this the
-                // EditableText can center vertically in M3 when the box is
-                // taller than the content.
-                textAlignVertical: TextAlignVertical.top,
-                style: base.copyWith(color: Colors.transparent),
-                cursorColor: EnclavdColors.textPrimary,
-                decoration: const InputDecoration(
-                  // CRITICAL: never let the theme's filled/fillColor apply —
-                  // an opaque fill would cover the white highlight layer
-                  // beneath this transparent input.
-                  filled: false,
-                  isDense: true,
-                  border: InputBorder.none,
-                  counterText: '',
-                  hintStyle: TextStyle(color: Colors.transparent),
-                  // CRITICAL: zero out the content padding. The global
-                  // inputDecorationTheme sets (14,14) — leaked into this
-                  // field it offsets the cursor/text of the transparent
-                  // input by 14px down-right from the highlight layer
-                  // beneath (the visible text), which is the reported
-                  // "cursor is not where the text is" mismatch.
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-            ],
+          TextField(
+            controller: _controller,
+            focusNode: _focus,
+            minLines: 3,
+            maxLines: 8,
+            textCapitalization: TextCapitalization.sentences,
+            style: base,
+            cursorColor: EnclavdColors.textPrimary,
+            decoration: const InputDecoration(
+              // The container draws the box — the theme's decoration must
+              // not leak in, and CRUCIALLY no focusedBorder: the global
+              // inputDecorationTheme's blue OutlineInputBorder is what
+              // drew the unwanted blue outline on focus.
+              filled: false,
+              isDense: true,
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              errorBorder: InputBorder.none,
+              focusedErrorBorder: InputBorder.none,
+              counterText: '',
+              hintText: 'Write post..', // the site's Quill placeholder
+              hintStyle: TextStyle(color: EnclavdColors.textSecondary),
+              // Zero padding — the container's (14,12) padding positions
+              // the text; any extra shifts the text vs. the cursor.
+              contentPadding: EdgeInsets.zero,
+            ),
           ),
           const SizedBox(height: 4),
           // Mirrors post_form.php's "N/500 characters" (textSecondary, right).
           Align(
             alignment: Alignment.centerRight,
             child: ValueListenableBuilder<TextEditingValue>(
-              valueListenable: controller,
+              valueListenable: _controller,
               builder: (context, value, _) => Text(
                 '${value.text.characters.length}/500 characters',
                 style: const TextStyle(
@@ -320,36 +303,6 @@ class _ComposeScreenState extends State<ComposeScreen> {
       ),
     );
   }
-}
-
-/// #hashtags and links → blue spans (the site's composer highlighting).
-/// Public so tests can assert the tokenizer.
-List<InlineSpan> highlightComposerSpans(String text) {
-  const hashtag =
-      TextStyle(color: EnclavdColors.link, fontSize: 16, height: 1.5);
-  const link = TextStyle(
-    color: EnclavdColors.link,
-    fontSize: 16,
-    height: 1.5,
-    decoration: TextDecoration.underline,
-    decorationColor: EnclavdColors.link,
-  );
-  final re = RegExp(r'https?://[^\s]+|www\.[^\s]+|#[A-Za-z0-9_]+');
-  final spans = <InlineSpan>[];
-  var last = 0;
-  for (final m in re.allMatches(text)) {
-    if (m.start > last) {
-      spans.add(TextSpan(text: text.substring(last, m.start)));
-    }
-    final token = m.group(0)!;
-    final isUrl = token.startsWith('http') || token.startsWith('www');
-    spans.add(TextSpan(text: token, style: isUrl ? link : hashtag));
-    last = m.end;
-  }
-  if (last < text.length) {
-    spans.add(TextSpan(text: text.substring(last)));
-  }
-  return spans;
 }
 
 /// Picked/edited image preview (site: max-h-300 object-contain rounded +

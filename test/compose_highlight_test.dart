@@ -4,97 +4,64 @@ import 'package:enclavd/screens/compose_screen.dart';
 import 'package:enclavd/theme/enclavd_theme.dart';
 
 void main() {
-  group('highlightComposerSpans', () {
-    test('plain text stays unstyled', () {
-      final spans = highlightComposerSpans('just some words');
-      expect(spans, hasLength(1));
-      expect(spans.single.style, isNull);
-    });
-
-    test('hashtags get the link color', () {
-      final spans = highlightComposerSpans('check #hashtag here');
-      final tag = spans.firstWhere((s) => s is TextSpan && s.text == '#hashtag')
-          as TextSpan;
-      expect(tag.style?.color, EnclavdColors.link);
-    });
-
-    test('urls get the link color + underline', () {
-      final spans = highlightComposerSpans('visit https://enclavd.com now');
-      final url = spans.firstWhere(
-          (s) => s is TextSpan && s.text == 'https://enclavd.com') as TextSpan;
-      expect(url.style?.color, EnclavdColors.link);
-      expect(url.style?.decoration, TextDecoration.underline);
-    });
-
-    test('www urls and mixed content tokenize', () {
-      final spans =
-          highlightComposerSpans('#tag1 www.example.com #tag2 http://x.io end');
-      final texts = spans.whereType<TextSpan>().map((s) => s.text).toList();
-      expect(texts, [
-        '#tag1',
-        ' ',
-        'www.example.com',
-        ' ',
-        '#tag2',
-        ' ',
-        'http://x.io',
-        ' end',
-      ]);
-    });
-
-    test('empty text yields no spans', () {
-      expect(highlightComposerSpans(''), isEmpty);
-    });
-  });
-
-  group('composer field', () {
-    testWidgets('typed text renders WHITE behind the transparent input',
+  group('composer field (Instagram/Facebook-style plain input)', () {
+    testWidgets('is a single plain TextField with visible white text',
         (tester) async {
       await tester.pumpWidget(MaterialApp(
         theme: buildEnclavdTheme(),
         home: const ComposeScreen(),
       ));
+
+      // Exactly ONE TextField — no transparent input + highlight layer
+      // stack anymore.
+      expect(find.byType(TextField), findsOneWidget);
+
       await tester.enterText(find.byType(TextField), 'hello world');
       await tester.pump();
 
-      // The highlight layer is the only place the text is visible — the
-      // input above it is transparent. It must carry the theme's white.
-      final rich = tester.widget<Text>(find.byWidgetPredicate(
-          (w) => w is Text && w.textSpan?.toPlainText() == 'hello world'));
-      expect(rich.style?.color, EnclavdColors.textPrimary);
+      final field = tester.widget<TextField>(find.byType(TextField));
+      // The text is visible directly (no color: transparent trick).
+      expect(field.style?.color, EnclavdColors.textPrimary);
+      expect(field.controller?.text, 'hello world');
     });
 
-    testWidgets('hashtags in the composer highlight in blue', (tester) async {
+    testWidgets('no focus outline — the theme blue border is suppressed',
+        (tester) async {
       await tester.pumpWidget(MaterialApp(
         theme: buildEnclavdTheme(),
         home: const ComposeScreen(),
       ));
-      await tester.enterText(find.byType(TextField), 'go #viral now');
-      await tester.pump();
 
-      final rich = tester.widget<Text>(find.byWidgetPredicate(
-          (w) => w is Text && w.textSpan?.toPlainText() == 'go #viral now'));
-      final spans = (rich.textSpan as TextSpan).children!;
-      final tag = spans.firstWhere((s) => s is TextSpan && s.text == '#viral')
-          as TextSpan;
-      expect(tag.style?.color, EnclavdColors.link);
+      final field = tester.widget<TextField>(find.byType(TextField));
+      final d = field.decoration!;
+      expect(d.filled, isFalse);
+      expect(d.border, InputBorder.none);
+      expect(d.enabledBorder, InputBorder.none);
+      expect(d.focusedBorder, InputBorder.none,
+          reason: 'the theme focusedBorder (blue OutlineInputBorder) must '
+              'not appear on focus');
+      // The container's own padding positions the text — no extra content
+      // padding that would offset the cursor from the text.
+      expect(d.contentPadding, EdgeInsets.zero);
     });
 
-    testWidgets(
-        'input layer is zero-padded + top-aligned so the cursor lands on '
-        'the visible text (the reported mismatch)', (tester) async {
+    testWidgets('carries the site\'s Quill placeholder', (tester) async {
       await tester.pumpWidget(MaterialApp(
         theme: buildEnclavdTheme(),
         home: const ComposeScreen(),
       ));
       final field = tester.widget<TextField>(find.byType(TextField));
-      // The global inputDecorationTheme sets contentPadding (14,14) — the
-      // transparent input MUST override it to zero or its cursor/text sit
-      // 14px down-right of the highlight layer beneath (visible text).
-      expect(field.decoration?.contentPadding, EdgeInsets.zero);
-      // M3 can vertically center the EditableText when the box is taller
-      // than the content — pin to top so it matches the highlight layer.
-      expect(field.textAlignVertical, TextAlignVertical.top);
+      expect(field.decoration?.hintText, 'Write post..');
+    });
+
+    testWidgets('character counter still updates', (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        theme: buildEnclavdTheme(),
+        home: const ComposeScreen(),
+      ));
+      await tester.enterText(find.byType(TextField), '12345');
+      await tester.pump();
+      expect(find.text('5/500 characters'), findsOneWidget);
     });
   });
 }

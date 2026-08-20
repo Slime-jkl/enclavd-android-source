@@ -970,6 +970,14 @@ class _CommentsSection extends StatelessWidget {
                 decoration: const InputDecoration(
                   hintText: 'Add a comment…',
                   isDense: true,
+                  // No box of its own and NO focus outline — the theme's
+                  // blue OutlineInputBorder must not appear here either.
+                  filled: false,
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  errorBorder: InputBorder.none,
+                  focusedErrorBorder: InputBorder.none,
                   contentPadding:
                       EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 ),
