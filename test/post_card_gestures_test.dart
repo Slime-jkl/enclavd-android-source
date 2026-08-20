@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:enclavd/api/api_client.dart';
 import 'package:enclavd/api/feed_service.dart';
 import 'package:enclavd/api/social_service.dart';
@@ -7,11 +8,16 @@ import 'package:enclavd/services/sound_service.dart';
 import 'package:enclavd/theme/enclavd_theme.dart';
 import 'package:enclavd/widgets/post_card.dart';
 
-Post _post({int id = 1, int likeCount = 0, bool userLiked = false}) =>
+Post _post({
+  int id = 1,
+  int likeCount = 0,
+  bool userLiked = false,
+  String content = 'hello world',
+}) =>
     Post.fromJson({
       'id': id,
       'author_id': 2,
-      'content': 'hello world',
+      'content': content,
       'created_at': '2026-08-20 09:00:00',
       'feed_score': 1.5,
       'like_count': likeCount,
@@ -215,6 +221,39 @@ void main() {
         (tester) async {
       await pumpPost(tester, _post());
       expect(find.textContaining('Liked by'), findsNothing);
+    });
+  });
+
+  group('youtube embeds', () {
+    testWidgets('posts with a YouTube link show the embed card',
+        (tester) async {
+      // A 16:9 embed needs a phone-sized surface — the default 800x600
+      // test viewport overflows the card.
+      tester.view.physicalSize = const Size(1080, 2340);
+      tester.view.devicePixelRatio = 3.0;
+      addTearDown(tester.view.reset);
+
+      await pumpPost(
+          tester, _post(content: 'watch https://youtu.be/dQw4w9WgXcQ here'));
+
+      expect(
+          find.byWidgetPredicate((w) =>
+              w is FaIcon &&
+              (w.icon?.codePoint ?? -1) == FontAwesomeIcons.play.codePoint),
+          findsOneWidget,
+          reason: 'play affordance on the embed card');
+      expect(find.byType(AspectRatio), findsOneWidget,
+          reason: '16:9 embed frame');
+    });
+
+    testWidgets('posts without a YouTube link have no embed card',
+        (tester) async {
+      await pumpPost(tester, _post());
+      expect(
+          find.byWidgetPredicate((w) =>
+              w is FaIcon &&
+              (w.icon?.codePoint ?? -1) == FontAwesomeIcons.play.codePoint),
+          findsNothing);
     });
   });
 }

@@ -288,6 +288,11 @@ class _PostCardState extends State<PostCard> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _PostContent(post: widget.post),
+                        // The site embeds the FIRST YouTube link in the
+                        // post (post_card.php renderYouTubeEmbed) between
+                        // the text and the image.
+                        if (extractYouTubeId(widget.post.content) case final id?)
+                          _YouTubeEmbed(videoId: id),
                         if (widget.post.image != null &&
                             widget.post.image!.isNotEmpty) ...[
                           const SizedBox(height: 12),
@@ -871,6 +876,85 @@ class _ActionRow extends StatelessWidget {
           ),
       ],
     );
+  }
+}
+
+/// Port of the site's extractYouTubeId (feed/helpers/url_helpers.php):
+/// the FIRST YouTube video ID in the text — watch?v=, shorts/, embed/ or
+/// youtu.be/ forms, 11 chars, case-insensitive like the PHP `~...~i`.
+String? extractYouTubeId(String text) {
+  final m = RegExp(
+    r'(?:https?://)?(?:www\.)?'
+    r'(?:youtube\.com/(?:watch\?v=|shorts/|embed/)|youtu\.be/)'
+    r'([A-Za-z0-9_-]{11})',
+    caseSensitive: false,
+  ).firstMatch(text);
+  return m?.group(1);
+}
+
+/// The site's YouTube embed (renderYouTubeEmbed): a 16:9 card between the
+/// post text and the image. The site uses an iframe; the app shows the
+/// video's thumbnail with a play affordance (Instagram/Facebook style —
+/// no WebView/player dependency in the feed) and opens the video in the
+/// YouTube app / browser on tap (the iframe's fullscreen equivalent).
+class _YouTubeEmbed extends StatelessWidget {
+  const _YouTubeEmbed({required this.videoId});
+
+  final String videoId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: GestureDetector(
+        onTap: _open,
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0x66000000), // bg-black/40
+            borderRadius: BorderRadius.circular(8), // rounded-lg
+            border:
+                Border.all(color: const Color(0x99374151)), // gray-700/60
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: AspectRatio(
+            aspectRatio: 16 / 9, // the site's 56.25% padding-top
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                // hqdefault always exists for every video id (maxresdefault
+                // does not — no broken embeds).
+                EnclavdImage(
+                  'https://img.youtube.com/vi/$videoId/hqdefault.jpg',
+                  fit: BoxFit.cover,
+                  errorAsset: 'assets/images/no-image.jpg',
+                ),
+                Center(
+                  child: Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const FaIcon(FontAwesomeIcons.play,
+                        size: 20, color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _open() async {
+    try {
+      await launchUrl(Uri.parse('https://www.youtube.com/watch?v=$videoId'),
+          mode: LaunchMode.externalApplication);
+    } catch (_) {
+      // Defensive, like every other launcher call — never break the feed.
+    }
   }
 }
 

@@ -163,6 +163,40 @@ void main() {
     });
   });
 
+  group('extractYouTubeId (site url_helpers.php port)', () {
+    test('watch?v= form', () {
+      expect(extractYouTubeId('see https://www.youtube.com/watch?v=dQw4w9WgXcQ now'),
+          'dQw4w9WgXcQ');
+    });
+
+    test('shorts, youtu.be and embed forms', () {
+      expect(extractYouTubeId('https://youtube.com/shorts/dQw4w9WgXcQ'),
+          'dQw4w9WgXcQ');
+      expect(extractYouTubeId('https://youtu.be/dQw4w9WgXcQ?t=5'),
+          'dQw4w9WgXcQ');
+      expect(extractYouTubeId('https://www.youtube.com/embed/dQw4w9WgXcQ'),
+          'dQw4w9WgXcQ');
+    });
+
+    test('no protocol and uppercase host still match (PHP ~i flag)', () {
+      expect(extractYouTubeId('www.YOUTUBE.com/watch?v=dQw4w9WgXcQ'),
+          'dQw4w9WgXcQ');
+    });
+
+    test('first YouTube link wins; others ignored', () {
+      expect(
+          extractYouTubeId(
+              'https://youtu.be/dQw4w9WgXcQ then https://youtu.be/aaaaaaaaaaa'),
+          'dQw4w9WgXcQ');
+    });
+
+    test('no youtube link → null', () {
+      expect(extractYouTubeId('just a normal post'), isNull);
+      expect(extractYouTubeId('https://example.com/watch?v=dQw4w9WgXcQ'),
+          isNull);
+    });
+  });
+
   group('RankColors', () {
     test('known ranks map to their Tailwind colors', () {
       expect(
