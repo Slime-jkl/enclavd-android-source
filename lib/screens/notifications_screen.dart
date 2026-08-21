@@ -10,7 +10,7 @@ import '../services/realtime_service.dart';
 import '../services/social_notifications.dart';
 import '../theme/enclavd_theme.dart';
 import '../utils/html_entities.dart';
-import '../widgets/enclavd_image.dart';
+import '../widgets/enclavd_avatar.dart';
 import 'post_detail_screen.dart';
 import 'profile_screen.dart';
 
@@ -203,12 +203,13 @@ class _NotificationRow extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Avatar (32px, circular — site h-8 w-8 rounded-full).
-            EnclavdImage(
-              n.avatarUrl(AppConfig.apiBaseUrl),
-              width: 32,
-              height: 32,
-              placeholderShape: BoxShape.circle,
+            // Avatar (32px, circular — site h-8 w-8 rounded-full). Must be
+            // EnclavdAvatar: a bare EnclavdImage here renders the LOADED
+            // image as a square (the circular placeholder is only the
+            // loading state) — the same oval/square-in-circle bug family.
+            EnclavdAvatar(
+              size: 32,
+              url: n.avatarUrl(AppConfig.apiBaseUrl),
             ),
             const SizedBox(width: 10),
             Expanded(
