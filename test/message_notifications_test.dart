@@ -15,12 +15,23 @@ class FakeNotifier implements LocalNotifier {
   String? lastSender;
   String? lastBody;
   int? lastConversationId;
+  bool osEnabled = true; // the OS-level permission state the app reads
+  int openSettingsCalls = 0;
 
   @override
   Future<void> initialize() async => initializeCalls++;
 
   @override
   Future<void> requestPermission() async => permissionRequests++;
+
+  @override
+  Future<bool> areNotificationsEnabled() async => osEnabled;
+
+  @override
+  Future<bool> openAppNotificationSettings() async {
+    openSettingsCalls++;
+    return true;
+  }
 
   @override
   Future<void> showMessageNotification({
@@ -252,5 +263,26 @@ void main() {
     expect(MessageNotifications.conversationIdFromPayload(null), isNull);
     expect(MessageNotifications.conversationIdFromPayload('12'), isNull);
     expect(MessageNotifications.conversationIdFromPayload('c:x'), isNull);
+  });
+
+  test('osNotificationsEnabled reflects the OS permission state', () async {
+    final notifier = FakeNotifier();
+    final service = buildService(notifier, FakeMessages());
+
+    expect(await service.osNotificationsEnabled(), isTrue);
+
+    notifier.osEnabled = false;
+    expect(await service.osNotificationsEnabled(), isFalse,
+        reason: 'a denied runtime permission must be visible to the UI');
+  });
+
+  test('openOsNotificationSettings deep-links into the OS screen',
+      () async {
+    final notifier = FakeNotifier();
+    final service = buildService(notifier, FakeMessages());
+
+    await service.openOsNotificationSettings();
+
+    expect(notifier.openSettingsCalls, 1);
   });
 }

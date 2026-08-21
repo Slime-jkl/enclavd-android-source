@@ -6,12 +6,52 @@ import 'package:enclavd/services/message_notifications.dart';
 import 'package:enclavd/services/sound_service.dart';
 import 'package:enclavd/theme/enclavd_theme.dart';
 
+/// Minimal notifier fake for the settings screen (the OS permission state
+/// is what the warning row reads; nothing else is exercised here).
+class _SettingsFakeNotifier implements LocalNotifier {
+  bool osEnabled = true;
+  int openSettingsCalls = 0;
+
+  @override
+  Future<void> initialize() async {}
+
+  @override
+  Future<void> requestPermission() async {}
+
+  @override
+  Future<bool> areNotificationsEnabled() async => osEnabled;
+
+  @override
+  Future<bool> openAppNotificationSettings() async {
+    openSettingsCalls++;
+    return true;
+  }
+
+  @override
+  Future<void> showMessageNotification({
+    required int notificationId,
+    required String senderName,
+    required String message,
+    required int conversationId,
+  }) async {}
+}
+
+MessageNotifications _withNotifier(_SettingsFakeNotifier notifier) =>
+    MessageNotifications(
+      notifier: notifier,
+      messagesFactory: () async =>
+          throw StateError('not used in settings tests'),
+    );
+
 void main() {
   setUp(() {
     SoundService.muted = true;
     MessageNotifications.instance = null;
   });
-  tearDown(() => SoundService.muted = false);
+  tearDown(() {
+    SoundService.muted = false;
+    MessageNotifications.instance = null;
+  });
 
   testWidgets('sound toggle flips SoundService.muted and persists',
       (tester) async {
@@ -80,5 +120,59 @@ void main() {
             .value,
         isFalse,
         reason: 'restored from prefs');
+  });
+
+  testWidgets('OS-blocked notifications show the warning row', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final notifier = _SettingsFakeNotifier()..osEnabled = false;
+    MessageNotifications.instance = _withNotifier(notifier);
+
+    await tester.pumpWidget(MaterialApp(
+      theme: buildEnclavdTheme(),
+      home: const SettingsScreen(),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Notifications are blocked on this phone'),
+        findsOneWidget,
+        reason: 'toggle ON but the OS denies → the warning must be visible');
+    expect(find.text('Open settings'), findsOneWidget);
+
+    await tester.tap(find.text('Open settings'));
+    await tester.pumpAndSettle();
+    expect(notifier.openSettingsCalls, 1,
+        reason: 'button deep-links into the OS notification settings');
+  });
+
+  testWidgets('no warning when the OS allows notifications', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    MessageNotifications.instance = _withNotifier(_SettingsFakeNotifier());
+
+    await tester.pumpWidget(MaterialApp(
+      theme: buildEnclavdTheme(),
+      home: const SettingsScreen(),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Notifications are blocked on this phone'),
+        findsNothing);
+  });
+
+  testWidgets('no warning when the user opted out (toggle OFF)',
+      (tester) async {
+    SharedPreferences.setMockInitialValues(
+        {MessageNotifications.enabledPrefsKey: false});
+    final notifier = _SettingsFakeNotifier()..osEnabled = false;
+    MessageNotifications.instance = _withNotifier(notifier);
+
+    await tester.pumpWidget(MaterialApp(
+      theme: buildEnclavdTheme(),
+      home: const SettingsScreen(),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Notifications are blocked on this phone'),
+        findsNothing,
+        reason: 'opt-out is intentional — no nagging');
   });
 }

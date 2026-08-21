@@ -62,7 +62,12 @@ class MessageNotifications with WidgetsBindingObserver {
       final prefs = await _prefsFactory();
       _enabled = prefs.getBool(enabledPrefsKey) ?? true;
       if (_enabled) await _notifier.requestPermission();
-    } catch (_) {}
+    } catch (e) {
+      // Never break the app, but NEVER be invisible either — a failed
+      // init here (e.g. the plugin's icon validation) means no popup and
+      // silently off notifications; that has to be diagnosable on-device.
+      debugPrint('MessageNotifications: init failed: $e');
+    }
   }
 
   /// MessagesScreen / ChatScreen lifecycle: the thread is on screen.
@@ -99,8 +104,32 @@ class MessageNotifications with WidgetsBindingObserver {
         message: newest.message,
         conversationId: newest.conversationId,
       );
+    } catch (e) {
+      // The badge poll / next ping covers it; never surface errors — but
+      // log, so a broken path is diagnosable instead of silently dead.
+      debugPrint('MessageNotifications: unread ping failed: $e');
+    }
+  }
+
+  /// True when the OS currently permits notifications (Android 13+
+  /// runtime permission; pre-13 always true). Assumed true when the
+  /// check itself fails — the caller only warns on a definite denial.
+  Future<bool> osNotificationsEnabled() async {
+    try {
+      return await _notifier.areNotificationsEnabled();
     } catch (_) {
-      // The badge poll / next ping covers it; never surface errors.
+      return true;
+    }
+  }
+
+  /// Deep-link to the OS notification settings for this app (the
+  /// Android notification-permission screen). No-op failure is fine —
+  /// the user can reach it manually.
+  Future<void> openOsNotificationSettings() async {
+    try {
+      await _notifier.openAppNotificationSettings();
+    } catch (e) {
+      debugPrint('MessageNotifications: open settings failed: $e');
     }
   }
 
@@ -167,6 +196,15 @@ Future<void> replyFromNotification(NotificationResponse response) async {
 abstract class LocalNotifier {
   Future<void> initialize();
   Future<void> requestPermission();
+
+  /// Whether the OS currently allows this app to post notifications
+  /// (Android 13+ runtime permission; pre-13 always true).
+  Future<bool> areNotificationsEnabled();
+
+  /// Opens the OS notification-settings screen for this app. Returns
+  /// whether an activity could be launched.
+  Future<bool> openAppNotificationSettings();
+
   Future<void> showMessageNotification({
     required int notificationId,
     required String senderName,
@@ -208,6 +246,22 @@ class FlutterLocalNotifier implements LocalNotifier {
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
     await android?.requestNotificationsPermission();
+  }
+
+  @override
+  Future<bool> areNotificationsEnabled() async {
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+    return await android?.areNotificationsEnabled() ?? true;
+  }
+
+  @override
+  Future<bool> openAppNotificationSettings() async {
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+    return await android?.openAppNotificationSettings() ?? false;
   }
 
   @override

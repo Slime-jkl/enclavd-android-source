@@ -29,6 +29,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   bool? _soundsEnabled; // null until loaded
   bool? _notificationsEnabled; // null until loaded
+  bool? _osBlocked; // null until checked; true = OS denies notifications
 
   @override
   void initState() {
@@ -46,6 +47,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _soundsEnabled = enabled;
       _notificationsEnabled = notifications;
     });
+    await _refreshOsBlocked();
+  }
+
+  /// Mirrors the REAL OS state next to the toggle: Android 13+ can deny
+  /// notifications at the system level (denied popup, or blocked in
+  /// system settings) and the plugin can never re-prompt — the toggle
+  /// would read ON while nothing ever shows. The warning row makes that
+  /// visible instead of silently dead. Null instance (tests, pre-feed)
+  /// simply means "no information" → not blocked.
+  Future<void> _refreshOsBlocked() async {
+    final notifications = MessageNotifications.instance;
+    var blocked = false;
+    if (notifications != null && _notificationsEnabled == true) {
+      blocked = !await notifications.osNotificationsEnabled();
+    }
+    if (!mounted) return;
+    setState(() => _osBlocked = blocked);
   }
 
   Future<void> _toggleSounds(bool enabled) async {
@@ -60,6 +78,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await MessageNotifications.instance?.setEnabled(enabled);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_notifPrefsKey, enabled);
+    // The re-request may have been denied again — re-check the OS state
+    // so the warning (if any) reflects reality immediately.
+    await _refreshOsBlocked();
   }
 
   Future<void> _openSite(String path) async {
@@ -145,6 +166,45 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           'someone messages you'),
                     ),
             ),
+            // OS-level denial (Android 13+): the toggle can be ON while
+            // the system silently drops everything. Surface it here with
+            // a one-tap deep link into the OS notification settings.
+            if (notifications == true && _osBlocked == true) ...[
+              const SizedBox(height: 10),
+              Material(
+                color: EnclavdColors.card,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: const BorderSide(color: EnclavdColors.warning),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
+                  child: Row(
+                    children: [
+                      const FaIcon(FontAwesomeIcons.triangleExclamation,
+                          color: EnclavdColors.warning, size: 16),
+                      const SizedBox(width: 10),
+                      const Expanded(
+                        child: Text(
+                          'Notifications are blocked on this phone',
+                          style: TextStyle(fontSize: 13),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () =>
+                            MessageNotifications.instance
+                                ?.openOsNotificationSettings(),
+                        child: const Text('Open settings',
+                            style: TextStyle(
+                                fontSize: 13,
+                                color: EnclavdColors.link)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 20),
             const _SectionLabel('Account'),
             const SizedBox(height: 6),
