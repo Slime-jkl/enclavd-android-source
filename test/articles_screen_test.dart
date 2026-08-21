@@ -68,9 +68,10 @@ void main() {
   tearDown(() => SoundService.muted = false);
 
   Future<void> pumpScreen(WidgetTester tester, ArticlesScreen screen) async {
+    // ArticlesScreen is the shell's tab body (no own Scaffold) — wrap it.
     await tester.pumpWidget(MaterialApp(
       theme: buildEnclavdTheme(),
-      home: screen,
+      home: Scaffold(body: screen),
     ));
     await tester.pump(); // list() resolves
     await tester.pump();
@@ -132,7 +133,7 @@ void main() {
     final auth = _FakeArticles()..gate = Completer<void>();
     await tester.pumpWidget(MaterialApp(
       theme: buildEnclavdTheme(),
-      home: ArticlesScreen(articles: auth),
+      home: Scaffold(body: ArticlesScreen(articles: auth)),
     ));
     await tester.pump();
 

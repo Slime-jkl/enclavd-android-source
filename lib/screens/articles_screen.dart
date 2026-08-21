@@ -15,7 +15,7 @@ import '../widgets/pinned_badge.dart';
 import '../widgets/shimmer.dart';
 import 'article_detail_screen.dart';
 
-/// The native Updates screen — the site's /articles (articles.php) as a
+/// The native Updates tab — the site's /articles (articles.php) as a
 /// modern app: pinned articles in their own section (site: the pinned grid
 /// first), then the regular list. Site parity:
 ///  - cards carry the cover, title, author avatar + username, published
@@ -24,6 +24,11 @@ import 'article_detail_screen.dart';
 ///  - tap → the native ArticleDetailScreen (the site's /article/<slug>).
 /// Modern-app look: rounded card rows with gaps instead of full-width
 /// dividers, shimmer skeletons on first load, pull-to-refresh.
+///
+/// This widget is the FEED SHELL's Updates tab body (no Scaffold/AppBar of
+/// its own — the shell supplies the shared header and bottom nav); it is
+/// built lazily on first tab visit so its load advances the new-articles
+/// baseline exactly when the user sees the tab.
 class ArticlesScreen extends StatefulWidget {
   const ArticlesScreen({
     super.key,
@@ -108,10 +113,9 @@ class _ArticlesScreenState extends State<ArticlesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Updates')),
-      body: SafeArea(child: _buildBody()),
-    );
+    // The feed shell hosts this as its Updates tab body — the shared
+    // header and bottom nav come from the shell, so no Scaffold here.
+    return _buildBody();
   }
 
   Widget _buildBody() {

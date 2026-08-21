@@ -71,8 +71,15 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
 
   // New-articles dot on the Updates bottom-nav tab: true while the newest
   // article id is ahead of the id stored at the last visit (launch check
-  // + resume; cleared when the Updates screen shows its list).
+  // + resume; cleared when the Updates tab is opened).
   bool _hasNewArticles = false;
+
+  // The shell hosts two main tabs in place — feed (0) and articles (1) —
+  // under the SAME header + bottom nav (the site's header persists across
+  // pages). The articles body builds lazily on first tab visit so its load
+  // advances the seen-id baseline exactly when the user SEES the tab.
+  int _navIndex = 0;
+  bool _articlesTabBuilt = false;
 
   @override
   void initState() {
@@ -260,21 +267,6 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
       ),
     );
     if (mounted) _loadUnread();
-  }
-
-  /// Opens the Updates screen (site: the /articles bottom-nav link) — the
-  /// native articles list instead of the browser tab. On return the dot
-  /// clears: the screen itself advanced the stored seen-id when its list
-  /// loaded (a failed load leaves the dot armed for the next launch).
-  Future<void> _openArticles() async {
-    final services = _services;
-    if (services == null) return;
-    await Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => ArticlesScreen(articles: services.articles),
-    ));
-    if (mounted && _hasNewArticles) {
-      setState(() => _hasNewArticles = false);
-    }
   }
 
   /// New-articles check (site-inspired "what's new" affordance): compare the
@@ -717,18 +709,34 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
       endDrawer: _services == null
           ? null
           : UserMenuDrawer(auth: _services!.auth, onSignOut: _logout),
-      body: RefreshIndicator(
-        onRefresh: _refresh,
-        color: EnclavdColors.link,
-        child: _buildBody(),
+      // Both main tabs live in the shell: the feed and the articles list
+      // switch in place, keeping their scroll positions; the header, the
+      // user-menu drawer and the bottom nav stay common.
+      body: IndexedStack(
+        index: _navIndex,
+        children: [
+          RefreshIndicator(
+            onRefresh: _refresh,
+            color: EnclavdColors.link,
+            child: _buildBody(),
+          ),
+          if (_articlesTabBuilt && _services != null)
+            ArticlesScreen(articles: _services!.articles)
+          else
+            const SizedBox.shrink(),
+        ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _openComposer,
-        backgroundColor: EnclavdColors.primaryButton,
-        foregroundColor: Colors.white,
-        tooltip: 'Create post',
-        child: const FaIcon(FontAwesomeIcons.pen, size: 20),
-      ),
+      // The composer FAB is feed-only (the site's New Post button lives on
+      // the feed page).
+      floatingActionButton: _navIndex == 0
+          ? FloatingActionButton(
+              onPressed: _openComposer,
+              backgroundColor: EnclavdColors.primaryButton,
+              foregroundColor: Colors.white,
+              tooltip: 'Create post',
+              child: const FaIcon(FontAwesomeIcons.pen, size: 20),
+            )
+          : null,
       // Main navigation like the site's bottom bar: Home/Updates/Domains.
       // Matches the header's tone: background (gray-950) with the M3
       // surface tint and shadow killed — otherwise Material 3 washes the
@@ -738,15 +746,25 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         indicatorColor: EnclavdColors.primaryButton.withValues(alpha: 0.35),
-        selectedIndex: 0, // the feed is the app's home — always selected
+        selectedIndex: _navIndex,
         onDestinationSelected: (index) {
           if (index == 0) {
-            // Feed tab = jump to the top and refresh (the site's header
-            // logo does the same: scroll to the feed's start + re-poll).
+            // Feed tab = the app's home: switch back (if on Updates) and
+            // jump to the top + refresh (the site's header logo does the
+            // same — home + re-poll).
+            if (_navIndex != 0) {
+              setState(() => _navIndex = 0);
+            }
             _jumpToTopAndRefresh();
           } else if (index == 1) {
-            // Updates = the native articles screen (the site's /articles).
-            _openArticles();
+            // Updates = the native articles tab (the site's /articles).
+            // First visit builds the body — its load advances the seen-id
+            // baseline — and the red dot clears here: the user has arrived.
+            setState(() {
+              _navIndex = 1;
+              _articlesTabBuilt = true;
+              _hasNewArticles = false;
+            });
           } else if (index == 2) {
             _openSite('/domain');
           }
