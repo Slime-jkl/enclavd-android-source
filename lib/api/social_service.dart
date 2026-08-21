@@ -160,11 +160,14 @@ class SocialService {
     ];
   }
 
-  /// Fetches the comment list for a post (newest first — server sorts
-  /// created_at DESC).
-  Future<List<Comment>> listComments(int postId) async {
-    final json =
-        await _api.getJson('/api/v1/comments', query: {'post_id': '$postId'});
+  /// Fetches the comment list for a post. Newest first by default (the
+  /// feed's inline comments); pass [asc] true for forum reading order
+  /// (oldest first — the site's domain thread replies).
+  Future<List<Comment>> listComments(int postId, {bool asc = false}) async {
+    final json = await _api.getJson('/api/v1/comments', query: {
+      'post_id': '$postId',
+      if (asc) 'order': 'asc',
+    });
     final raw = json['comments'] as List<dynamic>? ?? const [];
     return [
       for (final c in raw)

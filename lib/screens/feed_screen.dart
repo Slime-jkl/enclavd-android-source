@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../api/api_client.dart';
 import '../api/articles_service.dart';
@@ -22,6 +21,7 @@ import '../widgets/shimmer.dart';
 import '../widgets/user_menu_drawer.dart';
 import 'compose_screen.dart';
 import 'articles_screen.dart';
+import 'domains_screen.dart';
 import 'login_screen.dart';
 import 'messages_screen.dart';
 import 'notifications_screen.dart';
@@ -74,12 +74,13 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   // + resume; cleared when the Updates tab is opened).
   bool _hasNewArticles = false;
 
-  // The shell hosts two main tabs in place — feed (0) and articles (1) —
-  // under the SAME header + bottom nav (the site's header persists across
-  // pages). The articles body builds lazily on first tab visit so its load
-  // advances the seen-id baseline exactly when the user SEES the tab.
+  // The shell hosts three main tabs in place — feed (0), articles (1) and
+  // domains (2) — under the SAME header + bottom nav (the site's header
+  // persists across pages). The articles/domains bodies build lazily on
+  // first tab visit so their loads only happen when the user SEES the tab.
   int _navIndex = 0;
   bool _articlesTabBuilt = false;
+  bool _domainsTabBuilt = false;
 
   @override
   void initState() {
@@ -533,13 +534,6 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
         .pushNamedAndRemoveUntil(LoginScreen.routeName, (_) => false);
   }
 
-  void _openSite(String path) {
-    launchUrl(
-      Uri.parse('${AppConfig.apiBaseUrl}$path'),
-      mode: LaunchMode.externalApplication,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final me = _me;
@@ -724,6 +718,10 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
             ArticlesScreen(articles: _services!.articles)
           else
             const SizedBox.shrink(),
+          if (_domainsTabBuilt && _services != null)
+            DomainsScreen(domains: _services!.domains)
+          else
+            const SizedBox.shrink(),
         ],
       ),
       // The composer FAB is feed-only (the site's New Post button lives on
@@ -766,7 +764,12 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
               _hasNewArticles = false;
             });
           } else if (index == 2) {
-            _openSite('/domain');
+            // Domains = the native forum tab (the site's /domain). Built
+            // lazily on first visit like the Updates tab.
+            setState(() {
+              _navIndex = 2;
+              _domainsTabBuilt = true;
+            });
           }
         },
         destinations: [

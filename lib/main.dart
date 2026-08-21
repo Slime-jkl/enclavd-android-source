@@ -7,6 +7,7 @@ import 'package:workmanager/workmanager.dart';
 import 'api/api_client.dart';
 import 'api/articles_service.dart';
 import 'api/auth_service.dart';
+import 'api/domains_service.dart';
 import 'api/feed_service.dart';
 import 'api/messages_service.dart';
 import 'api/notifications_service.dart';
@@ -51,7 +52,7 @@ class AppServices {
   AppServices._(
       this.apiClient, this.auth, this.feed, this.social, this.profile,
       this.posts, this.messages, this.notifications, this.search,
-      this.realtime, this.messageAlerts, this.articles);
+      this.realtime, this.messageAlerts, this.articles, this.domains);
 
   final ApiClient apiClient;
   final AuthService auth;
@@ -65,6 +66,7 @@ class AppServices {
   final RealtimeService realtime;
   final MessageNotifications messageAlerts;
   final ArticlesService articles;
+  final DomainsService domains;
 
   /// The most recently created container — the one the app is actively
   /// using. The notification singleton's fetch closure must resolve
@@ -140,7 +142,8 @@ class AppServices {
         SearchService(api),
         RealtimeService(api),
         notifications,
-        ArticlesService(api));
+        ArticlesService(api),
+        DomainsService(api));
     current = services;
     return services;
   }

@@ -43,6 +43,7 @@ class PostCard extends StatefulWidget {
     required this.social,
     this.onEditPost,
     this.onDeletePost,
+    this.hideInlineComments = false,
   });
 
   final Post post;
@@ -54,6 +55,11 @@ class PostCard extends StatefulWidget {
   /// port of the site's post_menu.php.
   final void Function(Post post)? onEditPost;
   final void Function(Post post)? onDeletePost;
+
+  /// Forum-thread mode: the card's own inline comments section is
+  /// suppressed (the thread screen renders the replies itself, oldest
+  /// first, below the OP). Tapping the comment count is a no-op here.
+  final bool hideInlineComments;
 
   @override
   State<PostCard> createState() => _PostCardState();
@@ -187,6 +193,9 @@ class _PostCardState extends State<PostCard> {
   }
 
   Future<void> _openComments() async {
+    // Forum-thread mode: the replies live below the OP (oldest first) —
+    // the card's inline section is suppressed entirely.
+    if (widget.hideInlineComments) return;
     if (_commentsOpen) {
       setState(() => _commentsOpen = false);
       return;
