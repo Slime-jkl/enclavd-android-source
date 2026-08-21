@@ -73,6 +73,40 @@ void main() {
     expect(find.text('Judging - Perceiving'), findsOneWidget);
   });
 
+  testWidgets('trait bars use the website colors for all 8 traits',
+      (tester) async {
+    // Regression: bars once rendered all gray (track showing through).
+    // results.php: I/E blue+red, S/N green+purple, T/F yellow+pink,
+    // J/P orange+indigo.
+    await tester.pumpWidget(MaterialApp(
+      theme: buildEnclavdTheme(),
+      home: TestResultsScreen(results: _FakeResults(results: _sample)),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    Set<Color> barColors() => tester
+        .widgetList<ColoredBox>(find.byType(ColoredBox))
+        .map((b) => b.color)
+        .toSet();
+
+    expect(barColors().contains(const Color(0xFF3B82F6)), isTrue); // blue
+    expect(barColors().contains(const Color(0xFFEF4444)), isTrue); // red
+
+    // Reveal the lower bars one by one (ListView builds lazily).
+    for (final expected in [
+      {const Color(0xFF22C55E), const Color(0xFFA855F7)}, // green, purple
+      {const Color(0xFFEAB308), const Color(0xFFEC4899)}, // yellow, pink
+      {const Color(0xFFF97316), const Color(0xFF6366F1)}, // orange, indigo
+    ]) {
+      await tester.drag(find.byType(ListView), const Offset(0, -600));
+      await tester.pump();
+      final found = barColors();
+      expect(found.containsAll(expected), isTrue,
+          reason: 'expected $expected among $found');
+    }
+  });
+
   testWidgets('404 shows the take-the-test empty state', (tester) async {
     await tester.pumpWidget(MaterialApp(
       theme: buildEnclavdTheme(),
