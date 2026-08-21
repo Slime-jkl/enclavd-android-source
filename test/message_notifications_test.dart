@@ -47,6 +47,18 @@ class FakeNotifier implements LocalNotifier {
     lastBody = message;
     lastConversationId = conversationId;
   }
+
+  @override
+  Future<void> showSocialNotification({
+    required int notificationId,
+    required String title,
+    required String body,
+  }) async {
+    shown++;
+    lastNotificationId = notificationId;
+    lastSender = title;
+    lastBody = body;
+  }
 }
 
 class FakeMessages extends MessagesService {

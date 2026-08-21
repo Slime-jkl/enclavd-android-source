@@ -243,15 +243,30 @@ abstract class LocalNotifier {
     required String message,
     required int conversationId,
   });
+
+  /// Social alert (likes/comments/mentions) — the plain notifications
+  /// channel, no reply action (you can't reply to a like from the drawer).
+  Future<void> showSocialNotification({
+    required int notificationId,
+    required String title,
+    required String body,
+  });
 }
 
-/// Channel + drawer-reply action, ONE source of truth shared by the live
-/// notifier and the background worker isolate (each owns its own plugin
-/// instance) so the two paths never drift.
+/// Channel + drawer-reply action for MESSAGES, ONE source of truth shared
+/// by the live notifier and the background worker isolate (each owns its
+/// own plugin instance) so the two paths never drift.
 const _channelId = 'messages';
 const _channelName = 'Messages';
 const _channelDescription = 'New message notifications';
 const _icon = 'ic_stat_enclavd';
+
+/// Channel for SOCIAL notifications (likes/comments/mentions) — plain,
+/// no actions. Its own channel so users can silence alerts independently
+/// of messages in the OS notification settings.
+const _socialChannelId = 'notifications';
+const _socialChannelName = 'Notifications';
+const _socialChannelDescription = 'Likes, comments and mentions';
 
 /// Renders one message notification through the given plugin instance.
 /// Isolate-agnostic — the worker's freshly-initialized plugin included.
@@ -304,6 +319,31 @@ Future<void> showMessageNotificationWith(
     body: message,
     notificationDetails: NotificationDetails(android: details),
     payload: 'c:$conversationId',
+  );
+}
+
+/// Renders one SOCIAL notification (like/comment/mention alert) through
+/// the given plugin instance. Isolate-agnostic — the worker's
+/// freshly-initialized plugin included. No MessagingStyle and no actions:
+/// an alert is not a conversation and you can't reply to a like.
+Future<void> showSocialNotificationWith(
+  FlutterLocalNotificationsPlugin plugin, {
+  required int notificationId,
+  required String title,
+  required String body,
+}) async {
+  const details = AndroidNotificationDetails(
+    _socialChannelId,
+    _socialChannelName,
+    channelDescription: _socialChannelDescription,
+    importance: Importance.high,
+    priority: Priority.high,
+  );
+  await plugin.show(
+    id: notificationId,
+    title: title,
+    body: body,
+    notificationDetails: const NotificationDetails(android: details),
   );
 }
 
@@ -366,5 +406,18 @@ class FlutterLocalNotifier implements LocalNotifier {
         senderName: senderName,
         message: message,
         conversationId: conversationId,
+      );
+
+  @override
+  Future<void> showSocialNotification({
+    required int notificationId,
+    required String title,
+    required String body,
+  }) =>
+      showSocialNotificationWith(
+        _plugin,
+        notificationId: notificationId,
+        title: title,
+        body: body,
       );
 }

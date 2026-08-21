@@ -7,6 +7,7 @@ import '../api/api_client.dart';
 import 'message_notification_source.dart';
 import 'message_notifications.dart';
 import 'notification_source.dart';
+import 'social_notification_source.dart';
 
 /// Background notification polling via WorkManager — the ONLY native
 /// cover for the states the live SSE/WS path cannot reach: app swiped
@@ -32,6 +33,7 @@ const Duration pollInterval = Duration(minutes: 15); // Android's hard minimum
 /// notification domains here — one line each.
 List<NotificationSource> backgroundSources() => [
       MessageNotificationSource(),
+      SocialNotificationSource(),
     ];
 
 /// Schedules the periodic poller. Idempotent: the unique name + update
@@ -92,16 +94,26 @@ Future<void> runBackgroundSources(List<NotificationSource> sources) async {
   final fresh = await freshCandidates(sources, context, tracker: tracker);
   debugPrint('worker: ${fresh.length} fresh candidate(s)');
   for (final candidate in fresh) {
-    final conversationId =
-        MessageNotifications.conversationIdFromPayload(candidate.payload);
     debugPrint('worker: showing ${candidate.key}');
-    await showMessageNotificationWith(
-      plugin,
-      notificationId: candidate.notificationId,
-      senderName: candidate.title,
-      message: candidate.body,
-      conversationId: conversationId ?? 0,
-    );
+    switch (candidate.kind) {
+      case CandidateKind.message:
+        final conversationId =
+            MessageNotifications.conversationIdFromPayload(candidate.payload);
+        await showMessageNotificationWith(
+          plugin,
+          notificationId: candidate.notificationId,
+          senderName: candidate.title,
+          message: candidate.body,
+          conversationId: conversationId ?? 0,
+        );
+      case CandidateKind.social:
+        await showSocialNotificationWith(
+          plugin,
+          notificationId: candidate.notificationId,
+          title: candidate.title,
+          body: candidate.body,
+        );
+    }
     await tracker.add(candidate.key); // only after a successful show
   }
 }

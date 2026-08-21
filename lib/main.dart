@@ -8,6 +8,7 @@ import 'api/api_client.dart';
 import 'api/auth_service.dart';
 import 'api/feed_service.dart';
 import 'api/messages_service.dart';
+import 'api/notifications_service.dart';
 import 'api/posts_service.dart';
 import 'api/profile_service.dart';
 import 'api/social_service.dart';
@@ -20,6 +21,7 @@ import 'services/message_notification_source.dart';
 import 'services/message_notifications.dart';
 import 'services/notification_worker.dart';
 import 'services/realtime_service.dart';
+import 'services/social_notifications.dart';
 import 'theme/enclavd_theme.dart';
 
 /// Enclavd — native app (Flutter).
@@ -45,7 +47,8 @@ void main() {
 class AppServices {
   AppServices._(
       this.apiClient, this.auth, this.feed, this.social, this.profile,
-      this.posts, this.messages, this.realtime, this.notifications);
+      this.posts, this.messages, this.notifications, this.realtime,
+      this.messageAlerts);
 
   final ApiClient apiClient;
   final AuthService auth;
@@ -54,8 +57,9 @@ class AppServices {
   final ProfileService profile;
   final PostsService posts;
   final MessagesService messages;
+  final NotificationsService notifications;
   final RealtimeService realtime;
-  final MessageNotifications notifications;
+  final MessageNotifications messageAlerts;
 
   /// The most recently created container — the one the app is actively
   /// using. The notification singleton's fetch closure must resolve
@@ -77,15 +81,19 @@ class AppServices {
     final api = ApiClient(store: store);
     await api.restoreSession();
     final auth = AuthService(api, apiBaseUrl: AppConfig.apiBaseUrl);
+    // One plugin-backed notifier for the whole app: MessageNotifications
+    // and SocialNotifications SHARE it, so the plugin initializes exactly
+    // once and both paths show through the same channel definitions.
+    final notifier = FlutterLocalNotifier(
+      onResponse: (r) => MessageNotifications.instance?.handleResponse(r),
+    );
     // One MessageNotifications for the app's lifetime: first create wins,
     // later ones reuse it so the plugin initializes once and the
     // messages-open count stays consistent across screen instances.
     var notifications = MessageNotifications.instance;
     if (notifications == null) {
       notifications = MessageNotifications(
-        notifier: FlutterLocalNotifier(
-          onResponse: (r) => MessageNotifications.instance?.handleResponse(r),
-        ),
+        notifier: notifier,
         // Late-bound: resolve the CURRENT container at ping time. A
         // closure capturing `api` here would freeze the FIRST container's
         // client — the pre-login one with an empty jar on cold starts —
@@ -99,6 +107,20 @@ class AppServices {
       MessageNotifications.instance = notifications;
       unawaited(notifications.init());
     }
+    // Same singleton pattern for the social path (likes/comments/mentions
+    // device alerts): first create wins, shared notifier, late-bound
+    // factory resolving the current container.
+    var social = SocialNotifications.instance;
+    if (social == null) {
+      social = SocialNotifications(
+        notifier: notifier,
+        notificationsFactory: () async => NotificationsService(
+          current?.apiClient ?? api,
+        ),
+      );
+      SocialNotifications.instance = social;
+      unawaited(social.init());
+    }
     final services = AppServices._(
         api,
         auth,
@@ -107,6 +129,7 @@ class AppServices {
         ProfileService(api),
         PostsService(api),
         MessagesService(api),
+        NotificationsService(api),
         RealtimeService(api),
         notifications);
     current = services;

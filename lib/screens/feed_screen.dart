@@ -11,6 +11,7 @@ import '../config/app_config.dart';
 import '../main.dart';
 import '../services/message_notifications.dart';
 import '../services/realtime_service.dart';
+import '../services/social_notifications.dart';
 import '../services/sound_service.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/enclavd_avatar.dart';
@@ -20,6 +21,7 @@ import '../widgets/user_menu_drawer.dart';
 import 'compose_screen.dart';
 import 'login_screen.dart';
 import 'messages_screen.dart';
+import 'notifications_screen.dart';
 
 /// Feed screen — the ranked feed via GET /api/v1/posts.
 ///
@@ -52,6 +54,9 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   // Unread messages badge (site header: paper-plane icon + red count).
   int _unreadMessages = 0;
   Timer? _unreadTimer;
+
+  // Unread NOTIFICATIONS badge (site header: bell icon + red count).
+  int _notifUnread = 0;
   StreamSubscription<RealtimeEvent>? _realtimeSub;
 
   @override
@@ -68,8 +73,9 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     _loadMe();
     _loadFirst();
     _loadUnread();
-    // The site's header badge is SSE-driven with a 30s poll fallback —
-    // the app runs the same pairing: SSE events update it instantly,
+    _loadNotifUnread();
+    // The site's header badges are SSE-driven with a 30s poll fallback —
+    // the app runs the same pairing: SSE events update them instantly,
     // the poll covers a dead stream. Site parity on the gating too:
     // while the SSE stream is live the poll does NOT run (the site's
     // `if (EnclavdRealtime.connected) return;`) — event-driven only.
@@ -77,6 +83,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
         Timer.periodic(const Duration(seconds: 30), (_) {
       if (_services?.realtime.isSseConnected ?? false) return;
       _loadUnread();
+      _loadNotifUnread();
     });
     final realtime = _services!.realtime;
     _realtimeSub = realtime.events.listen((event) {
@@ -89,6 +96,16 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
             mounted &&
             event.unreadCount != _unreadMessages) {
           setState(() => _unreadMessages = event.unreadCount!);
+        }
+      } else if (event.type == 'notification') {
+        // Badge ping = a like/comment/mention somewhere: surface it as a
+        // device notification AND refresh the open drawer (the drawer's
+        // own listener handles the latter; this path is for the badge).
+        SocialNotifications.instance?.handleNotificationPing();
+        if (event.unreadCount != null &&
+            mounted &&
+            event.unreadCount != _notifUnread) {
+          setState(() => _notifUnread = event.unreadCount!);
         }
       }
     });
@@ -148,6 +165,23 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// Header NOTIFICATIONS badge count + live-path check, mirroring
+  /// [_loadUnread] exactly (SSE is the instant trigger, this poll is the
+  /// dead-stream fallback; the shared dedupe prevents double-notifies).
+  Future<void> _loadNotifUnread() async {
+    final services = _services;
+    if (services == null) return;
+    try {
+      final count = await services.notifications.unreadCount();
+      if (mounted && count != _notifUnread) {
+        setState(() => _notifUnread = count);
+      }
+      SocialNotifications.instance?.handleNotificationPing();
+    } catch (_) {
+      // Non-fatal: the badge keeps its last known value.
+    }
+  }
+
   /// Opens the inbox (site: paper-plane header link). Refresh the badge
   /// on return — the thread marked things read while we were away.
   Future<void> _openMessages() async {
@@ -164,6 +198,22 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
       ),
     );
     if (mounted) _loadUnread();
+  }
+
+  /// Opens the notification drawer (site: bell header link). The drawer
+  /// marks everything read on open; refresh the badge on return.
+  Future<void> _openNotifications() async {
+    final services = _services;
+    if (services == null) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => NotificationsScreen(
+          notifications: services.notifications,
+          realtime: services.realtime,
+        ),
+      ),
+    );
+    if (mounted) _loadNotifUnread();
   }
 
   Future<void> _loadFirst() async {
@@ -392,6 +442,44 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
         titleSpacing: 16,
         title: Image.asset('assets/images/enclavd-logo-white.png', height: 22),
         actions: [
+          // Site header: the bell notifications link (red unread badge,
+          // 99+ capped) sits left of the paper-plane.
+          if (AppConfig.enableNotifications) ...[
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                IconButton(
+                  icon: const FaIcon(FontAwesomeIcons.bell,
+                      size: 22, color: EnclavdColors.textSecondary),
+                  tooltip: 'Notifications',
+                  onPressed: _openNotifications,
+                ),
+                if (_notifUnread > 0)
+                  Positioned(
+                    top: 2,
+                    right: 2,
+                    child: Container(
+                      height: 16, // h-4 w-4
+                      constraints: const BoxConstraints(minWidth: 16),
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFEF4444), // bg-red-500
+                        borderRadius: BorderRadius.all(Radius.circular(999)),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        _notifUnread > 99 ? '99+' : '$_notifUnread',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10, // text-[11px] at h-4
+                          height: 1,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
           // Site header: the paper-plane messages link (red unread badge,
           // 99+ capped) sits before the user menu trigger.
           if (AppConfig.enableChat) ...[

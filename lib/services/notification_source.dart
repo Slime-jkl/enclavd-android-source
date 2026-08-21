@@ -28,6 +28,12 @@ abstract class NotificationSource {
   Future<List<NotificationCandidate>> check(SourceContext context);
 }
 
+/// Which renderer a candidate needs. The worker runner branches on this —
+/// message candidates get the conversation channel + drawer-reply action,
+/// social candidates the plain notifications channel (no reply — you can't
+/// reply to a like from the drawer).
+enum CandidateKind { message, social }
+
 /// What a source hands the runner: everything needed to show one
 /// notification. The dedupe identity is [key], NOT the notification id —
 /// a conversation's notification id stays fixed so Android replaces the
@@ -39,9 +45,10 @@ class NotificationCandidate {
     required this.title,
     required this.body,
     this.payload,
+    this.kind = CandidateKind.message,
   });
 
-  /// Dedupe identity, e.g. 'message:5:102' or (later) 'post:comment:12'.
+  /// Dedupe identity, e.g. 'message:5:102' or 'post:post-like:12:88'.
   final String key;
 
   /// Android notification id — stable per grouping (per conversation),
@@ -53,6 +60,9 @@ class NotificationCandidate {
 
   /// App payload on tap/action (e.g. 'c:5' for a drawer reply).
   final String? payload;
+
+  /// Which channel/renderer this candidate is shown through.
+  final CandidateKind kind;
 }
 
 /// The context every source gets: a session-bearing client (built fresh

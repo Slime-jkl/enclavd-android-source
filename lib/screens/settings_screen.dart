@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../config/app_config.dart';
 import '../services/message_notifications.dart';
+import '../services/social_notifications.dart';
 import '../services/sound_service.dart';
 import '../theme/enclavd_theme.dart';
 
@@ -26,9 +27,11 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   static const _prefsKey = 'sounds_enabled';
   static const _notifPrefsKey = MessageNotifications.enabledPrefsKey;
+  static const _socialNotifPrefsKey = SocialNotifications.enabledPrefsKey;
 
   bool? _soundsEnabled; // null until loaded
   bool? _notificationsEnabled; // null until loaded
+  bool? _socialNotificationsEnabled; // null until loaded
   bool? _osBlocked; // null until checked; true = OS denies notifications
 
   @override
@@ -42,10 +45,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final enabled = prefs.getBool(_prefsKey) ?? true;
     SoundService.muted = !enabled;
     final notifications = prefs.getBool(_notifPrefsKey) ?? true;
+    final social = prefs.getBool(_socialNotifPrefsKey) ?? true;
     if (!mounted) return;
     setState(() {
       _soundsEnabled = enabled;
       _notificationsEnabled = notifications;
+      _socialNotificationsEnabled = social;
     });
     await _refreshOsBlocked();
   }
@@ -81,6 +86,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // The re-request may have been denied again — re-check the OS state
     // so the warning (if any) reflects reality immediately.
     await _refreshOsBlocked();
+  }
+
+  Future<void> _toggleSocialNotifications(bool enabled) async {
+    setState(() => _socialNotificationsEnabled = enabled);
+    await SocialNotifications.instance?.setEnabled(enabled);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_socialNotifPrefsKey, enabled);
   }
 
   Future<void> _openSite(String path) async {
@@ -158,12 +170,41 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       value: notifications,
                       onChanged: _toggleNotifications,
                       activeTrackColor: EnclavdColors.primaryButton,
-                      secondary: const FaIcon(FontAwesomeIcons.bell,
+                      secondary: const FaIcon(FontAwesomeIcons.paperPlane,
                           color: EnclavdColors.link, size: 18),
                       title: const Text('Message notifications'),
                       subtitle: const Text(
                           'Device notifications with quick reply when '
                           'someone messages you'),
+                    ),
+            ),
+            const SizedBox(height: 10),
+            Material(
+              color: EnclavdColors.card,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: EnclavdColors.border),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: _socialNotificationsEnabled == null
+                  ? const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Center(
+                          child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2))),
+                    )
+                  : SwitchListTile(
+                      value: _socialNotificationsEnabled!,
+                      onChanged: _toggleSocialNotifications,
+                      activeTrackColor: EnclavdColors.primaryButton,
+                      secondary: const FaIcon(FontAwesomeIcons.bell,
+                          color: EnclavdColors.link, size: 18),
+                      title: const Text('Notification alerts'),
+                      subtitle: const Text(
+                          'Likes, comments and mentions, like on the website'),
                     ),
             ),
             // OS-level denial (Android 13+): the toggle can be ON while

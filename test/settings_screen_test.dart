@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:enclavd/screens/settings_screen.dart';
 import 'package:enclavd/services/message_notifications.dart';
+import 'package:enclavd/services/social_notifications.dart';
 import 'package:enclavd/services/sound_service.dart';
 import 'package:enclavd/theme/enclavd_theme.dart';
 
@@ -34,6 +35,13 @@ class _SettingsFakeNotifier implements LocalNotifier {
     required String message,
     required int conversationId,
   }) async {}
+
+  @override
+  Future<void> showSocialNotification({
+    required int notificationId,
+    required String title,
+    required String body,
+  }) async {}
 }
 
 MessageNotifications _withNotifier(_SettingsFakeNotifier notifier) =>
@@ -63,8 +71,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(SoundService.muted, isFalse, reason: 'sounds default ON');
-    expect(find.byType(SwitchListTile), findsNWidgets(2),
-        reason: 'sounds + message notifications');
+    expect(find.byType(SwitchListTile), findsNWidgets(3),
+        reason: 'sounds + message notifications + notification alerts');
 
     // Turn sounds off.
     await tester.tap(find.widgetWithText(SwitchListTile, 'Sound effects'));
@@ -117,6 +125,45 @@ void main() {
         tester
             .widget<SwitchListTile>(
                 find.widgetWithText(SwitchListTile, 'Message notifications'))
+            .value,
+        isFalse,
+        reason: 'restored from prefs');
+  });
+
+  testWidgets('notification alerts toggle persists and defaults ON',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    await tester.pumpWidget(MaterialApp(
+      theme: buildEnclavdTheme(),
+      home: const SettingsScreen(),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(
+        tester
+            .widget<SwitchListTile>(
+                find.widgetWithText(SwitchListTile, 'Notification alerts'))
+            .value,
+        isTrue,
+        reason: 'alerts default ON');
+
+    // Turn them off.
+    await tester
+        .tap(find.widgetWithText(SwitchListTile, 'Notification alerts'));
+    await tester.pumpAndSettle();
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool(SocialNotifications.enabledPrefsKey), isFalse);
+
+    // Fresh screen load restores the off state.
+    await tester.pumpWidget(MaterialApp(
+      theme: buildEnclavdTheme(),
+      home: const SettingsScreen(),
+    ));
+    await tester.pumpAndSettle();
+    expect(
+        tester
+            .widget<SwitchListTile>(
+                find.widgetWithText(SwitchListTile, 'Notification alerts'))
             .value,
         isFalse,
         reason: 'restored from prefs');
