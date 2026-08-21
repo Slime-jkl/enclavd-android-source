@@ -4,16 +4,25 @@ import 'api_client.dart';
 class SiteConfig {
   const SiteConfig({
     required this.isInvitationRequired,
+    this.requireEmailVerification = false,
     required this.maintenance,
     required this.rateLimit,
   });
 
   final bool isInvitationRequired;
+
+  /// New accounts must confirm their email before they can log in
+  /// (site_config.php require_email_verification). The register flow
+  /// shows the verify-email screen after signup when this is true.
+  final bool requireEmailVerification;
+
   final MaintenanceConfig maintenance;
   final RateLimitConfig rateLimit;
 
   factory SiteConfig.fromJson(Map<String, dynamic> json) => SiteConfig(
         isInvitationRequired: json['isInvitationRequired'] as bool? ?? false,
+        requireEmailVerification:
+            json['requireEmailVerification'] as bool? ?? false,
         maintenance: MaintenanceConfig.fromJson(
             (json['maintenance'] as Map?)?.cast<String, dynamic>() ??
                 const {}),

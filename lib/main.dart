@@ -27,6 +27,7 @@ import 'screens/login_screen.dart';
 import 'screens/maintenance_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/splash_screen.dart';
+import 'screens/verify_email_screen.dart';
 import 'services/message_notification_source.dart';
 import 'services/message_notifications.dart';
 import 'services/notification_worker.dart';
@@ -184,6 +185,7 @@ class EnclavdApp extends StatelessWidget {
         FeedScreen.routeName: (_) => const FeedScreen(),
         BanScreen.routeName: (_) => const BanScreen(),
         MaintenanceScreen.routeName: (_) => const MaintenanceScreen(),
+        VerifyEmailScreen.routeName: (_) => const VerifyEmailScreen(),
       },
     );
   }
