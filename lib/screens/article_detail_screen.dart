@@ -11,9 +11,11 @@ import '../theme/enclavd_theme.dart';
 import '../utils/article_html.dart';
 import '../widgets/enclavd_avatar.dart';
 import '../widgets/enclavd_image.dart';
+import '../widgets/personality_chip.dart';
 import '../widgets/pinned_badge.dart';
 import '../widgets/rank_badge.dart';
 import '../widgets/shimmer.dart';
+import 'profile_screen.dart';
 
 /// The native article screen — the site's /article/<slug> (article.php) as
 /// a modern app. Site parity:
@@ -167,8 +169,11 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
       related: article.related,
       baseUrl: AppConfig.apiBaseUrl,
     );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    // The WHOLE page scrolls as one (user spec): hero, author row, tags
+    // and the article body — the WebView below is sized to its measured
+    // content height, so nothing scrolls internally.
+    return ListView(
+      padding: EdgeInsets.zero,
       children: [
         _ArticleHero(article: article),
         _AuthorRow(
@@ -179,10 +184,8 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
         ),
         if (article.tags.isNotEmpty) _TagChips(tags: article.tags),
         const Divider(height: 1, color: EnclavdColors.divider),
-        // The body scrolls inside the WebView (native chrome above stays
-        // put); related cards live at the end of the document and push
-        // native detail screens through the navigation delegate.
-        Expanded(child: _buildBodyView(html)),
+        _buildBodyView(html),
+        const SizedBox(height: 28),
       ],
     );
   }
@@ -248,22 +251,27 @@ class _ArticleHero extends StatelessWidget {
             fit: BoxFit.cover,
             errorAsset: 'assets/images/no-image.jpg',
           ),
-          // articleCoverFade: a bottom scrim so the title reads over any
-          // cover, light or dark.
+          // The cover fades into the PAGE color — a true fade confined to
+          // the bottom half (user spec): image 0-50% solid, 50-75% the
+          // page color reaches 50% opacity, 75%-bottom reaches 100%, so
+          // the image's bottom edge melts into the page and the title
+          // always sits on the (dark) page background.
           Positioned(
             left: 0,
             right: 0,
             bottom: 0,
-            height: 150,
+            height: 125, // the bottom HALF of the 250px hero
             child: IgnorePointer(
               child: Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
+                    stops: const [0, 0.5, 1],
                     colors: [
-                      Colors.transparent,
-                      Colors.black.withValues(alpha: 0.78),
+                      EnclavdColors.background.withValues(alpha: 0),
+                      EnclavdColors.background.withValues(alpha: 0.5),
+                      EnclavdColors.background,
                     ],
                   ),
                 ),
@@ -326,8 +334,10 @@ class _ArticleHero extends StatelessWidget {
   }
 }
 
-/// Author row: personality-ring avatar, rank-colored username + RankBadge +
-/// "Published on …", and the heart like button with its count.
+/// Author row: personality-ring avatar, then the identity block — rank
+/// ABOVE the username, the personality pill next to the (tappable)
+/// username, ONLY the published date below (user spec) — and the heart
+/// like button with its count on the right.
 class _AuthorRow extends StatelessWidget {
   const _AuthorRow({
     required this.article,
@@ -345,6 +355,7 @@ class _AuthorRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final a = article.summary;
     final rankColor = RankColors.forRank(a.rank);
+    final personality = PersonalityColors.forType(a.personalityType);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 8, 6),
       child: Row(
@@ -352,39 +363,58 @@ class _AuthorRow extends StatelessWidget {
           EnclavdAvatar(
             size: 42,
             url: a.avatarUrl(AppConfig.apiBaseUrl),
-            borderColor: PersonalityColors.forType(a.personalityType),
+            borderColor: personality,
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  a.authorUsername,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: rankColor,
+                // Rank badge above the username (site's rank + personality
+                // identity block, re-ordered per user spec).
+                RankBadge(rank: a.rank),
+                const SizedBox(height: 5),
+                // Username + personality pill; tapping the identity block
+                // opens the author's profile (the site links the author).
+                InkWell(
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => ProfileScreen(userId: a.authorId),
+                    ),
+                  ),
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 1),
+                    child: Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            a.authorUsername,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: rankColor,
+                            ),
+                          ),
+                        ),
+                        if (a.personalityType != null) ...[
+                          const SizedBox(width: 6),
+                          PersonalityChip(type: a.personalityType!),
+                        ],
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 4),
-                Row(
-                  children: [
-                    RankBadge(rank: a.rank),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Published on ${formatDateFull(a.publishedDate)}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 11,
-                            color: EnclavdColors.textSecondary),
-                      ),
-                    ),
-                  ],
+                // Below the username: ONLY the published date.
+                Text(
+                  'Published on ${formatDateFull(a.publishedDate)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 11, color: EnclavdColors.textSecondary),
                 ),
               ],
             ),
@@ -469,9 +499,19 @@ class _TagChips extends StatelessWidget {
   }
 }
 
-/// The article body: the built document in a WebView. Links to other
-/// articles open native detail screens; everything else http(s) opens the
-/// system browser; JavaScript stays disabled (the body is static HTML).
+/// The article body: the built document in a WebView sized to its CONTENT
+/// (auto-height) so the whole article page scrolls as one — the surrounding
+/// ListView never fights an internal scrollable. Links to other articles
+/// open native detail screens; every other http(s) link opens the system
+/// browser.
+///
+/// Height flow: the document's injected script posts `scrollHeight` to the
+/// 'EnclavdBridge' JS channel on load, on every image/font load and on a
+/// few delayed re-measures (fonts/images change the height after first
+/// paint); onPageFinished also polls it via runJavaScriptReturningResult
+/// as a belt-and-braces first measurement. JavaScript is enabled only for
+/// this measurement — the content is admin-authored, same trust as the
+/// site rendering it.
 class _ArticleBodyWebView extends StatefulWidget {
   const _ArticleBodyWebView({
     required this.html,
@@ -490,12 +530,44 @@ class _ArticleBodyWebView extends StatefulWidget {
 }
 
 class _ArticleBodyWebViewState extends State<_ArticleBodyWebView> {
+  /// Measured document height. While 0 (page still loading / first
+  /// measurement pending) a bounded spinner box shows, so the surrounding
+  /// list never jumps twice.
+  int _height = 0;
+
   late final WebViewController _controller = WebViewController()
-    ..setJavaScriptMode(JavaScriptMode.disabled)
-    ..setBackgroundColor(EnclavdColors.card)
-    ..setNavigationDelegate(
-        NavigationDelegate(onNavigationRequest: _onNavigationRequest))
+    ..setJavaScriptMode(JavaScriptMode.unrestricted)
+    ..setBackgroundColor(EnclavdColors.background)
+    ..addJavaScriptChannel('EnclavdBridge', onMessageReceived: _onMeasure)
+    ..setNavigationDelegate(NavigationDelegate(
+      onPageFinished: (_) => _measure(),
+      onNavigationRequest: _onNavigationRequest,
+    ))
     ..loadHtmlString(widget.html, baseUrl: widget.baseUrl);
+
+  void _onMeasure(JavaScriptMessage message) {
+    if (!mounted) return;
+    final h = int.tryParse(message.message.trim());
+    if (h == null || h <= 0 || h == _height) return;
+    setState(() => _height = h);
+  }
+
+  /// Belt-and-braces first measurement (the document script usually beats
+  /// this; runJavaScriptReturningResult may wrap numbers in quotes).
+  void _measure() {
+    _controller
+        .runJavaScriptReturningResult('document.documentElement.scrollHeight')
+        .then((value) {
+      var raw = '$value'.trim();
+      if (raw.length >= 2 &&
+          raw.startsWith('"') &&
+          raw.endsWith('"')) {
+        raw = raw.substring(1, raw.length - 1);
+      }
+      final h = int.tryParse(raw);
+      if (h != null && h > 0) _onMeasure(JavaScriptMessage(message: '$h'));
+    }).catchError((_) {});
+  }
 
   NavigationDecision _onNavigationRequest(NavigationRequest request) {
     final uri = Uri.parse(request.url);
@@ -514,7 +586,24 @@ class _ArticleBodyWebViewState extends State<_ArticleBodyWebView> {
 
   @override
   Widget build(BuildContext context) {
-    return WebViewWidget(controller: _controller);
+    if (_height <= 0) {
+      // Placeholder while the page + first measurement settle.
+      return const SizedBox(
+        height: 220,
+        child: Center(
+          child: SizedBox(
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 2.5),
+          ),
+        ),
+      );
+    }
+    return SizedBox(
+      height: _height.toDouble(),
+      width: double.infinity,
+      child: WebViewWidget(controller: _controller),
+    );
   }
 }
 

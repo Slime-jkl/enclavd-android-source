@@ -39,6 +39,8 @@ void main() {
     expect(html, contains('Continue Reading'));
     expect(html, contains("url('assets/fonts/Montserrat/"),
         reason: 'the site font is self-hosted under assets/fonts');
+    expect(html, contains('EnclavdBridge'),
+        reason: 'the auto-height measurement script ships with every doc');
   });
 
   test('omits the Continue Reading section when there is nothing related',

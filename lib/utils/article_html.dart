@@ -37,7 +37,7 @@ String buildArticleHtml({
     body {
       margin: 0;
       padding: 14px 16px 24px;
-      background: #111827;
+      background: #030712;
       color: #d1d5db;
       font-family: 'Montserrat', system-ui, -apple-system, sans-serif;
       font-size: 15px;
@@ -105,6 +105,24 @@ String buildArticleHtml({
 $contentHtml
 </div>
 $relatedHtml
+<script>
+  // Auto-height bridge: report the document height to the native WebView
+  // host (EnclavdBridge channel) on load, on every image/font load (a
+  // loaded asset changes the height after first paint) and on a few
+  // delayed re-measures so the page settles to its final size.
+  (function () {
+    function report() {
+      setTimeout(function () {
+        try {
+          EnclavdBridge.postMessage(String(document.documentElement.scrollHeight));
+        } catch (e) {}
+      }, 40);
+    }
+    document.addEventListener('load', report, true);
+    window.addEventListener('resize', report);
+    [250, 900, 2200].forEach(function (ms) { setTimeout(report, ms); });
+  })();
+</script>
 </body>
 </html>
 ''';

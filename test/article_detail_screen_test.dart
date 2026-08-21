@@ -4,6 +4,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:enclavd/api/api_client.dart';
 import 'package:enclavd/api/articles_service.dart';
 import 'package:enclavd/screens/article_detail_screen.dart';
+import 'package:enclavd/screens/profile_screen.dart';
 import 'package:enclavd/services/sound_service.dart';
 import 'package:enclavd/theme/enclavd_theme.dart';
 import 'package:enclavd/widgets/rank_badge.dart';
@@ -125,7 +126,10 @@ void main() {
     expect(find.text('Open Beta is Now Live'), findsWidgets,
         reason: 'hero + app bar');
     expect(find.text('Developer'), findsOneWidget);
-    expect(find.byType(RankBadge), findsOneWidget);
+    expect(find.byType(RankBadge), findsOneWidget,
+        reason: 'rank badge sits above the username');
+    expect(find.text('INTJ'), findsOneWidget,
+        reason: 'personality pill next to the username');
     expect(find.textContaining('Published on'), findsOneWidget);
     expect(find.text('beta'), findsOneWidget);
     expect(find.text('release'), findsOneWidget);
@@ -136,6 +140,20 @@ void main() {
     expect(html, contains('Older Post'));
     expect(html, contains("url('assets/fonts/Montserrat/"),
         reason: 'the site font is loaded for the body');
+    expect(html, contains('EnclavdBridge'),
+        reason: 'the auto-height measurement script ships with the doc');
+  });
+
+  testWidgets('tapping the author username opens the author profile',
+      (tester) async {
+    await pumpDetail(tester, _FakeArticles(article: _article()));
+
+    await tester.tap(find.text('Developer'));
+    // Bounded pumps, not pumpAndSettle: the profile shows shimmer/spinner
+    // (infinite animations), so settle never returns.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400)); // route push
+    expect(find.byType(ProfileScreen), findsOneWidget);
   });
 
   testWidgets('like heart reflects the payload and toggles optimistically',
