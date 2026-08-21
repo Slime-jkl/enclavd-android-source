@@ -5,6 +5,7 @@ import '../api/api_client.dart';
 import '../api/reports_service.dart';
 import '../main.dart';
 import '../theme/enclavd_theme.dart';
+import 'ticket_detail_screen.dart';
 
 /// The native Report an issue screen — a modern port of the site's
 /// reports.php USER view: the report form (issue type + description) and
@@ -116,6 +117,18 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  Future<void> _openTicket(ReportTicket ticket) {
+    // Pushed detail (the site's /reports/<id>): pass the injected
+    // service along so tests can drive it, else the real screen
+    // resolves AppServices.current itself.
+    return Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => TicketDetailScreen(
+        reports: widget.reports,
+        ticketId: ticket.id,
+      ),
+    ));
   }
 
   Future<void> _goToPage(int page) async {
@@ -302,7 +315,7 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
             if (page.open.isNotEmpty) ...[
               const _GroupHeader(dot: Color(0xFF4ADE80), label: 'Open & pending'),
               for (final t in page.open) ...[
-                _TicketRow(ticket: t),
+                _TicketRow(ticket: t, onTap: () => _openTicket(t)),
                 const SizedBox(height: 8),
               ],
               const SizedBox(height: 6),
@@ -310,7 +323,7 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
             if (page.closed.isNotEmpty) ...[
               const _GroupHeader(dot: EnclavdColors.textSecondary, label: 'Closed'),
               for (final t in page.closed) ...[
-                _TicketRow(ticket: t),
+                _TicketRow(ticket: t, onTap: () => _openTicket(t)),
                 const SizedBox(height: 8),
               ],
             ],
@@ -425,11 +438,13 @@ class _GroupHeader extends StatelessWidget {
 }
 
 /// One ticket row (reports.php's list item): #id · type · date, a
-/// two-line content clamp, and the status pill.
+/// two-line content clamp, and the status pill. Tapping opens the
+/// ticket detail (the site's /reports/<id>).
 class _TicketRow extends StatelessWidget {
-  const _TicketRow({required this.ticket});
+  const _TicketRow({required this.ticket, required this.onTap});
 
   final ReportTicket ticket;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -448,16 +463,20 @@ class _TicketRow extends StatelessWidget {
         ),
       _ => (EnclavdColors.link, FontAwesomeIcons.hourglassHalf),
     };
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: EnclavdColors.cardSecondary,
+    return Material(
+      color: EnclavdColors.cardSecondary,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: EnclavdColors.border),
+        side: const BorderSide(color: EnclavdColors.border),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -521,7 +540,9 @@ class _TicketRow extends StatelessWidget {
               ],
             ),
           ),
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }
