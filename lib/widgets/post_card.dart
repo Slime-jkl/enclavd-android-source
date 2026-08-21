@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../api/auth_service.dart';
 import '../api/feed_service.dart';
 import '../api/social_service.dart';
+import '../main.dart'; // AppServices.current (mention → profile resolution)
 import '../screens/hashtag_screen.dart';
 import '../screens/profile_screen.dart';
 import '../services/sound_service.dart';
@@ -1035,6 +1036,10 @@ class _CommentsSection extends StatelessWidget {
       children: [
         for (final comment in comments)
           _CommentRow(
+            // Key by comment id: the list mutates at the TOP (new comments
+            // prepend), so positional State reuse would attach one row's
+            // cached mention recognizers to a different comment.
+            key: ValueKey(comment.id),
             comment: comment,
             apiBaseUrl: apiBaseUrl,
             onDelete: onDelete,
@@ -1116,8 +1121,14 @@ Color rankColorFromCssClass(String cssClass) {
 
 /// One comment row: avatar, username (rank color), content, relative time,
 /// delete for own comments.
-class _CommentRow extends StatelessWidget {
+///
+/// Content renders the site's comment pipeline (render_comment_content):
+/// @mentions → link-blue profile links (the server validates mentions
+/// against the post's commenters, so every mention is a real user), URLs →
+/// link-blue → system browser. NO hashtags (site parity).
+class _CommentRow extends StatefulWidget {
   const _CommentRow({
+    super.key,
     required this.comment,
     required this.apiBaseUrl,
     required this.onDelete,
@@ -1126,6 +1137,66 @@ class _CommentRow extends StatelessWidget {
   final Comment comment;
   final String apiBaseUrl;
   final void Function(Comment) onDelete;
+
+  @override
+  State<_CommentRow> createState() => _CommentRowState();
+}
+
+class _CommentRowState extends State<_CommentRow> {
+  // Tap recognizers owned by this State — must be disposed (commentContent-
+  // Spans hands ownership to the caller; creating them in build() leaks).
+  final List<TapGestureRecognizer> _recognizers = [];
+  List<InlineSpan>? _cachedSpans;
+
+  @override
+  void dispose() {
+    for (final r in _recognizers) {
+      r.dispose();
+    }
+    super.dispose();
+  }
+
+  Comment get comment => widget.comment;
+
+  List<InlineSpan> _spans() {
+    final cached = _cachedSpans;
+    if (cached != null) return cached;
+    final spans = commentContentSpans(
+      comment.content,
+      onMention: (username) => _openMention(username),
+      onUrl: (url) => _openUrl(url),
+      recognizers: _recognizers,
+    );
+    _cachedSpans = spans;
+    return spans;
+  }
+
+  /// Mention tap → the mentioned member's profile. The server only allows
+  /// mentions of users who commented on the post, so the name always
+  /// resolves; a stale/deleted account is a silent no-op (the site renders
+  /// unknown mentions as plain text).
+  Future<void> _openMention(String username) async {
+    final services = AppServices.current ?? await AppServices.create();
+    if (!mounted) return;
+    try {
+      final profile = await services.profile.fetchProfileByUsername(username);
+      if (!mounted || profile.id <= 0) return;
+      _openProfile(context, profile.id);
+    } catch (_) {
+      // Unknown username — site parity (plain text), no error UI.
+    }
+  }
+
+  /// Link tap → the system browser, like the site's target="_blank".
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      // Defensive — never let a link open break the comments.
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1139,7 +1210,7 @@ class _CommentRow extends StatelessWidget {
             onTap: () => _openProfile(context, comment.userId),
             child: EnclavdAvatar(
               size: 28,
-              url: resolveMediaUrl(apiBaseUrl,
+              url: resolveMediaUrl(widget.apiBaseUrl,
                   avatarPath: comment.profilePictureUrl),
               borderColor: personality,
             ),
@@ -1174,7 +1245,7 @@ class _CommentRow extends StatelessWidget {
                     if (comment.isOwner) ...[
                       const SizedBox(width: 6),
                       GestureDetector(
-                        onTap: () => onDelete(comment),
+                        onTap: () => widget.onDelete(comment),
                         child: const FaIcon(FontAwesomeIcons.trashCan,
                             size: 14, color: EnclavdColors.textSecondary),
                       ),
@@ -1182,8 +1253,8 @@ class _CommentRow extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  comment.content,
+                Text.rich(
+                  TextSpan(children: _spans()),
                   style: const TextStyle(
                       color: EnclavdColors.textPrimary, fontSize: 14),
                 ),

@@ -140,4 +140,107 @@ void main() {
       expect(opened, 'https://enclavd.com/x');
     });
   });
+
+  group('tokenizeCommentContent (render_comment_content port)', () {
+    test('plain text is one plain token', () {
+      final tokens = tokenizeCommentContent('just some words');
+      expect(tokens, hasLength(1));
+      expect(tokens.single.kind, 'plain');
+    });
+
+    test('a mention tokenizes with its @', () {
+      final tokens = tokenizeCommentContent('hi @alice there');
+      expect(tokens.map((t) => '${t.kind}:${t.text}'), [
+        'plain:hi ',
+        'mention:@alice',
+        'plain: there',
+      ]);
+    });
+
+    test('multiple mentions, each its own token', () {
+      final tokens = tokenizeCommentContent('@a and @b_1');
+      expect(tokens.map((t) => '${t.kind}:${t.text}'), [
+        'mention:@a',
+        'plain: and ',
+        'mention:@b_1',
+      ]);
+    });
+
+    test('mention inside a word is NOT a mention (site lookbehind)', () {
+      // (?<![\w@]) — email@x and @@user must stay plain.
+      final tokens = tokenizeCommentContent('email@x.com and @@bob');
+      expect(tokens.where((t) => t.isMention), isEmpty);
+    });
+
+    test('urls tokenize alongside mentions', () {
+      final tokens =
+          tokenizeCommentContent('see https://x.com @alice and www.y.io');
+      expect(tokens.map((t) => '${t.kind}:${t.text}'), [
+        'plain:see ',
+        'url:https://x.com',
+        'plain: ',
+        'mention:@alice',
+        'plain: and ',
+        'url:www.y.io',
+      ]);
+    });
+
+    test('a url wins over a mention inside it', () {
+      final tokens = tokenizeCommentContent('https://x.com/@alice');
+      expect(tokens.map((t) => '${t.kind}:${t.text}'),
+          ['url:https://x.com/@alice']);
+    });
+
+    test('trailing punctuation stays outside url links', () {
+      final tokens = tokenizeCommentContent('@a go to https://x.com. bye');
+      expect(tokens.map((t) => '${t.kind}:${t.text}'), [
+        'mention:@a',
+        'plain: go to ',
+        'url:https://x.com',
+        'plain:. bye',
+      ]);
+    });
+
+    test('no hashtags in comments (site parity)', () {
+      final tokens = tokenizeCommentContent('#tag stays plain');
+      expect(tokens.where((t) => t.kind == 'hashtag'), isEmpty);
+      expect(tokens.single.kind, 'plain');
+    });
+
+    test('empty text yields no tokens', () {
+      expect(tokenizeCommentContent(''), isEmpty);
+    });
+  });
+
+  group('commentContentSpans', () {
+    test('mention span is link-colored and fires onMention with bare name', () {
+      final recs = <TapGestureRecognizer>[];
+      String? tapped;
+      final spans = commentContentSpans(
+        'hello @alice',
+        onMention: (username) => tapped = username,
+        onUrl: (_) {},
+        recognizers: recs,
+      );
+      final mentionSpan = spans.last as TextSpan;
+      expect(mentionSpan.style?.color, EnclavdColors.link);
+      expect(mentionSpan.text, '@alice');
+      expect(recs, hasLength(1));
+      recs.single.onTap!();
+      expect(tapped, 'alice');
+    });
+
+    test('url span fires onUrl with a scheme added for www links', () {
+      final recs = <TapGestureRecognizer>[];
+      String? opened;
+      commentContentSpans(
+        'www.example.com',
+        onMention: (_) {},
+        onUrl: (url) => opened = url,
+        recognizers: recs,
+      );
+      recs.single.onTap!();
+      expect(opened, 'https://www.example.com');
+    });
+  });
 }

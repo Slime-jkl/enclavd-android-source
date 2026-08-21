@@ -96,6 +96,8 @@ class FollowResult {
 ///
 /// Contracts (verified against the live handlers):
 ///   GET  /api/v1/profile ?user_id=N    → {success, profile:{...}}
+///   GET  /api/v1/profile ?username=N   → same shape, resolved by username
+///        (comment @mention taps; 404 when the name doesn't exist)
 ///   POST /api/v1/profile {action:'follow', followee_id} (JSON + CSRF)
 ///                                        → {success, action: followed|
 ///                                           unfollowed, followers,
@@ -108,6 +110,18 @@ class ProfileService {
   Future<Profile> fetchProfile(int userId) async {
     final json =
         await _api.getJson('/api/v1/profile', query: {'user_id': '$userId'});
+    return _profileFrom(json);
+  }
+
+  /// Resolves a username to its profile (site parity: the comment renderer
+  /// linkifies mentions by username → id lookup; the app resolves on tap).
+  Future<Profile> fetchProfileByUsername(String username) async {
+    final json = await _api
+        .getJson('/api/v1/profile', query: {'username': username});
+    return _profileFrom(json);
+  }
+
+  Profile _profileFrom(Map<String, dynamic> json) {
     final raw = json['profile'];
     if (raw is! Map<String, dynamic>) {
       throw const ApiException('Invalid profile response');
