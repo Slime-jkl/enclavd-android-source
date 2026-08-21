@@ -93,18 +93,21 @@ void main() {
       await tester.pump();
     }
 
-    testWidgets('shows the current user with rank badge and admin panel',
+    testWidgets('shows the current user; Profile and Control Panel are gone',
         (tester) async {
       await pumpDrawer(tester);
 
       expect(find.text('Slimejkl'), findsOneWidget);
       expect(find.text('SysOp'), findsOneWidget, reason: 'rank badge');
-      expect(find.text('Control Panel'), findsOneWidget,
-          reason: 'admin-only item shows for admins');
+      expect(find.text('Control Panel'), findsNothing,
+          reason: 'admin-only item removed at the user request');
+      expect(find.text('Profile'), findsNothing,
+          reason: 'Profile item removed at the user request');
+      expect(find.text('Account settings'), findsOneWidget);
+      expect(find.text('App settings'), findsOneWidget);
       await scrollDrawerToBottom(tester);
       expect(find.text('Test Results'), findsOneWidget);
       expect(find.text('Invitations'), findsOneWidget);
-      expect(find.text('Settings'), findsOneWidget);
       expect(find.text('Legal'), findsOneWidget);
       expect(find.text('Report an issue'), findsOneWidget);
       expect(find.text('Sign out'), findsOneWidget);
@@ -120,10 +123,10 @@ void main() {
       expect(signedOut, isTrue);
     });
 
-    testWidgets('Settings opens the settings screen', (tester) async {
+    testWidgets('App settings opens the settings screen', (tester) async {
       await pumpDrawer(tester);
 
-      await tester.tap(find.text('Settings'));
+      await tester.tap(find.text('App settings'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400)); // route push
       await tester.pump();
@@ -156,7 +159,7 @@ void main() {
       await tester.pump();
       await tester.pump();
       expect(find.text('Slimejkl'), findsOneWidget);
-      expect(find.text('Settings'), findsOneWidget);
+      expect(find.text('App settings'), findsOneWidget);
       expect(find.text('ACCOUNT'), findsOneWidget, reason: 'section labels');
       expect(
           find.byWidgetPredicate((w) =>

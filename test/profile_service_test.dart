@@ -238,6 +238,139 @@ void main() {
     });
   });
 
+  group('ProfileService account editing', () {
+    test('fetchSelf GETs ?self=1 and parses the full account row',
+        () async {
+      String? query;
+      final h = await Harness.start((req) async {
+        if (req.uri.path == '/api/v1/profile') {
+          query = req.uri.query;
+          Harness.respond(
+            req,
+            body: jsonEncode({
+              'success': true,
+              'account': {
+                'id': 1,
+                'username': 'Developer',
+                'email': 'dev@dev.dev',
+                'full_name': 'Dev One',
+                'profile_picture_url': '/public/avatars/a.jpg',
+                'personality_type': 'INTJ',
+                'rank': 'SysOp',
+                'bio': 'hello',
+                'birthdate': '1995-01-18',
+                'gender': 'MALE',
+                'geo_country': 230,
+                'geo_region': 3665,
+                'geo_city': 2790421,
+                'date_created': '2025-05-14 00:00:00',
+              },
+            }),
+          );
+        } else {
+          Harness.respond(req, status: 404);
+        }
+      });
+
+      final a = await ProfileService(h.client).fetchSelf();
+      expect(query, 'self=1');
+      expect(a.id, 1);
+      expect(a.email, 'dev@dev.dev');
+      expect(a.fullName, 'Dev One');
+      expect(a.birthdate, '1995-01-18');
+      expect(a.gender, 'MALE');
+      expect(a.geoCountry, 230);
+      expect(a.geoRegion, 3665);
+      expect(a.geoCity, 2790421);
+      expect(a.profilePictureUrl, '/public/avatars/a.jpg');
+      await h.close();
+    });
+
+    test('updateProfile sends every field (null clears optional ones)',
+        () async {
+      String? rawBody;
+      String? csrf;
+      final h = await Harness.start((req) async {
+        if (req.uri.path == '/feed') {
+          Harness.respond(req,
+              body: '<meta name="csrf-token" content="tok-update">');
+        } else if (req.uri.path == '/api/v1/profile') {
+          rawBody = await utf8.decoder.bind(req).join();
+          csrf = req.headers.value('x-csrf-token');
+          Harness.respond(req, body: '{"success":true}');
+        } else {
+          Harness.respond(req, status: 404);
+        }
+      });
+
+      await ProfileService(h.client).updateProfile(
+        fullName: 'New Name',
+        bio: 'new bio',
+        birthdate: null,
+        gender: 'FEMALE',
+        geoCountry: 1,
+        geoRegion: null,
+        geoCity: null,
+      );
+      expect(csrf, 'tok-update');
+      expect(rawBody, contains('"action":"update_profile"'));
+      expect(rawBody, contains('"full_name":"New Name"'));
+      expect(rawBody, contains('"birthdate":null'));
+      expect(rawBody, contains('"gender":"FEMALE"'));
+      expect(rawBody, contains('"geo_country":1'));
+      expect(rawBody, contains('"geo_region":null'));
+      await h.close();
+    });
+
+    test('changePassword sends the three fields', () async {
+      String? rawBody;
+      final h = await Harness.start((req) async {
+        if (req.uri.path == '/feed') {
+          Harness.respond(req, body: '<meta name="csrf-token" content="t">');
+        } else if (req.uri.path == '/api/v1/profile') {
+          rawBody = await utf8.decoder.bind(req).join();
+          Harness.respond(req, body: '{"success":true}');
+        } else {
+          Harness.respond(req, status: 404);
+        }
+      });
+
+      await ProfileService(h.client).changePassword(
+        currentPassword: 'old',
+        newPassword: 'newpass123',
+        confirmPassword: 'newpass123',
+      );
+      expect(rawBody,
+          contains('"current_password":"old","new_password":"newpass123",'
+              '"confirm_password":"newpass123"'));
+      await h.close();
+    });
+
+    test('uploadAvatar sends the data URL and returns the new path',
+        () async {
+      String? rawBody;
+      final h = await Harness.start((req) async {
+        if (req.uri.path == '/feed') {
+          Harness.respond(req, body: '<meta name="csrf-token" content="t">');
+        } else if (req.uri.path == '/api/v1/profile') {
+          rawBody = await utf8.decoder.bind(req).join();
+          Harness.respond(req,
+              body:
+                  '{"success":true,"profile_picture_url":"/public/avatars/new.jpg"}');
+        } else {
+          Harness.respond(req, status: 404);
+        }
+      });
+
+      final url = await ProfileService(h.client)
+          .uploadAvatar('data:image/jpeg;base64,AAAA');
+      expect(rawBody, contains('"action":"upload_avatar"'));
+      expect(rawBody, contains('"image_data":"data:image/jpeg;base64,AAAA"'));
+      expect(url, '/public/avatars/new.jpg');
+      await h.close();
+    });
+  });
+
   group('formatJoinedDate', () {
     test("ports profile.php's 'M j, Y'", () {
       expect(formatJoinedDate('2024-11-20 21:05:59'), 'Nov 20, 2024');
