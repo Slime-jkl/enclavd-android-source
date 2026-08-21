@@ -65,12 +65,14 @@ void notificationDispatcher() {
 }
 
 /// The worker run itself, separated from the dispatcher so tests can
-/// exercise it without the platform plugin.
+/// exercise it without the platform plugin. debugPrints are DIAGNOSTIC
+/// (0.3.4) — the worker is otherwise a black box on-device.
 Future<void> runBackgroundSources(List<NotificationSource> sources) async {
   final prefs = await SharedPreferences.getInstance();
   final api = ApiClient(store: PrefsSessionStore(prefs));
   await api.restoreSession();
   if (api.sessionCookies.isEmpty) {
+    debugPrint('worker: no session, skipping');
     return; // logged out — the worker has nothing to poll until login
   }
 
@@ -88,9 +90,11 @@ Future<void> runBackgroundSources(List<NotificationSource> sources) async {
   final context = SourceContext(api: api, prefs: prefs);
   final tracker = NotifiedTracker(prefs);
   final fresh = await freshCandidates(sources, context, tracker: tracker);
+  debugPrint('worker: ${fresh.length} fresh candidate(s)');
   for (final candidate in fresh) {
     final conversationId =
         MessageNotifications.conversationIdFromPayload(candidate.payload);
+    debugPrint('worker: showing ${candidate.key}');
     await showMessageNotificationWith(
       plugin,
       notificationId: candidate.notificationId,

@@ -98,20 +98,36 @@ class MessageNotifications with WidgetsBindingObserver {
   /// identity and dedupe are SHARED with the background worker (same
   /// keys, same persisted tracker), so the two paths never double-notify
   /// and a notification shown by one is never repeated by the other.
+  ///
+  /// The debugPrints are DIAGNOSTIC (0.3.4): every silent exit is named,
+  /// so a device-side "no notification" report becomes one logcat read.
   Future<void> handleUnreadPing() async {
+    debugPrint('MN: ping _enabled=$_enabled messagesOpen=$messagesOpen '
+        'appActive=$appActive');
     if (!_enabled) return;
-    if (messagesOpen && appActive) return; // they're looking at the thread
+    if (messagesOpen && appActive) {
+      debugPrint('MN: suppressed (messages screen open, app active)');
+      return;
+    }
     try {
       final messages = await _messagesFactory();
       final unread = await messages.unreadMessages();
-      if (unread.isEmpty) return;
+      debugPrint('MN: unread fetch -> ${unread.length} rows');
+      if (unread.isEmpty) {
+        debugPrint('MN: no unread rows');
+        return;
+      }
       final prefs = await _prefsFactory();
       final tracker = NotifiedTracker(prefs);
       final candidates = MessageNotificationSource.candidatesFrom(unread);
+      debugPrint('MN: candidates -> ${candidates.map((c) => c.key).toList()}');
       for (final candidate in candidates) {
-        if (tracker.contains(candidate.key)) continue;
+        final seen = tracker.contains(candidate.key);
+        debugPrint('MN: candidate ${candidate.key} alreadySeen=$seen');
+        if (seen) continue;
         final conversationId =
             conversationIdFromPayload(candidate.payload) ?? 0;
+        debugPrint('MN: showing ${candidate.key}');
         await _notifier.showMessageNotification(
           notificationId: candidate.notificationId, // replace per conversation
           senderName: candidate.title,
@@ -123,7 +139,7 @@ class MessageNotifications with WidgetsBindingObserver {
     } catch (e) {
       // The badge poll / next ping covers it; never surface errors — but
       // log, so a broken path is diagnosable instead of silently dead.
-      debugPrint('MessageNotifications: unread ping failed: $e');
+      debugPrint('MN: unread ping failed: $e');
     }
   }
 

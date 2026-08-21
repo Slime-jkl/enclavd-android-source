@@ -39,20 +39,23 @@ class MessageNotificationSource implements NotificationSource {
   Future<List<NotificationCandidate>> check(SourceContext context) async {
     final prefs = context.prefs;
     if (prefs.getBool(chatOpenPrefsKey) ?? false) {
+      debugPrint('source message: chat open, quiet');
       return const []; // user is reading the thread right now
     }
     if (!(prefs.getBool(MessageNotifications.enabledPrefsKey) ?? true)) {
+      debugPrint('source message: master toggle off, quiet');
       return const []; // master toggle off
     }
     try {
       final fetcher = _fetcher ??
           (ApiClient api) => MessagesService(api).unreadMessages();
       final unread = await fetcher(context.api);
+      debugPrint('source message: fetched ${unread.length} unread');
       return candidatesFrom(unread);
     } catch (e) {
       // A dead session or transient blip is the app's REST flow's job;
       // the next tick retries. The worker must never crash.
-      debugPrint('MessageNotificationSource: check failed: $e');
+      debugPrint('source message: check failed: $e');
       return const [];
     }
   }
