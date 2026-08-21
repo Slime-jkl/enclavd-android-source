@@ -72,8 +72,10 @@ class _BanScreenState extends State<BanScreen> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const FaIcon(FontAwesomeIcons.ban,
-                          color: Color(0xFFF87171), size: 44),
+                      const Center(
+                        child: FaIcon(FontAwesomeIcons.ban,
+                            color: Color(0xFFF87171), size: 44),
+                      ),
                       const SizedBox(height: 16),
                       const Text(
                         'Your account has been banned',

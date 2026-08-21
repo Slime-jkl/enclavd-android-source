@@ -21,6 +21,7 @@ import '../widgets/shimmer.dart';
 import '../widgets/user_menu_drawer.dart';
 import 'compose_screen.dart';
 import 'articles_screen.dart';
+import 'ban_screen.dart';
 import 'domains_screen.dart';
 import 'login_screen.dart';
 import 'messages_screen.dart';
@@ -47,6 +48,7 @@ class FeedScreen extends StatefulWidget {
 class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   AppServices? _services;
   CurrentUser? _me;
+  bool _banGateHandled = false;
 
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   final _scrollController = ScrollController();
@@ -203,13 +205,27 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     _loadUnread();
     _loadNotifUnread();
     _checkNewArticles();
+    // Mid-session ban gate: a ban issued while the app was backgrounded
+    // lands here (web parity — check_blocked_user on every load).
+    _loadMe();
   }
 
   /// The header avatar + drawer header need the current user (api/v1/me).
+  /// Also the mid-session ban gate: the web shows check_blocked_user() on
+  /// every page load, so the app must too — if the account is banned while
+  /// the app is open, the ban screen replaces the whole stack on the next
+  /// me() (feed load or app resume), not only at login.
   Future<void> _loadMe() async {
     try {
       final me = await _services!.auth.me();
       if (!mounted) return;
+      if (me != null && me.banned) {
+        if (_banGateHandled) return;
+        _banGateHandled = true;
+        Navigator.of(context)
+            .pushNamedAndRemoveUntil(BanScreen.routeName, (_) => false);
+        return;
+      }
       setState(() => _me = me);
     } catch (_) {
       // Non-fatal: the header falls back to a placeholder avatar.
