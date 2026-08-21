@@ -377,6 +377,21 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     SoundService.instance.action();
   }
 
+  /// Feed nav button: scroll back to the top of the feed, then refresh
+  /// (the site's header logo tap behaves the same way — home + re-poll).
+  /// Unawaited — a tap must never block the nav bar; the scroll is
+  /// best-effort when the list has no position yet.
+  void _jumpToTopAndRefresh() {
+    if (_scrollController.hasClients && _scrollController.offset > 0) {
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+    unawaited(_refresh());
+  }
+
   Future<void> _openComposer() async {
     final created = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => const ComposeScreen()),
@@ -590,8 +605,15 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
         indicatorColor: EnclavdColors.primaryButton.withValues(alpha: 0.35),
         selectedIndex: 0, // the feed is the app's home — always selected
         onDestinationSelected: (index) {
-          if (index == 1) _openSite('/articles');
-          if (index == 2) _openSite('/domain');
+          if (index == 0) {
+            // Feed tab = jump to the top and refresh (the site's header
+            // logo does the same: scroll to the feed's start + re-poll).
+            _jumpToTopAndRefresh();
+          } else if (index == 1) {
+            _openSite('/articles');
+          } else if (index == 2) {
+            _openSite('/domain');
+          }
         },
         destinations: const [
           NavigationDestination(
