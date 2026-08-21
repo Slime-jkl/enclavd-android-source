@@ -22,6 +22,7 @@ import 'compose_screen.dart';
 import 'login_screen.dart';
 import 'messages_screen.dart';
 import 'notifications_screen.dart';
+import 'search_results_screen.dart';
 
 /// Feed screen — the ranked feed via GET /api/v1/posts.
 ///
@@ -59,6 +60,11 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   int _notifUnread = 0;
   StreamSubscription<RealtimeEvent>? _realtimeSub;
   StreamSubscription<bool>? _sseStatusSub;
+
+  // Header search (site header.php: the search button left of the bell —
+  // expands into an inline search field, Enter → SearchResultsScreen).
+  bool _searching = false;
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -136,8 +142,31 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     _unreadTimer?.cancel();
     _realtimeSub?.cancel();
     _sseStatusSub?.cancel();
+    _searchController.dispose();
     _scrollController.dispose();
     super.dispose();
+  }
+
+  /// Header search toggle: the magnifier (left of the bell) expands into
+  /// an inline search field; the xmark collapses it again.
+  void _toggleSearch() {
+    setState(() {
+      _searching = !_searching;
+      if (!_searching) _searchController.clear();
+    });
+  }
+
+  /// Enter in the header search field → the results screen (api/v1/search
+  /// with shimmer while loading).
+  void _submitSearch(String raw) {
+    final query = raw.trim();
+    if (query.isEmpty) return;
+    final services = _services;
+    if (services == null) return;
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => SearchResultsScreen(
+          search: services.search, query: query),
+    ));
   }
 
   /// Site parity (visibilitychange): returning to the app reconciles —
@@ -503,8 +532,59 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                   ),
           ),
         ),
-        title: Image.asset('assets/images/enclavd-logo-white.png', height: 22),
+        title: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 250),
+          transitionBuilder: (child, animation) => FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position:
+                  Tween<Offset>(begin: const Offset(0.15, 0), end: Offset.zero)
+                      .animate(animation),
+              child: child,
+            ),
+          ),
+          child: _searching
+              ? TextField(
+                  key: const ValueKey('header-search-field'),
+                  controller: _searchController,
+                  autofocus: true,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: _submitSearch,
+                  style: const TextStyle(
+                      fontSize: 15, color: EnclavdColors.textPrimary),
+                  cursorColor: EnclavdColors.link,
+                  decoration: const InputDecoration(
+                    hintText: 'Search posts, people, comments…',
+                    hintStyle: TextStyle(
+                        color: EnclavdColors.textSecondary, fontSize: 15),
+                    border: InputBorder.none,
+                    isDense: true,
+                  ),
+                )
+              : Image.asset('assets/images/enclavd-logo-white.png',
+                  height: 22, key: const ValueKey('header-logo')),
+        ),
         actions: [
+          // Site header: the search button (left of the bell) — expands
+          // into the inline field above; Enter lands on the results
+          // screen.
+          IconButton(
+            icon: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: FaIcon(
+                _searching
+                    ? FontAwesomeIcons.xmark
+                    : FontAwesomeIcons.magnifyingGlass,
+                key: ValueKey(_searching),
+                size: 20,
+                color: _searching
+                    ? EnclavdColors.likeActive
+                    : EnclavdColors.textSecondary,
+              ),
+            ),
+            tooltip: _searching ? 'Close search' : 'Search',
+            onPressed: _toggleSearch,
+          ),
           // Site header: the bell notifications link (red unread badge,
           // 99+ capped) sits left of the paper-plane.
           if (AppConfig.enableNotifications) ...[

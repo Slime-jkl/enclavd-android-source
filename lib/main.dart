@@ -11,6 +11,7 @@ import 'api/messages_service.dart';
 import 'api/notifications_service.dart';
 import 'api/posts_service.dart';
 import 'api/profile_service.dart';
+import 'api/search_service.dart';
 import 'api/social_service.dart';
 import 'config/app_config.dart';
 import 'screens/feed_screen.dart';
@@ -48,8 +49,8 @@ void main() {
 class AppServices {
   AppServices._(
       this.apiClient, this.auth, this.feed, this.social, this.profile,
-      this.posts, this.messages, this.notifications, this.realtime,
-      this.messageAlerts);
+      this.posts, this.messages, this.notifications, this.search,
+      this.realtime, this.messageAlerts);
 
   final ApiClient apiClient;
   final AuthService auth;
@@ -59,6 +60,7 @@ class AppServices {
   final PostsService posts;
   final MessagesService messages;
   final NotificationsService notifications;
+  final SearchService search;
   final RealtimeService realtime;
   final MessageNotifications messageAlerts;
 
@@ -133,6 +135,7 @@ class AppServices {
         PostsService(api),
         MessagesService(api),
         NotificationsService(api),
+        SearchService(api),
         RealtimeService(api),
         notifications);
     current = services;
