@@ -106,7 +106,9 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) return;
-    _services?.realtime.connectSse();
+    // Foreground: probe the WS (ping/pong — zombie sockets reconnect NOW
+    // instead of waiting out the backoff), reconnect SSE, re-sync unread.
+    _services?.realtime.onForeground();
     _loadUnread();
   }
 

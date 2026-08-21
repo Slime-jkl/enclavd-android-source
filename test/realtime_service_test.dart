@@ -35,6 +35,8 @@ class RealtimeHarness {
   final List<List<Map<String, dynamic>>> wsFrames = []; // per connection
   final List<WebSocket> wsClients = [];
   bool dropOnConnect = false;
+  bool respondToPing = true; // reply {type:'pong'} to client {type:'ping'}
+  int pongsSent = 0;
   final List<String> feedRequests = [];
   final List<String> sseRequests = [];
   int feedFailures = 0; // answer the next N /feed requests with 500
@@ -62,7 +64,12 @@ class RealtimeHarness {
           (data) {
             if (data is String) {
               try {
-                frames.add(jsonDecode(data) as Map<String, dynamic>);
+                final frame = jsonDecode(data) as Map<String, dynamic>;
+                frames.add(frame);
+                if (h.respondToPing && frame['type'] == 'ping') {
+                  h.pongsSent++;
+                  ws.add(jsonEncode({'type': 'pong'}));
+                }
               } catch (_) {}
             }
           },
@@ -125,7 +132,9 @@ class RealtimeHarness {
   }
 }
 
-Future<RealtimeService> buildService(RealtimeHarness h, {MemStore? store}) async {
+Future<RealtimeService> buildService(RealtimeHarness h,
+    {MemStore? store,
+    Duration pongTimeout = const Duration(seconds: 4)}) async {
   final api = ApiClient(
     store: store ?? MemStore(),
     apiBaseUrl: 'http://127.0.0.1:${h.port}',
@@ -135,6 +144,7 @@ Future<RealtimeService> buildService(RealtimeHarness h, {MemStore? store}) async
     api,
     baseUrl: 'http://127.0.0.1:${h.port}',
     reconnectDelay: const Duration(milliseconds: 20),
+    pongTimeout: pongTimeout,
   );
 }
 
@@ -270,19 +280,76 @@ void main() {
     await h.close();
   });
 
-  test('gives up after maxReconnectAttempts (REST fallback carries)',
+  test('WS reconnects indefinitely — never gives up while the app is alive',
       () async {
     final h = await RealtimeHarness.start();
     h.dropOnConnect = true; // every connection dies immediately
     final service = await buildService(h);
 
     service.join(42);
-    // 5 attempts × 20ms + margins.
-    await Future<void>.delayed(const Duration(milliseconds: 800));
+    // Old behavior: initial connect + 5 attempts, then silence forever
+    // (chat deaf until a screen calls connectWs()). New behavior: retries
+    // forever, backoff grows 20ms → 200ms after the first 5.
+    await Future<void>.delayed(const Duration(milliseconds: 1500));
 
-    // Initial connect + 5 reconnect attempts, then the budget is out.
-    expect(h.wsConnects, RealtimeService.maxReconnectAttempts + 1);
-    expect(service.isWsConnected, isFalse);
+    expect(h.wsConnects, greaterThan(RealtimeService.maxReconnectAttempts + 1),
+        reason: 'the WS must still be retrying past the old 5-attempt budget');
+
+    service.dispose();
+    await h.close();
+  });
+
+  test('onForeground probes a live socket with ping/pong and keeps it',
+      () async {
+    final h = await RealtimeHarness.start();
+    final service = await buildService(h);
+
+    service.join(7);
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+
+    await service.onForeground();
+
+    expect(h.pongsSent, greaterThanOrEqualTo(1),
+        reason: 'the resume probe must ping the socket');
+    expect(h.wsConnects, 1, reason: 'a live socket must NOT be reconnected');
+    expect(service.isWsConnected, isTrue);
+
+    service.dispose();
+    await h.close();
+  });
+
+  test('onForeground detects a zombie socket (no pong) and reconnects now',
+      () async {
+    final h = await RealtimeHarness.start();
+    final service = await buildService(h,
+        pongTimeout: const Duration(milliseconds: 30));
+
+    service.join(42);
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+
+    h.respondToPing = false; // server stops answering — half-open zombie
+    await service.onForeground();
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+
+    expect(h.wsConnects, greaterThanOrEqualTo(2),
+        reason: 'a zombie socket must be closed and reconnected immediately');
+    final lastFrames = h.wsFrames.last;
+    expect(hasFrame(lastFrames, {'type': 'join', 'conversationId': 42}), isTrue,
+        reason: 'the fresh connection replays the join');
+
+    service.dispose();
+    await h.close();
+  });
+
+  test('onForeground connects when no socket exists (cold resume)', () async {
+    final h = await RealtimeHarness.start();
+    final service = await buildService(h);
+
+    await service.onForeground();
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+
+    expect(h.wsConnects, 1);
+    expect(service.isWsConnected, isTrue);
 
     service.dispose();
     await h.close();

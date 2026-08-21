@@ -48,26 +48,38 @@ class RealtimeEvent {
 /// ApiClient already makes. [connect] reads it from the jar and refreshes
 /// it via GET /feed when missing or within 5 minutes of expiry.
 ///
-/// Reliability: reconnect with backoff (3s, max 5 attempts — the site's own
-/// numbers), re-joining tracked rooms on reconnect. When the service gives
-/// up, the REST polls carry the feature; an explicit [connectWs] from a
-/// screen resets the budget.
+/// Reliability: reconnect FOREVER while the app is alive — Android drops
+/// idle sockets in the background, so a hard attempt budget would leave the
+/// chat deaf until a screen happens to reconnect. Backoff grows 3s → 30s
+/// (like SSE); rooms are re-joined on every reconnect. [connectWs] and
+/// [onForeground] (app lifecycle resume) reset the backoff and reconnect
+/// immediately, so bringing the app back feels instant. The REST polls
+/// remain as the fallback whenever the socket is down.
 class RealtimeService {
   RealtimeService(
     this._api, {
     String? baseUrl,
     HttpClient Function()? httpClientFactory,
     Duration reconnectDelay = const Duration(seconds: 3),
+    Duration pongTimeout = const Duration(seconds: 4),
   })  : _baseUrl = baseUrl ?? AppConfig.apiBaseUrl,
         _httpClientFactory = httpClientFactory ?? _defaultHttpClient,
-        _reconnectDelay = reconnectDelay;
+        _reconnectDelay = reconnectDelay,
+        _pongTimeout = pongTimeout;
 
   final ApiClient _api;
   final String _baseUrl;
   final HttpClient Function() _httpClientFactory;
   final Duration _reconnectDelay;
 
-  /// Reconnect budget (site parity: MAX_RECONNECT_ATTEMPTS = 5, 3s delay).
+  /// How long [onForeground]'s liveness probe waits for a pong before
+  /// declaring the socket dead and reconnecting. 4s on device; tests pass
+  /// a tiny value.
+  final Duration _pongTimeout;
+
+  /// Backoff knee: the first 5 failures wait [reconnectDelay] each, then
+  /// the wait grows to [reconnectDelay] × 10 (3s → 30s on prod). NOT a
+  /// hard cap — the WS reconnects indefinitely while the app is alive.
   static const int maxReconnectAttempts = 5;
   static const Duration pingInterval = Duration(seconds: 30);
   static const Duration tokenRefreshSkew = Duration(minutes: 5);
@@ -140,10 +152,11 @@ class RealtimeService {
       }
       _ws = ws;
       _wsConnecting = false;
-      // NOTE: the attempt budget is NOT reset here — a connection that
-      // drops right after the handshake must keep counting toward the
-      // limit, or an unstable link would loop forever. The budget resets
-      // only on an explicit connectWs() (a screen opening a chat).
+      // The backoff is NOT reset here — a connection that drops right
+      // after the handshake must keep backing off, or an unstable link
+      // would hammer the server. The backoff resets on an explicit
+      // connectWs() (a screen opening a chat) or onForeground() (app
+      // resume — coming back to the app should reconnect immediately).
       // Re-join every tracked room (covers the first connect too).
       for (final conversationId in _joined) {
         _sendWs({'type': 'join', 'conversationId': conversationId});
@@ -191,10 +204,67 @@ class RealtimeService {
 
   void _scheduleWsReconnect() {
     if (_disposed) return;
-    _wsAttempts++;
-    if (_wsAttempts > maxReconnectAttempts) return; // REST fallback carries
     _wsReconnectTimer?.cancel();
-    _wsReconnectTimer = Timer(_reconnectDelay, _connectWs);
+    // EventSource-style: the WS reconnects FOREVER while the app is alive.
+    // Android drops idle sockets in the background and the user expects the
+    // chat to come back on its own — a hard budget would leave it deaf until
+    // a screen happens to call connectWs() again. Backoff grows past the
+    // first attempts so a dead network doesn't hammer; connectWs() and
+    // onForeground() reset the backoff.
+    final delay = _wsAttempts < maxReconnectAttempts
+        ? _reconnectDelay
+        : _reconnectDelay * 10; // prod: 3s -> 30s; tests scale too
+    _wsAttempts++;
+    _wsReconnectTimer = Timer(delay, _connectWs);
+  }
+
+  /// App lifecycle resume (foreground). The OS froze timers and likely
+  /// dropped the socket while backgrounded, so:
+  ///   - no socket       → connect now (backoff reset),
+  ///   - open socket     → ping it; if no pong within [_pongTimeout] it is
+  ///                       a zombie (TCP half-open — the OS doesn't tell us)
+  ///                       → close and reconnect NOW instead of waiting up
+  ///                       to 30s for the next ping write to fail,
+  ///   - SSE down        → reconnect it too.
+  /// Idempotent and safe to call from any screen's lifecycle observer.
+  Future<void> onForeground() async {
+    if (_disposed) return;
+    _wsReconnectTimer?.cancel();
+    if (_ws == null) {
+      if (!_wsConnecting) await connectWs();
+    } else {
+      final alive = await _probeWs();
+      if (!alive && !_disposed && _ws != null) {
+        // Zombie socket: force the normal close path, then reconnect
+        // immediately (fresh backoff).
+        _wsPingTimer?.cancel();
+        try {
+          _ws?.close();
+        } catch (_) {}
+        _ws = null;
+        _wsAttempts = 0;
+        _wsReconnectTimer?.cancel();
+        await _connectWs();
+      }
+    }
+    if (_sseClient == null && !_sseConnecting) await connectSse();
+  }
+
+  /// Sends a ping and waits for the sidecar's pong (the sidecar replies to
+  /// client {type:'ping'} frames with {type:'pong'}). True = the socket is
+  /// genuinely alive end-to-end.
+  Future<bool> _probeWs() async {
+    final ws = _ws;
+    if (ws == null) return false;
+    final pong = Completer<bool>();
+    late StreamSubscription<RealtimeEvent> sub;
+    sub = _events.stream.where((e) => e.type == 'pong').take(1).listen((_) {
+      if (!pong.isCompleted) pong.complete(true);
+    });
+    _sendWs({'type': 'ping'});
+    final alive = await pong.future.timeout(_pongTimeout, onTimeout: () => false);
+    await sub.cancel();
+    return alive;
   }
 
   /// Joins a conversation room. Recorded immediately so a reconnect
