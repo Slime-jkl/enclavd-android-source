@@ -204,5 +204,18 @@ void main() {
       expect(liked, isTrue);
       expect(count, 4);
     });
+
+    test('latestId() hits ?latest=1 and parses the max id', () async {
+      final seen = <String>[];
+      await serve((req) async {
+        seen.add(req.uri.toString());
+        req.response.headers.contentType = ContentType.json;
+        req.response.write(jsonEncode({'success': true, 'latest_id': 27}));
+        await req.response.close();
+      });
+
+      expect(await ArticlesService(api).latestId(), 27);
+      expect(seen, ['/api/v1/articles?latest=1']);
+    });
   });
 }

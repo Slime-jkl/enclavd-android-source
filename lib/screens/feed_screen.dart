@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../api/api_client.dart';
+import '../api/articles_service.dart';
 import '../api/auth_service.dart';
 import '../api/feed_service.dart';
 import '../config/app_config.dart';
@@ -67,6 +69,11 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   bool _searching = false;
   final TextEditingController _searchController = TextEditingController();
 
+  // New-articles dot on the Updates bottom-nav tab: true while the newest
+  // article id is ahead of the id stored at the last visit (launch check
+  // + resume; cleared when the Updates screen shows its list).
+  bool _hasNewArticles = false;
+
   @override
   void initState() {
     super.initState();
@@ -82,6 +89,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     _loadFirst();
     _loadUnread();
     _loadNotifUnread();
+    _checkNewArticles();
     // The site's header badges are SSE-driven with a 30s poll fallback —
     // the app runs the same pairing: SSE events update them instantly,
     // the poll covers a dead stream. Site parity on the gating too:
@@ -185,6 +193,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     _services?.realtime.onForeground();
     _loadUnread();
     _loadNotifUnread();
+    _checkNewArticles();
   }
 
   /// The header avatar + drawer header need the current user (api/v1/me).
@@ -254,13 +263,43 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   }
 
   /// Opens the Updates screen (site: the /articles bottom-nav link) — the
-  /// native articles list instead of the browser tab.
-  void _openArticles() {
+  /// native articles list instead of the browser tab. On return the dot
+  /// clears: the screen itself advanced the stored seen-id when its list
+  /// loaded (a failed load leaves the dot armed for the next launch).
+  Future<void> _openArticles() async {
     final services = _services;
     if (services == null) return;
-    Navigator.of(context).push(MaterialPageRoute<void>(
+    await Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (_) => ArticlesScreen(articles: services.articles),
     ));
+    if (mounted && _hasNewArticles) {
+      setState(() => _hasNewArticles = false);
+    }
+  }
+
+  /// New-articles check (site-inspired "what's new" affordance): compare the
+  /// newest article id against the id stored at the last visit. First run
+  /// stores the baseline silently (no dot); afterwards a moved id lights the
+  /// red dot on the Updates tab until the user opens the list. Failures are
+  /// non-fatal — the dot simply stays as it was.
+  Future<void> _checkNewArticles() async {
+    final services = _services;
+    if (services == null) return;
+    try {
+      final latest = await services.articles.latestId();
+      final prefs = await SharedPreferences.getInstance();
+      final stored = prefs.getInt(ArticlesService.seenIdPrefKey);
+      if (stored == null) {
+        await prefs.setInt(ArticlesService.seenIdPrefKey, latest);
+        return; // first run: baseline, no dot
+      }
+      if (!mounted || latest <= stored) return;
+      if (!_hasNewArticles) {
+        setState(() => _hasNewArticles = true);
+      }
+    } catch (_) {
+      // Non-fatal: the dot just does not appear on this check.
+    }
   }
 
   /// Opens the notification drawer (site: bell header link). The drawer
@@ -712,8 +751,8 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
             _openSite('/domain');
           }
         },
-        destinations: const [
-          NavigationDestination(
+        destinations: [
+          const NavigationDestination(
             icon: FaIcon(FontAwesomeIcons.barsStaggered,
                 color: EnclavdColors.textSecondary),
             selectedIcon:
@@ -721,13 +760,13 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
             label: 'Feed',
           ),
           NavigationDestination(
-            icon: FaIcon(FontAwesomeIcons.newspaper,
-                color: EnclavdColors.textSecondary),
-            selectedIcon:
-                FaIcon(FontAwesomeIcons.newspaper, color: EnclavdColors.link),
+            // The red dot rides the icon while new articles exist since the
+            // last visit (the site's unread-marker color, bg-red-500).
+            icon: _updatesIcon(selected: false),
+            selectedIcon: _updatesIcon(selected: true),
             label: 'Updates',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: FaIcon(FontAwesomeIcons.globe,
                 color: EnclavdColors.textSecondary),
             selectedIcon:
@@ -736,6 +775,33 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
           ),
         ],
       ),
+    );
+  }
+
+  /// The Updates tab icon; a red dot (site's unread-marker color) sits on
+  /// the top-right corner while new articles exist since the last visit.
+  Widget _updatesIcon({required bool selected}) {
+    final icon = FaIcon(
+      FontAwesomeIcons.newspaper,
+      color: selected ? EnclavdColors.link : EnclavdColors.textSecondary,
+    );
+    if (!_hasNewArticles) return icon;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        icon,
+        const Positioned(
+          top: -3,
+          right: -7,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Color(0xFFEF4444), // bg-red-500
+              shape: BoxShape.circle,
+            ),
+            child: SizedBox(width: 8, height: 8),
+          ),
+        ),
+      ],
     );
   }
 

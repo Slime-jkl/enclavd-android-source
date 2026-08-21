@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/api_client.dart';
 import '../api/articles_service.dart';
@@ -67,6 +70,9 @@ class _ArticlesScreenState extends State<ArticlesScreen> {
         _loading = false;
         _loaded = true;
       });
+      // The user has now seen the newest articles — advance the badge
+      // baseline so the Updates dot clears until something new appears.
+      unawaited(_storeSeenId(feed));
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -74,6 +80,21 @@ class _ArticlesScreenState extends State<ArticlesScreen> {
         _loading = false;
       });
     }
+  }
+
+  /// Persists the newest article id from the loaded feed (the launch-check
+  /// baseline in the feed screen compares against this).
+  Future<void> _storeSeenId(ArticlesFeed feed) async {
+    var maxId = 0;
+    for (final a in feed.pinned) {
+      if (a.id > maxId) maxId = a.id;
+    }
+    for (final a in feed.articles) {
+      if (a.id > maxId) maxId = a.id;
+    }
+    if (maxId <= 0) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(ArticlesService.seenIdPrefKey, maxId);
   }
 
   void _open(ArticleSummary a) {

@@ -149,4 +149,17 @@ class ArticlesService {
       (json['like_count'] as num?)?.toInt() ?? 0,
     );
   }
+
+  /// The newest article id — the new-articles badge check. The API answers
+  /// with a cheap MAX(id) (no joins, no list payload), so the launch-time
+  /// check costs one tiny request instead of shipping the whole feed.
+  Future<int> latestId() async {
+    final json = await _api.getJson('/api/v1/articles',
+        query: <String, String>{'latest': '1'});
+    return (json['latest_id'] as num?)?.toInt() ?? 0;
+  }
+
+  /// SharedPreferences key holding the newest article id the user has seen
+  /// (written on launch baseline and whenever the Updates list loads).
+  static const String seenIdPrefKey = 'last_seen_article_id';
 }

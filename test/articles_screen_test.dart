@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:enclavd/api/api_client.dart';
 import 'package:enclavd/api/articles_service.dart';
 import 'package:enclavd/screens/articles_screen.dart';
@@ -158,6 +159,32 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(find.text('No articles yet'), findsOneWidget);
+  });
+
+  testWidgets('a successful load advances the seen-id badge baseline',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final feed = ArticlesFeed(
+      pinned: [_article(id: 27, slug: 'pinned', pinned: true)],
+      articles: [_article(id: 19, title: 'Older')],
+    );
+    await pumpScreen(tester, ArticlesScreen(articles: _FakeArticles(feed: feed)));
+    await tester.pump(); // flush the unawaited prefs write
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getInt(ArticlesService.seenIdPrefKey), 27,
+        reason: 'max id across pinned + regular becomes the new baseline');
+  });
+
+  testWidgets('a failed load leaves the badge baseline untouched',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    await pumpScreen(tester, ArticlesScreen(articles: _FailingArticles()));
+    await tester.pump();
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getInt(ArticlesService.seenIdPrefKey), isNull,
+        reason: 'nothing was seen — the dot stays armed for next launch');
   });
 }
 
