@@ -3,17 +3,22 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:enclavd/api/api_client.dart';
 import 'package:enclavd/api/reports_service.dart';
 import 'package:enclavd/screens/report_issue_screen.dart';
+import 'package:enclavd/screens/ticket_detail_screen.dart';
 import 'package:enclavd/theme/enclavd_theme.dart';
 
 class _FakeReports extends ReportsService {
-  _FakeReports({this.data})
+  _FakeReports({this.data, this.detail})
       : super(ApiClient(
             store: _NoopStore(), apiBaseUrl: 'https://example.com'));
 
   final ReportPage? data;
+  final ReportDetail? detail;
 
   @override
   Future<ReportPage> list({int page = 1}) async => data!;
+
+  @override
+  Future<ReportDetail> fetchDetail(int id) async => detail!;
 }
 
 class _NoopStore implements SessionStore {
@@ -79,6 +84,52 @@ void main() {
     await tester.pump();
     expect(find.text('CLOSED'), findsOneWidget);
     expect(find.text('fixed'), findsOneWidget);
+  });
+
+  testWidgets('tapping a report opens its detail screen', (tester) async {
+    final fake = _FakeReports(
+      data: const ReportPage(
+        items: [
+          ReportTicket(
+            id: 3,
+            type: 'Bug',
+            content: 'still broken',
+            status: 'Open',
+            date: '2026-08-20 09:15',
+          ),
+        ],
+        total: 1,
+        page: 1,
+        totalPages: 1,
+        allowedTypes: ReportsService.fallbackTypes,
+      ),
+      detail: const ReportDetail(
+        id: 3,
+        type: 'Bug',
+        content: 'still broken',
+        status: 'Open',
+        date: '2026-08-20 09:15',
+        solvedDate: null,
+        owner: null,
+        events: [],
+      ),
+    );
+    await tester.pumpWidget(MaterialApp(
+      theme: buildEnclavdTheme(),
+      home: ReportIssueScreen(reports: fake),
+    ));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.dragFrom(const Offset(8, 400), const Offset(0, -400));
+    await tester.pump();
+    await tester.tap(find.text('still broken'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400)); // route push
+    await tester.pump();
+
+    expect(find.byType(TicketDetailScreen), findsOneWidget);
+    expect(find.text('Report #3'), findsWidgets, reason: 'detail header');
   });
 
   testWidgets('empty state when no reports exist', (tester) async {
