@@ -299,11 +299,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   Image.asset('assets/images/enclavd-logo-white.png',
                       height: 22),
                   const SizedBox(height: 10),
-                  const Text('Enclavd for Android',
+                  const Text('iOS/Android native app',
                       style: TextStyle(
                           fontWeight: FontWeight.w600, fontSize: 15)),
                   const SizedBox(height: 2),
-                  const Text('Community-built native app',
+                  const Text('Community Powered',
                       style: TextStyle(
                           color: EnclavdColors.textSecondary, fontSize: 12)),
                   const SizedBox(height: 12),
