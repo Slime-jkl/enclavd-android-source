@@ -600,8 +600,13 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
         child: const FaIcon(FontAwesomeIcons.pen, size: 20),
       ),
       // Main navigation like the site's bottom bar: Home/Updates/Domains.
+      // Matches the header's tone: background (gray-950) with the M3
+      // surface tint and shadow killed — otherwise Material 3 washes the
+      // bar lighter than the AppBar it sits under.
       bottomNavigationBar: NavigationBar(
-        backgroundColor: EnclavdColors.card,
+        backgroundColor: EnclavdColors.background,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
         indicatorColor: EnclavdColors.primaryButton.withValues(alpha: 0.35),
         selectedIndex: 0, // the feed is the app's home — always selected
         onDestinationSelected: (index) {
