@@ -155,18 +155,27 @@ void main() {
       });
 
       final service = AuthService(h.client, apiBaseUrl: h.client.apiBaseUrl);
-      final message = await service.register(
+      final result = await service.register(
         username: 'newuser',
         email: 'new@dev.dev',
         password: 'secret1',
         acceptPrivacy: true,
         acceptTerms: true,
+        birthdate: '1990-05-14',
+        gender: 'MALE',
+        geoCountry: 4,
+        geoCity: 91,
       );
 
-      expect(message, contains('Check your email'));
+      expect(result.submitted, isTrue);
+      expect(result.message, contains('Registration submitted'));
       expect(body, contains('username=newuser'));
       expect(body, contains('privacy_policy=on'));
       expect(body, contains('terms=on'));
+      expect(body, contains('birthdate=1990-05-14'));
+      expect(body, contains('gender=MALE'));
+      expect(body, contains('geo_country=4'));
+      expect(body, contains('geo_city=91'));
 
       await h.close();
     });
@@ -187,13 +196,14 @@ void main() {
       });
 
       final service = AuthService(h.client, apiBaseUrl: h.client.apiBaseUrl);
-      final message = await service.register(
+      final result = await service.register(
         username: 'x',
         email: 'bad',
         password: 'pw1',
       );
 
-      expect(message, contains('Username must be between 3-20 characters'));
+      expect(result.submitted, isFalse);
+      expect(result.message, contains('Username must be between 3-20 characters'));
 
       await h.close();
     });

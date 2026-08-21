@@ -101,6 +101,30 @@ const _banned = CurrentUser(
 );
 
 void main() {
+  testWidgets('password field has a visibility toggle', (tester) async {
+    final auth = _FakeAuth();
+    final config = _FakeConfig();
+
+    await tester.pumpWidget(MaterialApp(
+      home: LoginScreen(auth: auth, siteConfig: config),
+    ));
+    await tester.pump();
+
+    EditableText passwordText() => tester.widget<EditableText>(
+        find.descendant(
+            of: find.byType(TextFormField).at(1),
+            matching: find.byType(EditableText)));
+    expect(passwordText().obscureText, isTrue);
+
+    await tester.tap(find.byTooltip('Show password'));
+    await tester.pump();
+    expect(passwordText().obscureText, isFalse);
+
+    await tester.tap(find.byTooltip('Hide password'));
+    await tester.pump();
+    expect(passwordText().obscureText, isTrue);
+  });
+
   testWidgets('cooldown: countdown banner shown, submit disabled',
       (tester) async {
     final auth = _FakeAuth();

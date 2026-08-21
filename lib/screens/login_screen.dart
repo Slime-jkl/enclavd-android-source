@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import '../api/auth_service.dart';
 import '../api/site_config_service.dart';
 import '../main.dart';
+import '../theme/enclavd_theme.dart';
+import '../widgets/auth_password_field.dart';
 import 'ban_screen.dart';
 import 'feed_screen.dart';
 import 'maintenance_screen.dart';
@@ -215,183 +217,201 @@ class _LoginScreenState extends State<LoginScreen> {
     final rateMessage = _rateLimitMessage();
     final captchaNeeded = _rl?.captchaRequired ?? false;
     return Scaffold(
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, viewport) {
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: viewport.maxHeight - 48),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 420),
-                    child: Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(32),
-                        child: Form(
-                          key: _formKey,
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              const Text(
-                                'Login',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                    fontSize: 30,
-                                    fontWeight: FontWeight.bold),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF0B1628), EnclavdColors.background],
+          ),
+        ),
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, viewport) {
+              return SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: ConstrainedBox(
+                  constraints:
+                      BoxConstraints(minHeight: viewport.maxHeight - 48),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 420),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Center(
+                              child: Image.asset(
+                                'assets/images/enclavd-logo-white.png',
+                                height: 42,
+                                errorBuilder: (_, __, ___) =>
+                                    const SizedBox(height: 42),
                               ),
-                              const SizedBox(height: 24),
-                              if (_error != null) ...[
-                                _Banner(message: _error!, isError: true),
-                                const SizedBox(height: 16),
-                              ],
-                              if (_success != null) ...[
-                                _Banner(message: _success!, isError: false),
-                                const SizedBox(height: 16),
-                              ],
-                              if (rateMessage != null) ...[
-                                _Banner(message: rateMessage, isError: true),
-                                const SizedBox(height: 16),
-                              ],
-                              TextFormField(
-                                controller: _email,
-                                focusNode: _emailFocus,
-                                keyboardType: TextInputType.emailAddress,
-                                textInputAction: TextInputAction.next,
-                                decoration: const InputDecoration(
-                                  labelText: 'Email address',
-                                  hintText: 'you@example.com',
-                                  prefixIcon: FaIcon(
-                                      FontAwesomeIcons.envelope,
-                                      size: 18),
-                                ),
-                                validator: (v) =>
-                                    (v == null || v.trim().isEmpty)
-                                        ? 'Enter your email'
-                                        : null,
-                                onFieldSubmitted: (_) =>
-                                    _passwordFocus.requestFocus(),
-                              ),
+                            ),
+                            const SizedBox(height: 28),
+                            const Text(
+                              'Welcome back',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                  fontSize: 26, fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Sign in to continue to Enclavd',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                  color: EnclavdColors.textSecondary,
+                                  fontSize: 14),
+                            ),
+                            const SizedBox(height: 32),
+                            if (_error != null) ...[
+                              _Banner(message: _error!, isError: true),
                               const SizedBox(height: 16),
+                            ],
+                            if (_success != null) ...[
+                              _Banner(message: _success!, isError: false),
+                              const SizedBox(height: 16),
+                            ],
+                            if (rateMessage != null) ...[
+                              _Banner(message: rateMessage, isError: true),
+                              const SizedBox(height: 16),
+                            ],
+                            TextFormField(
+                              controller: _email,
+                              focusNode: _emailFocus,
+                              keyboardType: TextInputType.emailAddress,
+                              textInputAction: TextInputAction.next,
+                              decoration: const InputDecoration(
+                                labelText: 'Email address',
+                                hintText: 'you@example.com',
+                                prefixIcon: FaIcon(FontAwesomeIcons.envelope,
+                                    size: 18),
+                              ),
+                              validator: (v) =>
+                                  (v == null || v.trim().isEmpty)
+                                      ? 'Enter your email'
+                                      : null,
+                              onFieldSubmitted: (_) =>
+                                  _passwordFocus.requestFocus(),
+                            ),
+                            const SizedBox(height: 16),
+                            AuthPasswordField(
+                              controller: _password,
+                              focusNode: _passwordFocus,
+                              label: 'Password',
+                              validator: (v) => (v == null || v.isEmpty)
+                                  ? 'Enter your password'
+                                  : null,
+                              textInputAction: TextInputAction.done,
+                              onFieldSubmitted: (_) => _submit(),
+                            ),
+                            if (captchaNeeded) ...[
+                              const SizedBox(height: 20),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFCD34D)
+                                      .withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                      color: const Color(0xFFFCD34D)
+                                          .withValues(alpha: 0.3)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const FaIcon(
+                                        FontAwesomeIcons.shieldHalved,
+                                        size: 16,
+                                        color: Color(0xFFFCD34D)),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        _rl?.captchaQuestion ??
+                                            'Security question',
+                                        style:
+                                            const TextStyle(fontSize: 13),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 12),
                               TextFormField(
-                                controller: _password,
-                                focusNode: _passwordFocus,
-                                obscureText: true,
+                                controller: _captcha,
+                                focusNode: _captchaFocus,
                                 textInputAction: TextInputAction.done,
                                 decoration: const InputDecoration(
-                                  labelText: 'Password',
-                                  prefixIcon:
-                                      FaIcon(FontAwesomeIcons.lock, size: 18),
+                                  labelText: 'Answer',
+                                  prefixIcon: FaIcon(
+                                      FontAwesomeIcons.key, size: 18),
                                 ),
-                                validator: (v) => (v == null || v.isEmpty)
-                                    ? 'Enter your password'
+                                validator: (_) => captchaNeeded &&
+                                        _captcha.text.trim().isEmpty
+                                    ? 'Answer the question above'
                                     : null,
                                 onFieldSubmitted: (_) => _submit(),
                               ),
-                              if (captchaNeeded) ...[
-                                const SizedBox(height: 20),
-                                Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFFCD34D)
-                                        .withValues(alpha: 0.08),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(
-                                        color: const Color(0xFFFCD34D)
-                                            .withValues(alpha: 0.3)),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      const FaIcon(
-                                          FontAwesomeIcons.shieldHalved,
-                                          size: 16,
-                                          color: Color(0xFFFCD34D)),
-                                      const SizedBox(width: 10),
-                                      Expanded(
-                                        child: Text(
-                                          _rl?.captchaQuestion ??
-                                              'Security question',
-                                          style: const TextStyle(fontSize: 13),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                TextFormField(
-                                  controller: _captcha,
-                                  focusNode: _captchaFocus,
-                                  textInputAction: TextInputAction.done,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Answer',
-                                    prefixIcon: FaIcon(
-                                        FontAwesomeIcons.key, size: 18),
-                                  ),
-                                  validator: (_) => captchaNeeded &&
-                                          _captcha.text.trim().isEmpty
-                                      ? 'Answer the question above'
-                                      : null,
-                                  onFieldSubmitted: (_) => _submit(),
-                                ),
-                              ],
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  Checkbox(
-                                    value: _rememberMe,
-                                    onChanged: (v) => setState(
-                                        () => _rememberMe = v ?? false),
-                                  ),
-                                  const Text('Remember me'),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              ElevatedButton(
-                                onPressed:
-                                    (_busy || rateMessage != null) ? null : _submit,
-                                child: _busy
-                                    ? const SizedBox(
-                                        width: 20,
-                                        height: 20,
-                                        child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: Colors.white),
-                                      )
-                                    : const Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          FaIcon(
-                                              FontAwesomeIcons
-                                                  .arrowRightToBracket,
-                                              size: 15,
-                                              color: Colors.white),
-                                          SizedBox(width: 8),
-                                          Text('Login'),
-                                        ],
-                                      ),
-                              ),
-                              const SizedBox(height: 24),
-                              const Divider(),
-                              const SizedBox(height: 16),
-                              TextButton(
-                                onPressed: () {
-                                  Navigator.of(context).pushReplacementNamed(
-                                      RegisterScreen.routeName);
-                                },
-                                child: const Text(
-                                    "Don't have an account? Create one"),
-                              ),
                             ],
-                          ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Checkbox(
+                                  value: _rememberMe,
+                                  onChanged: (v) => setState(
+                                      () => _rememberMe = v ?? false),
+                                ),
+                                const Text('Remember me'),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            ElevatedButton(
+                              onPressed: (_busy || rateMessage != null)
+                                  ? null
+                                  : _submit,
+                              child: _busy
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white),
+                                    )
+                                  : const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        FaIcon(
+                                            FontAwesomeIcons
+                                                .arrowRightToBracket,
+                                            size: 15,
+                                            color: Colors.white),
+                                        SizedBox(width: 8),
+                                        Text('Login'),
+                                      ],
+                                    ),
+                            ),
+                            const SizedBox(height: 24),
+                            const Divider(),
+                            const SizedBox(height: 16),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.of(context)
+                                    .pushReplacementNamed(
+                                        RegisterScreen.routeName);
+                              },
+                              child: const Text(
+                                  "Don't have an account? Create one"),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );

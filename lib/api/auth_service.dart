@@ -63,6 +63,16 @@ class LoginResult {
   final String message; // server flash message on failure, empty on success
 }
 
+/// Outcome of a registration POST: [submitted] is true when the server
+/// accepted the account (302 → /login), false when it bounced back to the
+/// form with [message] holding the validation error(s).
+class RegisterResult {
+  const RegisterResult({required this.submitted, required this.message});
+
+  final bool submitted;
+  final String message;
+}
+
 /// Post-login gate verdict — what to show instead of the feed.
 enum Gate { feed, ban, maintenance }
 
@@ -108,6 +118,10 @@ class AuthService {
 
   final ApiClient _api;
   final String apiBaseUrl;
+
+  /// The underlying client — used for public GET endpoints that have no
+  /// dedicated service (e.g. the geo country/city pickers).
+  ApiClient get api => _api;
 
   /// Fetches /login and extracts the login_token. Returns null when the
   /// token field is missing (page shape changed — fail with a clear error).
@@ -163,18 +177,26 @@ class AuthService {
     return LoginResult(LoginOutcome.failure, message);
   }
 
-  /// Registers a new account. Returns the server's flash message
-  /// (success: "check your email", or the validation error text).
+  /// Registers a new account. Returns whether the server accepted the
+  /// submission (302 → /login) and the flash message.
   ///
-  /// The server 302s to /login on success (email verification is on), back
-  /// to /register on failure with the validation errors in a flash banner.
-  Future<String> register({
+  /// The server 302s to /login on success, back to /register on failure
+  /// with the validation errors in a flash banner. The caller decides the
+  /// post-registration UI from [RegisterResult.submitted] + the site
+  /// config's requireEmailVerification (verify-email screen vs. straight
+  /// to login).
+  Future<RegisterResult> register({
     required String username,
     required String email,
     required String password,
     String? invitation,
     bool acceptPrivacy = false,
     bool acceptTerms = false,
+    String? birthdate,
+    String? gender,
+    int? geoCountry,
+    int? geoRegion,
+    int? geoCity,
   }) async {
     final resp = await _api.postForm('/process_register', {
       'username': username.trim(),
@@ -183,15 +205,24 @@ class AuthService {
       'password_confirm': password,
       if (invitation != null && invitation.isNotEmpty)
         'invitation': invitation.trim(),
+      if (birthdate != null && birthdate.isNotEmpty) 'birthdate': birthdate,
+      'gender': gender ?? 'NONE',
+      if (geoCountry != null) 'geo_country': '$geoCountry',
+      if (geoRegion != null) 'geo_region': '$geoRegion',
+      if (geoCity != null) 'geo_city': '$geoCity',
       if (acceptPrivacy) 'privacy_policy': 'on',
       if (acceptTerms) 'terms': 'on',
     });
 
     final location = resp.location;
     if (location != null && location.contains('/login')) {
-      return 'Registration submitted. Check your email to verify your account, then log in.';
+      return const RegisterResult(
+        submitted: true,
+        message: 'Registration submitted.',
+      );
     }
-    return _flashFromRedirect(resp);
+    return RegisterResult(
+        submitted: false, message: await _flashFromRedirect(resp));
   }
 
   /// GET /api/v1/me → the logged-in user, or null when the session is dead
