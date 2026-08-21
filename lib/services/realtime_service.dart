@@ -119,6 +119,13 @@ class RealtimeService {
   bool _disposed = false;
 
   bool get isWsConnected => _ws != null;
+
+  /// True while the SSE stream is open. The badge poll gates on this —
+  /// while the stream is live the badge is event-driven (site parity:
+  /// `EnclavdRealtime.connected`); the poll only runs as the dead-stream
+  /// fallback.
+  bool get isSseConnected => _sseClient != null;
+
   bool get isConnecting => _wsConnecting || _sseConnecting;
 
   /// Opens the WebSocket (idempotent). An explicit call from a screen

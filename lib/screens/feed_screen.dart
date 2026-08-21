@@ -70,9 +70,14 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     _loadUnread();
     // The site's header badge is SSE-driven with a 30s poll fallback —
     // the app runs the same pairing: SSE events update it instantly,
-    // the poll covers a dead stream.
+    // the poll covers a dead stream. Site parity on the gating too:
+    // while the SSE stream is live the poll does NOT run (the site's
+    // `if (EnclavdRealtime.connected) return;`) — event-driven only.
     _unreadTimer =
-        Timer.periodic(const Duration(seconds: 30), (_) => _loadUnread());
+        Timer.periodic(const Duration(seconds: 30), (_) {
+      if (_services?.realtime.isSseConnected ?? false) return;
+      _loadUnread();
+    });
     final realtime = _services!.realtime;
     _realtimeSub = realtime.events.listen((event) {
       if (event.type == 'message_unread') {

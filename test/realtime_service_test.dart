@@ -99,6 +99,10 @@ class RealtimeHarness {
         }
         req.response.headers.set('content-type', 'text/event-stream');
         if (h.keepSseOpen) {
+          // Write an initial heartbeat so the response is committed —
+          // flush() alone on an empty body never sends the headers in
+          // dart:io, and the client would hang in request.close().
+          req.response.write(': ping\n\n');
           await req.response.flush();
           return; // stream stays open — no events, no close
         }
@@ -417,6 +421,25 @@ void main() {
     expect(h.sseRequests, hasLength(1), reason: 'one live stream only');
 
     service.dispose();
+    await h.close();
+  });
+
+  test('isSseConnected tracks the stream state (badge poll gates on it)',
+      () async {
+    final h = await RealtimeHarness.start();
+    h.keepSseOpen = true; // stream stays open (no close)
+    final service = await buildService(h);
+
+    expect(service.isSseConnected, isFalse);
+    unawaited(service.connectSse());
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(service.isSseConnected, isTrue,
+        reason: 'an open stream must read as connected');
+
+    service.dispose();
+    expect(service.isSseConnected, isFalse,
+        reason: 'dispose closes the stream');
+
     await h.close();
   });
 
