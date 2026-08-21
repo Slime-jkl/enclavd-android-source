@@ -57,6 +57,15 @@ class AppServices {
   final RealtimeService realtime;
   final MessageNotifications notifications;
 
+  /// The most recently created container — the one the app is actively
+  /// using. The notification singleton's fetch closure must resolve
+  /// against THIS, not the api of whichever create() happened to run
+  /// first: on a cold start the first container predates login and its
+  /// cookie jar is empty, so a singleton bound to it would 401 every
+  /// unread fetch (silently killing live notifications) while the feed
+  /// and the worker — which use the current session — work fine.
+  static AppServices? current;
+
   static Future<AppServices> create() async {
     final prefs = await SharedPreferences.getInstance();
     // Boot: a fresh process has no messages screen open. The background
@@ -77,12 +86,20 @@ class AppServices {
         notifier: FlutterLocalNotifier(
           onResponse: (r) => MessageNotifications.instance?.handleResponse(r),
         ),
-        messagesFactory: () async => MessagesService(api),
+        // Late-bound: resolve the CURRENT container at ping time. A
+        // closure capturing `api` here would freeze the FIRST container's
+        // client — the pre-login one with an empty jar on cold starts —
+        // and every live-path unread fetch would 401 while the feed,
+        // the badge (SSE) and the worker all work. The worker builds its
+        // own client from prefs; this path must track the live session.
+        messagesFactory: () async => MessagesService(
+          current?.apiClient ?? api,
+        ),
       );
       MessageNotifications.instance = notifications;
       unawaited(notifications.init());
     }
-    return AppServices._(
+    final services = AppServices._(
         api,
         auth,
         FeedService(api),
@@ -92,6 +109,8 @@ class AppServices {
         MessagesService(api),
         RealtimeService(api),
         notifications);
+    current = services;
+    return services;
   }
 }
 
