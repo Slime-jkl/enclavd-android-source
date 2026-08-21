@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:enclavd/api/api_client.dart';
 import 'package:enclavd/api/messages_service.dart';
+import 'package:enclavd/services/message_notification_source.dart';
 import 'package:enclavd/services/message_notifications.dart';
 import 'package:enclavd/services/notification_source.dart';
 
@@ -160,6 +161,38 @@ void main() {
     expect(notifier.lastBody, 'hey');
     expect(notifier.lastConversationId, 5);
     expect(notifier.lastNotificationId, 5, reason: 'per-conversation id');
+  });
+
+  test('minimizing from the inbox clears the worker quiet-window pref',
+      () async {
+    final service = buildService(FakeNotifier(), FakeMessages());
+    service.setMessagesOpen(true);
+    await Future<void>.delayed(Duration.zero); // flush the mirror write
+
+    expect(
+        (await SharedPreferences.getInstance())
+            .getBool(MessageNotificationSource.chatOpenPrefsKey),
+        true,
+        reason: 'reading the inbox = worker stays quiet');
+
+    service.didChangeAppLifecycleState(AppLifecycleState.paused);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(
+        (await SharedPreferences.getInstance())
+            .getBool(MessageNotificationSource.chatOpenPrefsKey),
+        false,
+        reason: 'minimized = not reading; the worker must alert');
+
+    // Returning with the thread still on the stack restores the window.
+    service.didChangeAppLifecycleState(AppLifecycleState.resumed);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(
+        (await SharedPreferences.getInstance())
+            .getBool(MessageNotificationSource.chatOpenPrefsKey),
+        true,
+        reason: 'back on the inbox = quiet again');
   });
 
   test('ping on the feed (messages screen closed) notifies', () async {

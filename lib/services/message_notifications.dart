@@ -89,9 +89,22 @@ class MessageNotifications with WidgetsBindingObserver {
   }
 
   /// App foreground state — minimized counts as "not reading".
+  ///
+  /// Mirrors the quiet window to prefs on EVERY transition, not just on
+  /// screen pop: the in-memory count stays > 0 while the inbox/chat route
+  /// is on the stack, so a minimize from there used to leave
+  /// 'messages_screen_open' true in prefs and the BACKGROUND worker stayed
+  /// silent for messages for the whole backgrounded period ("messages
+  /// work on feed but not minimized"). Minimized = not reading = the
+  /// worker must alert; returning with the thread still open restores the
+  /// quiet window. The in-memory count is untouched — the LIVE path's
+  /// quiet window (messagesOpen && appActive) stays correct either way.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _appActive = state == AppLifecycleState.resumed;
+    unawaited(_prefsFactory().then((prefs) =>
+        MessageNotificationSource.setChatOpenPrefs(
+            prefs, _appActive && _messagesOpenCount > 0)));
   }
 
   /// Called on every `message_unread` realtime ping (the badge event).
