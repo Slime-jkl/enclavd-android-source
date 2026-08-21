@@ -297,7 +297,44 @@ Future<void> showMessageNotificationWith(
           avatarPath,
           baseUrl: AppConfig.apiBaseUrl,
         );
-  final details = AndroidNotificationDetails(
+  final details = _messageNotificationDetails(
+      senderName, message, conversationId, avatarFile);
+  try {
+    await plugin.show(
+      id: notificationId,
+      title: senderName,
+      body: message,
+      notificationDetails: NotificationDetails(android: details),
+      payload: 'c:$conversationId',
+    );
+  } catch (e) {
+    // The avatar is COSMETIC — a bad icon file (or a platform quirk with
+    // notification person icons) must never kill the notification: retry
+    // WITHOUT it, Android falls back to the initial-letter placeholder.
+    // Only a failure of BOTH attempts propagates (the caller logs it).
+    debugPrint('MN: show failed ($e) — retrying without the avatar icon');
+    await plugin.show(
+      id: notificationId,
+      title: senderName,
+      body: message,
+      notificationDetails: NotificationDetails(
+        android: _messageNotificationDetails(
+            senderName, message, conversationId, null),
+      ),
+      payload: 'c:$conversationId',
+    );
+  }
+}
+
+/// The message notification details (MessagingStyle + drawer reply action).
+/// [avatarFile] is a LOCAL file path or null; the icon is purely cosmetic.
+AndroidNotificationDetails _messageNotificationDetails(
+  String senderName,
+  String message,
+  int conversationId,
+  String? avatarFile,
+) {
+  return AndroidNotificationDetails(
     _channelId,
     _channelName,
     channelDescription: _channelDescription,
@@ -339,13 +376,6 @@ Future<void> showMessageNotificationWith(
         ],
       ),
     ],
-  );
-  await plugin.show(
-    id: notificationId,
-    title: senderName,
-    body: message,
-    notificationDetails: NotificationDetails(android: details),
-    payload: 'c:$conversationId',
   );
 }
 

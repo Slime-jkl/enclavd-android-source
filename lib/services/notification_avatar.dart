@@ -34,7 +34,25 @@ Future<String?> resolveNotificationAvatar(
 
     if (await file.exists() && await file.length() > 0) {
       final age = DateTime.now().difference(await file.lastModified());
-      if (age < const Duration(hours: 24)) return file.path;
+      if (age < const Duration(hours: 24)) {
+        // Re-validate the CACHED file, not just the fresh download: a
+        // partially-written file (process killed mid-write) decodes fine
+        // by length but breaks plugin.show's bitmap decode — which would
+        // kill EVERY message notification for the rest of the TTL.
+        // Invalid cached files are deleted and re-downloaded below.
+        try {
+          final codec = await ui
+              .instantiateImageCodec(await file.readAsBytes())
+              .timeout(const Duration(seconds: 5));
+          codec.dispose();
+          return file.path;
+        } catch (_) {
+          try {
+            await file.delete();
+          } catch (_) {}
+          // fall through to a fresh download
+        }
+      }
     }
 
     final url = avatarPath.startsWith('http')
