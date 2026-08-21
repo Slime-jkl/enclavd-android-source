@@ -30,8 +30,25 @@ void main() {
                 'date_created': '2024-11-20 21:05:59',
                 'is_online': true,
                 'is_active': 'true',
+                'block_reason': '',
                 'post_count': 6,
-                'warning_count': 1,
+                'warning_count': 2,
+                'warnings': [
+                  {
+                    'id': 41,
+                    'reason': 'Spam links',
+                    'admin_id': 1,
+                    'admin_username': 'Developer',
+                    'seconds_left': 129600, // 1.5 days → 2d left
+                  },
+                  {
+                    'id': 40,
+                    'reason': '',
+                    'admin_id': 1,
+                    'admin_username': 'Developer',
+                    'seconds_left': 0, // expiring now → 0d left
+                  },
+                ],
                 'follower_count': 2,
                 'following_count': 15,
                 'is_following': false,
@@ -57,14 +74,67 @@ void main() {
       expect(p.prestige, 11);
       expect(p.isOnline, true);
       expect(p.isActive, 'true');
+      expect(p.blockReason, '');
       expect(p.postCount, 6);
-      expect(p.warningCount, 1);
+      expect(p.warningCount, 2);
+      expect(p.warnings, hasLength(2));
+      expect(p.warnings.first.id, 41);
+      expect(p.warnings.first.reason, 'Spam links');
+      expect(p.warnings.first.adminId, 1);
+      expect(p.warnings.first.adminUsername, 'Developer');
+      expect(p.warnings.first.secondsLeft, 129600);
+      expect(p.warnings.first.daysLeft, 2);
+      expect(p.warnings.last.daysLeft, 0);
       expect(p.followerCount, 2);
       expect(p.followingCount, 15);
       expect(p.isFollowing, false);
       expect(p.isFollowingYou, true);
       expect(p.isOwn, false);
       expect(p.isBlocked, false);
+
+      await h.close();
+    });
+
+    test('blocked profile parses block_reason + isBlocked', () async {
+      final h = await Harness.start((req) async {
+        if (req.uri.path == '/api/v1/profile') {
+          Harness.respond(
+            req,
+            body: jsonEncode({
+              'success': true,
+              'profile': {
+                'id': 9,
+                'username': 'Bad',
+                'full_name': '',
+                'profile_picture_url': '/assets/default-avatar.png',
+                'personality_type': null,
+                'rank': 'Member',
+                'bio': '',
+                'prestige': 0,
+                'date_created': '2026-01-01 00:00:00',
+                'is_online': false,
+                'is_active': 'false',
+                'block_reason': 'Repeated harassment',
+                'post_count': 0,
+                'warning_count': 0,
+                'warnings': <Object>[],
+                'follower_count': 0,
+                'following_count': 0,
+                'is_following': false,
+                'is_following_you': false,
+                'is_own': false,
+              },
+            }),
+          );
+        } else {
+          Harness.respond(req, status: 404);
+        }
+      });
+
+      final p = await ProfileService(h.client).fetchProfile(9);
+      expect(p.isBlocked, true);
+      expect(p.blockReason, 'Repeated harassment');
+      expect(p.warnings, isEmpty);
 
       await h.close();
     });

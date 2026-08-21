@@ -5,8 +5,10 @@ import 'api_client.dart';
 ///
 /// Field contract (profile.php GET): id, username, full_name,
 /// profile_picture_url, personality_type, rank, bio, prestige,
-/// date_created, is_online, is_active, post_count, warning_count,
-/// follower_count, following_count, is_following, is_following_you, is_own.
+/// date_created, is_online, is_active, block_reason, post_count,
+/// warning_count, warnings:[{id, reason, admin_id, admin_username,
+/// seconds_left}], follower_count, following_count, is_following,
+/// is_following_you, is_own.
 class Profile {
   const Profile({
     required this.id,
@@ -20,8 +22,10 @@ class Profile {
     required this.dateCreated,
     required this.isOnline,
     required this.isActive,
+    required this.blockReason,
     required this.postCount,
     required this.warningCount,
+    required this.warnings,
     required this.followerCount,
     required this.followingCount,
     required this.isFollowing,
@@ -40,8 +44,10 @@ class Profile {
   final String dateCreated; // '2024-11-20 21:05:59' (DB format)
   final bool isOnline;
   final String isActive; // 'true' / 'false'
+  final String blockReason; // '' when not blocked
   final int postCount;
   final int warningCount;
+  final List<UserWarning> warnings; // ACTIVE warnings, newest first
   final int followerCount;
   final int followingCount;
   final bool isFollowing;
@@ -63,13 +69,48 @@ class Profile {
         dateCreated: json['date_created'] as String? ?? '',
         isOnline: json['is_online'] as bool? ?? false,
         isActive: json['is_active'] as String? ?? 'true',
+        blockReason: json['block_reason'] as String? ?? '',
         postCount: (json['post_count'] as num?)?.toInt() ?? 0,
         warningCount: (json['warning_count'] as num?)?.toInt() ?? 0,
+        warnings: [
+          for (final w in (json['warnings'] as List? ?? const []))
+            if (w is Map<String, dynamic>) UserWarning.fromJson(w),
+        ],
         followerCount: (json['follower_count'] as num?)?.toInt() ?? 0,
         followingCount: (json['following_count'] as num?)?.toInt() ?? 0,
         isFollowing: json['is_following'] as bool? ?? false,
         isFollowingYou: json['is_following_you'] as bool? ?? false,
         isOwn: json['is_own'] as bool? ?? false,
+      );
+}
+
+/// One ACTIVE warning on a profile — the site's profile.php warnings list
+/// (fa-exclamation-triangle + "Warning from <admin> - <reason>
+/// (<Nd remaining>)").
+class UserWarning {
+  const UserWarning({
+    required this.id,
+    required this.reason,
+    required this.adminId,
+    required this.adminUsername,
+    required this.secondsLeft,
+  });
+
+  final int id;
+  final String reason;
+  final int adminId;
+  final String adminUsername;
+  final int secondsLeft;
+
+  /// Site formula: ceil(max(0, seconds_left) / 86400).
+  int get daysLeft => (secondsLeft > 0 ? (secondsLeft / 86400).ceil() : 0);
+
+  factory UserWarning.fromJson(Map<String, dynamic> json) => UserWarning(
+        id: (json['id'] as num?)?.toInt() ?? 0,
+        reason: json['reason'] as String? ?? '',
+        adminId: (json['admin_id'] as num?)?.toInt() ?? 0,
+        adminUsername: json['admin_username'] as String? ?? '',
+        secondsLeft: (json['seconds_left'] as num?)?.toInt() ?? 0,
       );
 }
 

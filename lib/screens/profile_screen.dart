@@ -23,6 +23,11 @@ import 'compose_screen.dart';
 ///   color) · online status · warning count · full name · followers /
 ///   following stats · follow button (Follow / Follow Back / Following) ·
 ///   prestige number + gradient bar · joined date · bio.
+/// Site moderation states (also ported):
+///   blocked → red banner above the card ("This user has been blocked[: ...]")
+///   + line-through username; active warnings → yellow cards under the bio
+///   ("Warning from @admin - reason · Nd left", admin tappable → their
+///   profile). The api/v1 profile GET ships block_reason + warnings[].
 /// Then "Posts": the author's posts, newest first, keyset-paginated.
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key, required this.userId});
@@ -251,8 +256,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           dateCreated: profile.dateCreated,
           isOnline: profile.isOnline,
           isActive: profile.isActive,
+          blockReason: profile.blockReason,
           postCount: profile.postCount,
           warningCount: profile.warningCount,
+          warnings: profile.warnings,
           followerCount: result.followerCount,
           followingCount: result.followingCount,
           isFollowing: result.following,
@@ -442,20 +449,29 @@ class _ProfileHeader extends StatelessWidget {
         ? RankColors.forRank('Blocked')
         : RankColors.forRank(profile.rank);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 4),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: EnclavdColors.card,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    // Site: the blocked banner sits ABOVE the whole profile card (server
+    // truth on load). Column keeps it attached to the card it describes.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (profile.isBlocked) ...[
+          _BlockedBanner(profile: profile),
+          const SizedBox(height: 10),
+        ],
+        Container(
+          margin: const EdgeInsets.only(bottom: 4),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: EnclavdColors.card,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: borderColor),
+          ),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
               // Avatar with personality border + online dot.
               Stack(
                 children: [
@@ -713,6 +729,134 @@ class _ProfileHeader extends StatelessWidget {
                   height: 1.3),
             ),
           ],
+            // Warnings (site: profile.php's info-yellow list under the bio).
+            if (profile.warnings.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              for (final w in profile.warnings) _WarningCard(warning: w),
+            ],
+          ],
+        ),
+      ),
+    ],
+  );
+  }
+}
+
+/// The site's blocked banner (profile.php: border-red-500/50 bg-red-900/40
+/// text-red-200 fa-ban + "This user has been blocked[: <reason>]") — shown
+/// ABOVE the profile card while `blocked` (is_active === 'false').
+class _BlockedBanner extends StatelessWidget {
+  const _BlockedBanner({required this.profile});
+
+  final Profile profile;
+
+  @override
+  Widget build(BuildContext context) {
+    final reason = profile.blockReason.trim();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0x667F1D1D), // bg-red-900/40
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0x80EF4444)), // border-red-500/50
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const FaIcon(FontAwesomeIcons.ban,
+              color: Color(0xFFF87171), size: 15), // red-400
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              reason.isNotEmpty
+                  ? 'This user has been blocked: $reason'
+                  : 'This user has been blocked.',
+              style: const TextStyle(
+                  color: Color(0xFFFECACA), // red-200
+                  fontSize: 13,
+                  height: 1.35),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One ACTIVE warning — modern card port of the site's info-yellow row
+/// (fa-exclamation-triangle + "Warning from <admin> - <reason>
+/// (<Nd remaining>)"). The admin's username is tappable → their profile
+/// (site parity: the name links to /profile/<admin_id>).
+class _WarningCard extends StatelessWidget {
+  const _WarningCard({required this.warning});
+
+  final UserWarning warning;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0x14FACC15), // bg-yellow-400/8
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0x4DA16207)), // border-yellow-700/30
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const FaIcon(FontAwesomeIcons.triangleExclamation,
+              color: EnclavdColors.warning, size: 14),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Text('Warning from ',
+                        style: TextStyle(
+                            color: EnclavdColors.warning, fontSize: 13)),
+                    Flexible(
+                      child: GestureDetector(
+                        onTap: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) =>
+                                  ProfileScreen(userId: warning.adminId),
+                            ),
+                          );
+                        },
+                        child: Text(
+                          '@${warning.adminUsername}',
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              color: EnclavdColors.link,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (warning.reason.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    warning.reason,
+                    style: const TextStyle(
+                        color: EnclavdColors.textSecondary, fontSize: 13),
+                  ),
+                ],
+                const SizedBox(height: 2),
+                // Site: "({N}d remaining)" — ceil(max(0, seconds)/86400).
+                Text(
+                  '${warning.daysLeft}d left',
+                  style: const TextStyle(
+                      color: Color(0xFF6B7280), fontSize: 12), // gray-500
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
