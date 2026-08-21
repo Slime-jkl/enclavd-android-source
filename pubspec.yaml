@@ -28,6 +28,13 @@ dependencies:
   # device notifications with a reply action from the drawer.
   flutter_local_notifications: ^22.3.0
   workmanager: ^0.10.9
+  # In-app YouTube playback: post-card embeds load the real youtube-nocookie
+  # embed player in a WebView (plays inline, streamed from YouTube) instead
+  # of redirecting to the YouTube app. flutter.dev first-party plugin.
+  webview_flutter: ^4.14.1
+  # Direct import (AndroidWebViewController.setMediaPlaybackRequiresUserGesture
+  # — allows the embed to autoplay after the thumbnail tap).
+  webview_flutter_android: ^4.14.0
 
 dev_dependencies:
   flutter_test:

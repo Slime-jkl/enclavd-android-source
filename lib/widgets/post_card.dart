@@ -5,6 +5,8 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 import '../api/auth_service.dart';
 import '../api/feed_service.dart';
@@ -293,7 +295,8 @@ class _PostCardState extends State<PostCard> {
                         // post (post_card.php renderYouTubeEmbed) between
                         // the text and the image.
                         if (extractYouTubeId(widget.post.content) case final id?)
-                          _YouTubeEmbed(videoId: id),
+                          _YouTubeEmbed(
+                              videoId: id, apiBaseUrl: widget.apiBaseUrl),
                         if (widget.post.image != null &&
                             widget.post.image!.isNotEmpty) ...[
                           const SizedBox(height: 12),
@@ -894,68 +897,210 @@ String? extractYouTubeId(String text) {
 }
 
 /// The site's YouTube embed (renderYouTubeEmbed): a 16:9 card between the
-/// post text and the image. The site uses an iframe; the app shows the
-/// video's thumbnail with a play affordance (Instagram/Facebook style —
-/// no WebView/player dependency in the feed) and opens the video in the
-/// YouTube app / browser on tap (the iframe's fullscreen equivalent).
-class _YouTubeEmbed extends StatelessWidget {
-  const _YouTubeEmbed({required this.videoId});
+/// post text and the image. The site uses an iframe; the app embeds the
+/// REAL YouTube player in a WebView, so the video plays IN the app (streamed
+/// from YouTube) instead of redirecting to the YouTube app.
+///
+/// Tap the thumbnail → the player loads (autoplay=1) and plays inline
+/// (playsinline=1). The player keeps its own controls; a small overlay row
+/// offers collapse (back to the thumbnail) and an explicit "open in the
+/// YouTube app" escape hatch (the player's own links — title, related —
+/// also open externally via the navigation delegate).
+class _YouTubeEmbed extends StatefulWidget {
+  const _YouTubeEmbed({required this.videoId, required this.apiBaseUrl});
 
   final String videoId;
+
+  /// Used as the embed request's Referer — YouTube requires API-client
+  /// identification for embeds inside apps (without it: error 153, "Video
+  /// Player Configuration Error"). Same origin the site's own embeds use.
+  final String apiBaseUrl;
+
+  @override
+  State<_YouTubeEmbed> createState() => _YouTubeEmbedState();
+}
+
+class _YouTubeEmbedState extends State<_YouTubeEmbed> {
+  bool _playing = false;
+  WebViewController? _controller;
+
+  /// Created lazily on first play (a WebView per card is heavy; the feed
+  /// only pays for videos the user actually opens) and kept alive under
+  /// the thumbnail afterwards, so collapse → re-open resumes instantly.
+  WebViewController _ensureController() {
+    final existing = _controller;
+    if (existing != null) return existing;
+    final controller = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setBackgroundColor(const Color(0xFF0F172A))
+      ..setNavigationDelegate(
+          NavigationDelegate(onNavigationRequest: _onNavigationRequest));
+    final platform = controller.platform;
+    if (platform is AndroidWebViewController) {
+      // Default true blocks autoplay=1 even though the user JUST tapped the
+      // thumbnail — flip it so the tap starts the video (the site's iframe
+      // plays on click the same way).
+      platform.setMediaPlaybackRequiresUserGesture(false);
+    }
+    controller.loadRequest(
+      Uri.parse('https://www.youtube-nocookie.com/embed/${widget.videoId}'
+          '?playsinline=1&rel=0&autoplay=1'),
+      headers: {
+        'Referer': widget.apiBaseUrl,
+        'Referrer-Policy': 'strict-origin-when-cross-origin',
+      },
+    );
+    _controller = controller;
+    return controller;
+  }
+
+  /// The embed frame stays in the WebView; the player's own OUT-links
+  /// (title, related videos, "Watch on YouTube") open in the YouTube app /
+  /// browser — the app itself never redirects, only explicit taps inside
+  /// the player leave.
+  NavigationDecision _onNavigationRequest(NavigationRequest request) {
+    final url = request.url.toString();
+    if (url.contains('youtube-nocookie.com/embed/') ||
+        url.contains('youtube.com/embed/')) {
+      return NavigationDecision.navigate;
+    }
+    if (url.contains('youtube.com') || url.contains('youtu.be')) {
+      launchUrl(Uri.parse(request.url.toString()),
+          mode: LaunchMode.externalApplication);
+    }
+    return NavigationDecision.prevent;
+  }
+
+  void _play() {
+    _ensureController();
+    setState(() => _playing = true);
+  }
+
+  void _collapse() => setState(() => _playing = false);
+
+  Future<void> _openExternal() async {
+    try {
+      await launchUrl(
+          Uri.parse('https://www.youtube.com/watch?v=${widget.videoId}'),
+          mode: LaunchMode.externalApplication);
+    } catch (_) {
+      // Defensive, like every other launcher call — never break the feed.
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(top: 12),
-      child: GestureDetector(
-        onTap: _open,
-        child: Container(
-          decoration: BoxDecoration(
-            color: const Color(0x66000000), // bg-black/40
-            borderRadius: BorderRadius.circular(8), // rounded-lg
-            border:
-                Border.all(color: const Color(0x99374151)), // gray-700/60
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: AspectRatio(
-            aspectRatio: 16 / 9, // the site's 56.25% padding-top
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                // hqdefault always exists for every video id (maxresdefault
-                // does not — no broken embeds).
-                EnclavdImage(
-                  'https://img.youtube.com/vi/$videoId/hqdefault.jpg',
-                  fit: BoxFit.cover,
-                  errorAsset: 'assets/images/no-image.jpg',
-                ),
-                Center(
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0x66000000), // bg-black/40
+          borderRadius: BorderRadius.circular(8), // rounded-lg
+          border: Border.all(color: const Color(0x99374151)), // gray-700/60
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: AspectRatio(
+          aspectRatio: 16 / 9, // the site's 56.25% padding-top
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // The player stays mounted once created (even while collapsed)
+              // so its state survives — the thumbnail just covers it.
+              if (_controller != null) WebViewWidget(controller: _controller!),
+              if (!_playing)
+                // Thumbnail card (tap to play). Solid background hides the
+                // loaded player underneath when collapsing back.
+                GestureDetector(
+                  onTap: _play,
                   child: Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.6),
-                      shape: BoxShape.circle,
+                    color: EnclavdColors.card,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        // hqdefault always exists for every video id
+                        // (maxresdefault does not — no broken embeds).
+                        EnclavdImage(
+                          'https://img.youtube.com/vi/${widget.videoId}/hqdefault.jpg',
+                          fit: BoxFit.cover,
+                          errorAsset: 'assets/images/no-image.jpg',
+                        ),
+                        Center(
+                          child: Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.6),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const FaIcon(FontAwesomeIcons.play,
+                                size: 20, color: Colors.white),
+                          ),
+                        ),
+                      ],
                     ),
-                    child: const FaIcon(FontAwesomeIcons.play,
-                        size: 20, color: Colors.white),
+                  ),
+                ),
+              if (_playing) ...[
+                // Player overlay controls: collapse back to the thumbnail,
+                // or hand off to the YouTube app explicitly.
+                Positioned(
+                  top: 6,
+                  right: 6,
+                  child: Row(
+                    children: [
+                      _PlayerOverlayButton(
+                        icon: FontAwesomeIcons.arrowUpRightFromSquare,
+                        tooltip: 'Open in YouTube',
+                        onTap: _openExternal,
+                      ),
+                      const SizedBox(width: 6),
+                      _PlayerOverlayButton(
+                        icon: FontAwesomeIcons.xmark,
+                        tooltip: 'Collapse',
+                        onTap: _collapse,
+                      ),
+                    ],
                   ),
                 ),
               ],
-            ),
+            ],
           ),
         ),
       ),
     );
   }
+}
 
-  Future<void> _open() async {
-    try {
-      await launchUrl(Uri.parse('https://www.youtube.com/watch?v=$videoId'),
-          mode: LaunchMode.externalApplication);
-    } catch (_) {
-      // Defensive, like every other launcher call — never break the feed.
-    }
+/// Small circular overlay button on the playing embed (black/60 chip).
+class _PlayerOverlayButton extends StatelessWidget {
+  const _PlayerOverlayButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final FaIconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.6),
+            shape: BoxShape.circle,
+          ),
+          child: FaIcon(icon, size: 14, color: Colors.white),
+        ),
+      ),
+    );
   }
 }
 
