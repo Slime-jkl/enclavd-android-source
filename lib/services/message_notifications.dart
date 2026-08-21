@@ -291,20 +291,21 @@ Future<void> showMessageNotificationWith(
   required int conversationId,
   String? avatarPath,
 }) async {
-  final avatarFile = avatarPath == null || avatarPath.isEmpty
-      ? null
-      : await resolveNotificationAvatar(
-          avatarPath,
-          baseUrl: AppConfig.apiBaseUrl,
-        );
-  final details = _messageNotificationDetails(
-      senderName, message, conversationId, avatarFile);
   try {
+    final avatarFile = avatarPath == null || avatarPath.isEmpty
+        ? null
+        : await resolveNotificationAvatar(
+            avatarPath,
+            baseUrl: AppConfig.apiBaseUrl,
+          );
     await plugin.show(
       id: notificationId,
       title: senderName,
       body: message,
-      notificationDetails: NotificationDetails(android: details),
+      notificationDetails: NotificationDetails(
+        android: _messageNotificationDetails(
+            senderName, message, conversationId, avatarFile),
+      ),
       payload: 'c:$conversationId',
     );
   } catch (e) {
@@ -358,9 +359,16 @@ AndroidNotificationDetails _messageNotificationDetails(
           Person(
             key: 'them',
             name: senderName,
+            // BitmapFilePathAndroidIcon (NOT FilePathAndroidBitmap): the
+            // plugin's AndroidIcon implementation for a local file path.
+            // FilePathAndroidBitmap implements AndroidBitmap<String> — a
+            // DIFFERENT interface — and casting it to AndroidIcon<Object>
+            // threw a _TypeError on every show with a downloaded avatar,
+            // killing ALL message notifications (0.4.2 regression; the
+            // throw was outside the retry's try, so nothing caught it).
             icon: avatarFile == null
                 ? null
-                : FilePathAndroidBitmap(avatarFile) as AndroidIcon<Object>,
+                : BitmapFilePathAndroidIcon(avatarFile),
           ),
         ),
       ],

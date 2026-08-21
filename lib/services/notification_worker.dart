@@ -95,26 +95,34 @@ Future<void> runBackgroundSources(List<NotificationSource> sources) async {
   debugPrint('worker: ${fresh.length} fresh candidate(s)');
   for (final candidate in fresh) {
     debugPrint('worker: showing ${candidate.key}');
-    switch (candidate.kind) {
-      case CandidateKind.message:
-        final conversationId =
-            MessageNotifications.conversationIdFromPayload(candidate.payload);
-        await showMessageNotificationWith(
-          plugin,
-          notificationId: candidate.notificationId,
-          senderName: candidate.title,
-          message: candidate.body,
-          conversationId: conversationId ?? 0,
-          avatarPath: candidate.avatarPath,
-        );
-      case CandidateKind.social:
-        await showSocialNotificationWith(
-          plugin,
-          notificationId: candidate.notificationId,
-          title: candidate.title,
-          body: candidate.body,
-        );
+    try {
+      switch (candidate.kind) {
+        case CandidateKind.message:
+          final conversationId =
+              MessageNotifications.conversationIdFromPayload(candidate.payload);
+          await showMessageNotificationWith(
+            plugin,
+            notificationId: candidate.notificationId,
+            senderName: candidate.title,
+            message: candidate.body,
+            conversationId: conversationId ?? 0,
+            avatarPath: candidate.avatarPath,
+          );
+        case CandidateKind.social:
+          await showSocialNotificationWith(
+            plugin,
+            notificationId: candidate.notificationId,
+            title: candidate.title,
+            body: candidate.body,
+          );
+      }
+      await tracker.add(candidate.key); // only after a successful show
+    } catch (e) {
+      // ONE broken candidate must never kill the rest of the run (a
+      // throwing message show used to abort the whole loop, silently
+      // dropping the social candidates behind it — 0.4.2 regression).
+      // The candidate stays unmarked, so the next tick retries it.
+      debugPrint('worker: candidate ${candidate.key} failed: $e');
     }
-    await tracker.add(candidate.key); // only after a successful show
   }
 }

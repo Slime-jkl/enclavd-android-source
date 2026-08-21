@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:enclavd/services/notification_avatar.dart';
 
@@ -121,5 +122,35 @@ void main() {
         reason: 'the corrupt cache hit must trigger a fresh download');
     expect(File(path2!).readAsBytesSync(), tinyPng,
         reason: 'the returned file must be the valid re-download');
+  });
+
+  // THE 0.4.2 REGRESSION — messages stopped completely. The Person icon
+  // was built with `FilePathAndroidBitmap(path) as AndroidIcon<Object>`:
+  // FilePathAndroidBitmap implements AndroidBitmap<String> (a DIFFERENT
+  // interface, for notificationDetails.bitmap), so the cast threw a
+  // _TypeError on every show with a downloaded avatar. The correct class
+  // for a Person icon is BitmapFilePathAndroidIcon (implements
+  // AndroidIcon<String>, covariant to AndroidIcon<Object> — assignable,
+  // no cast needed). Prove the bad cast throws and the good one works:
+  test('Person icon must be an AndroidIcon, not an AndroidBitmap cast', () {
+    final filePath = File(
+            '${Directory.systemTemp.createTempSync('icon_cast_test').path}/a.png')
+        .path;
+
+    // The OLD code — a cast that ALWAYS throws at runtime. If anyone
+    // reintroduces FilePathAndroidBitmap here, this test reds.
+    expect(
+      () => FilePathAndroidBitmap(filePath) as AndroidIcon<Object>,
+      throwsA(isA<TypeError>()),
+      reason: 'FilePathAndroidBitmap is an AndroidBitmap, not an AndroidIcon',
+    );
+
+    // The FIX — the plugin's file-path icon IS an AndroidIcon<String>,
+    // and Dart covariance makes it assignable to Person.icon's
+    // AndroidIcon<Object> without any cast.
+    final icon = BitmapFilePathAndroidIcon(filePath);
+    expect(icon, isA<AndroidIcon<String>>());
+    expect(() => Person(key: 'them', name: 'sender', icon: icon),
+        returnsNormally);
   });
 }
