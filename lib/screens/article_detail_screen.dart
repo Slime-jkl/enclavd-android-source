@@ -586,23 +586,28 @@ class _ArticleBodyWebViewState extends State<_ArticleBodyWebView> {
 
   @override
   Widget build(BuildContext context) {
-    if (_height <= 0) {
-      // Placeholder while the page + first measurement settle.
-      return const SizedBox(
-        height: 220,
-        child: Center(
-          child: SizedBox(
-            width: 24,
-            height: 24,
-            child: CircularProgressIndicator(strokeWidth: 2.5),
-          ),
-        ),
-      );
-    }
+    // The WebView is ALWAYS mounted (at the placeholder height while the
+    // first measurement is pending) with the spinner OVERLAID — a
+    // conditional mount here deadlocks: the measurement can only arrive
+    // from the loaded document, and the document only loads once the
+    // platform view is attached, which requires the widget to be built.
+    final height = _height > 0 ? _height.toDouble() : 220.0;
     return SizedBox(
-      height: _height.toDouble(),
+      height: height,
       width: double.infinity,
-      child: WebViewWidget(controller: _controller),
+      child: Stack(
+        children: [
+          WebViewWidget(controller: _controller),
+          if (_height <= 0)
+            const Center(
+              child: SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(strokeWidth: 2.5),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
