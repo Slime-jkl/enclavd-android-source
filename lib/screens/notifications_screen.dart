@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../api/messages_service.dart'; // parseDbTime (DB UTC wall-clock)
 import '../api/notifications_service.dart';
@@ -12,6 +11,7 @@ import '../services/social_notifications.dart';
 import '../theme/enclavd_theme.dart';
 import '../utils/html_entities.dart';
 import '../widgets/enclavd_image.dart';
+import 'post_detail_screen.dart';
 import 'profile_screen.dart';
 
 /// The in-app notification drawer — the site's bell dropdown (header.php +
@@ -22,9 +22,10 @@ import 'profile_screen.dart';
 ///    markAllAsRead([])) and the badge clears;
 ///  - rows: avatar, message, post preview (50-char clamp, 2 lines), the
 ///    site's relative time; unread rows get the blue tint;
-///  - taps: follow → the user's profile, post-attached types → the post
-///    (site: /feed/post/<id>, opened in the browser like the other
-///    non-native site pages), user-management → no-op (site '#').
+///  - taps: follow → the user's profile, post-attached types → the native
+///    PostDetailScreen for that post (the site's /feed/post/<id>), which
+///    fetches api/v1/posts ?post_id=N and renders the full post card;
+///    user-management → no-op (site '#').
 ///
 /// Real-time: the drawer subscribes to the SAME realtime stream as the
 /// feed — a `notification` SSE ping while the drawer is open refreshes the
@@ -100,17 +101,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       case 'post-like':
       case 'post-comment':
       case 'comment-mention':
-        _openSite('/feed/post/${n.contentId}');
+        // Native post-by-id screen (api/v1/posts ?post_id=N) — the site's
+        // /feed/post/<id> permalink rendered as a full post card.
+        Navigator.of(context).push(MaterialPageRoute<void>(
+          builder: (_) => PostDetailScreen(postId: n.contentId),
+        ));
       default:
         break; // user-management: site parity (the row links nowhere)
     }
-  }
-
-  void _openSite(String path) {
-    launchUrl(
-      Uri.parse('${AppConfig.apiBaseUrl}$path'),
-      mode: LaunchMode.externalApplication,
-    );
   }
 
   @override
