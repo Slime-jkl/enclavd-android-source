@@ -2,7 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:enclavd/main.dart';
+import 'package:enclavd/services/message_notification_source.dart';
 import 'package:enclavd/services/message_notifications.dart';
+import 'package:enclavd/services/social_notification_source.dart';
 import 'package:enclavd/services/social_notifications.dart';
 
 void main() {
@@ -38,6 +40,23 @@ void main() {
     expect(second.messageAlerts, same(singleton),
         reason: 'first create wins — plugin initialized exactly once');
     expect(MessageNotifications.instance, same(singleton));
+  });
+
+  test('create() resets the worker quiet-window flags at boot', () async {
+    // A process killed while the messages screen or the notification drawer
+    // was open leaves the prefs flags true — the worker would stay silent
+    // for messages AND notifications until the next visit. Boot must clear.
+    SharedPreferences.setMockInitialValues({
+      MessageNotificationSource.chatOpenPrefsKey: true,
+      SocialNotificationSource.drawerOpenPrefsKey: true,
+    });
+    await AppServices.create();
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool(MessageNotificationSource.chatOpenPrefsKey), isFalse,
+        reason: 'chat-open quiet window must not survive a kill');
+    expect(prefs.getBool(SocialNotificationSource.drawerOpenPrefsKey), isFalse,
+        reason: 'drawer-open quiet window must not survive a kill');
   });
 
   test('the social notifications singleton is created once and reused',

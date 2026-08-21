@@ -58,6 +58,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   // Unread NOTIFICATIONS badge (site header: bell icon + red count).
   int _notifUnread = 0;
   StreamSubscription<RealtimeEvent>? _realtimeSub;
+  StreamSubscription<bool>? _sseStatusSub;
 
   @override
   void initState() {
@@ -81,12 +82,29 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     // `if (EnclavdRealtime.connected) return;`) — event-driven only.
     _unreadTimer =
         Timer.periodic(const Duration(seconds: 30), (_) {
-      if (_services?.realtime.isSseConnected ?? false) return;
+      if (_services?.realtime.isSseConnected ?? false) {
+        // DIAGNOSTIC: with a live stream the poll must NOT run (site
+        // parity). If this prints forever while NO events arrive, the
+        // stream is a zombie gating the fallback — the tell for that
+        // state in logcat.
+        debugPrint('FS: poll skipped (sse connected)');
+        return;
+      }
       _loadUnread();
       _loadNotifUnread();
     });
     final realtime = _services!.realtime;
+    // A fresh SSE stream means anything missed while the old one was down
+    // (or was a zombie) must be reconciled from REST — the site does the
+    // same on EventSource reconnect (visibilitychange → re-poll).
+    _sseStatusSub = realtime.sseStatus.listen((connected) {
+      if (!connected) return;
+      debugPrint('FS: sse reconnected — reconciling badges');
+      _loadUnread();
+      _loadNotifUnread();
+    });
     _realtimeSub = realtime.events.listen((event) {
+      debugPrint('FS: event ${event.type} unread=${event.unreadCount}');
       if (event.type == 'message_unread') {
         // Badge ping = a new message somewhere: surface it as a device
         // notification with a drawer reply (skipped while the messages
@@ -117,6 +135,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _unreadTimer?.cancel();
     _realtimeSub?.cancel();
+    _sseStatusSub?.cancel();
     _scrollController.dispose();
     super.dispose();
   }
@@ -129,9 +148,13 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) return;
     // Foreground: probe the WS (ping/pong — zombie sockets reconnect NOW
-    // instead of waiting out the backoff), reconnect SSE, re-sync unread.
+    // instead of waiting out the backoff), force a FRESH SSE stream (a
+    // half-open zombie reads as connected and gates the polls off forever
+    // — restart-only until this), re-sync BOTH badges from REST.
+    debugPrint('FS: resumed — reconnecting realtime, re-syncing badges');
     _services?.realtime.onForeground();
     _loadUnread();
+    _loadNotifUnread();
   }
 
   /// The header avatar + drawer header need the current user (api/v1/me).

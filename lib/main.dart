@@ -21,6 +21,7 @@ import 'services/message_notification_source.dart';
 import 'services/message_notifications.dart';
 import 'services/notification_worker.dart';
 import 'services/realtime_service.dart';
+import 'services/social_notification_source.dart';
 import 'services/social_notifications.dart';
 import 'theme/enclavd_theme.dart';
 
@@ -72,11 +73,13 @@ class AppServices {
 
   static Future<AppServices> create() async {
     final prefs = await SharedPreferences.getInstance();
-    // Boot: a fresh process has no messages screen open. The background
-    // worker's quiet-window flag must not linger true from a process
-    // that was killed while the thread was on screen — that would leave
-    // the worker silent for messages until the next chat visit.
+    // Boot: a fresh process has no messages screen and no notification
+    // drawer open. The background worker's quiet-window flags must not
+    // linger true from a process that was killed while a screen was open —
+    // that would leave the worker silent for messages/notifications until
+    // the next visit.
     unawaited(MessageNotificationSource.setChatOpenPrefs(prefs, false));
+    unawaited(SocialNotificationSource.setDrawerOpenPrefs(prefs, false));
     final store = PrefsSessionStore(prefs);
     final api = ApiClient(store: store);
     await api.restoreSession();

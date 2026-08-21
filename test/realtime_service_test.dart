@@ -443,6 +443,53 @@ void main() {
     await h.close();
   });
 
+  test('sseStatus emits true on connect and false when the stream ends',
+      () async {
+    final h = await RealtimeHarness.start(); // default: stream closes after events
+    final service = await buildService(h);
+
+    final statuses = <bool>[];
+    service.sseStatus.listen(statuses.add);
+
+    await service.connectSse();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(statuses, containsAll([true, false]),
+        reason: 'open → the harness closes the stream → not connected');
+
+    service.dispose();
+    await h.close();
+  });
+
+  test('onForeground force-reconnects a live SSE stream (zombie killer)',
+      () async {
+    final h = await RealtimeHarness.start();
+    h.keepSseOpen = true; // stream stays open — "connected" but silent
+    final service = await buildService(h);
+
+    final statuses = <bool>[];
+    service.sseStatus.listen(statuses.add);
+
+    unawaited(service.connectSse());
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(service.isSseConnected, isTrue);
+
+    // Resume must tear the stream down and connect fresh — a zombie reads
+    // as connected and gates the fallback polls off forever otherwise.
+    // (Not awaited: with keepSseOpen the fresh stream never ends, so the
+    // connect future only completes when the stream does — by design.)
+    unawaited(service.onForeground());
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+
+    expect(h.sseRequests, hasLength(2),
+        reason: 'a fresh stream after every foreground');
+    expect(service.isSseConnected, isTrue);
+    expect(statuses, containsAll([true, false, true]),
+        reason: 'open → torn down → reconnected');
+
+    service.dispose();
+    await h.close();
+  });
+
   test('dispose closes the socket and stops reconnects', () async {
     final h = await RealtimeHarness.start();
     final service = await buildService(h);

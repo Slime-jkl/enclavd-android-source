@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+
 import '../api/api_client.dart';
 import '../config/app_config.dart';
 
@@ -99,6 +101,17 @@ class RealtimeService {
   final _events = StreamController<RealtimeEvent>.broadcast();
   Stream<RealtimeEvent> get events => _events.stream;
 
+  /// SSE connectivity: true while the stream is open, false when it ended
+  /// or errored. The feed re-syncs its badges on the false→true transition
+  /// — a FRESH stream means anything missed while it was down (or a zombie
+  /// was torn down) must be reconciled from REST.
+  final _sseStatus = StreamController<bool>.broadcast();
+  Stream<bool> get sseStatus => _sseStatus.stream;
+
+  void _emitSseStatus(bool connected) {
+    if (!_sseStatus.isClosed) _sseStatus.add(connected);
+  }
+
   // ── WebSocket state ──────────────────────────────────────────────────
   WebSocket? _ws;
   bool _wsConnecting = false;
@@ -115,6 +128,8 @@ class RealtimeService {
   int _sseAttempts = 0;
   Timer? _sseReconnectTimer;
   HttpClient? _sseClient;
+  StreamSubscription<String>? _sseSub; // the active SSE line stream
+  String _sseEventType = ''; // 'event:' → 'data:' pairing across lines
 
   bool _disposed = false;
 
@@ -255,6 +270,16 @@ class RealtimeService {
       }
     }
     if (_sseClient == null && !_sseConnecting) await connectSse();
+    // SSE is ONE-WAY — there is no client→server channel to probe a
+    // half-open stream with (unlike the WS ping/pong). A zombie reads as
+    // "connected" (isSseConnected → the badge polls gate off) and
+    // delivers nothing forever — the "stuck until restart" state. The
+    // only guaranteed fix after a background/foreground cycle is to tear
+    // the stream down and connect fresh: one cheap GET, and the feed
+    // reconciles on the sseStatus transition.
+    debugPrint('RT: onForeground — forcing fresh SSE stream');
+    _forceSseReconnect();
+    await connectSse();
   }
 
   /// Sends a ping and waits for the sidecar's pong (the sidecar replies to
@@ -325,6 +350,7 @@ class RealtimeService {
         _scheduleSseReconnect();
         return;
       }
+      debugPrint('RT: sse connecting (token ok)');
       final client = _httpClientFactory();
       final request = await client.getUrl(_eventsUri(token));
       request.headers.set(HttpHeaders.acceptHeader, 'text/event-stream');
@@ -332,44 +358,98 @@ class RealtimeService {
       _sseConnecting = false;
       if (response.statusCode != HttpStatus.ok) {
         client.close();
-        if (response.statusCode == HttpStatus.unauthorized) return;
+        debugPrint('RT: sse status ${response.statusCode}');
+        if (response.statusCode == HttpStatus.unauthorized) {
+          debugPrint('RT: sse 401 — session dead, stop retrying');
+          return;
+        }
         _scheduleSseReconnect();
         return;
       }
       _sseClient = client;
-      var eventType = '';
-      await for (final line in response
+      _emitSseStatus(true);
+      debugPrint('RT: sse connected');
+      _sseEventType = '';
+      // Explicit subscription (NOT `await for`): the force-reconnect path
+      // must be able to CANCEL the in-flight stream — closing only the
+      // HttpClient does not abort the response stream, so a zombie would
+      // keep reading (and re-delivering) forever.
+      _sseSub = response
           .transform(utf8.decoder)
-          .transform(const LineSplitter())) {
-        if (_disposed) break;
-        if (line.startsWith('event:')) {
-          eventType = line.substring(6).trim();
-        } else if (line.startsWith('data:')) {
-          final payload = line.substring(5).trim();
-          if (eventType.isNotEmpty && payload.isNotEmpty) {
-            try {
-              final decoded = jsonDecode(payload);
-              if (decoded is Map<String, dynamic>) {
-                _events.add(RealtimeEvent(type: eventType, data: decoded));
-              }
-            } catch (_) {}
-          }
-          eventType = '';
-        }
-        // ':' lines are heartbeat comments — ignored.
-      }
-      client.close();
-      _sseClient = null;
-      _scheduleSseReconnect();
+          .transform(const LineSplitter())
+          .listen(
+        _onSseLine,
+        onError: (_) => _sseStreamEnded(client),
+        onDone: () => _sseStreamEnded(client),
+      );
     } on SocketException {
       _sseConnecting = false;
+      _sseClient = null;
+      _emitSseStatus(false);
+      debugPrint('RT: sse socket error — reconnect');
       _scheduleSseReconnect();
     } on HttpException {
       _sseConnecting = false;
+      _sseClient = null;
+      _emitSseStatus(false);
+      debugPrint('RT: sse http error — reconnect');
       _scheduleSseReconnect();
     } catch (_) {
       _sseConnecting = false;
+      _sseClient = null;
+      _emitSseStatus(false);
       _scheduleSseReconnect();
+    }
+  }
+
+  void _onSseLine(String line) {
+    if (_disposed) return;
+    if (line.startsWith('event:')) {
+      _sseEventType = line.substring(6).trim();
+    } else if (line.startsWith('data:')) {
+      final payload = line.substring(5).trim();
+      if (_sseEventType.isNotEmpty && payload.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(payload);
+          if (decoded is Map<String, dynamic>) {
+            debugPrint('RT: sse event $_sseEventType');
+            _events.add(RealtimeEvent(type: _sseEventType, data: decoded));
+          }
+        } catch (_) {}
+      }
+      _sseEventType = '';
+    }
+    // ':' lines are heartbeat comments — ignored.
+  }
+
+  /// The active SSE stream ended or errored. Cleans up only when this
+  /// connection is still the CURRENT one — a stale stream superseded by a
+  /// force-reconnect must never clobber the new connection's state.
+  void _sseStreamEnded(HttpClient client) {
+    _sseSub?.cancel();
+    _sseSub = null;
+    client.close();
+    if (identical(_sseClient, client)) {
+      _sseClient = null;
+      _emitSseStatus(false);
+      debugPrint('RT: sse stream ended — reconnect');
+      _scheduleSseReconnect();
+    }
+  }
+
+  /// Tears the current SSE stream down so a fresh one can be opened. The
+  /// force-reconnect path for resume: a half-open zombie cannot be probed
+  /// (SSE is one-way) — it must simply be replaced.
+  void _forceSseReconnect() {
+    _sseReconnectTimer?.cancel();
+    _sseConnecting = false;
+    _sseSub?.cancel();
+    _sseSub = null;
+    final client = _sseClient;
+    if (client != null) {
+      _sseClient = null;
+      client.close(force: true);
+      _emitSseStatus(false);
     }
   }
 
@@ -387,6 +467,7 @@ class RealtimeService {
         ? _reconnectDelay
         : _reconnectDelay * 10; // prod: 3s -> 30s; tests scale too
     _sseAttempts++;
+    debugPrint('RT: sse reconnect in ${delay.inSeconds}s (attempt $_sseAttempts)');
     _sseReconnectTimer = Timer(delay, _connectSse);
   }
 
@@ -459,9 +540,12 @@ class RealtimeService {
       _ws?.close();
     } catch (_) {}
     _ws = null;
-    _sseClient?.close();
+    _sseSub?.cancel();
+    _sseSub = null;
+    _sseClient?.close(force: true);
     _sseClient = null;
     _joined.clear();
     _events.close();
+    _sseStatus.close();
   }
 }
