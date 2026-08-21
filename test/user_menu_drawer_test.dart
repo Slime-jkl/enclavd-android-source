@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:enclavd/api/api_client.dart';
@@ -6,6 +8,7 @@ import 'package:enclavd/screens/profile_screen.dart';
 import 'package:enclavd/screens/settings_screen.dart';
 import 'package:enclavd/services/sound_service.dart';
 import 'package:enclavd/theme/enclavd_theme.dart';
+import 'package:enclavd/widgets/shimmer.dart';
 import 'package:enclavd/widgets/user_menu_drawer.dart';
 
 class _FakeAuth extends AuthService {
@@ -16,17 +19,25 @@ class _FakeAuth extends AuthService {
         apiBaseUrl: 'https://example.com',
       );
 
+  /// When set, me() waits on this before resolving — lets tests observe
+  /// the loading (shimmer) state of the drawer.
+  Completer<void>? gate;
+
   @override
-  Future<CurrentUser?> me() async => const CurrentUser(
-        id: 1,
-        username: 'Slimejkl',
-        profilePictureUrl: '/a.png',
-        rank: 'SysOp',
-        personalityType: 'INTJ',
-        prestige: 1234567,
-        isAdmin: true,
-        dateCreated: '2025-05-14 00:00:00',
-      );
+  Future<CurrentUser?> me() async {
+    final g = gate;
+    if (g != null) await g.future;
+    return const CurrentUser(
+      id: 1,
+      username: 'Slimejkl',
+      profilePictureUrl: '/a.png',
+      rank: 'SysOp',
+      personalityType: 'INTJ',
+      prestige: 1234567,
+      isAdmin: true,
+      dateCreated: '2025-05-14 00:00:00',
+    );
+  }
 }
 
 class _NoopStore implements SessionStore {
@@ -74,6 +85,14 @@ void main() {
       await tester.pump(); // FutureBuilder applies the me() result
     }
 
+    // The grouped layout (sections + sign-out divider) is taller than the
+    // 600px test viewport — scroll the drawer's own list to reach the
+    // bottom rows, as a real user would.
+    Future<void> scrollDrawerToBottom(WidgetTester tester) async {
+      await tester.drag(find.byType(ListView), const Offset(0, -250));
+      await tester.pump();
+    }
+
     testWidgets('shows the current user with rank badge and admin panel',
         (tester) async {
       await pumpDrawer(tester);
@@ -82,6 +101,7 @@ void main() {
       expect(find.text('SysOp'), findsOneWidget, reason: 'rank badge');
       expect(find.text('Control Panel'), findsOneWidget,
           reason: 'admin-only item shows for admins');
+      await scrollDrawerToBottom(tester);
       expect(find.text('Test Results'), findsOneWidget);
       expect(find.text('Invitations'), findsOneWidget);
       expect(find.text('Settings'), findsOneWidget);
@@ -94,6 +114,7 @@ void main() {
       var signedOut = false;
       await pumpDrawer(tester, onSignOut: () => signedOut = true);
 
+      await scrollDrawerToBottom(tester);
       await tester.tap(find.text('Sign out'));
       await tester.pump();
       expect(signedOut, isTrue);
@@ -107,6 +128,41 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400)); // route push
       await tester.pump();
       expect(find.byType(SettingsScreen), findsOneWidget);
+    });
+
+    testWidgets('shimmers while the session probe is in flight',
+        (tester) async {
+      final auth = _FakeAuth()..gate = Completer<void>();
+      await tester.pumpWidget(MaterialApp(
+        theme: buildEnclavdTheme(),
+        home: Scaffold(endDrawer: UserMenuDrawer(auth: auth, onSignOut: () {})),
+      ));
+      tester.state<ScaffoldState>(find.byType(Scaffold)).openEndDrawer();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400)); // slide in
+
+      // Loading: the menu's skeleton (shimmer rows) is on screen, the
+      // real content is not yet.
+      expect(find.byType(ShimmerBox), findsWidgets,
+          reason: 'skeleton rows shimmer while me() is pending');
+      expect(find.text('Slimejkl'), findsNothing,
+          reason: 'no real content until the probe resolves');
+
+      // Resolve: the skeleton gives way to the loaded menu. (A lone
+      // ShimmerBox may remain — the avatar's own image shimmer, which
+      // never loads in tests. The skeleton had 10+; the loaded state is
+      // proven by the real content appearing.)
+      auth.gate!.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Slimejkl'), findsOneWidget);
+      expect(find.text('Settings'), findsOneWidget);
+      expect(find.text('ACCOUNT'), findsOneWidget, reason: 'section labels');
+      expect(
+          find.byWidgetPredicate((w) =>
+              w is ShimmerBox && w.width == 130 && w.height == 13),
+          findsNothing,
+          reason: 'the skeleton menu rows are gone');
     });
   });
 }
