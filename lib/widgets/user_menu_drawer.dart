@@ -1,12 +1,15 @@
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../api/auth_service.dart';
 import '../config/app_config.dart';
+import '../screens/account_settings_screen.dart';
+import '../screens/invitations_screen.dart';
 import '../screens/legal_screen.dart';
 import '../screens/profile_screen.dart';
+import '../screens/report_issue_screen.dart';
 import '../screens/settings_screen.dart';
+import '../screens/test_results_screen.dart';
 import '../theme/enclavd_theme.dart';
 import 'enclavd_avatar.dart';
 import 'rank_badge.dart';
@@ -23,10 +26,12 @@ import 'shimmer.dart';
 /// uppercase section labels (Account / Community / Support), sign out
 /// separated at the bottom.
 ///
-/// Items (functionality parity with the site menu): the current user's
-/// avatar/username → their profile; Control Panel (admins only);
-/// Test Results; Profile; Invitations; Settings; Legal; Report an issue;
-/// Sign out.
+/// Items (functionality parity with the site menu, minus Profile and
+/// Control Panel which were removed at the user's request): the current
+/// user's avatar/username → their profile; Account settings (the app's
+/// edit-profile); App settings; Test Results; Invitations; Legal;
+/// Report an issue; Sign out. Everything is a native screen — the drawer
+/// opens no browser links anymore.
 class UserMenuDrawer extends StatefulWidget {
   const UserMenuDrawer({
     super.key,
@@ -51,15 +56,6 @@ class _UserMenuDrawerState extends State<UserMenuDrawer> {
   void initState() {
     super.initState();
     _me = widget.auth.me();
-  }
-
-  void _openSite(String path) {
-    // The site's menu links open pages in the same tab; the app hands
-    // them to the browser.
-    launchUrl(
-      Uri.parse('${AppConfig.apiBaseUrl}$path'),
-      mode: LaunchMode.externalApplication,
-    );
   }
 
   void _push(Widget screen) {
@@ -96,33 +92,25 @@ class _UserMenuDrawerState extends State<UserMenuDrawer> {
                 ),
                 const _SectionLabel('Account'),
                 _MenuItem(
-                  icon: FontAwesomeIcons.user,
-                  label: 'Profile',
-                  onTap: user == null
-                      ? null
-                      : () => _push(ProfileScreen(userId: user.id)),
+                  icon: FontAwesomeIcons.userPen,
+                  label: 'Account settings',
+                  onTap: () => _push(const AccountSettingsScreen()),
                 ),
                 _MenuItem(
                   icon: FontAwesomeIcons.gear,
-                  label: 'Settings',
+                  label: 'App settings',
                   onTap: () => _push(const SettingsScreen()),
                 ),
                 const _SectionLabel('Community'),
-                if (user?.isAdmin ?? false)
-                  _MenuItem(
-                    icon: FontAwesomeIcons.shieldHalved,
-                    label: 'Control Panel',
-                    onTap: () => _openSite('/admin'),
-                  ),
                 _MenuItem(
                   icon: FontAwesomeIcons.chartPie,
                   label: 'Test Results',
-                  onTap: () => _openSite('/results'),
+                  onTap: () => _push(const TestResultsScreen()),
                 ),
                 _MenuItem(
                   icon: FontAwesomeIcons.ticket,
                   label: 'Invitations',
-                  onTap: () => _openSite('/invitations'),
+                  onTap: () => _push(const InvitationsScreen()),
                 ),
                 const _SectionLabel('Support'),
                 _MenuItem(
@@ -133,7 +121,7 @@ class _UserMenuDrawerState extends State<UserMenuDrawer> {
                 _MenuItem(
                   icon: FontAwesomeIcons.flag,
                   label: 'Report an issue',
-                  onTap: () => _openSite('/reports'),
+                  onTap: () => _push(const ReportIssueScreen()),
                 ),
                 const Divider(
                   height: 24,
@@ -405,7 +393,6 @@ class _MenuSkeleton extends StatelessWidget {
           padding: EdgeInsets.fromLTRB(20, 16, 20, 6),
           child: ShimmerBox(width: 76, height: 10),
         ),
-        row,
         row,
         row,
         Padding(

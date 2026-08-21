@@ -10,12 +10,10 @@ import '../services/social_notifications.dart';
 import '../services/sound_service.dart';
 import '../theme/enclavd_theme.dart';
 
-/// Settings — the app-side equivalent of the site's /profile-edit.
-///
-/// What the native client can actually control lives here (sound effects),
-/// plus an "edit your profile on the website" link for everything the app
-/// cannot do (bio, avatar, password…). The sounds preference persists via
-/// SharedPreferences and drives SoundService.muted.
+/// App settings — the app-side preferences screen (sounds, notification
+/// toggles, keep-alive). Account editing lives in its own screen now
+/// (Account settings), so nothing here opens the website anymore except
+/// the changelog link in the about card.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -120,7 +118,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final sounds = _soundsEnabled;
     final notifications = _notificationsEnabled;
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: const Text('App settings')),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -286,41 +284,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ],
-            const SizedBox(height: 20),
-            const _SectionLabel('Account'),
-            const SizedBox(height: 6),
-            Material(
-              color: EnclavdColors.card,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: const BorderSide(color: EnclavdColors.border),
-              ),
-              clipBehavior: Clip.antiAlias,
-              child: Column(
-                children: [
-                  ListTile(
-                    leading: const FaIcon(FontAwesomeIcons.userPen,
-                        color: EnclavdColors.link, size: 18),
-                    title: const Text('Edit profile on the website'),
-                    subtitle: const Text('Bio, avatar, password — '
-                        'profile-edit on enclavd.com'),
-                    trailing: const FaIcon(FontAwesomeIcons.arrowUpRightFromSquare,
-                        color: EnclavdColors.textSecondary, size: 14),
-                    onTap: () => _openSite('/profile-edit'),
-                  ),
-                  const Divider(height: 1, color: EnclavdColors.divider),
-                  ListTile(
-                    leading: const FaIcon(FontAwesomeIcons.inbox,
-                        color: EnclavdColors.link, size: 18),
-                    title: const Text('Invitations'),
-                    subtitle: const Text('Invite friends to Enclavd'),
-                    trailing: const FaIcon(FontAwesomeIcons.arrowUpRightFromSquare,
-                        color: EnclavdColors.textSecondary, size: 14),
-                    onTap: () => _openSite('/invitations'),
-                  ),
-                ],
-              ),
-            ),
             const SizedBox(height: 20),
             const _SectionLabel('About'),
             const SizedBox(height: 6),
