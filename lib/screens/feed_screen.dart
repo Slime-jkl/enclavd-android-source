@@ -19,6 +19,7 @@ import '../widgets/post_card.dart';
 import '../widgets/shimmer.dart';
 import '../widgets/user_menu_drawer.dart';
 import 'compose_screen.dart';
+import 'articles_screen.dart';
 import 'login_screen.dart';
 import 'messages_screen.dart';
 import 'notifications_screen.dart';
@@ -250,6 +251,16 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
       ),
     );
     if (mounted) _loadUnread();
+  }
+
+  /// Opens the Updates screen (site: the /articles bottom-nav link) — the
+  /// native articles list instead of the browser tab.
+  void _openArticles() {
+    final services = _services;
+    if (services == null) return;
+    Navigator.of(context).push(MaterialPageRoute<void>(
+      builder: (_) => ArticlesScreen(articles: services.articles),
+    ));
   }
 
   /// Opens the notification drawer (site: bell header link). The drawer
@@ -695,7 +706,8 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
             // logo does the same: scroll to the feed's start + re-poll).
             _jumpToTopAndRefresh();
           } else if (index == 1) {
-            _openSite('/articles');
+            // Updates = the native articles screen (the site's /articles).
+            _openArticles();
           } else if (index == 2) {
             _openSite('/domain');
           }
