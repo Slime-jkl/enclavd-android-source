@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:enclavd/screens/settings_screen.dart';
@@ -56,10 +57,21 @@ void main() {
   setUp(() {
     SoundService.muted = true;
     MessageNotifications.instance = null;
+    // The settings screen reads the keep-alive toggle over the native
+    // channel on load. Unhandled platform channels HANG in widget tests
+    // (no platform side to reply), so every test gets a default handler;
+    // the dedicated keep-alive test overrides it with a stateful one.
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+      const MethodChannel('enclavd/keepalive'),
+      (call) async => call.method == 'isEnabled' ? true : null,
+    );
   });
   tearDown(() {
     SoundService.muted = false;
     MessageNotifications.instance = null;
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(const MethodChannel('enclavd/keepalive'), null);
   });
 
   testWidgets('sound toggle flips SoundService.muted and persists',
@@ -72,8 +84,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(SoundService.muted, isFalse, reason: 'sounds default ON');
-    expect(find.byType(SwitchListTile), findsNWidgets(3),
-        reason: 'sounds + message notifications + notification alerts');
+    expect(find.byType(SwitchListTile), findsNWidgets(4),
+        reason: 'sounds + message notifications + notification alerts '
+            '+ live updates while minimized');
 
     // Turn sounds off.
     await tester.tap(find.widgetWithText(SwitchListTile, 'Sound effects'));
@@ -168,6 +181,64 @@ void main() {
             .value,
         isFalse,
         reason: 'restored from prefs');
+  });
+
+  testWidgets('live-updates-while-minimized toggle defaults ON and flips '
+      'via the native channel', (tester) async {
+    const channel = MethodChannel('enclavd/keepalive');
+    final calls = <MethodCall>[];
+    var nativeEnabled = true; // the native side's stored state
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(channel, (call) async {
+      calls.add(call);
+      switch (call.method) {
+        case 'isEnabled':
+          return nativeEnabled;
+        case 'setEnabled':
+          nativeEnabled = call.arguments['enabled'] as bool;
+          return null;
+      }
+      return null;
+    });
+
+    SharedPreferences.setMockInitialValues({});
+    await tester.pumpWidget(MaterialApp(
+      theme: buildEnclavdTheme(),
+      home: const SettingsScreen(),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(
+        tester
+            .widget<SwitchListTile>(find.widgetWithText(
+                SwitchListTile, 'Live updates while minimized'))
+            .value,
+        isTrue,
+        reason: 'keep-alive defaults ON');
+
+    await tester.tap(find.widgetWithText(
+        SwitchListTile, 'Live updates while minimized'));
+    await tester.pumpAndSettle();
+
+    final setCalls =
+        calls.where((c) => c.method == 'setEnabled').toList();
+    expect(setCalls.length, 1, reason: 'one flip -> one native call');
+    expect(setCalls.single.arguments, {'enabled': false});
+
+    // The toggle state is native-owned: a fresh screen load reads it back.
+    calls.clear();
+    await tester.pumpWidget(MaterialApp(
+      theme: buildEnclavdTheme(),
+      home: const SettingsScreen(),
+    ));
+    await tester.pumpAndSettle();
+    expect(
+        tester
+            .widget<SwitchListTile>(find.widgetWithText(
+                SwitchListTile, 'Live updates while minimized'))
+            .value,
+        isFalse,
+        reason: 'reads the native-side state on load');
   });
 
   testWidgets('OS-blocked notifications show the warning row', (tester) async {

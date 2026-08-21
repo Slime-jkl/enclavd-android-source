@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../config/app_config.dart';
+import '../services/background_keep_alive.dart';
 import '../services/message_notifications.dart';
 import '../services/social_notifications.dart';
 import '../services/sound_service.dart';
@@ -32,6 +33,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool? _soundsEnabled; // null until loaded
   bool? _notificationsEnabled; // null until loaded
   bool? _socialNotificationsEnabled; // null until loaded
+  bool? _keepAliveEnabled; // null until loaded
   bool? _osBlocked; // null until checked; true = OS denies notifications
 
   @override
@@ -46,11 +48,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     SoundService.muted = !enabled;
     final notifications = prefs.getBool(_notifPrefsKey) ?? true;
     final social = prefs.getBool(_socialNotifPrefsKey) ?? true;
+    final keepAlive = await BackgroundKeepAlive.isEnabled();
     if (!mounted) return;
     setState(() {
       _soundsEnabled = enabled;
       _notificationsEnabled = notifications;
       _socialNotificationsEnabled = social;
+      _keepAliveEnabled = keepAlive;
     });
     await _refreshOsBlocked();
   }
@@ -93,6 +97,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await SocialNotifications.instance?.setEnabled(enabled);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_socialNotifPrefsKey, enabled);
+  }
+
+  Future<void> _toggleKeepAlive(bool enabled) async {
+    setState(() => _keepAliveEnabled = enabled);
+    await BackgroundKeepAlive.setEnabled(enabled);
   }
 
   Future<void> _openSite(String path) async {
@@ -205,6 +214,37 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       title: const Text('Notification alerts'),
                       subtitle: const Text(
                           'Likes, comments and mentions, like on the website'),
+                    ),
+            ),
+            const SizedBox(height: 10),
+            Material(
+              color: EnclavdColors.card,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: EnclavdColors.border),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: _keepAliveEnabled == null
+                  ? const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Center(
+                          child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2))),
+                    )
+                  : SwitchListTile(
+                      value: _keepAliveEnabled!,
+                      onChanged: _toggleKeepAlive,
+                      activeTrackColor: EnclavdColors.primaryButton,
+                      secondary: const FaIcon(FontAwesomeIcons.bolt,
+                          color: EnclavdColors.link, size: 18),
+                      title: const Text('Live updates while minimized'),
+                      subtitle: const Text(
+                          'Keep notifications and messages flowing while '
+                          'the app is in the background (shows a small '
+                          '"Enclavd" notice while active)'),
                     ),
             ),
             // OS-level denial (Android 13+): the toggle can be ON while
