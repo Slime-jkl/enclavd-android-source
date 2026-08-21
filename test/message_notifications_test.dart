@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:enclavd/api/api_client.dart';
 import 'package:enclavd/api/messages_service.dart';
 import 'package:enclavd/services/message_notifications.dart';
+import 'package:enclavd/services/notification_source.dart';
 
 class FakeNotifier implements LocalNotifier {
   int initializeCalls = 0;
@@ -184,6 +185,40 @@ void main() {
 
     expect(notifier.shown, 2, reason: 'new message id = new notification');
     expect(notifier.lastBody, 'two');
+  });
+
+  test('new messages in two conversations notify once each', () async {
+    final notifier = FakeNotifier();
+    final fake = FakeMessages()
+      ..unreadAnswer = [
+        unread(id: 102, conv: 9, sender: 'Bob', text: 'hi bob'),
+        unread(id: 101, conv: 5, sender: 'Alice', text: 'hi alice'),
+      ];
+    final service = buildService(notifier, fake);
+
+    await service.handleUnreadPing();
+
+    expect(notifier.shown, 2, reason: 'one notification per conversation');
+    expect(notifier.lastNotificationId, 5,
+        reason: 'last shown = the second candidate (conv 5)');
+    expect(notifier.lastSender, 'Alice');
+  });
+
+  test('shared dedupe: a message the worker already notified is skipped',
+      () async {
+    final notifier = FakeNotifier();
+    final fake = FakeMessages()
+      ..unreadAnswer = [unread(id: 100, conv: 5, sender: 'Alice', text: 'hey')];
+    final service = buildService(notifier, fake);
+
+    // Simulate the background worker having already shown this message
+    // (same prefs, same key — the two paths share one tracker).
+    final prefs = await SharedPreferences.getInstance();
+    await NotifiedTracker(prefs).add('message:5:100');
+
+    await service.handleUnreadPing();
+
+    expect(notifier.shown, 0, reason: 'worker covered it — never double');
   });
 
   test('the master toggle suppresses everything and persists', () async {

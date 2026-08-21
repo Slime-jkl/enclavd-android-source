@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/api_client.dart';
 import '../api/messages_service.dart';
+import 'message_notification_source.dart';
+import 'notification_source.dart';
 
 /// Message notifications — every realtime badge ping (SSE `message_unread`)
 /// surfaces as a device notification with a reply action, UNLESS the user is
@@ -47,7 +49,6 @@ class MessageNotifications with WidgetsBindingObserver {
   bool _enabled = true; // cached; loaded from prefs in init()
   int _messagesOpenCount = 0;
   bool _appActive = true; // WidgetsBindingObserver; true until told otherwise
-  int? _lastNotifiedMessageId;
 
   bool get enabled => _enabled;
   bool get messagesOpen => _messagesOpenCount > 0;
@@ -77,6 +78,12 @@ class MessageNotifications with WidgetsBindingObserver {
     } else if (_messagesOpenCount > 0) {
       _messagesOpenCount--;
     }
+    // Mirror to prefs so the BACKGROUND worker (a separate isolate that
+    // cannot see this in-memory count) also stays quiet while the user
+    // is reading the thread.
+    unawaited(_prefsFactory().then((prefs) =>
+        MessageNotificationSource.setChatOpenPrefs(
+            prefs, _messagesOpenCount > 0)));
   }
 
   /// App foreground state — minimized counts as "not reading".
@@ -86,8 +93,11 @@ class MessageNotifications with WidgetsBindingObserver {
   }
 
   /// Called on every `message_unread` realtime ping (the badge event).
-  /// Skips when the user is actively reading messages; otherwise fetches the
-  /// newest unread message and notifies (deduped by message id).
+  /// Skips when the user is actively reading messages; otherwise fetches
+  /// the newest unread message per conversation and notifies. Candidate
+  /// identity and dedupe are SHARED with the background worker (same
+  /// keys, same persisted tracker), so the two paths never double-notify
+  /// and a notification shown by one is never repeated by the other.
   Future<void> handleUnreadPing() async {
     if (!_enabled) return;
     if (messagesOpen && appActive) return; // they're looking at the thread
@@ -95,15 +105,21 @@ class MessageNotifications with WidgetsBindingObserver {
       final messages = await _messagesFactory();
       final unread = await messages.unreadMessages();
       if (unread.isEmpty) return;
-      final newest = unread.first; // API contract: newest first
-      if (newest.messageId == _lastNotifiedMessageId) return; // dedupe
-      _lastNotifiedMessageId = newest.messageId;
-      await _notifier.showMessageNotification(
-        notificationId: newest.conversationId, // replace per conversation
-        senderName: newest.senderName,
-        message: newest.message,
-        conversationId: newest.conversationId,
-      );
+      final prefs = await _prefsFactory();
+      final tracker = NotifiedTracker(prefs);
+      final candidates = MessageNotificationSource.candidatesFrom(unread);
+      for (final candidate in candidates) {
+        if (tracker.contains(candidate.key)) continue;
+        final conversationId =
+            conversationIdFromPayload(candidate.payload) ?? 0;
+        await _notifier.showMessageNotification(
+          notificationId: candidate.notificationId, // replace per conversation
+          senderName: candidate.title,
+          message: candidate.body,
+          conversationId: conversationId,
+        );
+        await tracker.add(candidate.key); // only after a successful show
+      }
     } catch (e) {
       // The badge poll / next ping covers it; never surface errors — but
       // log, so a broken path is diagnosable instead of silently dead.
@@ -213,6 +229,50 @@ abstract class LocalNotifier {
   });
 }
 
+/// Channel + drawer-reply action, ONE source of truth shared by the live
+/// notifier and the background worker isolate (each owns its own plugin
+/// instance) so the two paths never drift.
+const _channelId = 'messages';
+const _channelName = 'Messages';
+const _channelDescription = 'New message notifications';
+const _icon = 'ic_stat_enclavd';
+
+/// Renders one message notification through the given plugin instance.
+/// Isolate-agnostic — the worker's freshly-initialized plugin included.
+Future<void> showMessageNotificationWith(
+  FlutterLocalNotificationsPlugin plugin, {
+  required int notificationId,
+  required String senderName,
+  required String message,
+  required int conversationId,
+}) async {
+  const details = AndroidNotificationDetails(
+    _channelId,
+    _channelName,
+    channelDescription: _channelDescription,
+    importance: Importance.high,
+    priority: Priority.high,
+    // The drawer's quick reply: a free-form text input rendered inline
+    // on the notification (v22 shape: inputs, not showsUserInput).
+    actions: <AndroidNotificationAction>[
+      AndroidNotificationAction(
+        MessageNotifications.replyActionId,
+        'Reply',
+        inputs: [
+          AndroidNotificationActionInput(label: 'Reply'),
+        ],
+      ),
+    ],
+  );
+  await plugin.show(
+    id: notificationId,
+    title: senderName,
+    body: message,
+    notificationDetails: const NotificationDetails(android: details),
+    payload: 'c:$conversationId',
+  );
+}
+
 /// The plugin-backed implementation. The foreground callback routes to the
 /// live [MessageNotifications] instance; the background callback is the
 /// self-contained [replyFromNotification].
@@ -220,11 +280,6 @@ class FlutterLocalNotifier implements LocalNotifier {
   FlutterLocalNotifier({required this.onResponse});
 
   final void Function(NotificationResponse) onResponse;
-
-  static const _channelId = 'messages';
-  static const _channelName = 'Messages';
-  static const _channelDescription = 'New message notifications';
-  static const _icon = 'ic_stat_enclavd';
 
   final _plugin = FlutterLocalNotificationsPlugin();
 
@@ -270,31 +325,12 @@ class FlutterLocalNotifier implements LocalNotifier {
     required String senderName,
     required String message,
     required int conversationId,
-  }) async {
-    const details = AndroidNotificationDetails(
-      _channelId,
-      _channelName,
-      channelDescription: _channelDescription,
-      importance: Importance.high,
-      priority: Priority.high,
-      // The drawer's quick reply: a free-form text input rendered inline
-      // on the notification (v22 shape: inputs, not showsUserInput).
-      actions: <AndroidNotificationAction>[
-        AndroidNotificationAction(
-          MessageNotifications.replyActionId,
-          'Reply',
-          inputs: [
-            AndroidNotificationActionInput(label: 'Reply'),
-          ],
-        ),
-      ],
-    );
-    await _plugin.show(
-      id: notificationId,
-      title: senderName,
-      body: message,
-      notificationDetails: const NotificationDetails(android: details),
-      payload: 'c:$conversationId',
-    );
-  }
+  }) =>
+      showMessageNotificationWith(
+        _plugin,
+        notificationId: notificationId,
+        senderName: senderName,
+        message: message,
+        conversationId: conversationId,
+      );
 }

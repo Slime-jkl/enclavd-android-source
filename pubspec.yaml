@@ -1,7 +1,7 @@
 name: enclavd
 description: "Enclavd — native app (Flutter). One codebase for Android and iOS, talking to the api/v1 backend."
 publish_to: "none"
-version: 0.3.1+5
+version: 0.3.2+6
 
 environment:
   sdk: ^3.5.0
@@ -27,6 +27,7 @@ dependencies:
   # Message notifications: badge pings (SSE message_unread) surface as
   # device notifications with a reply action from the drawer.
   flutter_local_notifications: ^22.3.0
+  workmanager: ^0.10.9
 
 dev_dependencies:
   flutter_test:

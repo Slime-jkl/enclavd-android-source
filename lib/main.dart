@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:workmanager/workmanager.dart';
 
 import 'api/api_client.dart';
 import 'api/auth_service.dart';
@@ -15,7 +16,9 @@ import 'screens/feed_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/splash_screen.dart';
+import 'services/message_notification_source.dart';
 import 'services/message_notifications.dart';
+import 'services/notification_worker.dart';
 import 'services/realtime_service.dart';
 import 'theme/enclavd_theme.dart';
 
@@ -26,6 +29,14 @@ import 'theme/enclavd_theme.dart';
 /// api/v1 JSON endpoints + the legacy auth flows, exactly like the website.
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  // Background notification polling (WorkManager, 15-min minimum): the
+  // fallback channel for when the live sockets cannot run (app swiped
+  // away / process killed). Idempotent to call on every start; gated on
+  // the flavor so F-Droid (notifications off) never registers it.
+  if (AppConfig.enableNotifications) {
+    Workmanager().initialize(notificationDispatcher);
+    unawaited(registerBackgroundNotifications());
+  }
   runApp(const EnclavdApp());
 }
 
@@ -48,6 +59,11 @@ class AppServices {
 
   static Future<AppServices> create() async {
     final prefs = await SharedPreferences.getInstance();
+    // Boot: a fresh process has no messages screen open. The background
+    // worker's quiet-window flag must not linger true from a process
+    // that was killed while the thread was on screen — that would leave
+    // the worker silent for messages until the next chat visit.
+    unawaited(MessageNotificationSource.setChatOpenPrefs(prefs, false));
     final store = PrefsSessionStore(prefs);
     final api = ApiClient(store: store);
     await api.restoreSession();
