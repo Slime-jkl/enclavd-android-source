@@ -262,16 +262,34 @@ Future<void> showMessageNotificationWith(
   required String message,
   required int conversationId,
 }) async {
-  const details = AndroidNotificationDetails(
+  final details = AndroidNotificationDetails(
     _channelId,
     _channelName,
     channelDescription: _channelDescription,
     importance: Importance.high,
     priority: Priority.high,
+    // MessagingStyle turns the notification into a real conversation: the
+    // incoming message renders as a bubble from [senderName], and a drawer
+    // reply appends as an outgoing message from the user's own person —
+    // labeled "Me" (the user's explicit preference over the raw username).
+    // groupConversation: true keeps sender names on every bubble — a 1:1
+    // style would collapse the user's own messages to a generic "You".
+    styleInformation: MessagingStyleInformation(
+      const Person(key: 'me', name: 'Me'),
+      conversationTitle: senderName,
+      groupConversation: true,
+      messages: [
+        Message(
+          message,
+          DateTime.now(),
+          Person(key: 'them', name: senderName),
+        ),
+      ],
+    ),
     // The drawer's quick reply: a free-form text input rendered inline
     // on the notification (v22 shape: inputs, not showsUserInput).
     actions: <AndroidNotificationAction>[
-      AndroidNotificationAction(
+      const AndroidNotificationAction(
         MessageNotifications.replyActionId,
         'Reply',
         inputs: [
@@ -284,7 +302,7 @@ Future<void> showMessageNotificationWith(
     id: notificationId,
     title: senderName,
     body: message,
-    notificationDetails: const NotificationDetails(android: details),
+    notificationDetails: NotificationDetails(android: details),
     payload: 'c:$conversationId',
   );
 }
