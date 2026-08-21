@@ -1,6 +1,7 @@
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
 
+import '../api/site_config_service.dart';
 import '../main.dart';
 import 'login_screen.dart';
 
@@ -10,17 +11,24 @@ import 'login_screen.dart';
 ///   username  3–20 chars, [a-zA-Z0-9_]
 ///   email     valid format, unique
 ///   password  ≥ 6 chars, must match password_confirm
-///   invitation  required only when the site config demands it
+///   invitation  required only when the site config demands it (the field
+///               is hidden otherwise — register.php parity)
 ///   privacy_policy + terms  checkboxes (required)
 /// On success the server 302s to /login (email verification is on), and the
 /// flash message tells the user to check their inbox.
 ///
+/// The invitation requirement comes from GET /api/v1/site_config
+/// (isInvitationRequired), fetched on screen load.
+///
 /// No autofillHints (Android autofill detaches the IME after the first
 /// keystroke — same keyboard bug as login).
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
+  const RegisterScreen({super.key, this.siteConfig});
 
   static const routeName = '/register';
+
+  /// Test seam — bypasses AppServices when provided.
+  final SiteConfigService? siteConfig;
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -39,6 +47,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _busy = false;
   String? _error;
   String? _success;
+
+  /// True when the site requires an invitation code to sign up. Loaded from
+  /// the public site config; until then (and on fetch failure) the field
+  /// stays hidden — process_register.php enforces the requirement anyway.
+  bool _invitationRequired = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadConfig();
+  }
+
+  Future<void> _loadConfig() async {
+    try {
+      final config =
+          await (widget.siteConfig ?? (await AppServices.create()).siteConfig)
+              .fetch();
+      if (!mounted) return;
+      setState(() => _invitationRequired = config.isInvitationRequired);
+    } catch (_) {
+      // Keep the field hidden; the server validates on submit regardless.
+    }
+  }
 
   @override
   void dispose() {
@@ -189,6 +220,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ? 'Passwords do not match'
                                 : null,
                           ),
+                          if (_invitationRequired) ...[
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              controller: _invitation,
+                              textInputAction: TextInputAction.next,
+                              decoration: const InputDecoration(
+                                labelText: 'Invitation Code *',
+                                hintText: 'Enter your invitation code',
+                                prefixIcon: FaIcon(FontAwesomeIcons.ticket,
+                                    size: 18),
+                              ),
+                              validator: (_) => _invitation.text.trim().isEmpty
+                                  ? 'An invitation code is required to join'
+                                  : null,
+                            ),
+                          ],
                           const SizedBox(height: 16),
                           CheckboxListTile(
                             value: _acceptPrivacy,
