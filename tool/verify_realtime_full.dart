@@ -69,7 +69,7 @@ curl_setopt_array($ch, [
   CURLOPT_POSTFIELDS => json_encode($body),
   CURLOPT_HTTPHEADER => [
     'Content-Type: application/json',
-    'X-Publish-Secret: ' . getenv('REALTIME_SECRET'),
+    'X-Publish-Secret: ' . (getenv('REALTIME_PUBLISH_SECRET') ?: getenv('REALTIME_SECRET')),
   ],
   CURLOPT_RETURNTRANSFER => true,
 ]);
