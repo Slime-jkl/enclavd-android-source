@@ -19,7 +19,7 @@ import 'shimmer.dart';
 /// While the session probe ([AuthService.me]) is in flight the WHOLE menu
 /// shows a shimmer skeleton; once loaded it renders a grouped layout:
 /// identity header (personality-tinted gradient, rank-colored username,
-/// rank badge + personality chip) then icon-chip menu items under
+/// rank badge + personality chip) then plain single-color icon menu items under
 /// uppercase section labels (Account / Community / Support), sign out
 /// separated at the bottom.
 ///
@@ -97,7 +97,6 @@ class _UserMenuDrawerState extends State<UserMenuDrawer> {
                 const _SectionLabel('Account'),
                 _MenuItem(
                   icon: FontAwesomeIcons.user,
-                  iconColor: EnclavdColors.link,
                   label: 'Profile',
                   onTap: user == null
                       ? null
@@ -105,7 +104,6 @@ class _UserMenuDrawerState extends State<UserMenuDrawer> {
                 ),
                 _MenuItem(
                   icon: FontAwesomeIcons.gear,
-                  iconColor: const Color(0xFFC084FC), // purple-400
                   label: 'Settings',
                   onTap: () => _push(const SettingsScreen()),
                 ),
@@ -113,32 +111,27 @@ class _UserMenuDrawerState extends State<UserMenuDrawer> {
                 if (user?.isAdmin ?? false)
                   _MenuItem(
                     icon: FontAwesomeIcons.shieldHalved,
-                    iconColor: const Color(0xFFC084FC), // purple-400
                     label: 'Control Panel',
                     onTap: () => _openSite('/admin'),
                   ),
                 _MenuItem(
                   icon: FontAwesomeIcons.chartPie,
-                  iconColor: EnclavdColors.link,
                   label: 'Test Results',
                   onTap: () => _openSite('/results'),
                 ),
                 _MenuItem(
                   icon: FontAwesomeIcons.ticket,
-                  iconColor: const Color(0xFFFACC15), // yellow-400
                   label: 'Invitations',
                   onTap: () => _openSite('/invitations'),
                 ),
                 const _SectionLabel('Support'),
                 _MenuItem(
                   icon: FontAwesomeIcons.scaleBalanced,
-                  iconColor: const Color(0xFF60A5FA), // blue-400
                   label: 'Legal',
                   onTap: () => _push(const LegalScreen()),
                 ),
                 _MenuItem(
                   icon: FontAwesomeIcons.flag,
-                  iconColor: const Color(0xFFF87171), // red-400
                   label: 'Report an issue',
                   onTap: () => _openSite('/reports'),
                 ),
@@ -150,7 +143,6 @@ class _UserMenuDrawerState extends State<UserMenuDrawer> {
                 ),
                 _MenuItem(
                   icon: FontAwesomeIcons.arrowRightFromBracket,
-                  iconColor: EnclavdColors.likeActive,
                   label: 'Sign out',
                   onTap: widget.onSignOut,
                 ),
@@ -332,19 +324,17 @@ class _PersonalityChip extends StatelessWidget {
   }
 }
 
-/// Menu row with an icon CHIP (tinted rounded square) instead of a bare
-/// glyph — the modern-drawer item shape. Trailing chevron only when the
-/// row is tappable.
+/// Menu row with a plain single-color icon (no tinted chip) — the
+/// professional drawer look, matching the settings screen's bare-icon
+/// rows. Trailing chevron only when the row is tappable.
 class _MenuItem extends StatelessWidget {
   const _MenuItem({
     required this.icon,
-    required this.iconColor,
     required this.label,
     required this.onTap,
   });
 
   final FaIconData icon;
-  final Color iconColor;
   final String label;
   final VoidCallback? onTap;
 
@@ -353,15 +343,7 @@ class _MenuItem extends StatelessWidget {
     return ListTile(
       dense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
-      leading: Container(
-        width: 34,
-        height: 34,
-        decoration: BoxDecoration(
-          color: iconColor.withValues(alpha: 0.13),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: FaIcon(icon, size: 15, color: iconColor),
-      ),
+      leading: FaIcon(icon, size: 18, color: EnclavdColors.link),
       title: Text(label,
           style: const TextStyle(
               fontSize: 14, color: EnclavdColors.textPrimary)),
@@ -386,7 +368,7 @@ class _MenuSkeleton extends StatelessWidget {
       padding: EdgeInsets.symmetric(horizontal: 20, vertical: 9),
       child: Row(
         children: [
-          ShimmerBox(width: 34, height: 34, borderRadius: 10),
+          ShimmerBox(width: 18, height: 18, borderRadius: 4),
           SizedBox(width: 12),
           ShimmerBox(width: 130, height: 13),
         ],

@@ -236,9 +236,14 @@ class _NotificationRow extends StatelessWidget {
                     Positioned(
                       right: -4,
                       bottom: -4,
+                      // alignment is REQUIRED: without it the container
+                      // passes tight 18x18 constraints to the FaIcon, whose
+                      // glyph paints at the top-left corner — off center,
+                      // under the border, out of the circle.
                       child: Container(
                         width: 18,
                         height: 18,
+                        alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: iconColor,
                           shape: BoxShape.circle,
