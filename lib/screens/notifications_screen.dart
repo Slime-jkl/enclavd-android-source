@@ -27,6 +27,10 @@ import 'profile_screen.dart';
 ///    fetches api/v1/posts ?post_id=N and renders the full post card;
 ///    user-management → no-op (site '#').
 ///
+/// Modern app styling (0.7.0): card-style rows (rounded containers +
+/// spacing instead of full-width dividers) with a type icon chip on the
+/// avatar corner, preview card and a small unread dot.
+///
 /// Real-time: the drawer subscribes to the SAME realtime stream as the
 /// feed — a `notification` SSE ping while the drawer is open refreshes the
 /// list instantly (new arrivals render highlighted until the next open).
@@ -115,9 +119,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Notifications')),
-      body: SafeArea(
-        child: _buildBody(),
-      ),
+      body: SafeArea(child: _buildBody()),
     );
   }
 
@@ -169,9 +171,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       onRefresh: () => _load(),
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(vertical: 6),
         itemCount: items.length,
-        separatorBuilder: (_, __) =>
-            const Divider(height: 1, color: EnclavdColors.border),
+        separatorBuilder: (_, __) => const SizedBox(height: 2),
         itemBuilder: (context, index) {
           final n = items[index];
           return _NotificationRow(
@@ -184,74 +186,136 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 }
 
+/// Modern card row: rounded container with a type icon chip, personality
+/// border avatar, message, preview card and relative time; unread rows
+/// get the blue tint + a small dot (site's unread bg, app's card shape).
 class _NotificationRow extends StatelessWidget {
   const _NotificationRow({required this.notification, required this.onTap});
 
   final AppNotification notification;
   final VoidCallback onTap;
 
+  static const Map<String, (FaIconData, Color)> _typeIcons = {
+    'post-like': (FontAwesomeIcons.heart, EnclavdColors.likeActive),
+    'post-comment': (FontAwesomeIcons.comment, EnclavdColors.link),
+    'comment-mention': (FontAwesomeIcons.at, Color(0xFFC084FC)),
+    'follow': (FontAwesomeIcons.userPlus, Color(0xFF34D399)),
+    'user-management': (FontAwesomeIcons.shieldHalved, Color(0xFFFACC15)),
+  };
+
   @override
   Widget build(BuildContext context) {
     final n = notification;
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        color: n.read
-            ? EnclavdColors.card
-            : const Color(0x1A3B82F6), // site: bg-blue-500/10
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Avatar (32px, circular — site h-8 w-8 rounded-full). Must be
-            // EnclavdAvatar: a bare EnclavdImage here renders the LOADED
-            // image as a square (the circular placeholder is only the
-            // loading state) — the same oval/square-in-circle bug family.
-            EnclavdAvatar(
-              size: 32,
-              url: n.avatarUrl(AppConfig.apiBaseUrl),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    n.message,
-                    style: TextStyle(
-                      color: n.read
-                          ? EnclavdColors.textSecondary
-                          : EnclavdColors.textPrimary,
-                      fontSize: 14,
+    final unread = !n.read;
+    final (icon, iconColor) = _typeIcons[n.contentType] ??
+        (FontAwesomeIcons.bell, EnclavdColors.textSecondary);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
+      child: Material(
+        color: unread
+            ? const Color(0x1A3B82F6) // site: bg-blue-500/10
+            : EnclavdColors.card,
+        borderRadius: BorderRadius.circular(14),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    EnclavdAvatar(
+                      size: 40,
+                      url: n.avatarUrl(AppConfig.apiBaseUrl),
                     ),
-                  ),
-                  if (n.isPostAttached && _preview(n).isNotEmpty)
-                    Container(
-                      margin: const EdgeInsets.only(top: 6),
-                      padding: const EdgeInsets.all(8),
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: EnclavdColors.cardSecondary,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        '"${_preview(n)}"',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 12, color: EnclavdColors.textSecondary),
+                    // Type chip on the avatar corner — the modern "what
+                    // kind of event" affordance.
+                    Positioned(
+                      right: -4,
+                      bottom: -4,
+                      child: Container(
+                        width: 18,
+                        height: 18,
+                        decoration: BoxDecoration(
+                          color: iconColor,
+                          shape: BoxShape.circle,
+                          border:
+                              Border.all(color: EnclavdColors.card, width: 2),
+                        ),
+                        child: FaIcon(icon, size: 9, color: EnclavdColors.card),
                       ),
                     ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _relative(n.createdAt),
-                    style: const TextStyle(
-                        fontSize: 12, color: EnclavdColors.textSecondary),
+                  ],
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              n.message,
+                              style: TextStyle(
+                                color: unread
+                                    ? EnclavdColors.textPrimary
+                                    : EnclavdColors.textSecondary,
+                                fontWeight:
+                                    unread ? FontWeight.w600 : FontWeight.w400,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            _relative(n.createdAt),
+                            style: const TextStyle(
+                                fontSize: 11,
+                                color: EnclavdColors.textSecondary),
+                          ),
+                        ],
+                      ),
+                      if (n.isPostAttached && _preview(n).isNotEmpty)
+                        Container(
+                          margin: const EdgeInsets.only(top: 6),
+                          padding: const EdgeInsets.all(8),
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: EnclavdColors.cardSecondary,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '"${_preview(n)}"',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 12, color: EnclavdColors.textSecondary),
+                          ),
+                        ),
+                      if (unread) ...[
+                        const SizedBox(height: 6),
+                        // Small unread dot — the modern read-state marker
+                        // on top of the site's tinted row.
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: const BoxDecoration(
+                            color: EnclavdColors.link,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
