@@ -28,6 +28,8 @@ class _FakeAuth extends AuthService {
         prestige: 0,
         isAdmin: true,
         dateCreated: '2025-05-14 00:00:00',
+        banned: false,
+        blockReason: '',
       );
 }
 

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:enclavd/api/api_client.dart';
 import 'package:enclavd/api/auth_service.dart';
+import 'package:enclavd/api/site_config_service.dart';
 
 import 'api_client_test.dart' show Harness, MemorySessionStore;
 
@@ -96,6 +97,46 @@ void main() {
 
       expect(result.outcome, LoginOutcome.failure);
       expect(result.message, contains('login session'));
+
+      await h.close();
+    });
+
+    test('captcha_answer rides the POST when the limiter demands it',
+        () async {
+      String? body;
+      final h = await Harness.start((req) async {
+        if (req.uri.path == '/login' && req.method == 'GET') {
+          Harness.respond(
+            req,
+            body:
+                '<form><input type="hidden" name="login_token" value="tok-abc"></form>',
+          );
+        } else if (req.uri.path == '/auth' && req.method == 'POST') {
+          body = await utf8.decoder.bind(req).join();
+          Harness.respond(
+            req,
+            status: 302,
+            headers: {'location': '/feed'},
+          );
+        } else {
+          Harness.respond(req, status: 404);
+        }
+      });
+
+      final service = AuthService(h.client, apiBaseUrl: h.client.apiBaseUrl);
+      final result = await service.login(
+        email: 'dev@dev.dev',
+        password: 'pw',
+        captchaAnswer: '4',
+      );
+
+      expect(result.outcome, LoginOutcome.success);
+      expect(body, contains('captcha_answer=4'));
+
+      // Not demanded → no field at all.
+      body = null;
+      await service.login(email: 'dev@dev.dev', password: 'pw');
+      expect(body, isNot(contains('captcha_answer')));
 
       await h.close();
     });
@@ -197,8 +238,41 @@ void main() {
       expect(user!.username, 'Developer');
       expect(user.rank, 'SysOp');
       expect(user.isAdmin, isTrue);
+      expect(user.banned, isFalse,
+          reason: 'missing is_active defaults to not-banned');
       expect(user.avatarUrl('https://enclavd.com'),
           'https://enclavd.com/public/avatars/a.jpg');
+
+      await h.close();
+    });
+
+    test('me() reports a banned account with its reason', () async {
+      final h = await Harness.start((req) async {
+        Harness.respond(
+          req,
+          body: jsonEncode({
+            'success': true,
+            'user': {
+              'id': 9,
+              'username': 'BarredUser',
+              'profile_picture_url': '/assets/default-avatar.png',
+              'rank': 'Member',
+              'personality_type': null,
+              'prestige': 0,
+              'is_admin': false,
+              'date_created': '2024-11-20 21:05:59',
+              'is_active': false,
+              'block_reason': 'Violated community guidelines',
+            }
+          }),
+        );
+      });
+
+      final service = AuthService(h.client, apiBaseUrl: h.client.apiBaseUrl);
+      final user = await service.me();
+      expect(user, isNotNull);
+      expect(user!.banned, isTrue);
+      expect(user.blockReason, 'Violated community guidelines');
 
       await h.close();
     });
@@ -229,6 +303,89 @@ void main() {
       await service.logout();
       expect(store.contents, isEmpty);
 
+      await h.close();
+    });
+  });
+
+  group('resolveGate', () {
+    const normal = CurrentUser(
+      id: 1,
+      username: 'u',
+      profilePictureUrl: '/a.png',
+      rank: 'Member',
+      personalityType: null,
+      prestige: 0,
+      isAdmin: false,
+      dateCreated: '2024-11-20 21:05:59',
+      banned: false,
+      blockReason: '',
+    );
+    const admin = CurrentUser(
+      id: 2,
+      username: 'a',
+      profilePictureUrl: '/a.png',
+      rank: 'SysOp',
+      personalityType: null,
+      prestige: 0,
+      isAdmin: true,
+      dateCreated: '2024-11-20 21:05:59',
+      banned: false,
+      blockReason: '',
+    );
+    const banned = CurrentUser(
+      id: 3,
+      username: 'b',
+      profilePictureUrl: '/a.png',
+      rank: 'Member',
+      personalityType: null,
+      prestige: 0,
+      isAdmin: false,
+      dateCreated: '2024-11-20 21:05:59',
+      banned: true,
+      blockReason: 'Spam',
+    );
+
+    Future<Gate> run(CurrentUser user, String configJson) async {
+      final h = await Harness.start((req) async {
+        expect(req.uri.path, '/api/v1/site_config');
+        Harness.respond(req, body: configJson);
+      });
+      final gate = await resolveGate(user, SiteConfigService(h.client));
+      await h.close();
+      return gate;
+    }
+
+    test('banned user → ban, no config fetch needed', () async {
+      final gate = await resolveGate(banned, SiteConfigService(
+          ApiClient(store: MemorySessionStore(), apiBaseUrl: 'http://x')));
+      expect(gate, Gate.ban);
+    });
+
+    test('maintenance on + rank not in the allowed list → maintenance',
+        () async {
+      final gate = await run(normal,
+          '{"success":true,"config":{"maintenance":{"enabled":true,"allowed_ranks":["SysOp","Admin"],"reason":"R","estTime":"T"}}}');
+      expect(gate, Gate.maintenance);
+    });
+
+    test('maintenance on + allowed rank → feed', () async {
+      final gate = await run(admin,
+          '{"success":true,"config":{"maintenance":{"enabled":true,"allowed_ranks":["SysOp","Admin"],"reason":"R","estTime":"T"}}}');
+      expect(gate, Gate.feed);
+    });
+
+    test('maintenance off → feed', () async {
+      final gate = await run(normal,
+          '{"success":true,"config":{"maintenance":{"enabled":false,"allowed_ranks":[],"reason":"","estTime":""}}}');
+      expect(gate, Gate.feed);
+    });
+
+    test('config fetch failure → feed (server still enforces)', () async {
+      final h = await Harness.start((req) async {
+        Harness.respond(req, status: 500, body: '{"error":"boom"}');
+      });
+      final gate = await resolveGate(normal, SiteConfigService(h.client));
+      expect(gate, Gate.feed);
       await h.close();
     });
   });

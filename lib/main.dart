@@ -18,10 +18,13 @@ import 'api/profile_service.dart';
 import 'api/reports_service.dart';
 import 'api/results_service.dart';
 import 'api/search_service.dart';
+import 'api/site_config_service.dart';
 import 'api/social_service.dart';
 import 'config/app_config.dart';
+import 'screens/ban_screen.dart';
 import 'screens/feed_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/maintenance_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/splash_screen.dart';
 import 'services/message_notification_source.dart';
@@ -57,7 +60,8 @@ class AppServices {
       this.apiClient, this.auth, this.feed, this.social, this.profile,
       this.posts, this.messages, this.notifications, this.search,
       this.realtime, this.messageAlerts, this.articles, this.domains,
-      this.results, this.invitations, this.reports, this.personalityTest);
+      this.results, this.invitations, this.reports, this.personalityTest,
+      this.siteConfig);
 
   final ApiClient apiClient;
   final AuthService auth;
@@ -76,6 +80,7 @@ class AppServices {
   final InvitationsService invitations;
   final ReportsService reports;
   final PersonalityTestService personalityTest;
+  final SiteConfigService siteConfig;
 
   /// The most recently created container — the one the app is actively
   /// using. The notification singleton's fetch closure must resolve
@@ -156,7 +161,8 @@ class AppServices {
         ResultsService(api),
         InvitationsService(api),
         ReportsService(api),
-        PersonalityTestService(api));
+        PersonalityTestService(api),
+        SiteConfigService(api));
     current = services;
     return services;
   }
@@ -176,6 +182,8 @@ class EnclavdApp extends StatelessWidget {
         LoginScreen.routeName: (_) => const LoginScreen(),
         RegisterScreen.routeName: (_) => const RegisterScreen(),
         FeedScreen.routeName: (_) => const FeedScreen(),
+        BanScreen.routeName: (_) => const BanScreen(),
+        MaintenanceScreen.routeName: (_) => const MaintenanceScreen(),
       },
     );
   }

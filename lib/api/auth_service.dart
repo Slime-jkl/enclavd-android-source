@@ -1,4 +1,5 @@
 import 'api_client.dart';
+import 'site_config_service.dart';
 import '../config/app_config.dart';
 
 /// Account info from GET /api/v1/me (canonical user object).
@@ -12,6 +13,8 @@ class CurrentUser {
     required this.prestige,
     required this.isAdmin,
     required this.dateCreated,
+    required this.banned,
+    required this.blockReason,
   });
 
   final int id;
@@ -22,6 +25,11 @@ class CurrentUser {
   final int prestige;
   final bool isAdmin;
   final String dateCreated;
+
+  /// is_active === false → the account is banned; the app shows the ban
+  /// screen instead of the feed.
+  final bool banned;
+  final String blockReason;
 
   /// Absolute URL for the avatar (server sends a root-relative path).
   String avatarUrl(String base) => profilePictureUrl.startsWith('/')
@@ -38,6 +46,10 @@ class CurrentUser {
         prestige: (json['prestige'] as num?)?.toInt() ?? 0,
         isAdmin: json['is_admin'] as bool? ?? false,
         dateCreated: json['date_created'] as String? ?? '',
+        // The server sends a real bool; missing/old payloads default to
+        // not-banned so the gate never false-positives on an old deploy.
+        banned: json['is_active'] == false,
+        blockReason: json['block_reason'] as String? ?? '',
       );
 }
 
@@ -49,6 +61,31 @@ class LoginResult {
 
   final LoginOutcome outcome;
   final String message; // server flash message on failure, empty on success
+}
+
+/// Post-login gate verdict — what to show instead of the feed.
+enum Gate { feed, ban, maintenance }
+
+/// Decides where a just-authenticated (or session-restored) user goes:
+///   - banned (is_active === false)      → ban screen, the app is denied;
+///   - maintenance on + rank not allowed → maintenance screen;
+///   - otherwise                         → the feed.
+///
+/// A transient config-fetch failure lets the user through — the web server
+/// still enforces both gates on its own pages, so the app never becomes
+/// stricter than the source of truth.
+Future<Gate> resolveGate(CurrentUser user, SiteConfigService config) async {
+  if (user.banned) return Gate.ban;
+  try {
+    final cfg = await config.fetch();
+    if (cfg.maintenance.enabled &&
+        !cfg.maintenance.allowedRanks.contains(user.rank)) {
+      return Gate.maintenance;
+    }
+  } catch (_) {
+    // Ignore — fall through to the feed.
+  }
+  return Gate.feed;
 }
 
 /// AuthService: login / register / me / logout against the SAME endpoints
@@ -88,6 +125,9 @@ class AuthService {
   /// Logs in with email + password. remember_me grants a 30-day session
   /// instead of the default 7 (server contract, auth.php).
   ///
+  /// captchaAnswer must be supplied when the rate-limiter state says the
+  /// captcha is required (auth.php verifies it before the credentials).
+  ///
   /// Outcome detection: the server 302s to /feed on success, back to /login
   /// on failure (session flash error rendered on that page). We keep the 302
   /// (postForm does not follow), so `location` IS the verdict.
@@ -95,6 +135,7 @@ class AuthService {
     required String email,
     required String password,
     bool rememberMe = false,
+    String? captchaAnswer,
   }) async {
     final token = await fetchLoginToken();
     if (token == null) {
@@ -107,6 +148,8 @@ class AuthService {
       'password': password,
       AppConfig.loginTokenField: token,
       if (rememberMe) 'remember_me': 'on',
+      if (captchaAnswer != null && captchaAnswer.trim().isNotEmpty)
+        'captcha_answer': captchaAnswer.trim(),
     });
 
     final location = resp.location;
