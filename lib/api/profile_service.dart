@@ -92,16 +92,77 @@ class FollowResult {
       );
 }
 
-/// ProfileService — the profile header + follow toggle over api/v1.
+/// The viewer's OWN account row (GET /api/v1/profile?self=1) — the
+/// edit-profile prefill. The public profile header omits email, gender,
+/// birthdate and the geo ids; this is the full editable set.
+class AccountSettings {
+  const AccountSettings({
+    required this.id,
+    required this.username,
+    required this.email,
+    required this.fullName,
+    required this.profilePictureUrl,
+    required this.personalityType,
+    required this.rank,
+    required this.bio,
+    required this.birthdate,
+    required this.gender,
+    required this.geoCountry,
+    required this.geoRegion,
+    required this.geoCity,
+  });
+
+  final int id;
+  final String username;
+  final String email;
+  final String fullName;
+  final String profilePictureUrl;
+  final String? personalityType;
+  final String rank;
+  final String bio;
+  final String? birthdate; // 'Y-m-d' or null
+  final String gender; // NONE / MALE / FEMALE
+  final int? geoCountry;
+  final int? geoRegion;
+  final int? geoCity;
+
+  factory AccountSettings.fromJson(Map<String, dynamic> json) =>
+      AccountSettings(
+        id: (json['id'] as num?)?.toInt() ?? 0,
+        username: json['username'] as String? ?? '',
+        email: json['email'] as String? ?? '',
+        fullName: json['full_name'] as String? ?? '',
+        profilePictureUrl: json['profile_picture_url'] as String? ??
+            '/assets/default-avatar.png',
+        personalityType: json['personality_type'] as String?,
+        rank: json['rank'] as String? ?? 'Member',
+        bio: json['bio'] as String? ?? '',
+        birthdate: json['birthdate'] as String?,
+        gender: json['gender'] as String? ?? 'NONE',
+        geoCountry: (json['geo_country'] as num?)?.toInt(),
+        geoRegion: (json['geo_region'] as num?)?.toInt(),
+        geoCity: (json['geo_city'] as num?)?.toInt(),
+      );
+}
+
+/// ProfileService — the profile header + account editing over api/v1.
 ///
 /// Contracts (verified against the live handlers):
 ///   GET  /api/v1/profile ?user_id=N    → {success, profile:{...}}
 ///   GET  /api/v1/profile ?username=N   → same shape, resolved by username
 ///        (comment @mention taps; 404 when the name doesn't exist)
+///   GET  /api/v1/profile ?self=1       → {success, account:{...}} — the
+///        viewer's own row (edit-profile prefill, incl. email/geo ids)
 ///   POST /api/v1/profile {action:'follow', followee_id} (JSON + CSRF)
 ///                                        → {success, action: followed|
 ///                                           unfollowed, followers,
 ///                                           following}
+///   POST {action:'update_profile', full_name, bio, birthdate, gender,
+///        geo_country, geo_region, geo_city} → {success} (null clears)
+///   POST {action:'change_password', current_password, new_password,
+///        confirm_password} → {success}
+///   POST {action:'upload_avatar', image_data: data URL} → {success,
+///        profile_picture_url}
 class ProfileService {
   ProfileService(this._api);
 
@@ -136,6 +197,65 @@ class ProfileService {
       'followee_id': followeeId,
     });
     return FollowResult.fromJson(json);
+  }
+
+  /// The viewer's own account row — the edit-profile prefill.
+  Future<AccountSettings> fetchSelf() async {
+    final json =
+        await _api.getJson('/api/v1/profile', query: const {'self': '1'});
+    final raw = json['account'];
+    if (raw is! Map<String, dynamic>) {
+      throw const ApiException('Invalid account response');
+    }
+    return AccountSettings.fromJson(raw);
+  }
+
+  /// Saves the edit-profile fields. Null optional values CLEAR the field
+  /// server-side (profile-edit.php parity — empty optional inputs → NULL).
+  Future<void> updateProfile({
+    required String fullName,
+    required String bio,
+    String? birthdate,
+    String? gender,
+    int? geoCountry,
+    int? geoRegion,
+    int? geoCity,
+  }) async {
+    await _api.postJson('/api/v1/profile', {
+      'action': 'update_profile',
+      'full_name': fullName,
+      'bio': bio,
+      'birthdate': birthdate,
+      'gender': gender ?? 'NONE',
+      'geo_country': geoCountry,
+      'geo_region': geoRegion,
+      'geo_city': geoCity,
+    });
+  }
+
+  /// Changes the password (server validates current + match + length).
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+    required String confirmPassword,
+  }) async {
+    await _api.postJson('/api/v1/profile', {
+      'action': 'change_password',
+      'current_password': currentPassword,
+      'new_password': newPassword,
+      'confirm_password': confirmPassword,
+    });
+  }
+
+  /// Uploads a new avatar (data URL, same wire format as post images).
+  /// Returns the NEW root-relative profile_picture_url.
+  Future<String> uploadAvatar(String dataUrl) async {
+    final json = await _api.postJson('/api/v1/profile', {
+      'action': 'upload_avatar',
+      'image_data': dataUrl,
+    });
+    return json['profile_picture_url'] as String? ??
+        '/assets/default-avatar.png';
   }
 }
 
