@@ -309,22 +309,26 @@ class _TraitBar extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          // results.php: h-2 rounded split bar with the two colors.
+          // results.php: h-2 rounded split bar — the gray-500 track with
+          // the two colored segments at their exact percentages.
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: SizedBox(
               height: 8,
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: firstPercent,
-                    child: ColoredBox(color: firstColor),
-                  ),
-                  Expanded(
-                    flex: secondPercent,
-                    child: ColoredBox(color: secondColor),
-                  ),
-                ],
+              child: ColoredBox(
+                color: const Color(0xFF6B7280), // gray-500 track
+                child: Row(
+                  children: [
+                    Expanded(
+                      flex: firstPercent,
+                      child: ColoredBox(color: firstColor),
+                    ),
+                    Expanded(
+                      flex: secondPercent,
+                      child: ColoredBox(color: secondColor),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
