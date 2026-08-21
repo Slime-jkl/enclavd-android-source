@@ -12,6 +12,7 @@ import 'api/feed_service.dart';
 import 'api/invitations_service.dart';
 import 'api/messages_service.dart';
 import 'api/notifications_service.dart';
+import 'api/personality_test_service.dart';
 import 'api/posts_service.dart';
 import 'api/profile_service.dart';
 import 'api/reports_service.dart';
@@ -56,7 +57,7 @@ class AppServices {
       this.apiClient, this.auth, this.feed, this.social, this.profile,
       this.posts, this.messages, this.notifications, this.search,
       this.realtime, this.messageAlerts, this.articles, this.domains,
-      this.results, this.invitations, this.reports);
+      this.results, this.invitations, this.reports, this.personalityTest);
 
   final ApiClient apiClient;
   final AuthService auth;
@@ -74,6 +75,7 @@ class AppServices {
   final ResultsService results;
   final InvitationsService invitations;
   final ReportsService reports;
+  final PersonalityTestService personalityTest;
 
   /// The most recently created container — the one the app is actively
   /// using. The notification singleton's fetch closure must resolve
@@ -153,7 +155,8 @@ class AppServices {
         DomainsService(api),
         ResultsService(api),
         InvitationsService(api),
-        ReportsService(api));
+        ReportsService(api),
+        PersonalityTestService(api));
     current = services;
     return services;
   }

@@ -26,6 +26,7 @@ import 'login_screen.dart';
 import 'messages_screen.dart';
 import 'notifications_screen.dart';
 import 'search_results_screen.dart';
+import 'test_screen.dart';
 
 /// Feed screen — the ranked feed via GET /api/v1/posts.
 ///
@@ -213,6 +214,27 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     } catch (_) {
       // Non-fatal: the header falls back to a placeholder avatar.
     }
+  }
+
+  /// Site header parity: while accounts.personality_type is empty the
+  /// header shows the yellow "incomplete profile" banner; the app shows
+  /// it at the top of the feed instead. Pushes the native test — when it
+  /// completes (the quiz replaces itself with the results screen and this
+  /// route future resolves true) the account is refreshed so the banner
+  /// disappears.
+  bool get _showTestBanner {
+    final me = _me;
+    return me != null &&
+        (me.personalityType == null || me.personalityType!.isEmpty);
+  }
+
+  Future<void> _openPersonalityTest() async {
+    final services = _services;
+    if (services == null) return;
+    final completed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const TestScreen()),
+    );
+    if (completed == true && mounted) _loadMe();
   }
 
   /// Header badge count (single COUNT query — cheap enough to poll).
@@ -845,13 +867,18 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
         onRetry: _loadFirst,
       );
     }
+    final bannerOffset = _showTestBanner ? 1 : 0;
     return ListView.builder(
       controller: _scrollController,
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      itemCount: _posts.length + (_loading ? 1 : 0),
+      itemCount: _posts.length + (_loading ? 1 : 0) + bannerOffset,
       itemBuilder: (context, index) {
-        if (index >= _posts.length) {
+        if (_showTestBanner && index == 0) {
+          return _PersonalityTestBanner(onTakeTest: _openPersonalityTest);
+        }
+        final postIndex = index - bannerOffset;
+        if (postIndex >= _posts.length) {
           // Small inline shimmer for the next page instead of a spinner.
           return const Padding(
             padding: EdgeInsets.symmetric(vertical: 12),
@@ -862,14 +889,102 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
           // Key by post id so ListView.builder never reuses a card's State
           // (like count/liked flags) for a different post after a refresh —
           // that reuse made brand-new posts show a stale "1 like".
-          key: ValueKey(_posts[index].id),
-          post: _posts[index],
+          key: ValueKey(_posts[postIndex].id),
+          post: _posts[postIndex],
           apiBaseUrl: AppConfig.apiBaseUrl,
           social: _services!.social,
           onEditPost: _editPost,
           onDeletePost: _deletePost,
         );
       },
+    );
+  }
+}
+
+/// The site's header "incomplete profile" banner (header.php, shown while
+/// accounts.personality_type is empty) as a modern yellow card at the top
+/// of the feed: Alerts header + the site's copy + a "Take test" button
+/// (site: info-yellow box, bg-yellow-950 link).
+class _PersonalityTestBanner extends StatelessWidget {
+  const _PersonalityTestBanner({required this.onTakeTest});
+
+  final VoidCallback onTakeTest;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: const Color(0x14FACC15), // yellow-400/8
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0x4DA16207)), // yellow-700/30
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: const Color(0x29FACC15), // yellow-400/16
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const FaIcon(FontAwesomeIcons.triangleExclamation,
+                color: EnclavdColors.warning, size: 16),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Alerts',
+                    style: TextStyle(
+                        fontSize: 14, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 4),
+                const Text(
+                  'Your account profile is currently incomplete, which limits '
+                  'your access to personalized features and advanced '
+                  'functionality. To unlock the full potential of your '
+                  'experience, please complete the mandatory personality '
+                  'assessment.',
+                  style: TextStyle(
+                      color: Color(0xFFFEF08A), // yellow-200
+                      fontSize: 13,
+                      height: 1.35),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Completing this test will enable tailored recommendations '
+                  'and unlock all restricted account tools.',
+                  style: TextStyle(
+                      color: Color(0xFFFEF9C3), // yellow-100
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      height: 1.35),
+                ),
+                const SizedBox(height: 10),
+                TextButton(
+                  onPressed: onTakeTest,
+                  style: TextButton.styleFrom(
+                    backgroundColor: const Color(0xFF422006), // yellow-950
+                    foregroundColor: EnclavdColors.link, // site textLink
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 8),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: const BorderSide(color: Colors.black),
+                    ),
+                    textStyle: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w600),
+                  ),
+                  child: const Text('Take test'),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

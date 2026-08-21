@@ -1,18 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../api/api_client.dart';
 import '../api/results_service.dart';
-import '../config/app_config.dart';
 import '../main.dart';
 import '../theme/enclavd_theme.dart';
+import 'test_screen.dart';
 
 /// The native Test Results screen — a modern port of the site's
 /// results.php: the personality badge, the type description with
 /// strengths/growth areas, and the four trait bars. When the member has
 /// no valid test the site redirects to /test_page; here that becomes an
-/// empty state with a button that opens the test in the browser.
+/// empty state that pushes the native personality test.
 class TestResultsScreen extends StatefulWidget {
   const TestResultsScreen({super.key, this.results});
 
@@ -79,14 +78,14 @@ class _TestResultsScreenState extends State<TestResultsScreen> {
   }
 
   Future<void> _openTestPage() async {
-    try {
-      await launchUrl(
-        Uri.parse('${AppConfig.apiBaseUrl}/test_page'),
-        mode: LaunchMode.externalApplication,
-      );
-    } catch (_) {
-      // Defensive, like every other launcher call.
-    }
+    // Native test (site parity: /test_page). The quiz replaces itself
+    // with a fresh results screen on completion; on return here the
+    // route future resolves true and this view refetches so the back
+    // stack shows the new result too.
+    final completed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(builder: (_) => const TestScreen()),
+    );
+    if (completed == true && mounted) _load();
   }
 
   @override
