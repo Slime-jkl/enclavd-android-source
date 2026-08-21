@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:url_launcher/url_launcher.dart';
 
-import '../config/app_config.dart';
 import '../services/background_keep_alive.dart';
 import '../services/message_notifications.dart';
 import '../services/social_notifications.dart';
@@ -11,9 +9,8 @@ import '../services/sound_service.dart';
 import '../theme/enclavd_theme.dart';
 
 /// App settings — the app-side preferences screen (sounds, notification
-/// toggles, keep-alive). Account editing lives in its own screen now
-/// (Account settings), so nothing here opens the website anymore except
-/// the changelog link in the about card.
+/// toggles, keep-alive). Account editing lives in Account settings; the
+/// about card lives in the user menu now.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -100,17 +97,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _toggleKeepAlive(bool enabled) async {
     setState(() => _keepAliveEnabled = enabled);
     await BackgroundKeepAlive.setEnabled(enabled);
-  }
-
-  Future<void> _openSite(String path) async {
-    try {
-      await launchUrl(
-        Uri.parse('${AppConfig.apiBaseUrl}$path'),
-        mode: LaunchMode.externalApplication,
-      );
-    } catch (_) {
-      // Defensive, like every other launcher call.
-    }
   }
 
   @override
@@ -284,38 +270,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ],
-            const SizedBox(height: 20),
-            const _SectionLabel('About'),
-            const SizedBox(height: 6),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: EnclavdColors.card,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: EnclavdColors.border),
-              ),
-              child: Column(
-                children: [
-                  Image.asset('assets/images/enclavd-logo-white.png',
-                      height: 22),
-                  const SizedBox(height: 10),
-                  const Text('iOS/Android native app',
-                      style: TextStyle(
-                          fontWeight: FontWeight.w600, fontSize: 15)),
-                  const SizedBox(height: 2),
-                  const Text('Community Powered',
-                      style: TextStyle(
-                          color: EnclavdColors.textSecondary, fontSize: 12)),
-                  const SizedBox(height: 12),
-                  TextButton.icon(
-                    onPressed: () => _openSite('/changelog'),
-                    icon: const FaIcon(FontAwesomeIcons.scroll,
-                        size: 14, color: EnclavdColors.link),
-                    label: const Text('What\'s new'),
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
       ),

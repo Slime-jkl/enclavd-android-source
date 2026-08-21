@@ -1,5 +1,6 @@
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../api/auth_service.dart';
 import '../config/app_config.dart';
@@ -30,8 +31,9 @@ import 'shimmer.dart';
 /// Control Panel which were removed at the user's request): the current
 /// user's avatar/username → their profile; Account settings (the app's
 /// edit-profile); App settings; Test Results; Invitations; Legal;
-/// Report an issue; Sign out. Everything is a native screen — the drawer
-/// opens no browser links anymore.
+/// Report an issue; Sign out. Everything is a native screen — the only
+/// website link left is the about card's changelog button at the bottom
+/// (moved here from the app settings screen).
 class UserMenuDrawer extends StatefulWidget {
   const UserMenuDrawer({
     super.key,
@@ -61,6 +63,19 @@ class _UserMenuDrawerState extends State<UserMenuDrawer> {
   void _push(Widget screen) {
     Navigator.of(context).pop(); // close the drawer first
     Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => screen));
+  }
+
+  /// Opens a site page in the system browser (the about card's changelog
+  /// link — the only remaining website link in the menu).
+  Future<void> _openSite(String path) async {
+    try {
+      await launchUrl(
+        Uri.parse('${AppConfig.apiBaseUrl}$path'),
+        mode: LaunchMode.externalApplication,
+      );
+    } catch (_) {
+      // Defensive, like every other launcher call.
+    }
   }
 
   @override
@@ -133,6 +148,43 @@ class _UserMenuDrawerState extends State<UserMenuDrawer> {
                   icon: FontAwesomeIcons.arrowRightFromBracket,
                   label: 'Sign out',
                   onTap: widget.onSignOut,
+                ),
+                // The about card (moved from the app settings screen).
+                const SizedBox(height: 20),
+                const _SectionLabel('About'),
+                const SizedBox(height: 6),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: EnclavdColors.card,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: EnclavdColors.border),
+                    ),
+                    child: Column(
+                      children: [
+                        Image.asset('assets/images/enclavd-logo-white.png',
+                            height: 22),
+                        const SizedBox(height: 10),
+                        const Text('iOS/Android native app',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w600, fontSize: 15)),
+                        const SizedBox(height: 2),
+                        const Text('Community Powered',
+                            style: TextStyle(
+                                color: EnclavdColors.textSecondary,
+                                fontSize: 12)),
+                        const SizedBox(height: 12),
+                        TextButton.icon(
+                          onPressed: () => _openSite('/changelog'),
+                          icon: const FaIcon(FontAwesomeIcons.scroll,
+                              size: 14, color: EnclavdColors.link),
+                          label: const Text('What\'s new'),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             );

@@ -111,6 +111,15 @@ void main() {
       expect(find.text('Legal'), findsOneWidget);
       expect(find.text('Report an issue'), findsOneWidget);
       expect(find.text('Sign out'), findsOneWidget);
+      // The about card (moved from the app settings screen) sits after
+      // the menu items — drag a little more to reveal it.
+      await tester.drag(find.byType(ListView), const Offset(0, -200));
+      await tester.pump();
+      expect(find.text('ABOUT'), findsOneWidget,
+          reason: 'section labels render uppercase');
+      expect(find.text('iOS/Android native app'), findsOneWidget);
+      expect(find.text('Community Powered'), findsOneWidget);
+      expect(find.text('What\'s new'), findsOneWidget);
     });
 
     testWidgets('Sign out fires the callback', (tester) async {
