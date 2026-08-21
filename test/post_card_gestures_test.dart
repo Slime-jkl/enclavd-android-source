@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:enclavd/api/api_client.dart';
 import 'package:enclavd/api/feed_service.dart';
 import 'package:enclavd/api/social_service.dart';
@@ -237,11 +236,8 @@ void main() {
           tester, _post(content: 'watch https://youtu.be/dQw4w9WgXcQ here'));
 
       expect(
-          find.byWidgetPredicate((w) =>
-              w is FaIcon &&
-              (w.icon?.codePoint ?? -1) == FontAwesomeIcons.play.codePoint),
-          findsOneWidget,
-          reason: 'play affordance on the embed card');
+          find.byKey(const Key('youtube-play-button')), findsOneWidget,
+          reason: 'resting play button on the embed card');
       expect(find.byType(AspectRatio), findsOneWidget,
           reason: '16:9 embed frame');
     });
@@ -249,11 +245,7 @@ void main() {
     testWidgets('posts without a YouTube link have no embed card',
         (tester) async {
       await pumpPost(tester, _post());
-      expect(
-          find.byWidgetPredicate((w) =>
-              w is FaIcon &&
-              (w.icon?.codePoint ?? -1) == FontAwesomeIcons.play.codePoint),
-          findsNothing);
+      expect(find.byKey(const Key('youtube-play-button')), findsNothing);
     });
   });
 }

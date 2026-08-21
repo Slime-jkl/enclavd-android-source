@@ -1008,8 +1008,11 @@ class _YouTubeEmbedState extends State<_YouTubeEmbed> {
               // so its state survives — the thumbnail just covers it.
               if (_controller != null) WebViewWidget(controller: _controller!),
               if (!_playing)
-                // Thumbnail card (tap to play). Solid background hides the
-                // loaded player underneath when collapsing back.
+                // Resting state = what a real YouTube embed looks like
+                // before interaction: the thumbnail, a soft scrim, and
+                // YouTube's own red play button — custom-painted triangle
+                // (perfectly centered; FontAwesome's play glyph is
+                // optically off-center in a circle). Tap loads the player.
                 GestureDetector(
                   onTap: _play,
                   child: Container(
@@ -1024,16 +1027,15 @@ class _YouTubeEmbedState extends State<_YouTubeEmbed> {
                           fit: BoxFit.cover,
                           errorAsset: 'assets/images/no-image.jpg',
                         ),
-                        Center(
-                          child: Container(
-                            width: 48,
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.6),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const FaIcon(FontAwesomeIcons.play,
-                                size: 20, color: Colors.white),
+                        // Soft scrim so the red button pops on any
+                        // thumbnail (site embeds sit on YouTube's own
+                        // darkened chrome).
+                        ColoredBox(
+                          color: Colors.black.withValues(alpha: 0.25),
+                        ),
+                        const Center(
+                          child: _YouTubePlayButton(
+                            key: Key('youtube-play-button'),
                           ),
                         ),
                       ],
@@ -1069,6 +1071,63 @@ class _YouTubeEmbedState extends State<_YouTubeEmbed> {
       ),
     );
   }
+}
+
+/// YouTube's own resting play button: a rounded red chip with a WHITE
+/// play triangle drawn by [CustomPainter].
+///
+/// Why a painter and not FontAwesomeIcons.play: the FA glyph carries its
+/// own internal padding, so inside a circle it renders optically
+/// off-center (the triangle's centroid sits left of the box center). A
+/// painter places the triangle's CENTROID exactly on the button's center
+/// — deterministic centering, no font metrics involved. The button shape
+/// (68x48, radius 14, #FF0000) matches YouTube's embed chrome so the
+/// resting card reads as a video, not a broken image.
+class _YouTubePlayButton extends StatelessWidget {
+  const _YouTubePlayButton({super.key});
+
+  static const double _width = 68;
+  static const double _height = 48;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: _width,
+      height: _height,
+      decoration: BoxDecoration(
+        color: const Color(0xFFFF0000), // YouTube red
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: const CustomPaint(painter: _PlayTrianglePainter()),
+    );
+  }
+}
+
+/// Paints a right-pointing play triangle whose CENTROID is the widget's
+/// center — the triangle spans 34%→80% of the width and 24%→76% of the
+/// height, which centers the centroid ((0.34+0.80)/2 horizontally is NOT
+/// the rule — the centroid of a triangle is the mean of its vertices, and
+/// these vertex fractions put it exactly at 50%, 50%).
+class _PlayTrianglePainter extends CustomPainter {
+  const _PlayTrianglePainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final paint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+    final path = Path()
+      ..moveTo(w * 0.34, h * 0.24) // top-left
+      ..lineTo(w * 0.34, h * 0.76) // bottom-left
+      ..lineTo(w * 0.80, h * 0.50) // tip (right)
+      ..close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _PlayTrianglePainter oldDelegate) => false;
 }
 
 /// Small circular overlay button on the playing embed (black/60 chip).
