@@ -149,8 +149,21 @@ class _TestScreenState extends State<TestScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Personality Test')),
-      body: SafeArea(child: _buildBody()),
+      appBar: AppBar(
+        title: const Text('Personality Test'),
+        backgroundColor: const Color(0xFF0B1628),
+        centerTitle: true,
+      ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF0B1628), EnclavdColors.background],
+          ),
+        ),
+        child: SafeArea(child: _buildBody()),
+      ),
     );
   }
 
@@ -211,8 +224,8 @@ class _TestScreenState extends State<TestScreen> {
   }
 }
 
-/// The site's test_page.php intro card: about the test, instructions,
-/// time + completion notes, and the Start button.
+/// Modern intro: hero icon, short copy, a stats row, and an "About"
+/// card — the site's test_page.php copy condensed into icon rows.
 class _IntroView extends StatelessWidget {
   const _IntroView({required this.onStart});
 
@@ -221,12 +234,61 @@ class _IntroView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       children: [
+        const SizedBox(height: 8),
+        Center(
+          child: Container(
+            width: 88,
+            height: 88,
+            decoration: BoxDecoration(
+              color: EnclavdColors.link.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Center(
+              child: FaIcon(FontAwesomeIcons.brain,
+                  size: 38, color: EnclavdColors.link),
+            ),
+          ),
+        ),
+        const SizedBox(height: 20),
+        const Text(
+          'Personality Test',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 6),
+        const Text(
+          '40 questions that reveal how you think, decide and connect — '
+          'and how you fit into the Enclavd community.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+              color: EnclavdColors.textSecondary,
+              fontSize: 14,
+              height: 1.45),
+        ),
+        const SizedBox(height: 24),
+        const Row(
+          children: [
+            _StatChip(
+                icon: FontAwesomeIcons.listCheck,
+                value: '40',
+                label: 'Questions'),
+            SizedBox(width: 10),
+            _StatChip(
+                icon: FontAwesomeIcons.clock,
+                value: '15-20',
+                label: 'Minutes'),
+            SizedBox(width: 10),
+            _StatChip(
+                icon: FontAwesomeIcons.lock, value: 'No', label: 'Retakes'),
+          ],
+        ),
+        const SizedBox(height: 20),
         Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: EnclavdColors.cardSecondary.withValues(alpha: 0.5),
+            color: EnclavdColors.card,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: EnclavdColors.border),
           ),
@@ -236,114 +298,118 @@ class _IntroView extends StatelessWidget {
               Row(
                 children: [
                   FaIcon(FontAwesomeIcons.circleInfo,
-                      color: EnclavdColors.link, size: 18),
-                  SizedBox(width: 10),
+                      color: EnclavdColors.link, size: 16),
+                  SizedBox(width: 8),
                   Text('About this test',
                       style: TextStyle(
-                          color: EnclavdColors.link,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600)),
+                          fontSize: 16, fontWeight: FontWeight.w700)),
                 ],
               ),
-              SizedBox(height: 12),
+              SizedBox(height: 10),
               Text(
-                'You are about to take a personality test consisting of 40 '
-                'questions. This test will help evaluate various aspects of '
-                'your personality and determine your compatibility with our '
-                'community.',
+                'Answer every question honestly and pick the option that '
+                'feels most like you. Your results appear instantly.',
                 style: TextStyle(
                     color: Color(0xFFD1D5DB), // gray-300
-                    fontSize: 14,
-                    height: 1.4),
-              ),
-              SizedBox(height: 14),
-              _IntroList(
-                title: 'Instructions',
-                color: Color(0xFF93C5FD), // blue-300
-                items: [
-                  'Answer all questions honestly',
-                  'Choose one option for each question',
-                  'Take your time to consider each answer',
-                  'There are no right or wrong answers',
-                ],
+                    fontSize: 13.5,
+                    height: 1.45),
               ),
               SizedBox(height: 12),
-              _IntroList(
-                title: 'Time & Completion',
-                color: Color(0xFF93C5FD),
-                items: [
-                  'Estimated time: 15-20 minutes',
-                  'All questions are required',
-                  'Results available immediately',
-                  'Cannot be retaken once submitted',
-                ],
+              _InfoRow(
+                icon: FontAwesomeIcons.checkDouble,
+                color: Color(0xFF4ADE80),
+                text: 'Results appear immediately after you submit',
+              ),
+              _InfoRow(
+                icon: FontAwesomeIcons.clock,
+                color: EnclavdColors.link,
+                text: 'Estimated time: 15-20 minutes',
+              ),
+              _InfoRow(
+                icon: FontAwesomeIcons.lock,
+                color: Color(0xFFFACC15),
+                text: 'Cannot be retaken once submitted',
               ),
             ],
           ),
         ),
-        const SizedBox(height: 20),
-        Center(
-          child: FilledButton.icon(
-            style: FilledButton.styleFrom(
-              backgroundColor: EnclavdColors.primaryButton,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-            ),
-            onPressed: onStart,
-            icon: const FaIcon(FontAwesomeIcons.play, size: 14),
-            label: const Text('Start Test'),
+        const SizedBox(height: 24),
+        FilledButton.icon(
+          style: FilledButton.styleFrom(
+            backgroundColor: EnclavdColors.primaryButton,
+            padding: const EdgeInsets.symmetric(vertical: 15),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
+            textStyle:
+                const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),
+          onPressed: onStart,
+          icon: const FaIcon(FontAwesomeIcons.play, size: 14),
+          label: const Text('Start Test'),
         ),
+        const SizedBox(height: 12),
       ],
     );
   }
 }
 
-class _IntroList extends StatelessWidget {
-  const _IntroList({
-    required this.title,
-    required this.color,
-    required this.items,
-  });
+class _StatChip extends StatelessWidget {
+  const _StatChip(
+      {required this.icon, required this.value, required this.label});
 
-  final String title;
-  final Color color;
-  final List<String> items;
+  final FaIconData icon;
+  final String value;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: const Color(0x1F374151), // gray-700/30-ish
-        borderRadius: BorderRadius.circular(12),
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: EnclavdColors.card,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: EnclavdColors.border),
+        ),
+        child: Column(
+          children: [
+            FaIcon(icon, size: 15, color: EnclavdColors.link),
+            const SizedBox(height: 6),
+            Text(value,
+                style:
+                    const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+            Text(label,
+                style: const TextStyle(
+                    fontSize: 11, color: EnclavdColors.textSecondary)),
+          ],
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({required this.icon, required this.color, required this.text});
+
+  final FaIconData icon;
+  final Color color;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
         children: [
-          Text(title,
-              style: TextStyle(
-                  color: color, fontWeight: FontWeight.w600, fontSize: 14)),
-          const SizedBox(height: 8),
-          for (final item in items)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 3),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('• ',
-                      style: TextStyle(color: Color(0xFFD1D5DB), fontSize: 13)),
-                  Expanded(
-                    child: Text(item,
-                        style: const TextStyle(
-                            color: Color(0xFFD1D5DB), // gray-300
-                            fontSize: 13,
-                            height: 1.3)),
-                  ),
-                ],
-              ),
-            ),
+          FaIcon(icon, size: 13, color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(text,
+                style: const TextStyle(
+                    color: Color(0xFFD1D5DB), // gray-300
+                    fontSize: 13,
+                    height: 1.35)),
+          ),
         ],
       ),
     );
@@ -403,53 +469,60 @@ class _QuizView extends StatelessWidget {
 
     return Column(
       children: [
-        // Progress (site: 4px rounded bar, blue fill).
+        // Progress header: counter + percent + rounded bar.
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(2),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 4,
-              backgroundColor: const Color(0xFF4B5563), // gray-600
-              color: const Color(0xFF3B82F6), // blue-500
-            ),
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Question ${current + 1} of $total',
+                      style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: EnclavdColors.textSecondary)),
+                  Text('${(progress * 100).round()}%',
+                      style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: EnclavdColors.link)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  minHeight: 8,
+                  backgroundColor: const Color(0xFF1F2937), // gray-800
+                  color: const Color(0xFF3B82F6), // blue-500
+                ),
+              ),
+            ],
           ),
         ),
         Expanded(
           child: ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(20),
             children: [
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: EnclavdColors.card,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(18),
                   border: Border.all(color: EnclavdColors.border),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        const FaIcon(FontAwesomeIcons.lightbulb,
-                            color: Color(0xFFFACC15), // yellow-500
-                            size: 16),
-                        const SizedBox(width: 8),
-                        Text('Question ${question.id} of $total',
-                            style: const TextStyle(
-                                color: EnclavdColors.textPrimary,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600)),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
                     Text(question.question,
                         style: const TextStyle(
-                            color: Color(0xFFD1D5DB), // gray-300
-                            fontSize: 15,
-                            height: 1.4)),
-                    const SizedBox(height: 16),
+                            color: Colors.white,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w600,
+                            height: 1.45)),
+                    const SizedBox(height: 18),
                     for (final option in _kOptions)
                       _OptionRow(
                         option: option,
@@ -462,19 +535,23 @@ class _QuizView extends StatelessWidget {
             ],
           ),
         ),
-        // Footer (site: sticky button-container).
+        // Footer: full-width action (Next / Submit).
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
           decoration: const BoxDecoration(
-            color: Color(0xCC111827), // gray-900/80
+            color: Color(0xE6030712), // background at ~90%
             border: Border(top: BorderSide(color: EnclavdColors.divider)),
           ),
           child: isLast
               ? FilledButton.icon(
                   style: FilledButton.styleFrom(
                     backgroundColor: const Color(0xFF16A34A), // green-600
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    textStyle: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w600),
                   ),
                   onPressed: (selected == null || submitting)
                       ? null
@@ -491,7 +568,11 @@ class _QuizView extends StatelessWidget {
               : FilledButton.icon(
                   style: FilledButton.styleFrom(
                     backgroundColor: EnclavdColors.primaryButton,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    padding: const EdgeInsets.symmetric(vertical: 15),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    textStyle: const TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.w600),
                   ),
                   onPressed: selected == null ? null : onNext,
                   icon: const FaIcon(FontAwesomeIcons.arrowRight, size: 14),
@@ -523,7 +604,7 @@ class _OptionRow extends StatelessWidget {
             ? const Color(0x333B82F6) // blue-500/20 (site .selected)
             : EnclavdColors.cardSecondary.withValues(alpha: 0.55),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           side: BorderSide(
             color: selected
                 ? EnclavdColors.link // blue-400 selected ring
@@ -536,7 +617,7 @@ class _OptionRow extends StatelessWidget {
           onTap: onTap,
           child: Padding(
             padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
             child: Row(
               children: [
                 FaIcon(option.icon, color: option.color, size: 17),
@@ -547,7 +628,7 @@ class _OptionRow extends StatelessWidget {
                         color: selected
                             ? Colors.white
                             : const Color(0xFFD1D5DB), // gray-300
-                        fontSize: 14,
+                        fontSize: 14.5,
                         fontWeight:
                             selected ? FontWeight.w600 : FontWeight.w400,
                       )),

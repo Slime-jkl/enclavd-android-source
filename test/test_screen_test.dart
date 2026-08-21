@@ -70,6 +70,11 @@ void main() {
     // Intro card (site test_page.php copy).
     expect(find.text('About this test'), findsOneWidget);
     expect(find.textContaining('40 questions'), findsOneWidget);
+
+    // The redesigned intro is taller than the test viewport — scroll to
+    // the action before tapping.
+    await tester.scrollUntilVisible(find.text('Start Test'), 200);
+    await tester.pumpAndSettle();
     expect(find.text('Start Test'), findsOneWidget);
 
     await tester.tap(find.text('Start Test'));
