@@ -46,6 +46,7 @@ class NotificationCandidate {
     required this.body,
     this.payload,
     this.kind = CandidateKind.message,
+    this.avatarPath,
   });
 
   /// Dedupe identity, e.g. 'message:5:102' or 'post:post-like:12:88'.
@@ -63,6 +64,10 @@ class NotificationCandidate {
 
   /// Which channel/renderer this candidate is shown through.
   final CandidateKind kind;
+
+  /// Root-relative sender avatar for message bubbles (MessagingStyle
+  /// person icons must be local files — resolved+cached at show time).
+  final String? avatarPath;
 }
 
 /// The context every source gets: a session-bearing client (built fresh

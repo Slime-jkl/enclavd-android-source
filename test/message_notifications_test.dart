@@ -16,6 +16,7 @@ class FakeNotifier implements LocalNotifier {
   String? lastSender;
   String? lastBody;
   int? lastConversationId;
+  String? lastAvatarPath;
   bool osEnabled = true; // the OS-level permission state the app reads
   int openSettingsCalls = 0;
 
@@ -40,12 +41,14 @@ class FakeNotifier implements LocalNotifier {
     required String senderName,
     required String message,
     required int conversationId,
+    String? avatarPath,
   }) async {
     shown++;
     lastNotificationId = notificationId;
     lastSender = senderName;
     lastBody = message;
     lastConversationId = conversationId;
+    lastAvatarPath = avatarPath;
   }
 
   @override

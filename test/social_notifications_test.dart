@@ -32,6 +32,7 @@ class FakeNotifier implements LocalNotifier {
     required String senderName,
     required String message,
     required int conversationId,
+    String? avatarPath,
   }) async {}
 
   @override

@@ -37,6 +37,11 @@ class SocialNotificationSource implements NotificationSource {
 
   static const String drawerOpenPrefsKey = 'notifications_screen_open';
 
+  /// Mirrored by SocialNotifications on every app lifecycle change. The
+  /// worker is quiet only while the drawer is open AND the app is in the
+  /// foreground — minimized must still alert (the user is NOT looking).
+  static const String appActivePrefsKey = 'notifications_app_active';
+
   /// Android notification ids are namespaced above the message ids
   /// (conversation ids) so a like and a message never collide on the same
   /// notification id — a collision would make one REPLACE the other.
@@ -50,8 +55,13 @@ class SocialNotificationSource implements NotificationSource {
   @override
   Future<List<NotificationCandidate>> check(SourceContext context) async {
     final prefs = context.prefs;
-    if (prefs.getBool(drawerOpenPrefsKey) ?? false) {
-      debugPrint('source post: drawer open, quiet');
+    // Quiet only while the user is literally LOOKING at the drawer: open
+    // AND foregrounded. Minimized (or the drawer closed) must alert — a
+    // process killed with the drawer open must not silence the worker.
+    final drawerOpen = prefs.getBool(drawerOpenPrefsKey) ?? false;
+    final appActive = prefs.getBool(appActivePrefsKey) ?? true;
+    if (drawerOpen && appActive) {
+      debugPrint('source post: drawer open AND app active, quiet');
       return const []; // the user is looking at the list right now
     }
     if (!(prefs.getBool(SocialNotifications.enabledPrefsKey) ?? true)) {

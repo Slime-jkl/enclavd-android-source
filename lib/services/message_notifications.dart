@@ -6,7 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/api_client.dart';
 import '../api/messages_service.dart';
+import '../config/app_config.dart';
 import 'message_notification_source.dart';
+import 'notification_avatar.dart';
 import 'notification_source.dart';
 
 /// Message notifications — every realtime badge ping (SSE `message_unread`)
@@ -133,6 +135,7 @@ class MessageNotifications with WidgetsBindingObserver {
           senderName: candidate.title,
           message: candidate.body,
           conversationId: conversationId,
+          avatarPath: candidate.avatarPath,
         );
         await tracker.add(candidate.key); // only after a successful show
       }
@@ -242,6 +245,7 @@ abstract class LocalNotifier {
     required String senderName,
     required String message,
     required int conversationId,
+    String? avatarPath,
   });
 
   /// Social alert (likes/comments/mentions) — the plain notifications
@@ -270,13 +274,29 @@ const _socialChannelDescription = 'Likes, comments and mentions';
 
 /// Renders one message notification through the given plugin instance.
 /// Isolate-agnostic — the worker's freshly-initialized plugin included.
+///
+/// MessagingStyle with groupConversation FALSE (1:1): the conversation
+/// title carries the sender's name, so the incoming bubble shows NO sender
+/// label — the name appears exactly once (the user's complaint when it
+/// showed twice: title + bubble label). The sender's real avatar is
+/// downloaded+cached as a local file and used as the bubble icon (a
+/// remote URL cannot be a Person icon); a failed download falls back to
+/// Android's initial-letter placeholder. The user's own drawer replies
+/// render as outgoing messages from the user person — labeled "Me".
 Future<void> showMessageNotificationWith(
   FlutterLocalNotificationsPlugin plugin, {
   required int notificationId,
   required String senderName,
   required String message,
   required int conversationId,
+  String? avatarPath,
 }) async {
+  final avatarFile = avatarPath == null || avatarPath.isEmpty
+      ? null
+      : await resolveNotificationAvatar(
+          avatarPath,
+          baseUrl: AppConfig.apiBaseUrl,
+        );
   final details = AndroidNotificationDetails(
     _channelId,
     _channelName,
@@ -284,20 +304,27 @@ Future<void> showMessageNotificationWith(
     importance: Importance.high,
     priority: Priority.high,
     // MessagingStyle turns the notification into a real conversation: the
-    // incoming message renders as a bubble from [senderName], and a drawer
-    // reply appends as an outgoing message from the user's own person —
-    // labeled "Me" (the user's explicit preference over the raw username).
-    // groupConversation: true keeps sender names on every bubble — a 1:1
-    // style would collapse the user's own messages to a generic "You".
+    // incoming message renders as a bubble from [senderName] (with their
+    // real avatar when one is available), and a drawer reply appends as an
+    // outgoing message from the user's own person — labeled "Me" (the
+    // user's explicit preference over the raw username). groupConversation
+    // false = 1:1: sender names are NOT repeated on every bubble (the
+    // title IS the sender).
     styleInformation: MessagingStyleInformation(
       const Person(key: 'me', name: 'Me'),
       conversationTitle: senderName,
-      groupConversation: true,
+      groupConversation: false,
       messages: [
         Message(
           message,
           DateTime.now(),
-          Person(key: 'them', name: senderName),
+          Person(
+            key: 'them',
+            name: senderName,
+            icon: avatarFile == null
+                ? null
+                : FilePathAndroidBitmap(avatarFile) as AndroidIcon<Object>,
+          ),
         ),
       ],
     ),
@@ -399,6 +426,7 @@ class FlutterLocalNotifier implements LocalNotifier {
     required String senderName,
     required String message,
     required int conversationId,
+    String? avatarPath,
   }) =>
       showMessageNotificationWith(
         _plugin,
@@ -406,6 +434,7 @@ class FlutterLocalNotifier implements LocalNotifier {
         senderName: senderName,
         message: message,
         conversationId: conversationId,
+        avatarPath: avatarPath,
       );
 
   @override

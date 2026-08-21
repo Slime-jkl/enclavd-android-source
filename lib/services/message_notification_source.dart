@@ -79,6 +79,7 @@ class MessageNotificationSource implements NotificationSource {
           title: m.senderName,
           body: m.message,
           payload: 'c:${m.conversationId}',
+          avatarPath: m.senderAvatar,
         ),
     ];
   }

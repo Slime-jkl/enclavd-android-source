@@ -79,10 +79,15 @@ class SocialNotifications with WidgetsBindingObserver {
             prefs, _drawerOpenCount > 0)));
   }
 
-  /// App foreground state — minimized counts as "not looking".
+  /// App foreground state — minimized counts as "not looking". Mirrored to
+  /// prefs so the BACKGROUND worker (a separate isolate that cannot see
+  /// this in-memory flag) applies the same rule: quiet only while the
+  /// drawer is open AND the user is actually looking at it.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _appActive = state == AppLifecycleState.resumed;
+    unawaited(_prefsFactory().then((prefs) =>
+        prefs.setBool(SocialNotificationSource.appActivePrefsKey, _appActive)));
   }
 
   /// Called on every `notification` realtime ping. Skips when the user is

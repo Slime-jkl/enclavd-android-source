@@ -460,9 +460,34 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     return Scaffold(
       key: _scaffoldKey,
       appBar: AppBar(
-        // Site header (header.php): the text-only wordmark on the left,
-        // the user menu trigger (avatar + chevron) opposite it.
+        // Site header (header.php): the wordmark, with the user menu
+        // trigger (avatar) LEADING — the right side is purely the
+        // notification icons (bell + messages).
         titleSpacing: 16,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 8),
+          child: InkWell(
+            onTap: () => _scaffoldKey.currentState?.openEndDrawer(),
+            borderRadius: BorderRadius.circular(20),
+            child: me != null
+                ? EnclavdAvatar(
+                    size: 32,
+                    url: me.avatarUrl(AppConfig.apiBaseUrl),
+                    borderColor:
+                        PersonalityColors.forType(me.personalityType),
+                  )
+                : Container(
+                    width: 32,
+                    height: 32,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: EnclavdColors.cardSecondary,
+                    ),
+                    child: const FaIcon(FontAwesomeIcons.user,
+                        size: 15, color: EnclavdColors.textSecondary),
+                  ),
+          ),
+        ),
         title: Image.asset('assets/images/enclavd-logo-white.png', height: 22),
         actions: [
           // Site header: the bell notifications link (red unread badge,
@@ -541,37 +566,6 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
               ],
             ),
           ],
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: InkWell(
-              onTap: () => _scaffoldKey.currentState?.openEndDrawer(),
-              borderRadius: BorderRadius.circular(20),
-              child: Row(
-                children: [
-                  if (me != null)
-                    EnclavdAvatar(
-                      size: 32,
-                      url: me.avatarUrl(AppConfig.apiBaseUrl),
-                      borderColor: PersonalityColors.forType(me.personalityType),
-                    )
-                  else
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: const BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: EnclavdColors.cardSecondary,
-                      ),
-                      child: const FaIcon(FontAwesomeIcons.user,
-                          size: 15, color: EnclavdColors.textSecondary),
-                    ),
-                  const SizedBox(width: 6),
-                  const FaIcon(FontAwesomeIcons.chevronDown,
-                      size: 12, color: EnclavdColors.textSecondary),
-                ],
-              ),
-            ),
-          ),
         ],
       ),
       // The side menu opposite the logo (site's user-menu dropdown).

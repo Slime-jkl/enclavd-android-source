@@ -105,6 +105,7 @@ Future<void> runBackgroundSources(List<NotificationSource> sources) async {
           senderName: candidate.title,
           message: candidate.body,
           conversationId: conversationId ?? 0,
+          avatarPath: candidate.avatarPath,
         );
       case CandidateKind.social:
         await showSocialNotificationWith(

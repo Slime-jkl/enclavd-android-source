@@ -104,7 +104,23 @@ void main() {
       final source = SocialNotificationSource(
           fetcher: (_) async => [_bundle(id: 12)]);
       expect(await source.check(SourceContext(api: _api(), prefs: prefs)),
-          isEmpty);
+          isEmpty,
+          reason: 'open AND app active (default) = the user is looking');
+    });
+
+    test('drawer open but app MINIMIZED → NOT quiet (must still alert)',
+        () async {
+      SharedPreferences.setMockInitialValues({
+        SocialNotificationSource.drawerOpenPrefsKey: true,
+        SocialNotificationSource.appActivePrefsKey: false,
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final source = SocialNotificationSource(
+          fetcher: (_) async => [_bundle(id: 12)]);
+      final candidates =
+          await source.check(SourceContext(api: _api(), prefs: prefs));
+      expect(candidates, isNotEmpty,
+          reason: 'minimized with the drawer open must still notify');
     });
 
     test('fetcher failure → quiet, never throws', () async {
