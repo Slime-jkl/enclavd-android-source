@@ -65,6 +65,18 @@ android {
         versionName = flutter.versionName
     }
 
+    // Product flavors mirror the CI --dart-define flavors (play/fdroid/dev).
+    // The dart-define drives the APP's compile-time config; the gradle
+    // flavor drives the NATIVE dependency set. The one that matters here:
+    // the fdroid flavor must not ship ANY Google code (F-Droid
+    // acceptance) — see the configuration exclusions below.
+    flavorDimensions += "app"
+    productFlavors {
+        create("play") { dimension = "app" }
+        create("fdroid") { dimension = "app" }
+        create("dev") { dimension = "app" }
+    }
+
     buildTypes {
         release {
             // findByName → null when the upload key isn't configured, which
@@ -73,11 +85,42 @@ android {
             signingConfig = signingConfigs.findByName("release")
         }
     }
+
+    // The generated GeneratedPluginRegistrant (src/main/java/io/flutter/
+    // plugins/) references EVERY plugin, including the firebase ones the
+    // fdroid variant excludes — that file would fail to compile there.
+    // Drop it for the fdroid variant only; src/fdroid/java provides its
+    // own copy without the firebase plugins.
+    androidComponents {
+        onVariants(selector().withFlavor("fdroid")) { variant ->
+            variant.sources.java?.all { sourceSet ->
+                sourceSet.exclude("io/flutter/plugins/GeneratedPluginRegistrant.java")
+            }
+        }
+    }
 }
 
 kotlin {
     compilerOptions {
         jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+    }
+}
+
+// ── F-Droid: no Google code in the binary ──────────────────────────────
+// The fdroid flavor must not ship ANY Firebase / play-services classes
+// (F-Droid acceptance; their scanner flags GMS class presence). The
+// Flutter gradle plugin wires plugin dependencies into per-variant
+// configurations (${variant}Api) — exclude the firebase plugins and their
+// play-services transitives from every fdroid variant here. The Dart side
+// already guards FCM behind AppConfig.enableFcm (compile-time false on
+// fdroid), and the src/fdroid manifest overlay + registrant handle the
+// merged components. CI verifies the APK is GMS-free after the build.
+configurations.configureEach {
+    if (name.contains("fdroid", ignoreCase = true)) {
+        exclude(group = "com.google.firebase")
+        exclude(group = "com.google.android.gms")
+        exclude(module = "firebase_core")
+        exclude(module = "firebase_messaging")
     }
 }
 

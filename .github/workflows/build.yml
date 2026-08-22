@@ -113,18 +113,40 @@ jobs:
           if [ "${{ github.event.inputs.build_type }}" = "debug" ]; then
             # Debug only via workflow_dispatch (JIT: good for hot-reload
             # iteration, feels laggy on-device — never the push default).
-            flutter build apk --debug $DEFINES
+            flutter build apk --flavor "${{ matrix.flavor }}" --debug $DEFINES
           else
             # Release by default: the push-built APK is what gets installed
-            # on phones. AOT-compiled, no IME/typing jank.
-            flutter build apk --release $DEFINES
+            # on phones. AOT-compiled, no IME/typing jank. --flavor selects
+            # the gradle product flavor (native dependency set — fdroid
+            # excludes the firebase plugins); the dart-defines drive the
+            # app's compile-time config.
+            flutter build apk --flavor "${{ matrix.flavor }}" --release $DEFINES
           fi
           # Hand the defines to the AAB step (release, play flavor only).
           echo "DEFINES=$DEFINES" >> "$GITHUB_ENV"
 
+      # F-Droid acceptance gate: the fdroid APK must contain NO Google
+      # code. Grep the dex classes + merged manifest for firebase /
+      # play-services references and fail the build if any survive the
+      # flavor exclusions.
+      - name: Verify fdroid APK is GMS-free
+        if: matrix.flavor == 'fdroid'
+        run: |
+          APK=$(ls build/app/outputs/flutter-apk/app-fdroid-*.apk | head -1)
+          echo "checking $APK"
+          DEX=$(unzip -p "$APK" classes.dex | grep -c "Lcom/google/firebase" || true)
+          GMS=$(unzip -p "$APK" classes.dex | grep -c "Lcom/google/android/gms" || true)
+          MANIFEST=$(unzip -p "$APK" AndroidManifest.xml | grep -c "firebase" || true)
+          echo "dex firebase refs: $DEX | dex gms refs: $GMS | manifest firebase refs: $MANIFEST"
+          if [ "$DEX" -gt 0 ] || [ "$GMS" -gt 0 ] || [ "$MANIFEST" -gt 0 ]; then
+            echo "FAIL: fdroid APK contains Google/Firebase references"
+            exit 1
+          fi
+          echo "fdroid APK is GMS-free: OK"
+
       - name: Build AAB (Play Store)
         if: matrix.flavor == 'play' && github.event.inputs.build_type != 'debug'
-        run: flutter build appbundle --release $DEFINES
+        run: flutter build appbundle --flavor play --release $DEFINES
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -138,7 +160,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: enclavd-play-aab
-          path: build/app/outputs/bundle/release/app-release.aab
+          path: build/app/outputs/bundle/playRelease/app-play-release.aab
           if-no-files-found: error
 
   # iOS runner: present in the repo (ios/) so the project is cross-platform
