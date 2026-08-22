@@ -11,6 +11,7 @@ import '../config/app_config.dart';
 import '../main.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/enclavd_avatar.dart';
+import '../widgets/field_icon.dart';
 
 /// The native Account settings screen — a modern port of the site's
 /// profile-edit.php GENERAL INFO tab (the Connected Devices tab is
@@ -900,8 +901,10 @@ class _GeoPickerSheetState extends State<_GeoPickerSheet> {
                   hintText: 'Search ${widget.title.toLowerCase()}',
                   hintStyle:
                       const TextStyle(color: EnclavdColors.textSecondary),
-                  prefixIcon: const FaIcon(FontAwesomeIcons.magnifyingGlass,
-                      size: 14, color: EnclavdColors.textSecondary),
+                  prefixIcon: const FieldIcon(
+                      FontAwesomeIcons.magnifyingGlass,
+                      size: 14,
+                      color: EnclavdColors.textSecondary),
                   filled: true,
                   fillColor: EnclavdColors.cardSecondary,
                   border: OutlineInputBorder(
@@ -970,8 +973,10 @@ class _CityPickerSheetState extends State<_CityPickerSheet> {
                   hintText: 'Search city',
                   hintStyle:
                       const TextStyle(color: EnclavdColors.textSecondary),
-                  prefixIcon: const FaIcon(FontAwesomeIcons.magnifyingGlass,
-                      size: 14, color: EnclavdColors.textSecondary),
+                  prefixIcon: const FieldIcon(
+                      FontAwesomeIcons.magnifyingGlass,
+                      size: 14,
+                      color: EnclavdColors.textSecondary),
                   filled: true,
                   fillColor: EnclavdColors.cardSecondary,
                   border: OutlineInputBorder(

@@ -9,6 +9,7 @@ import '../config/app_config.dart';
 import '../main.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/auth_password_field.dart';
+import '../widgets/field_icon.dart';
 import 'login_screen.dart';
 import 'verify_email_screen.dart';
 
@@ -438,8 +439,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       child: InputDecorator(
         decoration: InputDecoration(
           labelText: label,
-          prefixIcon: FaIcon(icon, size: 18),
-          suffixIcon: const FaIcon(FontAwesomeIcons.chevronDown,
+          prefixIcon: FieldIcon(icon),
+          suffixIcon: const FieldIcon(FontAwesomeIcons.chevronDown,
               size: 14, color: EnclavdColors.textSecondary),
         ),
         child: Text(
@@ -528,9 +529,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 labelText: 'Username *',
                                 hintText: 'Choose a username',
                                 errorText: _fieldErrors['username'],
-                                prefixIcon:
-                                    const FaIcon(FontAwesomeIcons.user,
-                                        size: 18),
+                                prefixIcon: const FieldIcon(
+                                    FontAwesomeIcons.user),
                               ),
                               onChanged: (_) => _clearFieldError('username'),
                               validator: (v) {
@@ -552,9 +552,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 labelText: 'Email address *',
                                 hintText: 'you@example.com',
                                 errorText: _fieldErrors['email'],
-                                prefixIcon:
-                                    const FaIcon(FontAwesomeIcons.envelope,
-                                        size: 18),
+                                prefixIcon: const FieldIcon(
+                                    FontAwesomeIcons.envelope),
                               ),
                               onChanged: (_) => _clearFieldError('email'),
                               validator: (v) {
@@ -603,8 +602,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   labelText: 'Invitation Code *',
                                   hintText: 'Enter your invitation code',
                                   errorText: _fieldErrors['invitation'],
-                                  prefixIcon: const FaIcon(
-                                      FontAwesomeIcons.ticket, size: 18),
+                                  prefixIcon: const FieldIcon(
+                                      FontAwesomeIcons.ticket),
                                 ),
                                 onChanged: (_) =>
                                     _clearFieldError('invitation'),
@@ -627,8 +626,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               initialValue: _gender,
                               decoration: const InputDecoration(
                                 labelText: 'Gender',
-                                prefixIcon:
-                                    FaIcon(FontAwesomeIcons.venusMars, size: 18),
+                                prefixIcon: FieldIcon(
+                                    FontAwesomeIcons.venusMars),
                               ),
                               items: const [
                                 DropdownMenuItem(
@@ -738,8 +737,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 onFieldSubmitted: (_) => _submit(),
                                 decoration: const InputDecoration(
                                   labelText: 'Answer',
-                                  prefixIcon: FaIcon(
-                                      FontAwesomeIcons.key, size: 18),
+                                  prefixIcon:
+                                      FieldIcon(FontAwesomeIcons.key),
                                 ),
                                 validator: (_) =>
                                     (_rl?.captchaRequired ?? false) &&
@@ -840,8 +839,10 @@ class _GeoPickerSheetState extends State<_GeoPickerSheet> {
                   hintText: 'Search country',
                   hintStyle:
                       const TextStyle(color: EnclavdColors.textSecondary),
-                  prefixIcon: const FaIcon(FontAwesomeIcons.magnifyingGlass,
-                      size: 14, color: EnclavdColors.textSecondary),
+                  prefixIcon: const FieldIcon(
+                      FontAwesomeIcons.magnifyingGlass,
+                      size: 14,
+                      color: EnclavdColors.textSecondary),
                   filled: true,
                   fillColor: EnclavdColors.cardSecondary,
                   border: OutlineInputBorder(
@@ -911,8 +912,10 @@ class _CityPickerSheetState extends State<_CityPickerSheet> {
                   hintText: 'Search city',
                   hintStyle:
                       const TextStyle(color: EnclavdColors.textSecondary),
-                  prefixIcon: const FaIcon(FontAwesomeIcons.magnifyingGlass,
-                      size: 14, color: EnclavdColors.textSecondary),
+                  prefixIcon: const FieldIcon(
+                      FontAwesomeIcons.magnifyingGlass,
+                      size: 14,
+                      color: EnclavdColors.textSecondary),
                   filled: true,
                   fillColor: EnclavdColors.cardSecondary,
                   border: OutlineInputBorder(

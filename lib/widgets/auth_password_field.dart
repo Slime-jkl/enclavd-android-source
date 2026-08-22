@@ -2,6 +2,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/enclavd_theme.dart';
+import '../widgets/field_icon.dart';
 
 /// Password input with a visibility toggle (eye / eye-slash suffix).
 /// Shared by the login and register screens so the toggle behaves and
@@ -54,7 +55,7 @@ class _AuthPasswordFieldState extends State<AuthPasswordField> {
       decoration: InputDecoration(
         labelText: widget.label,
         errorText: widget.errorText,
-        prefixIcon: FaIcon(widget.prefixIcon, size: 18),
+        prefixIcon: FieldIcon(widget.prefixIcon),
         suffixIcon: IconButton(
           onPressed: () => setState(() => _obscure = !_obscure),
           tooltip: _obscure ? 'Show password' : 'Hide password',

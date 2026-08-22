@@ -8,6 +8,7 @@ import '../api/site_config_service.dart';
 import '../main.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/auth_password_field.dart';
+import '../widgets/field_icon.dart';
 import 'ban_screen.dart';
 import 'feed_screen.dart';
 import 'maintenance_screen.dart';
@@ -286,8 +287,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               decoration: const InputDecoration(
                                 labelText: 'Email address',
                                 hintText: 'you@example.com',
-                                prefixIcon: FaIcon(FontAwesomeIcons.envelope,
-                                    size: 18),
+                                prefixIcon: FieldIcon(
+                                    FontAwesomeIcons.envelope),
                               ),
                               validator: (v) =>
                                   (v == null || v.trim().isEmpty)
@@ -344,8 +345,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                 textInputAction: TextInputAction.done,
                                 decoration: const InputDecoration(
                                   labelText: 'Answer',
-                                  prefixIcon: FaIcon(
-                                      FontAwesomeIcons.key, size: 18),
+                                  prefixIcon:
+                                      FieldIcon(FontAwesomeIcons.key),
                                 ),
                                 validator: (_) => captchaNeeded &&
                                         _captcha.text.trim().isEmpty
