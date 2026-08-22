@@ -89,15 +89,27 @@ android {
     // The generated GeneratedPluginRegistrant (src/main/java/io/flutter/
     // plugins/) references EVERY plugin, including the firebase ones the
     // fdroid variant excludes — that file would fail to compile there.
-    // Drop it for the fdroid flavor only; src/fdroid/java provides its
-    // own copy without the firebase plugins.
-    // AGP 9 removed file exclusion from the Variant API (Sources exposes
-    // SourceDirectories.Flat — add-only), so the old androidComponents
-    // onVariants block no longer compiles. With android.newDsl=false the
-    // classic per-flavor source-set exclusion is used instead.
-    sourceSets {
-        getByName("fdroid") {
-            java.exclude("io/flutter/plugins/GeneratedPluginRegistrant.java")
+    // The committed firebase-free copy in src/fdroid/java compiles instead.
+    // AGP 9 removed file exclusion from the Variant API (Sources is
+    // add-only SourceDirectories.Flat) and from the public DSL
+    // (AndroidSourceDirectorySet has no exclude()); the merged-javac
+    // exclude would match BOTH copies (same relative path), and a
+    // flavor-level source-set exclude never reaches src/main in AGP 9's
+    // per-entry filter pipeline. CI builds ONE flavor per Gradle
+    // invocation (matrix jobs, assemble{Fdroid,Play,Dev}Release), so gate
+    // on the requested task: for fdroid builds only, exclude the file from
+    // the MAIN source set's java filter — that filter drives the main
+    // directory's file-tree filter (FileBasedDirectoryEntryImpl), dropping
+    // only the generated copy while src/fdroid/java's stays in.
+    if (project.gradle.startParameter.taskNames.any { it.contains("Fdroid", ignoreCase = true) }) {
+        sourceSets {
+            getByName("main") {
+                // old DSL interface still carries exclude() while
+                // android.newDsl=false; the new one is dirs-only.
+                (this as com.android.build.gradle.api.AndroidSourceSet)
+                    .java
+                    .exclude("io/flutter/plugins/GeneratedPluginRegistrant.java")
+            }
         }
     }
 }
