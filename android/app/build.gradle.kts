@@ -1,26 +1,3 @@
-import java.io.FileInputStream
-import java.util.Properties
-
-// Upload signing key. Sources, in order: CI env vars (GitHub Actions
-// secrets, set by build.yml) → android/key.properties (local builds).
-// When neither provides a key the release build falls back to the debug
-// keystore, so unconfigured builds still produce installable APKs — but
-// only the real upload key produces an AAB/APK Play Store accepts.
-val uploadKey = Properties().apply {
-    val f = rootProject.file("key.properties")
-    if (f.exists()) FileInputStream(f).use { load(it) }
-}
-fun uploadSecret(name: String): String? =
-    System.getenv(name) ?: uploadKey.getProperty(name)
-
-val hasUploadKey =
-    listOf(
-        "ANDROID_KEYSTORE_PATH",
-        "ANDROID_KEYSTORE_PASSWORD",
-        "ANDROID_KEY_ALIAS",
-        "ANDROID_KEY_PASSWORD",
-    ).all { !uploadSecret(it).isNullOrBlank() }
-
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -43,12 +20,17 @@ android {
     }
 
     signingConfigs {
-        if (hasUploadKey) {
+        // Upload key, exactly like the wrapper (main branch): created only
+        // when the CI workflow sets IS_GITHUB_ACTION=true and provides the
+        // signing env vars (secrets SIGNING_KEY / KEY_STORE_PASSWORD /
+        // ALIAS / KEY_PASSWORD). Absent → release builds are UNSIGNED
+        // (findByName returns null), like the wrapper's fdroid flow.
+        if (System.getenv("IS_GITHUB_ACTION") == "true") {
             create("release") {
-                storeFile = file(uploadSecret("ANDROID_KEYSTORE_PATH")!!)
-                storePassword = uploadSecret("ANDROID_KEYSTORE_PASSWORD")
-                keyAlias = uploadSecret("ANDROID_KEY_ALIAS")
-                keyPassword = uploadSecret("ANDROID_KEY_PASSWORD")
+                storeFile = file(System.getenv("SIGNING_KEY_FILE") ?: "")
+                storePassword = System.getenv("KEY_STORE_PASSWORD")
+                keyAlias = System.getenv("ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
             }
         }
     }
@@ -70,11 +52,10 @@ android {
 
     buildTypes {
         release {
-            // Upload key when configured (CI secrets / key.properties);
-            // debug keystore otherwise (unconfigured local/PR builds).
-            signingConfig =
-                if (hasUploadKey) signingConfigs.getByName("release")
-                else signingConfigs.getByName("debug")
+            // findByName → null when the upload key isn't configured, which
+            // the Android plugin accepts as "build unsigned" (the wrapper's
+            // fdroid-style flow) instead of falling back to the debug key.
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 }
