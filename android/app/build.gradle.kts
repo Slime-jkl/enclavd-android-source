@@ -129,6 +129,22 @@ configurations.configureEach {
     }
 }
 
+// ── F-Droid pipe: mirror the fdroid release APK where fdroidserver looks ──
+// fdroidserver runs gradle from the subdir (android/) and searches for the
+// built APK under <subdir>/build/outputs/apk/<flavor>/release/ — but Flutter
+// emits it under android/app/build/outputs/... Without the mirror a successful
+// build ends in "Failed to find any output apks". The original stays in
+// app/build/outputs for the CI/Play pipeline.
+val mirrorFdroidApk by tasks.registering(Copy::class) {
+    from(layout.buildDirectory.dir("outputs/apk/fdroid/release"))
+    into(rootProject.layout.buildDirectory.dir("outputs/apk/fdroid/release"))
+}
+tasks.whenTaskAdded {
+    if (name == "assembleFdroidRelease") {
+        finalizedBy(mirrorFdroidApk)
+    }
+}
+
 dependencies {
     // flutter_local_notifications requires core library desugaring; the
     // window libs are the documented guard against the desugaring crash on
