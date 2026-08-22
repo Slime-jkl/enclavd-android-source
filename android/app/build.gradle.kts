@@ -88,29 +88,20 @@ android {
 
     // The generated GeneratedPluginRegistrant (src/main/java/io/flutter/
     // plugins/) references EVERY plugin, including the firebase ones the
-    // fdroid variant excludes — that file would fail to compile there.
+    // fdroid flavor excludes — that file would fail to compile there.
     // The committed firebase-free copy in src/fdroid/java compiles instead.
-    // AGP 9 removed file exclusion from the Variant API (Sources is
-    // add-only SourceDirectories.Flat) and from the public DSL
-    // (AndroidSourceDirectorySet has no exclude()); the merged-javac
-    // exclude would match BOTH copies (same relative path), and a
-    // flavor-level source-set exclude never reaches src/main in AGP 9's
-    // per-entry filter pipeline. CI builds ONE flavor per Gradle
-    // invocation (matrix jobs, assemble{Fdroid,Play,Dev}Release), so gate
-    // on the requested task: for fdroid builds only, exclude the file from
-    // the MAIN source set's java filter — that filter drives the main
-    // directory's file-tree filter (FileBasedDirectoryEntryImpl), dropping
-    // only the generated copy while src/fdroid/java's stays in.
+    // Flutter (flutter_tools injectPlugins) writes the generated file into
+    // src/main BEFORE Gradle runs, and CI's fdroid job is the only one that
+    // must drop it — so delete it here, at configuration time, for fdroid
+    // invocations only. (AGP 9 killed every source-exclusion path: the
+    // Variant API is add-only; the public DSL AndroidSourceDirectorySet has
+    // no exclude(); and even the legacy gradle.api.AndroidSourceDirectorySet
+    // overrides include/exclude with @Deprecated(level=HIDDEN, b/368609737)
+    // so Kotlin cannot reference them — verified locally. A path-based
+    // javac exclude would also match the fdroid copy, and java files do not
+    // shadow across source sets.)
     if (project.gradle.startParameter.taskNames.any { it.contains("Fdroid", ignoreCase = true) }) {
-        sourceSets {
-            getByName("main") {
-                // old DSL interface still carries exclude() while
-                // android.newDsl=false; the new one is dirs-only.
-                (this as com.android.build.gradle.api.AndroidSourceSet)
-                    .java
-                    .exclude("io/flutter/plugins/GeneratedPluginRegistrant.java")
-            }
-        }
+        project.file("src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java").delete()
     }
 }
 
