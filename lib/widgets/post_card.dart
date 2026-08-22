@@ -14,6 +14,7 @@ import '../api/social_service.dart';
 import '../main.dart'; // AppServices.current (mention → profile resolution)
 import '../screens/hashtag_screen.dart';
 import '../screens/profile_screen.dart';
+import '../services/gallery_saver.dart';
 import '../services/sound_service.dart';
 import '../theme/enclavd_theme.dart';
 import '../utils/content_spans.dart';
@@ -679,6 +680,10 @@ class _PostImage extends StatelessWidget {
     return Center(
       child: GestureDetector(
         onTap: () => _viewFullImage(context, url),
+        // Long-press → save the image to the device gallery (Enclavd
+        // folder). Distinct from tap (fullscreen viewer), mirrors how
+        // long-press is used elsewhere (heart drag, etc.).
+        onLongPress: () => _showSaveSheet(context, url),
         child: Stack(
           clipBehavior: Clip.none,
           children: [
@@ -710,6 +715,45 @@ class _PostImage extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  /// Long-press menu: the one action that matters here is saving the
+  /// image to the device, into the Enclavd folder in the gallery.
+  void _showSaveSheet(BuildContext context, String url) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: EnclavdColors.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: ListTile(
+          leading: const FaIcon(FontAwesomeIcons.download,
+              color: EnclavdColors.link, size: 18),
+          title: const Text('Save image to device',
+              style: TextStyle(fontWeight: FontWeight.w600)),
+          subtitle: const Text('Saves to the Enclavd folder in your gallery',
+              style: TextStyle(
+                  color: EnclavdColors.textSecondary, fontSize: 12.5)),
+          onTap: () {
+            Navigator.of(sheetContext).pop();
+            _saveToDevice(context, url);
+          },
+        ),
+      ),
+    );
+  }
+
+  /// Save the full-resolution image into the Enclavd gallery folder.
+  /// GallerySaver returns a user-facing message for every outcome
+  /// (success / permission / download / generic) — never throws.
+  Future<void> _saveToDevice(BuildContext context, String url) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final message = await GallerySaver().saveImage(url);
+    messenger.showSnackBar(SnackBar(
+      content: Text(message),
+      duration: const Duration(seconds: 3),
+    ));
   }
 
   /// Fullscreen viewer, mirroring the site's black/90 modal: full-res image

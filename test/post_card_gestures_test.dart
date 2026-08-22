@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:enclavd/api/api_client.dart';
 import 'package:enclavd/api/feed_service.dart';
 import 'package:enclavd/api/social_service.dart';
@@ -12,6 +13,7 @@ Post _post({
   int likeCount = 0,
   bool userLiked = false,
   String content = 'hello world',
+  String? image,
 }) =>
     Post.fromJson({
       'id': id,
@@ -28,7 +30,7 @@ Post _post({
       'personality_type': null,
       'is_active': 'true',
       'rank': 'Member',
-      'image': null,
+      'image': image,
       'is_owner': false,
     });
 
@@ -220,6 +222,38 @@ void main() {
         (tester) async {
       await pumpPost(tester, _post());
       expect(find.textContaining('Liked by'), findsNothing);
+    });
+  });
+
+// The post image's expand hint (fa-expand overlay) — uniquely size 13.
+// (Can't compare FontAwesomeIcons.expand directly: the const icon is
+// FaIconData while FaIcon.icon resolves to IconData, so == is always
+// false — the analyzer flags it as an unrelated-type comparison.)
+Finder expandHint() => find.byWidgetPredicate(
+    (w) => w is FaIcon && w.size == 13 && w.color == Colors.white);
+
+  group('save image to device', () {
+    testWidgets('long-press on the post image offers Save to device',
+        (tester) async {
+      await pumpPost(tester, _post(image: 'x.jpg'));
+
+      expect(expandHint(), findsOneWidget,
+          reason: 'post image (with the expand hint) is rendered');
+
+      await tester.longPress(expandHint());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Save image to device'), findsOneWidget,
+          reason: 'long-press opens the save sheet');
+      expect(find.textContaining('Enclavd folder'), findsOneWidget,
+          reason: 'sheet explains where the image lands');
+    });
+
+    testWidgets('posts without an image have no long-press save',
+        (tester) async {
+      await pumpPost(tester, _post());
+      expect(expandHint(), findsNothing);
     });
   });
 

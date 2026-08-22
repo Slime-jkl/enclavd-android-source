@@ -7,6 +7,20 @@
          merges this too, but declaring it keeps the intent explicit). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
+    <!-- Gallery access: uploads (compose/avatar pick the system gallery,
+         which enumerates the whole device library) and saving post images
+         to the Enclavd folder (gal → MediaStore). Modern scoped storage:
+         READ_MEDIA_IMAGES for Android 13+, read scoped to ≤32 for older
+         releases; WRITE is only needed to SAVE on Android ≤9 (gal inserts
+         via MediaStore on 10+ with no permission). Runtime-grant flows
+         only matter for legacy devices; the system pickers need none. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32"/>
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28"/>
     <!-- Foreground-service keep-alive (RealtimeKeepAliveService): keeps the
          process perceptible while minimized so the live SSE/WS streams keep
          their network. FOREGROUND_SERVICE_DATA_SYNC is required on API 34+

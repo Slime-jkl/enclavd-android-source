@@ -64,6 +64,17 @@ class CachedNetworkImageProvider
     }
   }
 
+  /// Fetch the raw bytes for [url] — disk cache first when fresh, else a
+  /// fresh download. Used by save-to-gallery: the cached bytes are the
+  /// FULL-resolution originals (cacheWidth downscales at DECODE time,
+  /// never the stored bytes), so saving never re-downloads a viewed image.
+  static Future<Uint8List> fetchBytes(String url,
+      {HttpClient Function()? httpClientFactory}) {
+    return CachedNetworkImageProvider(url,
+            httpClientFactory: httpClientFactory)
+        ._cachedBytes();
+  }
+
   Future<Uint8List> _cachedBytes() async {
     final dir = await _cacheDir();
     final file = File('${dir.path}/${_fileName()}');

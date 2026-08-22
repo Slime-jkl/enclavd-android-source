@@ -35,6 +35,7 @@ dependencies:
   # Direct import (AndroidWebViewController.setMediaPlaybackRequiresUserGesture
   # — allows the embed to autoplay after the thumbnail tap).
   webview_flutter_android: ^4.14.0
+  gal: ^2.3.3
 
 dev_dependencies:
   flutter_test:
