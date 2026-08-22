@@ -144,6 +144,27 @@ jobs:
           fi
           echo "fdroid APK is GMS-free: OK"
 
+      # Release gate: the fdroid APK we publish MUST be signed (release
+      # key). F-Droid's own build is unsigned on purpose — their infra has
+      # no secrets, so IS_GITHUB_ACTION is never set there and they sign
+      # with THEIR key; the reproducible-build comparison strips signatures
+      # from both APKs before diffing, so our signature never affects the
+      # byte match. But if OUR artifact ever came out unsigned or debug-keyed,
+      # it could not be released — fail loudly instead of shipping it.
+      - name: Verify fdroid APK is signed (release key)
+        if: matrix.flavor == 'fdroid' && github.event.inputs.build_type != 'debug'
+        run: |
+          set -e
+          APK=$(ls build/app/outputs/flutter-apk/app-fdroid-release.apk)
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | tail -1)
+          CERTS=$("$APKSIGNER" verify --print-certs "$APK")
+          echo "$CERTS"
+          if echo "$CERTS" | grep -q "CN=Android Debug"; then
+            echo "FAIL: fdroid APK is signed with the DEBUG key, not the release key"
+            exit 1
+          fi
+          echo "fdroid APK signed with release key: OK"
+
       - name: Build AAB (Play Store)
         if: matrix.flavor == 'play' && github.event.inputs.build_type != 'debug'
         run: flutter build appbundle --flavor play --release $DEFINES
