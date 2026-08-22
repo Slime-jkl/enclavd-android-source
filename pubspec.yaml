@@ -36,6 +36,13 @@ dependencies:
   # — allows the embed to autoplay after the thumbnail tap).
   webview_flutter_android: ^4.14.0
   gal: ^2.3.3
+  # Push transports: firebase_core + firebase_messaging (FCM — Play builds
+  # only; dormant on F-Droid, which never initializes them) and unifiedpush
+  # (GMS-free: the F-Droid channel and the Play fallback). See
+  # lib/services/push/.
+  firebase_core: ^4.13.0
+  firebase_messaging: ^16.5.0
+  unifiedpush: ^6.2.0
 
 dev_dependencies:
   flutter_test:

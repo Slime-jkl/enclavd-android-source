@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/background_keep_alive.dart';
 import '../services/message_notifications.dart';
+import '../services/push/push_transport.dart';
 import '../services/social_notifications.dart';
 import '../services/sound_service.dart';
 import '../theme/enclavd_theme.dart';
@@ -97,6 +98,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _toggleKeepAlive(bool enabled) async {
     setState(() => _keepAliveEnabled = enabled);
     await BackgroundKeepAlive.setEnabled(enabled);
+  }
+
+  /// Which channel delivers background alerts on THIS device: FCM (Play
+  /// builds with Google Play services), Unified Push (any build with a
+  /// distributor app installed — the F-Droid path), or the 15-minute
+  /// polling fallback when neither is available.
+  String get _deliveryModeText {
+    final mode = PushManager.instance?.activeLabel;
+    if (mode != null && mode != PushManager.fallbackLabel) {
+      return '$mode — instant background alerts';
+    }
+    return '15-minute background checks — install a Unified Push '
+        'distributor (ntfy, Conversations, NextPush) for instant alerts';
   }
 
   @override
@@ -231,6 +245,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           '"Enclavd" notice while active)'),
                     ),
             ),
+            const SizedBox(height: 10),
             // OS-level denial (Android 13+): the toggle can be ON while
             // the system silently drops everything. Surface it here with
             // a one-tap deep link into the OS notification settings.
@@ -270,6 +285,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ],
+            const SizedBox(height: 10),
+            // Delivery mode is an implementation detail (auto-resolved at
+            // startup: FCM → Unified Push → 15-min poll), so it is a
+            // read-only status row, not a toggle. Placed LAST so the
+            // OS-blocked warning above stays above the fold on small
+            // screens.
+            Material(
+              color: EnclavdColors.card,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: EnclavdColors.border),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: ListTile(
+                leading: const FaIcon(FontAwesomeIcons.towerBroadcast,
+                    color: EnclavdColors.link, size: 18),
+                title: const Text('Push delivery'),
+                subtitle: Text(_deliveryModeText,
+                    style: const TextStyle(fontSize: 12.5)),
+              ),
+            ),
           ],
         ),
       ),

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "321724268181",
+    "project_id": "enclavd-notifications",
+    "storage_bucket": "enclavd-notifications.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:321724268181:android:8e817c4bc115e57b8ca59c",
+        "android_client_info": {
+          "package_name": "com.enclavd.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCIJUMv9qPNy593dFJeF10WtYyVuZAEcxQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

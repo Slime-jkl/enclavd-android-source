@@ -96,9 +96,12 @@ jobs:
             DEFINES="$DEFINES --dart-define=ENCLAVD_FEATURE_NOTIFICATIONS=true --dart-define=ENCLAVD_FEATURE_CHAT=true --dart-define=ENCLAVD_FEATURE_SEARCH=true"
           fi
           if [ "${{ matrix.flavor }}" = "fdroid" ]; then
-            # F-Droid build: no GMS-bound features (notifications off),
-            # production API, otherwise the same app.
-            DEFINES="$DEFINES --dart-define=ENCLAVD_FEATURE_NOTIFICATIONS=false --dart-define=ENCLAVD_FEATURE_CHAT=true --dart-define=ENCLAVD_FEATURE_SEARCH=true"
+            # F-Droid build: NO Google Play services — no FCM (the app
+            # skips FCM at compile time via AppConfig.enableFcm).
+            # Notifications run on Unified Push when a distributor app
+            # (ntfy, Conversations, NextPush) is installed, else the
+            # 15-minute polling fallback. Same production API otherwise.
+            DEFINES="$DEFINES --dart-define=ENCLAVD_FEATURE_NOTIFICATIONS=true --dart-define=ENCLAVD_FEATURE_CHAT=true --dart-define=ENCLAVD_FEATURE_SEARCH=true"
           fi
           if [ "${{ matrix.flavor }}" = "dev" ]; then
             # Dev build: same production API as every flavor — the app ALWAYS

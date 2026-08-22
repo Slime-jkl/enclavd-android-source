@@ -2,6 +2,21 @@ plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    // Firebase's google-services plugin (FCM push): declared here so the
+    // version is pinned, but APPLIED below only when a real
+    // google-services.json exists. The Play build's Firebase project is
+    // configured there; builds without the file (local, F-Droid, or any
+    // checkout that drops it) skip the plugin cleanly — the app then falls
+    // back to Unified Push / 15-minute polling at runtime.
+    id("com.google.gms.google-services") version "4.4.2" apply false
+}
+
+// Apply Firebase's resource generator only when its config exists.
+// google-services.json is NOT required to build: FCM simply won't
+// initialize (the Dart side catches and falls through to the next
+// transport). See lib/services/push/.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
 }
 
 android {

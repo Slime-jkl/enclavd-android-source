@@ -31,6 +31,9 @@ import 'screens/verify_email_screen.dart';
 import 'services/message_notification_source.dart';
 import 'services/message_notifications.dart';
 import 'services/notification_worker.dart';
+import 'services/push/push_registration_service.dart';
+import 'services/push/push_transport.dart';
+import 'services/push/unified_push_transport.dart';
 import 'services/realtime_service.dart';
 import 'services/social_notification_source.dart';
 import 'services/social_notifications.dart';
@@ -42,12 +45,24 @@ import 'widgets/microdot_overlay.dart';
 /// Cross-platform from day one (android/ + ios/ runners committed), but only
 /// the Android APK is built by CI for now. All networking goes through the
 /// api/v1 JSON endpoints + the legacy auth flows, exactly like the website.
-void main() {
+///
+/// [args] carries the UnifiedPush background flag: when the app was killed
+/// and a distributor wakes it for an incoming message, the engine starts
+/// with `--unifiedpush-bg` and main() must NOT build the UI — it binds the
+/// push callbacks and lets the plugin keep the headless isolate alive.
+void main(List<String> args) {
   WidgetsFlutterBinding.ensureInitialized();
+  if (args.contains('--unifiedpush-bg')) {
+    UnifiedPushTransport.runBackground();
+    return;
+  }
+  // FCM's killed-process callback must be bound before the engine starts.
+  PushManager.bindBackgroundHandlers();
   // Background notification polling (WorkManager, 15-min minimum): the
   // fallback channel for when the live sockets cannot run (app swiped
   // away / process killed). Idempotent to call on every start; gated on
-  // the flavor so F-Droid (notifications off) never registers it.
+  // the feature toggle. Push transports (FCM / Unified Push) add instant
+  // delivery on top — the poller stays as the safety net regardless.
   if (AppConfig.enableNotifications) {
     Workmanager().initialize(notificationDispatcher);
     unawaited(registerBackgroundNotifications());
@@ -166,6 +181,13 @@ class AppServices {
         PersonalityTestService(api),
         SiteConfigService(api));
     current = services;
+    // Background push: resolve the best transport for this build/device
+    // (FCM → Unified Push → 15-minute polling) and register this
+    // device's token. Late-bound to the CURRENT container, so a
+    // post-login re-create re-pushes the token with the live session.
+    unawaited(PushManager.ensureResolved(
+      PushRegistrationService(() async => current?.apiClient ?? api),
+    ));
     return services;
   }
 }

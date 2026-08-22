@@ -54,11 +54,19 @@ class AppConfig {
 
   /// ---- Feature toggles ---------------------------------------------------
   /// Global switches so a flavor can drop whole feature areas without code
-  /// changes. F-Droid, for example, may want notifications off (no GMS).
+  /// changes. Notifications are GMS-free (live SSE/WS + WorkManager polling
+  /// + Unified Push), so every flavor gets them; only FCM is Play-bound.
   static const bool enableNotifications = bool.fromEnvironment(
     'ENCLAVD_FEATURE_NOTIFICATIONS',
     defaultValue: true,
   );
+
+  /// Whether this build MAY use FCM (Google Play Services). The F-Droid
+  /// build must never touch GMS, so it skips FCM entirely and uses
+  /// Unified Push (when a distributor is installed) or the 15-minute
+  /// polling fallback. Play/dev builds try FCM first, then Unified Push,
+  /// then the fallback — see PushManager in lib/services/push/.
+  static const bool enableFcm = flavor != 'fdroid';
 
   static const bool enableChat = bool.fromEnvironment(
     'ENCLAVD_FEATURE_CHAT',
