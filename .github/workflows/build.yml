@@ -29,6 +29,11 @@ env:
 jobs:
   android:
     runs-on: ubuntu-latest
+    env:
+      # secrets is NOT available inside `if:` expressions — expose the
+      # presence of the signing key through env, then gate the decode
+      # step on it (empty/absent secret → 'false', no error).
+      HAS_SIGNING_KEY: ${{ secrets.SIGNING_KEY != '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -64,7 +69,7 @@ jobs:
       # Secrets absent → release builds stay unsigned (the wrapper's
       # fdroid-style fallback) and the pipeline never breaks.
       - name: Decode Keystore File
-        if: ${{ secrets.SIGNING_KEY != '' }}
+        if: env.HAS_SIGNING_KEY == 'true'
         run: |
           echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > android/app/release-keystore.jks
           echo "IS_GITHUB_ACTION=true" >> "$GITHUB_ENV"
