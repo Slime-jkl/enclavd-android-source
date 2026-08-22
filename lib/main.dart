@@ -35,6 +35,7 @@ import 'services/realtime_service.dart';
 import 'services/social_notification_source.dart';
 import 'services/social_notifications.dart';
 import 'theme/enclavd_theme.dart';
+import 'widgets/microdot_overlay.dart';
 
 /// Enclavd — native app (Flutter).
 ///
@@ -178,6 +179,16 @@ class EnclavdApp extends StatelessWidget {
       title: 'Enclavd',
       debugShowCheckedModeBanner: false,
       theme: buildEnclavdTheme(),
+      // The site's microdot.php port: a faint user-id watermark tiled over
+      // EVERY screen while logged in (pointer-events none). Lives above
+      // the Navigator here, like the site's fixed z-999999 layer, so it
+      // covers every route and dialog.
+      builder: (context, child) => Stack(
+        children: [
+          if (child != null) child,
+          const MicrodotOverlay(),
+        ],
+      ),
       home: const SplashScreen(),
       routes: {
         LoginScreen.routeName: (_) => const LoginScreen(),
