@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
-# F-Droid pipe build for the fdroid flavor (called from the metadata build:
-#   bash tool/fdroid_build.sh $$flutter$$
-# $$flutter$$ is substituted by fdroidserver with the srclib flutter path.
-# Everything the pipe needs that must NOT live in the metadata (rewritemeta
-# wraps long lines and reformats on every run) lives here instead. Run from
-# the repo root; prebuild must have run `flutter pub get` first.
+# F-Droid pipe build for the fdroid flavor. Called from metadata:
+#   build: bash tool/fdroid_build.sh $$flutter$$
+#
+# Builds REPRODUCIBLY against the GitHub Actions binary: same toolchain (the
+# repo's own pins — AGP 9.1.0 / Gradle 9.3.1, no seds) and the SAME absolute
+# build path as Actions (/home/runner/work/enclavd-android-source/
+# enclavd-android-source), because Flutter's AOT snapshot embeds the build
+# path into libapp.so. The metadata needs the sudo: block to create + chown
+# that path. The checkout is moved there for the build and moved back on exit
+# so fdroidserver still finds the APK at the expected location.
 set -euo pipefail
 set -x
 
@@ -13,22 +17,28 @@ if [ -d "$FLUTTER" ]; then
     FLUTTER="$FLUTTER/bin/flutter"
 fi
 
-# Pipe toolchain: Flutter's gradle plugin does not support AGP 9's new DSL
-# (flutter/flutter#180137 still open) and the pipe env ignores the
-# android.newDsl opt-out — pin the last AGP 8.x + Gradle 8.x, pipe-only.
-sed -i 's/version "9\.1\.0"/version "8.13.0"/' android/settings.gradle.kts
-sed -i 's|gradle-9\.3\.1-all\.zip|gradle-8\.14\.3-all\.zip|' android/gradle/wrapper/gradle-wrapper.properties
+UPSTREAM="/home/runner/work/enclavd-android-source/enclavd-android-source"
+ORIG="$(pwd)"
+PARENT="$(dirname "$ORIG")"
+CHECKOUT="$(basename "$ORIG")"
 
-# Zero Google code in the fdroid build: drop the firebase plugin MODULES (the
-# flavor's java-level excludes only kill dependencies; the plugin projects
-# still get configured and NPE under the pipe toolchain).
+# Move the checkout to the upstream CI path, build there, move back on exit.
+cd "$PARENT"
+mv "$CHECKOUT" "$UPSTREAM"
+cd "$UPSTREAM"
+trap 'cd "$PARENT" && mv "$UPSTREAM" "$CHECKOUT" || true' EXIT
+
+# pub get MUST run here, after the move — package_config.json stores absolute
+# paths to the pub cache, so it has to be generated at the final location.
+export PUB_CACHE="$(pwd)/.pub-cache"
+"$FLUTTER" config --no-analytics
+"$FLUTTER" pub get --enforce-lockfile
+
+# Zero Google code in the fdroid build: drop the firebase plugin MODULES.
 python3 tool/strip_firebase.py
 
-# --no-pub is critical: flutter build would re-run pub get and regenerate
-# .flutter-plugins-dependencies, undoing the strip above. pub get already ran
-# in prebuild (--enforce-lockfile); reuse its PUB_CACHE location.
-export PUB_CACHE="$(pwd)/.pub-cache"
-
+# --no-pub: flutter build would re-run pub get and regenerate
+# .flutter-plugins-dependencies, undoing the strip.
 "$FLUTTER" build apk --release --no-pub --flavor fdroid \
     --dart-define=ENCLAVD_FLAVOR=fdroid \
     --dart-define=ENCLAVD_FEATURE_NOTIFICATIONS=true \
