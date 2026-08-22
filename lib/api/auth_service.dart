@@ -88,6 +88,17 @@ class RegisterResult {
 /// Post-login gate verdict — what to show instead of the feed.
 enum Gate { feed, ban, maintenance }
 
+/// Outcome of a resend-verification-email attempt: [sent] is true when
+/// the server reports a fresh confirmation link was mailed (the
+/// info-green flash), false for every error flash (already verified,
+/// unknown account, send failure…) or a transport failure.
+class ResendResult {
+  const ResendResult({required this.sent, required this.message});
+
+  final bool sent;
+  final String message;
+}
+
 /// Decides where a just-authenticated (or session-restored) user goes:
 ///   - banned (is_active === false)      → ban screen, the app is denied;
 ///   - maintenance on + rank not allowed → maintenance screen;
@@ -311,6 +322,19 @@ class AuthService {
         submitted: false, message: await _flashFromRedirect(resp));
   }
 
+  /// GET /resend_verification?email=… — the site's resend page (the same
+  /// one auth.php's "Resend verification e-mail" link hits). It 302s to
+  /// /login with a session flash: info-green when a fresh confirmation
+  /// link was mailed, info-red for any refusal (already verified, unknown
+  /// account, send failure). getPage follows the redirect (same jar → the
+  /// flash renders on the target page), so the banner class is the verdict.
+  Future<ResendResult> resendVerificationEmail(String email) async {
+    final resp = await _api
+        .getPage('/resend_verification', query: {'email': email.trim()});
+    final (cls, message) = _flashFromPage(resp.body);
+    return ResendResult(sent: cls == 'info-green', message: message);
+  }
+
   /// GET /api/v1/me → the logged-in user, or null when the session is dead
   /// (401). This is the "am I still logged in" probe used at app start.
   Future<CurrentUser?> me() async {
@@ -357,7 +381,7 @@ class AuthService {
       try {
         final page = await _api.getPage(location);
         if (page.status == 200) {
-          final flash = _flashFromPage(page.body);
+          final (_, flash) = _flashFromPage(page.body);
           if (flash.isNotEmpty) return flash;
         }
       } on ApiException {
@@ -367,10 +391,13 @@ class AuthService {
     return 'Request failed. Please try again.';
   }
 
-  /// Extracts the session-flash error/success paragraph from a rendered
-  /// page (the legacy flows communicate via flash + redirect only).
-  String _flashFromPage(String html) {
-    if (html.isEmpty) return 'Request failed. Please try again.';
+  /// Extracts the session-flash paragraph from a rendered page (the legacy
+  /// flows communicate via flash + redirect only). Returns the banner's
+  /// class ('info-red' error / 'info-green' success) and its text — the
+  /// class lets callers (e.g. resend-verification) tell success apart from
+  /// refusal without guessing from the wording.
+  (String, String) _flashFromPage(String html) {
+    if (html.isEmpty) return ('', 'Request failed. Please try again.');
 
     // info-red is the error banner, info-green the success one (login.php /
     // register.php markup).
@@ -381,7 +408,7 @@ class AuthService {
       );
       final m = re.firstMatch(html);
       if (m != null) {
-        return _stripTags(_decodeEntities(m.group(1)!)).trim();
+        return (cls, _stripTags(_decodeEntities(m.group(1)!)).trim());
       }
       // Some banners nest the message without a <p> (rate-limit banner).
       final m2 = RegExp(
@@ -390,10 +417,10 @@ class AuthService {
       ).firstMatch(html);
       if (m2 != null) {
         final text = _stripTags(_decodeEntities(m2.group(1)!)).trim();
-        if (text.isNotEmpty) return text;
+        if (text.isNotEmpty) return (cls, text);
       }
     }
-    return 'Request failed. Please try again.';
+    return ('', 'Request failed. Please try again.');
   }
 
   String _stripTags(String s) => s.replaceAll(RegExp(r'<[^>]*>'), ' ');

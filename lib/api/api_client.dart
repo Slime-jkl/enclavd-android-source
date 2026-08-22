@@ -434,13 +434,20 @@ class ApiClient {
 
   /// Same-host redirect target for a response, or null when it should not
   /// be followed (different host, or the caller wants the 3xx verbatim).
+  ///
+  /// The legacy endpoints redirect with RELATIVE Location headers
+  /// (header('Location: login') — no leading slash); without
+  /// normalization `$base$location` would parse as a different host
+  /// ('https://enclavd.comlogin') and the redirect would never be
+  /// followed. Same fix as AuthService._normalizeLocation, applied to
+  /// getPage's redirect chasing (resend_verification → login relies on it).
   String? _redirectTarget(RawResponse resp) {
     final location = resp.location;
     if (location == null) return null;
     final base = Uri.parse(_apiBaseUrl);
     final target = location.startsWith('http')
         ? Uri.parse(location)
-        : Uri.parse('$base$location');
+        : Uri.parse('$base${location.startsWith('/') ? location : '/$location'}');
     if (target.host != base.host) return null;
     return '${target.path}${target.hasQuery ? '?${target.query}' : ''}';
   }

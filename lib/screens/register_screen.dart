@@ -1,8 +1,11 @@
+import 'package:flutter/gestures.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../api/auth_service.dart';
 import '../api/site_config_service.dart';
+import '../config/app_config.dart';
 import '../main.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/auth_password_field.dart';
@@ -91,6 +94,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _captcha = TextEditingController();
   final _captchaFocus = FocusNode();
 
+  /// "Privacy Policy" / "Terms of Service" tap targets in the agreement
+  /// rows — open the website's page in the browser (target=_blank parity).
+  final _privacyTap = TapGestureRecognizer();
+  final _termsTap = TapGestureRecognizer();
+
   /// True when the site requires an invitation code to sign up. Loaded from
   /// the public site config; until then (and on fetch failure) the field
   /// stays hidden — process_register.php enforces the requirement anyway.
@@ -114,7 +122,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   void initState() {
     super.initState();
+    _privacyTap.onTap = () => _openLegal('/privacy_policy');
+    _termsTap.onTap = () => _openLegal('/terms_of_service');
     _loadConfig();
+  }
+
+  /// Opens a website page in the system browser (the site's target=_blank).
+  Future<void> _openLegal(String path) async {
+    try {
+      await launchUrl(
+        Uri.parse('${AppConfig.apiBaseUrl}$path'),
+        mode: LaunchMode.externalApplication,
+      );
+    } catch (_) {
+      // Defensive, like every other launcher call.
+    }
   }
   Future<(AuthService, SiteConfigService)> _services() async {
     final services = (widget.auth == null || widget.siteConfig == null)
@@ -166,6 +188,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   void dispose() {
+    _privacyTap.dispose();
+    _termsTap.dispose();
     _username.dispose();
     _email.dispose();
     _password.dispose();
@@ -217,10 +241,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (result.submitted) {
         // Registration accepted — email verification decides the next step
         // (the api/v1 response is authoritative; the config is the fallback).
-        Navigator.of(context).pushReplacementNamed(
-            result.requiresEmailVerification || _requireEmailVerification
-                ? VerifyEmailScreen.routeName
-                : LoginScreen.routeName);
+        // The email rides along so the verify screen can resend the
+        // confirmation link.
+        if (result.requiresEmailVerification || _requireEmailVerification) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute<void>(
+              builder: (_) => VerifyEmailScreen(email: _email.text.trim()),
+            ),
+          );
+        } else {
+          Navigator.of(context)
+              .pushReplacementNamed(LoginScreen.routeName);
+        }
         return;
       }
 
@@ -362,6 +394,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _regionId = picked.regionId;
       _cityName = picked.name;
     });
+  }
+
+  /// Agreement-row label: "I accept the Privacy Policy" where the policy
+  /// name is a link to the website's page (register.php parity — its
+  /// checkboxes carry <a href="/privacy_policy" target="_blank">).
+  Widget _agreementTitle(
+    String prefix,
+    String linkText,
+    TapGestureRecognizer recognizer,
+  ) {
+    return Text.rich(
+      TextSpan(
+        style: const TextStyle(
+            fontSize: 14, color: EnclavdColors.textPrimary),
+        children: [
+          TextSpan(text: prefix),
+          TextSpan(
+            text: linkText,
+            style: const TextStyle(
+              color: EnclavdColors.link,
+              decoration: TextDecoration.underline,
+              decorationColor: EnclavdColors.link,
+            ),
+            recognizer: recognizer,
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _pickerField({
@@ -607,7 +667,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 _acceptPrivacy = v ?? false;
                                 _checkboxError = null;
                               }),
-                              title: const Text('I accept the Privacy Policy'),
+                              title: _agreementTitle(
+                                'I accept the ',
+                                'Privacy Policy',
+                                _privacyTap,
+                              ),
                               controlAffinity:
                                   ListTileControlAffinity.leading,
                               contentPadding: EdgeInsets.zero,
@@ -618,8 +682,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 _acceptTerms = v ?? false;
                                 _checkboxError = null;
                               }),
-                              title:
-                                  const Text('I accept the Terms of Service'),
+                              title: _agreementTitle(
+                                'I accept the ',
+                                'Terms of Service',
+                                _termsTap,
+                              ),
                               controlAffinity:
                                   ListTileControlAffinity.leading,
                               contentPadding: EdgeInsets.zero,
