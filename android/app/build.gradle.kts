@@ -89,13 +89,15 @@ android {
     // The generated GeneratedPluginRegistrant (src/main/java/io/flutter/
     // plugins/) references EVERY plugin, including the firebase ones the
     // fdroid variant excludes — that file would fail to compile there.
-    // Drop it for the fdroid variant only; src/fdroid/java provides its
+    // Drop it for the fdroid flavor only; src/fdroid/java provides its
     // own copy without the firebase plugins.
-    androidComponents {
-        onVariants(selector().withFlavor("fdroid")) { variant ->
-            variant.sources.java?.all { sourceSet ->
-                sourceSet.exclude("io/flutter/plugins/GeneratedPluginRegistrant.java")
-            }
+    // AGP 9 removed file exclusion from the Variant API (Sources exposes
+    // SourceDirectories.Flat — add-only), so the old androidComponents
+    // onVariants block no longer compiles. With android.newDsl=false the
+    // classic per-flavor source-set exclusion is used instead.
+    sourceSets {
+        getByName("fdroid") {
+            java.exclude("io/flutter/plugins/GeneratedPluginRegistrant.java")
         }
     }
 }
