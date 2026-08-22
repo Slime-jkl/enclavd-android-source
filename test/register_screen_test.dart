@@ -12,12 +12,20 @@ class _FakeConfig extends SiteConfigService {
   _FakeConfig({
     required this.isInvitationRequired,
     this.requireEmailVerification = false,
+    this.rateStateValue = const RateLimitState(
+      blocked: false,
+      cooldown: 0,
+      needsCaptcha: false,
+      captchaOk: false,
+      lockRemaining: 0,
+    ),
   }) : super(
           ApiClient(store: MemorySessionStore(), apiBaseUrl: 'http://127.0.0.1:1'),
         );
 
   final bool isInvitationRequired;
   final bool requireEmailVerification;
+  final RateLimitState rateStateValue;
 
   @override
   Future<SiteConfig> fetch() async => SiteConfig(
@@ -38,6 +46,9 @@ class _FakeConfig extends SiteConfigService {
           appliesTo: ['login'],
         ),
       );
+
+  @override
+  Future<RateLimitState> rateState(String context) async => rateStateValue;
 }
 
 class _FakeAuth extends AuthService {
@@ -51,6 +62,7 @@ class _FakeAuth extends AuthService {
       () => const RegisterResult(submitted: true, message: '');
   String? lastBirthdate;
   String? lastGender;
+  String? lastCaptchaAnswer;
 
   @override
   Future<RegisterResult> register({
@@ -65,9 +77,11 @@ class _FakeAuth extends AuthService {
     int? geoCountry,
     int? geoRegion,
     int? geoCity,
+    String? captchaAnswer,
   }) async {
     lastBirthdate = birthdate;
     lastGender = gender;
+    lastCaptchaAnswer = captchaAnswer;
     return onRegister();
   }
 }
@@ -77,6 +91,22 @@ Future<void> _fillRequiredFields(WidgetTester tester) async {
   await tester.enterText(find.byType(TextFormField).at(1), 'new@dev.dev');
   await tester.enterText(find.byType(TextFormField).at(2), 'secret1');
   await tester.enterText(find.byType(TextFormField).at(3), 'secret1');
+}
+
+/// Ticks both agreement checkboxes (the client-side submit gate demands
+/// them — the server would bounce the same way). Scrolls with a
+/// left-margin drag first (a center drag would be claimed by the text
+/// fields) so the tiles sit at a settled, stable position.
+Future<void> _checkAgreements(WidgetTester tester) async {
+  await tester.dragFrom(const Offset(8, 500), const Offset(0, -500));
+  await tester.pumpAndSettle();
+  for (var i = 0; i < 2; i++) {
+    await tester.tap(find.descendant(
+      of: find.byType(CheckboxListTile).at(i),
+      matching: find.byType(Checkbox),
+    ));
+    await tester.pump();
+  }
 }
 
 Future<void> _scrollToAndTapRegister(WidgetTester tester) async {
@@ -157,6 +187,7 @@ void main() {
     await tester.pump();
 
     await _fillRequiredFields(tester);
+    await _checkAgreements(tester);
     await _scrollToAndTapRegister(tester);
 
     expect(find.text('Verify your email'), findsOneWidget);
@@ -181,6 +212,7 @@ void main() {
     await tester.pump();
 
     await _fillRequiredFields(tester);
+    await _checkAgreements(tester);
     await _scrollToAndTapRegister(tester);
 
     expect(find.text('LOGIN-PLACEHOLDER'), findsOneWidget);
@@ -199,10 +231,89 @@ void main() {
     await tester.pump();
 
     await _fillRequiredFields(tester);
+    await _checkAgreements(tester);
     await _scrollToAndTapRegister(tester);
 
     expect(find.text('* Email already registered'), findsOneWidget);
     expect(find.text('Verify your email'), findsNothing);
+  });
+
+  testWidgets('server field error attaches to its input and clears on edit',
+      (tester) async {
+    final auth = _FakeAuth()
+      ..onRegister = () => const RegisterResult(
+          submitted: false,
+          message: 'Email already registered',
+          fieldErrors: {'email': 'Email already registered'});
+    await tester.pumpWidget(MaterialApp(
+      home: RegisterScreen(
+          auth: auth,
+          siteConfig: _FakeConfig(isInvitationRequired: false)),
+    ));
+    await tester.pump();
+
+    await _fillRequiredFields(tester);
+    await _checkAgreements(tester);
+    await _scrollToAndTapRegister(tester);
+
+    // Field-level error — exactly once (the banner stays hidden when the
+    // error belongs to a field).
+    expect(find.text('Email already registered'), findsOneWidget);
+
+    // Editing the field clears its server error.
+    await tester.enterText(
+        find.byType(TextFormField).at(1), 'changed@dev.dev');
+    await tester.pump();
+    expect(find.text('Email already registered'), findsNothing);
+  });
+
+  testWidgets('unchecked agreement boxes block submit with a clear message',
+      (tester) async {
+    final auth = _FakeAuth();
+    await tester.pumpWidget(MaterialApp(
+      home: RegisterScreen(
+          auth: auth,
+          siteConfig: _FakeConfig(isInvitationRequired: false)),
+    ));
+    await tester.pump();
+
+    await _fillRequiredFields(tester);
+    await _scrollToAndTapRegister(tester);
+
+    expect(find.text('You must accept the Privacy Policy'), findsOneWidget);
+  });
+
+  testWidgets('captcha question shows when the limiter demands it; answer '
+      'rides the submit', (tester) async {
+    final auth = _FakeAuth();
+    await tester.pumpWidget(MaterialApp(
+      home: RegisterScreen(
+        auth: auth,
+        siteConfig: _FakeConfig(
+          isInvitationRequired: false,
+          rateStateValue: const RateLimitState(
+            blocked: false,
+            cooldown: 0,
+            needsCaptcha: true,
+            captchaOk: false,
+            lockRemaining: 0,
+            captchaQuestion: 'What is 2+2?',
+          ),
+        ),
+      ),
+    ));
+    await tester.pump();
+
+    expect(find.text('What is 2+2?'), findsOneWidget);
+
+    await _fillRequiredFields(tester);
+    await _checkAgreements(tester);
+    await tester.ensureVisible(find.byType(TextFormField).at(4));
+    await tester.enterText(find.byType(TextFormField).at(4), '4');
+    await tester.pump();
+    await _scrollToAndTapRegister(tester);
+
+    expect(auth.lastCaptchaAnswer, '4');
   });
 }
 

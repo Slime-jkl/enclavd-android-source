@@ -50,12 +50,12 @@ void main() {
       await h.close();
     });
 
-    test('failure: 302 back to /login → flash message parsed from the page',
-        () async {
+    test('failure: 302 back to /login (RELATIVE Location, as the server '
+        'sends) → flash message parsed from the page', () async {
       var loginHits = 0;
       final h = await Harness.start((req) async {
         if (req.uri.path == '/auth' && req.method == 'POST') {
-          Harness.respond(req, status: 302, headers: {'location': '/login'});
+          Harness.respond(req, status: 302, headers: {'location': 'login'});
         } else if (req.uri.path == '/login') {
           loginHits++;
           if (loginHits == 1) {
@@ -143,12 +143,23 @@ void main() {
   });
 
   group('AuthService.register', () {
-    test('success: 302 to /login → verification message', () async {
-      String? body;
+    test('success via api/v1/register → submitted + verification flag', () async {
+      Map<String, dynamic>? jsonBody;
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/process_register') {
-          body = await utf8.decoder.bind(req).join();
-          Harness.respond(req, status: 302, headers: {'location': '/login'});
+        if (req.uri.path == '/feed') {
+          // CSRF meta for the pre-auth token scrape.
+          Harness.respond(req,
+              body: '<meta name="csrf-token" content="csrf123">');
+        } else if (req.uri.path == '/api/v1/register') {
+          jsonBody = jsonDecode(await utf8.decoder.bind(req).join())
+              as Map<String, dynamic>;
+          Harness.respond(
+            req,
+            body: jsonEncode({
+              'success': true,
+              'requires_email_verification': true,
+            }),
+          );
         } else {
           Harness.respond(req, status: 404);
         }
@@ -168,22 +179,103 @@ void main() {
       );
 
       expect(result.submitted, isTrue);
-      expect(result.message, contains('Registration submitted'));
-      expect(body, contains('username=newuser'));
-      expect(body, contains('privacy_policy=on'));
-      expect(body, contains('terms=on'));
-      expect(body, contains('birthdate=1990-05-14'));
-      expect(body, contains('gender=MALE'));
-      expect(body, contains('geo_country=4'));
-      expect(body, contains('geo_city=91'));
+      expect(result.requiresEmailVerification, isTrue);
+      expect(jsonBody, isNotNull);
+      expect(jsonBody!['username'], 'newuser');
+      expect(jsonBody!['email'], 'new@dev.dev');
+      expect(jsonBody!['password_confirm'], 'secret1');
+      expect(jsonBody!['privacy_policy'], isTrue);
+      expect(jsonBody!['terms'], isTrue);
+      expect(jsonBody!['birthdate'], '1990-05-14');
+      expect(jsonBody!['gender'], 'MALE');
+      expect(jsonBody!['geo_country'], 4);
+      expect(jsonBody!['geo_city'], 91);
 
       await h.close();
     });
 
-    test('failure: 302 back to /register → validation errors parsed', () async {
+    test('422 with fields → per-field errors surface', () async {
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/process_register') {
-          Harness.respond(req, status: 302, headers: {'location': '/register'});
+        if (req.uri.path == '/feed') {
+          Harness.respond(req,
+              body: '<meta name="csrf-token" content="csrf123">');
+        } else if (req.uri.path == '/api/v1/register') {
+          Harness.respond(
+            req,
+            status: 422,
+            body: jsonEncode({
+              'error': 'Email already registered',
+              'fields': {'email': 'Email already registered'},
+            }),
+          );
+        } else {
+          Harness.respond(req, status: 404);
+        }
+      });
+
+      final service = AuthService(h.client, apiBaseUrl: h.client.apiBaseUrl);
+      final result = await service.register(
+        username: 'newuser',
+        email: 'taken@dev.dev',
+        password: 'secret1',
+      );
+
+      expect(result.submitted, isFalse);
+      expect(result.message, 'Email already registered');
+      expect(result.fieldErrors['email'], 'Email already registered');
+      expect(result.fieldErrors, isNotEmpty);
+
+      await h.close();
+    });
+
+    test(
+        'deploy skew: api/v1/register 404 → legacy /process_register 302 '
+        'to RELATIVE "login" → success', () async {
+      var legacyHits = 0;
+      final h = await Harness.start((req) async {
+        if (req.uri.path == '/feed') {
+          Harness.respond(req,
+              body: '<meta name="csrf-token" content="csrf123">');
+        } else if (req.uri.path == '/api/v1/register') {
+          Harness.respond(req, status: 404, body: '<html>not found</html>');
+        } else if (req.uri.path == '/process_register') {
+          legacyHits++;
+          // The REAL server sends a RELATIVE Location ("login").
+          Harness.respond(req, status: 302, headers: {'location': 'login'});
+        } else {
+          Harness.respond(req, status: 404);
+        }
+      });
+
+      final service = AuthService(h.client, apiBaseUrl: h.client.apiBaseUrl);
+      final result = await service.register(
+        username: 'newuser',
+        email: 'new@dev.dev',
+        password: 'secret1',
+        acceptPrivacy: true,
+        acceptTerms: true,
+      );
+
+      expect(legacyHits, 1);
+      expect(result.submitted, isTrue,
+          reason: 'relative "login" must be recognized as success');
+
+      await h.close();
+    });
+
+    test(
+        'legacy failure: 302 back to RELATIVE "register" → validation '
+        'errors parsed from the flash page', () async {
+      final h = await Harness.start((req) async {
+        if (req.uri.path == '/feed') {
+          Harness.respond(req,
+              body: '<meta name="csrf-token" content="csrf123">');
+        } else if (req.uri.path == '/api/v1/register') {
+          Harness.respond(req, status: 404, body: '<html>not found</html>');
+        } else if (req.uri.path == '/process_register') {
+          // The REAL server sends a RELATIVE Location ("register").
+          Harness.respond(
+              req, status: 302, headers: {'location': 'register'});
         } else if (req.uri.path == '/register') {
           Harness.respond(
             req,
@@ -204,6 +296,8 @@ void main() {
 
       expect(result.submitted, isFalse);
       expect(result.message, contains('Username must be between 3-20 characters'));
+      expect(result.fieldErrors, isEmpty,
+          reason: 'legacy flash errors have no per-field structure');
 
       await h.close();
     });

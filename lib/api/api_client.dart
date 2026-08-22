@@ -295,6 +295,31 @@ class ApiClient {
     throw const ApiException('Invalid response from server');
   }
 
+  /// POST a JSON body and return the decoded JSON regardless of HTTP
+  /// status (2xx or 4xx/5xx), so callers can read structured error
+  /// payloads — e.g. the register endpoint's {error, fields} per-field
+  /// map. Same session/CSRF/retry handling as [postJson]; only transport
+  /// failures throw. A non-JSON body (e.g. a 404 HTML page from an
+  /// endpoint the server hasn't deployed yet) comes back as
+  /// {'error': 'Request failed (NNN)'} — callers can detect deploy skew.
+  Future<Map<String, dynamic>> postJsonRelaxed(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
+    _csrfToken ??= await _fetchCsrfToken();
+    var resp = await _postJsonOnce(path, body, _csrfToken);
+    if (resp.status == 403) {
+      // Token rotated or rejected — refetch and retry exactly once.
+      _csrfToken = null;
+      resp = await _postJsonOnce(path, body, await _fetchCsrfToken());
+    }
+    try {
+      final decoded = jsonDecode(resp.body);
+      if (decoded is Map<String, dynamic>) return decoded;
+    } catch (_) {}
+    return {'error': 'Request failed (${resp.status})'};
+  }
+
   /// Memoized CSRF token (from any page's rendered meta tag). Null until
   /// first fetched; a 403 from postJson clears it and refetches once.
   String? _csrfToken;

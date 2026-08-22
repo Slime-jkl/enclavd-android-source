@@ -76,6 +76,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _busy = false;
   String? _error;
 
+  /// Server-side per-field errors (api/v1/register's `fields` map):
+  /// keyed by username/email/password/password_confirm/invitation.
+  /// Shown as errorText under the matching input, cleared on edit.
+  Map<String, String> _fieldErrors = {};
+
+  /// Server-side (or client-side) agreement error, shown under the
+  /// privacy/terms checkboxes.
+  String? _checkboxError;
+
+  /// Live rate-limit state for the register context (cooldown + captcha),
+  /// refreshed after every failed attempt — same pattern as login.
+  RateLimitState? _rl;
+  final _captcha = TextEditingController();
+  final _captchaFocus = FocusNode();
+
   /// True when the site requires an invitation code to sign up. Loaded from
   /// the public site config; until then (and on fetch failure) the field
   /// stays hidden — process_register.php enforces the requirement anyway.
@@ -101,7 +116,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.initState();
     _loadConfig();
   }
-
   Future<(AuthService, SiteConfigService)> _services() async {
     final services = (widget.auth == null || widget.siteConfig == null)
         ? await AppServices.create()
@@ -125,6 +139,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
     } catch (_) {
       // Keep the field hidden; the server validates on submit regardless.
     }
+    await _loadRateState();
+  }
+
+  /// Live cooldown/captcha state for the register context. Refreshed on
+  /// init and after every failed attempt (the server records the failure,
+  /// which may bump the cooldown or demand a captcha). Failures here are
+  /// ignored — the server still enforces on POST.
+  Future<void> _loadRateState() async {
+    try {
+      final (_, config) = await _services();
+      final state = await config.rateState('register');
+      if (!mounted) return;
+      setState(() => _rl = state);
+    } catch (_) {
+      // No state → proceed without the rate-limit UI.
+    }
+  }
+
+  /// Clears a server-side field error once the user starts editing that
+  /// field (a rebuild only when the error was actually present).
+  void _clearFieldError(String key) {
+    if (!_fieldErrors.containsKey(key)) return;
+    setState(() => _fieldErrors = Map.of(_fieldErrors)..remove(key));
   }
 
   @override
@@ -134,18 +171,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _password.dispose();
     _passwordConfirm.dispose();
     _invitation.dispose();
+    _captcha.dispose();
+    _captchaFocus.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+
+    // The checkboxes are outside the Form's validators — gate them here
+    // (same messages the server would bounce back with).
+    final missingAgreement = !_acceptPrivacy
+        ? 'You must accept the Privacy Policy'
+        : (!_acceptTerms ? 'You must accept the Terms of Service' : null);
+    if (missingAgreement != null) {
+      setState(() => _checkboxError = missingAgreement);
+      return;
+    }
+
     setState(() {
       _busy = true;
       _error = null;
+      _fieldErrors = const {};
+      _checkboxError = null;
     });
 
     try {
       final (auth, _) = await _services();
+      final captchaNeeded = _rl?.captchaRequired ?? false;
       final result = await auth.register(
         username: _username.text,
         email: _email.text,
@@ -158,20 +211,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
         geoCountry: _countryId,
         geoRegion: _regionId,
         geoCity: _cityId,
+        captchaAnswer: captchaNeeded ? _captcha.text : null,
       );
       if (!mounted) return;
       if (result.submitted) {
-        // Registration accepted — email verification decides the next step.
+        // Registration accepted — email verification decides the next step
+        // (the api/v1 response is authoritative; the config is the fallback).
         Navigator.of(context).pushReplacementNamed(
-            _requireEmailVerification
+            result.requiresEmailVerification || _requireEmailVerification
                 ? VerifyEmailScreen.routeName
                 : LoginScreen.routeName);
-      } else {
-        setState(() {
-          _busy = false;
-          _error = result.message;
-        });
+        return;
       }
+
+      // Rejection — split server errors into per-field + general. The
+      // agreement errors render under the checkboxes; the rest attach to
+      // their inputs; only general errors (rate limit, network, unknown)
+      // show as the banner.
+      final fields = Map.of(result.fieldErrors);
+      setState(() {
+        _busy = false;
+        _fieldErrors = fields;
+        _checkboxError = fields['privacy_policy'] ?? fields['terms'];
+        _error = fields.isEmpty ? result.message : null;
+      });
+      _captcha.clear();
+      // The server recorded the failure — refresh cooldown/captcha.
+      _loadRateState();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -398,12 +464,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             TextFormField(
                               controller: _username,
                               textInputAction: TextInputAction.next,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: 'Username *',
                                 hintText: 'Choose a username',
+                                errorText: _fieldErrors['username'],
                                 prefixIcon:
-                                    FaIcon(FontAwesomeIcons.user, size: 18),
+                                    const FaIcon(FontAwesomeIcons.user,
+                                        size: 18),
                               ),
+                              onChanged: (_) => _clearFieldError('username'),
                               validator: (v) {
                                 final s = v?.trim() ?? '';
                                 if (s.isEmpty) return 'Username is required';
@@ -419,12 +488,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               controller: _email,
                               keyboardType: TextInputType.emailAddress,
                               textInputAction: TextInputAction.next,
-                              decoration: const InputDecoration(
+                              decoration: InputDecoration(
                                 labelText: 'Email address *',
                                 hintText: 'you@example.com',
+                                errorText: _fieldErrors['email'],
                                 prefixIcon:
-                                    FaIcon(FontAwesomeIcons.envelope, size: 18),
+                                    const FaIcon(FontAwesomeIcons.envelope,
+                                        size: 18),
                               ),
+                              onChanged: (_) => _clearFieldError('email'),
                               validator: (v) {
                                 final s = v?.trim() ?? '';
                                 if (s.isEmpty) return 'Email is required';
@@ -439,6 +511,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             AuthPasswordField(
                               controller: _password,
                               label: 'Password *',
+                              errorText: _fieldErrors['password'],
+                              onChanged: (_) => _clearFieldError('password'),
                               validator: (v) {
                                 if (v == null || v.isEmpty) {
                                   return 'Password is required';
@@ -453,6 +527,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             AuthPasswordField(
                               controller: _passwordConfirm,
                               label: 'Confirm Password *',
+                              errorText: _fieldErrors['password_confirm'],
+                              onChanged: (_) =>
+                                  _clearFieldError('password_confirm'),
                               validator: (v) => v != _password.text
                                   ? 'Passwords do not match'
                                   : null,
@@ -462,12 +539,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               TextFormField(
                                 controller: _invitation,
                                 textInputAction: TextInputAction.next,
-                                decoration: const InputDecoration(
+                                decoration: InputDecoration(
                                   labelText: 'Invitation Code *',
                                   hintText: 'Enter your invitation code',
-                                  prefixIcon: FaIcon(
+                                  errorText: _fieldErrors['invitation'],
+                                  prefixIcon: const FaIcon(
                                       FontAwesomeIcons.ticket, size: 18),
                                 ),
+                                onChanged: (_) =>
+                                    _clearFieldError('invitation'),
                                 validator: (_) =>
                                     _invitation.text.trim().isEmpty
                                         ? 'An invitation code is required to join'
@@ -523,8 +603,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             const SizedBox(height: 16),
                             CheckboxListTile(
                               value: _acceptPrivacy,
-                              onChanged: (v) =>
-                                  setState(() => _acceptPrivacy = v ?? false),
+                              onChanged: (v) => setState(() {
+                                _acceptPrivacy = v ?? false;
+                                _checkboxError = null;
+                              }),
                               title: const Text('I accept the Privacy Policy'),
                               controlAffinity:
                                   ListTileControlAffinity.leading,
@@ -532,15 +614,74 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                             CheckboxListTile(
                               value: _acceptTerms,
-                              onChanged: (v) =>
-                                  setState(() => _acceptTerms = v ?? false),
+                              onChanged: (v) => setState(() {
+                                _acceptTerms = v ?? false;
+                                _checkboxError = null;
+                              }),
                               title:
                                   const Text('I accept the Terms of Service'),
                               controlAffinity:
                                   ListTileControlAffinity.leading,
                               contentPadding: EdgeInsets.zero,
                             ),
+                            if (_checkboxError != null)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 8),
+                                child: Text(
+                                  _checkboxError!,
+                                  style: const TextStyle(
+                                      color: Color(0xFFF87171), fontSize: 13),
+                                ),
+                              ),
                             const SizedBox(height: 24),
+                            if (_rl?.captchaRequired ?? false) ...[
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFCD34D)
+                                      .withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(
+                                      color: const Color(0xFFFCD34D)
+                                          .withValues(alpha: 0.3)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const FaIcon(
+                                        FontAwesomeIcons.shieldHalved,
+                                        size: 16,
+                                        color: Color(0xFFFCD34D)),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Text(
+                                        _rl?.captchaQuestion ??
+                                            'Security question',
+                                        style:
+                                            const TextStyle(fontSize: 13),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                controller: _captcha,
+                                focusNode: _captchaFocus,
+                                textInputAction: TextInputAction.done,
+                                onFieldSubmitted: (_) => _submit(),
+                                decoration: const InputDecoration(
+                                  labelText: 'Answer',
+                                  prefixIcon: FaIcon(
+                                      FontAwesomeIcons.key, size: 18),
+                                ),
+                                validator: (_) =>
+                                    (_rl?.captchaRequired ?? false) &&
+                                            _captcha.text.trim().isEmpty
+                                        ? 'Answer the question above'
+                                        : null,
+                              ),
+                              const SizedBox(height: 16),
+                            ],
                             ElevatedButton(
                               onPressed: _busy ? null : _submit,
                               child: _busy

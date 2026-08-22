@@ -64,13 +64,25 @@ class LoginResult {
 }
 
 /// Outcome of a registration POST: [submitted] is true when the server
-/// accepted the account (302 → /login), false when it bounced back to the
-/// form with [message] holding the validation error(s).
+/// accepted the account, false when it bounced back with [message]
+/// holding the general error and [fieldErrors] mapping each failing
+/// input to its own message (api/v1/register's `fields` map; empty for
+/// legacy-flash errors that carry no per-field structure).
 class RegisterResult {
-  const RegisterResult({required this.submitted, required this.message});
+  const RegisterResult({
+    required this.submitted,
+    required this.message,
+    this.fieldErrors = const {},
+    this.requiresEmailVerification = false,
+  });
 
   final bool submitted;
   final String message;
+  final Map<String, String> fieldErrors;
+
+  /// Server's word on whether email verification is required (the
+  /// api/v1 response carries it; the config value is the fallback).
+  final bool requiresEmailVerification;
 }
 
 /// Post-login gate verdict — what to show instead of the feed.
@@ -166,7 +178,7 @@ class AuthService {
         'captcha_answer': captchaAnswer.trim(),
     });
 
-    final location = resp.location;
+    final location = _normalizeLocation(resp.location);
     if (location != null && location.contains('/feed')) {
       // Session cookies (enclavd_sid + sid) were captured from this 302.
       return const LoginResult(LoginOutcome.success, '');
@@ -178,13 +190,14 @@ class AuthService {
   }
 
   /// Registers a new account. Returns whether the server accepted the
-  /// submission (302 → /login) and the flash message.
+  /// submission and — on rejection — the per-field errors.
   ///
-  /// The server 302s to /login on success, back to /register on failure
-  /// with the validation errors in a flash banner. The caller decides the
-  /// post-registration UI from [RegisterResult.submitted] + the site
-  /// config's requireEmailVerification (verify-email screen vs. straight
-  /// to login).
+  /// Primary path: POST /api/v1/register (JSON + CSRF) — the structured
+  /// endpoint added for the apps: 200 {success:true,
+  /// requires_email_verification} or 422 {error, fields:{username:…}}.
+  /// Fallback: the legacy form flow (POST /process_register → 302), used
+  /// only while the api/v1 endpoint is not deployed yet (deploy skew);
+  /// its flash banner is parsed the same way login's is.
   Future<RegisterResult> register({
     required String username,
     required String email,
@@ -192,6 +205,79 @@ class AuthService {
     String? invitation,
     bool acceptPrivacy = false,
     bool acceptTerms = false,
+    String? birthdate,
+    String? gender,
+    int? geoCountry,
+    int? geoRegion,
+    int? geoCity,
+    String? captchaAnswer,
+  }) async {
+    final json = await _api.postJsonRelaxed('/api/v1/register', {
+      'username': username.trim(),
+      'email': email.trim(),
+      'password': password,
+      'password_confirm': password,
+      'invitation': invitation?.trim() ?? '',
+      if (birthdate != null && birthdate.isNotEmpty) 'birthdate': birthdate,
+      'gender': gender ?? 'NONE',
+      if (geoCountry != null) 'geo_country': geoCountry,
+      if (geoRegion != null) 'geo_region': geoRegion,
+      if (geoCity != null) 'geo_city': geoCity,
+      'privacy_policy': acceptPrivacy,
+      'terms': acceptTerms,
+      if (captchaAnswer != null && captchaAnswer.trim().isNotEmpty)
+        'captcha_answer': captchaAnswer.trim(),
+    });
+
+    if (json['success'] == true) {
+      return RegisterResult(
+        submitted: true,
+        message: 'Registration submitted.',
+        requiresEmailVerification: json['requires_email_verification'] == true,
+      );
+    }
+
+    // Not deployed yet → the legacy 302 flow (deploy skew protection).
+    if (json['error'] == 'Request failed (404)') {
+      return _registerLegacy(
+        username: username,
+        email: email,
+        password: password,
+        invitation: invitation,
+        acceptPrivacy: acceptPrivacy,
+        acceptTerms: acceptTerms,
+        birthdate: birthdate,
+        gender: gender,
+        geoCountry: geoCountry,
+        geoRegion: geoRegion,
+        geoCity: geoCity,
+      );
+    }
+
+    final fields = <String, String>{};
+    final rawFields = json['fields'];
+    if (rawFields is Map) {
+      rawFields.forEach((k, v) {
+        if (k is String && v is String && v.isNotEmpty) fields[k] = v;
+      });
+    }
+    return RegisterResult(
+      submitted: false,
+      message: json['error'] as String? ?? 'Request failed. Please try again.',
+      fieldErrors: fields,
+    );
+  }
+
+  /// Legacy registration path (POST /process_register → 302). Success is
+  /// a redirect to /login, failure a redirect back to /register with a
+  /// session flash banner on that page.
+  Future<RegisterResult> _registerLegacy({
+    required String username,
+    required String email,
+    required String password,
+    String? invitation,
+    required bool acceptPrivacy,
+    required bool acceptTerms,
     String? birthdate,
     String? gender,
     int? geoCountry,
@@ -214,7 +300,7 @@ class AuthService {
       if (acceptTerms) 'terms': 'on',
     });
 
-    final location = resp.location;
+    final location = _normalizeLocation(resp.location);
     if (location != null && location.contains('/login')) {
       return const RegisterResult(
         submitted: true,
@@ -253,12 +339,21 @@ class AuthService {
     await _api.clearSession();
   }
 
+  /// The legacy auth endpoints redirect with BOTH absolute (/feed) and
+  /// RELATIVE Location headers ("login", "register" — no leading slash,
+  /// per the PHP header('Location: login') calls). Normalize so outcome
+  /// detection and the flash-page fetch work for both shapes.
+  String? _normalizeLocation(String? location) {
+    if (location == null || location.isEmpty) return null;
+    return location.startsWith('/') ? location : '/$location';
+  }
+
   /// On a failed login/register the server 302s back to the form page with a
   /// session flash message. Fetch that target (same cookie jar — the PHP
   /// session holds the flash) and parse the banner text.
   Future<String> _flashFromRedirect(RawResponse resp) async {
-    final location = resp.location;
-    if (location != null && location.startsWith('/')) {
+    final location = _normalizeLocation(resp.location);
+    if (location != null) {
       try {
         final page = await _api.getPage(location);
         if (page.status == 200) {

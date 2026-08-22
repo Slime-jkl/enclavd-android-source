@@ -13,8 +13,10 @@ class AuthPasswordField extends StatefulWidget {
     required this.label,
     this.focusNode,
     this.validator,
+    this.errorText,
     this.textInputAction,
     this.onFieldSubmitted,
+    this.onChanged,
     this.prefixIcon = FontAwesomeIcons.lock,
   });
 
@@ -22,8 +24,14 @@ class AuthPasswordField extends StatefulWidget {
   final String label;
   final FocusNode? focusNode;
   final String? Function(String?)? validator;
+
+  /// Server-side error for this field (api/v1 register field errors),
+  /// shown below the input until the user edits it away (the owner
+  /// clears the error from its own state in [onChanged]).
+  final String? errorText;
   final TextInputAction? textInputAction;
   final ValueChanged<String>? onFieldSubmitted;
+  final ValueChanged<String>? onChanged;
   final FaIconData prefixIcon;
 
   @override
@@ -42,8 +50,10 @@ class _AuthPasswordFieldState extends State<AuthPasswordField> {
       validator: widget.validator,
       textInputAction: widget.textInputAction,
       onFieldSubmitted: widget.onFieldSubmitted,
+      onChanged: widget.onChanged,
       decoration: InputDecoration(
         labelText: widget.label,
+        errorText: widget.errorText,
         prefixIcon: FaIcon(widget.prefixIcon, size: 18),
         suffixIcon: IconButton(
           onPressed: () => setState(() => _obscure = !_obscure),
