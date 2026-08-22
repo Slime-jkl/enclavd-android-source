@@ -1,0 +1,25 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- F-Droid build: the firebase plugin AARs are excluded from this
+         variant's dependency graph (build.gradle.kts), but the manifest
+         merger still reads the flutter firebase plugin AARs' manifests.
+         Remove every component they contribute so no Google class is ever
+         referenced by the fdroid manifest. -->
+    <application>
+        <service
+            android:name="io.flutter.plugins.firebase.messaging.FlutterFirebaseMessagingService"
+            tools:node="remove" />
+        <service
+            android:name="io.flutter.plugins.firebase.messaging.FlutterFirebaseMessagingBackgroundService"
+            tools:node="remove" />
+        <receiver
+            android:name="io.flutter.plugins.firebase.messaging.FlutterFirebaseMessagingReceiver"
+            tools:node="remove" />
+        <service
+            android:name="com.google.firebase.components.ComponentDiscoveryService"
+            tools:node="remove" />
+        <provider
+            android:name="com.google.firebase.provider.FirebaseInitProvider"
+            tools:node="remove" />
+    </application>
+</manifest>

@@ -1,0 +1,88 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Native app needs the network for api/v1 + media (the Flutter
+         template only adds INTERNET for debug/profile builds; release
+         builds must declare it explicitly). -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Message notifications (Android 13+ runtime permission; the plugin
+         merges this too, but declaring it keeps the intent explicit). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.VIBRATE"/>
+    <!-- Gallery access: uploads (compose/avatar pick the system gallery,
+         which enumerates the whole device library) and saving post images
+         to the Enclavd folder (gal → MediaStore). Modern scoped storage:
+         READ_MEDIA_IMAGES for Android 13+, read scoped to ≤32 for older
+         releases; WRITE is only needed to SAVE on Android ≤9 (gal inserts
+         via MediaStore on 10+ with no permission). Runtime-grant flows
+         only matter for legacy devices; the system pickers need none. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32"/>
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28"/>
+    <!-- Foreground-service keep-alive (RealtimeKeepAliveService): keeps the
+         process perceptible while minimized so the live SSE/WS streams keep
+         their network. FOREGROUND_SERVICE_REMOTE_MESSAGING is required on
+         API 34+ for the remoteMessaging type (chat app — Play-approved;
+         also exempt from the Android 15 dataSync 6h cap). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING"/>
+    <application
+        android:label="Enclavd"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            <!-- Specifies an Android theme to apply to this Activity as soon as
+                 the Android process has started. This theme is visible to the user
+                 while the Flutter UI initializes. After that, this theme continues
+                 to determine the Window background behind the Flutter UI. -->
+            <meta-data
+              android:name="io.flutter.embedding.android.NormalTheme"
+              android:resource="@style/NormalTheme"
+              />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+        <!-- Keep-alive while minimized: no engine, no work — it only holds
+             the process in the perceptible state so Doze/standby don't cut
+             the realtime network. Started from MainActivity.onStop, stopped
+             on onStart. -->
+        <service
+            android:name=".RealtimeKeepAliveService"
+            android:exported="false"
+            android:foregroundServiceType="remoteMessaging" />
+        <!-- Don't delete the meta-data below.
+             This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+        <!-- flutter_local_notifications: processes notification ACTION taps
+             (the Reply action with text input) and invokes the Dart
+             response callback. Required by the plugin README. -->
+        <receiver
+            android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver" />
+    </application>
+    <!-- Required to query activities that can process text, see:
+         https://developer.android.com/training/package-visibility and
+         https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
+
+         In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.PROCESS_TEXT"/>
+            <data android:mimeType="text/plain"/>
+        </intent>
+    </queries>
+</manifest>

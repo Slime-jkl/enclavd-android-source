@@ -1,0 +1,451 @@
+import 'dart:convert';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:enclavd/api/api_client.dart';
+import 'package:enclavd/api/feed_service.dart';
+import 'package:enclavd/api/profile_service.dart';
+
+import 'api_client_test.dart' show Harness;
+
+void main() {
+  group('ProfileService.fetchProfile', () {
+    test('GETs /api/v1/profile?user_id=N and parses every field', () async {
+      String? query;
+      final h = await Harness.start((req) async {
+        if (req.uri.path == '/api/v1/profile') {
+          query = req.uri.query;
+          Harness.respond(
+            req,
+            body: jsonEncode({
+              'success': true,
+              'profile': {
+                'id': 7,
+                'username': 'Dev',
+                'full_name': 'Developer One',
+                'profile_picture_url': '/public/avatars/a.jpg',
+                'personality_type': 'INTJ',
+                'rank': 'SysOp',
+                'bio': 'hello world',
+                'prestige': 11,
+                'date_created': '2024-11-20 21:05:59',
+                'is_online': true,
+                'is_active': 'true',
+                'block_reason': '',
+                'post_count': 6,
+                'warning_count': 2,
+                'warnings': [
+                  {
+                    'id': 41,
+                    'reason': 'Spam links',
+                    'admin_id': 1,
+                    'admin_username': 'Developer',
+                    'seconds_left': 129600, // 1.5 days → 2d left
+                  },
+                  {
+                    'id': 40,
+                    'reason': '',
+                    'admin_id': 1,
+                    'admin_username': 'Developer',
+                    'seconds_left': 0, // expiring now → 0d left
+                  },
+                ],
+                'follower_count': 2,
+                'following_count': 15,
+                'is_following': false,
+                'is_following_you': true,
+                'is_own': false,
+              },
+            }),
+          );
+        } else {
+          Harness.respond(req, status: 404);
+        }
+      });
+
+      final profileService = ProfileService(h.client);
+      final p = await profileService.fetchProfile(7);
+      expect(query, 'user_id=7');
+      expect(p.id, 7);
+      expect(p.username, 'Dev');
+      expect(p.fullName, 'Developer One');
+      expect(p.personalityType, 'INTJ');
+      expect(p.rank, 'SysOp');
+      expect(p.bio, 'hello world');
+      expect(p.prestige, 11);
+      expect(p.isOnline, true);
+      expect(p.isActive, 'true');
+      expect(p.blockReason, '');
+      expect(p.postCount, 6);
+      expect(p.warningCount, 2);
+      expect(p.warnings, hasLength(2));
+      expect(p.warnings.first.id, 41);
+      expect(p.warnings.first.reason, 'Spam links');
+      expect(p.warnings.first.adminId, 1);
+      expect(p.warnings.first.adminUsername, 'Developer');
+      expect(p.warnings.first.secondsLeft, 129600);
+      expect(p.warnings.first.daysLeft, 2);
+      expect(p.warnings.last.daysLeft, 0);
+      expect(p.followerCount, 2);
+      expect(p.followingCount, 15);
+      expect(p.isFollowing, false);
+      expect(p.isFollowingYou, true);
+      expect(p.isOwn, false);
+      expect(p.isBlocked, false);
+
+      await h.close();
+    });
+
+    test('blocked profile parses block_reason + isBlocked', () async {
+      final h = await Harness.start((req) async {
+        if (req.uri.path == '/api/v1/profile') {
+          Harness.respond(
+            req,
+            body: jsonEncode({
+              'success': true,
+              'profile': {
+                'id': 9,
+                'username': 'Bad',
+                'full_name': '',
+                'profile_picture_url': '/assets/default-avatar.png',
+                'personality_type': null,
+                'rank': 'Member',
+                'bio': '',
+                'prestige': 0,
+                'date_created': '2026-01-01 00:00:00',
+                'is_online': false,
+                'is_active': 'false',
+                'block_reason': 'Repeated harassment',
+                'post_count': 0,
+                'warning_count': 0,
+                'warnings': <Object>[],
+                'follower_count': 0,
+                'following_count': 0,
+                'is_following': false,
+                'is_following_you': false,
+                'is_own': false,
+              },
+            }),
+          );
+        } else {
+          Harness.respond(req, status: 404);
+        }
+      });
+
+      final p = await ProfileService(h.client).fetchProfile(9);
+      expect(p.isBlocked, true);
+      expect(p.blockReason, 'Repeated harassment');
+      expect(p.warnings, isEmpty);
+
+      await h.close();
+    });
+
+    test('404 surfaces as ApiException with status 404', () async {
+      final h = await Harness.start((req) async {
+        Harness.respond(req, status: 404, body: '{"error":"User not found"}');
+      });
+      await expectLater(
+        ProfileService(h.client).fetchProfile(999),
+        throwsA(isA<ApiException>()
+            .having((e) => e.status, 'status', 404)
+            .having((e) => e.message, 'message', contains('User not found'))),
+      );
+      await h.close();
+    });
+  });
+
+  group('ProfileService.toggleFollow', () {
+    test('sends JSON + CSRF, parses followed state + counts', () async {
+      String? rawBody;
+      String? csrf;
+      final h = await Harness.start((req) async {
+        if (req.uri.path == '/feed') {
+          Harness.respond(req,
+              body: '<meta name="csrf-token" content="tok-follow">');
+        } else if (req.uri.path == '/api/v1/profile') {
+          rawBody = await utf8.decoder.bind(req).join();
+          csrf = req.headers.value('x-csrf-token');
+          Harness.respond(req,
+              body:
+                  '{"success":true,"action":"followed","followers":3,"following":16}');
+        } else {
+          Harness.respond(req, status: 404);
+        }
+      });
+
+      final profileService = ProfileService(h.client);
+      final r = await profileService.toggleFollow(7);
+      expect(r.following, true);
+      expect(r.followerCount, 3);
+      expect(r.followingCount, 16);
+      expect(rawBody, '{"action":"follow","followee_id":7}');
+      expect(csrf, 'tok-follow');
+      await h.close();
+    });
+
+    test('unfollow parses action=unfollowed', () async {
+      final h = await Harness.start((req) async {
+        if (req.uri.path == '/feed') {
+          Harness.respond(req, body: '<meta name="csrf-token" content="t">');
+        } else {
+          Harness.respond(req,
+              body:
+                  '{"success":true,"action":"unfollowed","followers":2,"following":15}');
+        }
+      });
+      final r = await ProfileService(h.client).toggleFollow(7);
+      expect(r.following, false);
+      expect(r.followerCount, 2);
+      await h.close();
+    });
+  });
+
+  group('FeedService.userPosts', () {
+    test('sends user_id + keyset cursor, parses last_created_at', () async {
+      String? query;
+      final h = await Harness.start((req) async {
+        if (req.uri.path == '/api/v1/posts') {
+          query = req.uri.query;
+          Harness.respond(
+            req,
+            body: jsonEncode({
+              'success': true,
+              'posts': [
+                {
+                  'id': 218,
+                  'author_id': 1,
+                  'content': 'hi',
+                  'created_at': '2026-08-12 10:32:59',
+                  'feed_score': null,
+                  'like_count': 1,
+                  'comment_count': 0,
+                  'user_liked': true,
+                  'warning_count': 0,
+                  'username': 'Developer',
+                  'profile_picture_url': '/a.png',
+                  'personality_type': 'INTJ',
+                  'is_active': 'true',
+                  'rank': 'SysOp',
+                  'image': null,
+                },
+              ],
+              'has_more': true,
+              'last_created_at': '2026-08-12 10:32:59',
+              'last_id': 218,
+            }),
+          );
+        } else {
+          Harness.respond(req, status: 404);
+        }
+      });
+
+      final feedService = FeedService(h.client);
+      final page = await feedService.userPosts(1, limit: 10);
+      expect(query, 'user_id=1&limit=10');
+      expect(page.posts, hasLength(1));
+      expect(page.posts.first.authorId, 1);
+      expect(page.hasMore, true);
+      expect(page.lastCreatedAt, '2026-08-12 10:32:59');
+      expect(page.lastId, 218);
+      expect(page.lastScore, isNull);
+
+      // Next page carries the cursor.
+      await feedService.userPosts(1,
+          limit: 10, lastCreatedAt: page.lastCreatedAt, lastId: page.lastId);
+      expect(query, contains('user_id=1'));
+      expect(query, contains('last_created_at=2026-08-12+10%3A32%3A59'));
+      expect(query, contains('last_id=218'));
+
+      await h.close();
+    });
+
+    test('newerThan sends after_id (new-posts delta)', () async {
+      String? query;
+      final h = await Harness.start((req) async {
+        if (req.uri.path == '/api/v1/posts') {
+          query = req.uri.query;
+          Harness.respond(
+            req,
+            body: jsonEncode({
+              'success': true,
+              'posts': [
+                {
+                  'id': 219,
+                  'author_id': 2,
+                  'content': 'new',
+                  'created_at': '2026-08-20 09:00:00',
+                  'feed_score': 1.5,
+                  'like_count': 0,
+                  'comment_count': 0,
+                  'user_liked': false,
+                  'warning_count': 0,
+                  'username': 'Other',
+                  'profile_picture_url': '/a.png',
+                  'personality_type': null,
+                  'is_active': 'true',
+                  'rank': 'Member',
+                  'image': null,
+                  'is_owner': false,
+                },
+              ],
+              'has_more': false,
+              'last_score': null,
+              'last_id': null,
+            }),
+          );
+        } else {
+          Harness.respond(req, status: 404);
+        }
+      });
+
+      final page = await FeedService(h.client).newerThan(218, limit: 10);
+      expect(query, 'after_id=218&limit=10');
+      expect(page.posts, hasLength(1));
+      expect(page.posts.first.id, 219);
+      expect(page.hasMore, false);
+      expect(page.lastScore, isNull);
+
+      await h.close();
+    });
+  });
+
+  group('ProfileService account editing', () {
+    test('fetchSelf GETs ?self=1 and parses the full account row',
+        () async {
+      String? query;
+      final h = await Harness.start((req) async {
+        if (req.uri.path == '/api/v1/profile') {
+          query = req.uri.query;
+          Harness.respond(
+            req,
+            body: jsonEncode({
+              'success': true,
+              'account': {
+                'id': 1,
+                'username': 'Developer',
+                'email': 'dev@dev.dev',
+                'full_name': 'Dev One',
+                'profile_picture_url': '/public/avatars/a.jpg',
+                'personality_type': 'INTJ',
+                'rank': 'SysOp',
+                'bio': 'hello',
+                'birthdate': '1995-01-18',
+                'gender': 'MALE',
+                'geo_country': 230,
+                'geo_region': 3665,
+                'geo_city': 2790421,
+                'date_created': '2025-05-14 00:00:00',
+              },
+            }),
+          );
+        } else {
+          Harness.respond(req, status: 404);
+        }
+      });
+
+      final a = await ProfileService(h.client).fetchSelf();
+      expect(query, 'self=1');
+      expect(a.id, 1);
+      expect(a.email, 'dev@dev.dev');
+      expect(a.fullName, 'Dev One');
+      expect(a.birthdate, '1995-01-18');
+      expect(a.gender, 'MALE');
+      expect(a.geoCountry, 230);
+      expect(a.geoRegion, 3665);
+      expect(a.geoCity, 2790421);
+      expect(a.profilePictureUrl, '/public/avatars/a.jpg');
+      await h.close();
+    });
+
+    test('updateProfile sends every field (null clears optional ones)',
+        () async {
+      String? rawBody;
+      String? csrf;
+      final h = await Harness.start((req) async {
+        if (req.uri.path == '/feed') {
+          Harness.respond(req,
+              body: '<meta name="csrf-token" content="tok-update">');
+        } else if (req.uri.path == '/api/v1/profile') {
+          rawBody = await utf8.decoder.bind(req).join();
+          csrf = req.headers.value('x-csrf-token');
+          Harness.respond(req, body: '{"success":true}');
+        } else {
+          Harness.respond(req, status: 404);
+        }
+      });
+
+      await ProfileService(h.client).updateProfile(
+        fullName: 'New Name',
+        bio: 'new bio',
+        birthdate: null,
+        gender: 'FEMALE',
+        geoCountry: 1,
+        geoRegion: null,
+        geoCity: null,
+      );
+      expect(csrf, 'tok-update');
+      expect(rawBody, contains('"action":"update_profile"'));
+      expect(rawBody, contains('"full_name":"New Name"'));
+      expect(rawBody, contains('"birthdate":null'));
+      expect(rawBody, contains('"gender":"FEMALE"'));
+      expect(rawBody, contains('"geo_country":1'));
+      expect(rawBody, contains('"geo_region":null'));
+      await h.close();
+    });
+
+    test('changePassword sends the three fields', () async {
+      String? rawBody;
+      final h = await Harness.start((req) async {
+        if (req.uri.path == '/feed') {
+          Harness.respond(req, body: '<meta name="csrf-token" content="t">');
+        } else if (req.uri.path == '/api/v1/profile') {
+          rawBody = await utf8.decoder.bind(req).join();
+          Harness.respond(req, body: '{"success":true}');
+        } else {
+          Harness.respond(req, status: 404);
+        }
+      });
+
+      await ProfileService(h.client).changePassword(
+        currentPassword: 'old',
+        newPassword: 'newpass123',
+        confirmPassword: 'newpass123',
+      );
+      expect(rawBody,
+          contains('"current_password":"old","new_password":"newpass123",'
+              '"confirm_password":"newpass123"'));
+      await h.close();
+    });
+
+    test('uploadAvatar sends the data URL and returns the new path',
+        () async {
+      String? rawBody;
+      final h = await Harness.start((req) async {
+        if (req.uri.path == '/feed') {
+          Harness.respond(req, body: '<meta name="csrf-token" content="t">');
+        } else if (req.uri.path == '/api/v1/profile') {
+          rawBody = await utf8.decoder.bind(req).join();
+          Harness.respond(req,
+              body:
+                  '{"success":true,"profile_picture_url":"/public/avatars/new.jpg"}');
+        } else {
+          Harness.respond(req, status: 404);
+        }
+      });
+
+      final url = await ProfileService(h.client)
+          .uploadAvatar('data:image/jpeg;base64,AAAA');
+      expect(rawBody, contains('"action":"upload_avatar"'));
+      expect(rawBody, contains('"image_data":"data:image/jpeg;base64,AAAA"'));
+      expect(url, '/public/avatars/new.jpg');
+      await h.close();
+    });
+  });
+
+  group('formatJoinedDate', () {
+    test("ports profile.php's 'M j, Y'", () {
+      expect(formatJoinedDate('2024-11-20 21:05:59'), 'Nov 20, 2024');
+      expect(formatJoinedDate('2026-01-05 00:00:00'), 'Jan 5, 2026');
+      expect(formatJoinedDate('garbage'), '');
+    });
+  });
+}

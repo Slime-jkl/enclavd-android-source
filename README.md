@@ -1,47 +1,82 @@
-# Enclavd
-<center>
-<img width="2264" height="944" alt="enclavd-android" src="https://github.com/user-attachments/assets/ac709a58-21c1-4188-9f79-9a37fcec8175" />
-</center>
+# Enclavd — native app
 
+Cross-platform (Android + iOS) native client for Enclavd, written in Flutter.
+This is the `native-dev` experiment: it replaces the old WebView wrapper with
+a real native app that talks to the site's `api/v1` JSON endpoints directly.
 
+**Status: early milestone — login / register / feed.** Likes, comments,
+notifications and chat are next, one milestone at a time.
 
-A native Android wrapper for [enclavd.com](https://enclavd.com/?utm_source=github&utm_medium=android-app&utm_campaign=android-app-source), designed to provide a fast, secure, and seamless mobile web experience.
+## Architecture
 
-## Features
+- One codebase, two runners: `android/` and `ios/` are both committed.
+- CI builds the Android APK (GitHub Actions); nothing is built on-device.
+- All networking goes through `lib/api/`:
+  - `api_client.dart` — HTTP layer with a persisted cookie jar (the server
+    agent-binds sessions to the User-Agent, so every request carries the
+    exact same UA — see `AppConfig.userAgent`, never change it).
+  - `auth_service.dart` — login / register / me / logout, mirroring the
+    legacy flows the website uses (login_token → POST /auth; POST
+    /process_register; GET /api/v1/me; POST /api/v1/auth logout).
+  - `feed_service.dart` — `GET /api/v1/posts` with keyset pagination
+    (`last_score`/`last_id`).
+- Theme: `lib/theme/enclavd_theme.dart` — a 1:1 port of the website's
+  Tailwind tokens (dark, gray-950 background, gray-900 cards, blue-900
+  primary, Montserrat). Assets (fonts, default avatar, logo) are copied from
+  the website repo.
 
-* **Native WebView Integration**: Persistent cookie management and optimized User-Agent handling.
-* **App Links**: Full support for [enclavd.com](https://enclavd.com/?utm_source=github&utm_medium=android-app&utm_campaign=android-app-source) deep linking.
-* **Media Management**: Native image downloading (saved directly to DCIM) and robust file upload support.
-* **Modern UI**: Implemented with AndroidX Splash Screen API, adaptive WebP launcher icons, and Material Design bottom sheets.
-* **Performance**: Lightweight architecture with automated error handling and native-feel navigation.
+## Build-time configuration (flavors)
 
-## Build Instructions
+Every flavor-level switch is a compile-time dart-define read by
+`lib/config/app_config.dart`. The GitHub workflow applies them per flavor.
+**The app always talks to https://enclavd.com — there is no localhost build**
+(a phone can't reach a dev box; local-only verification runs against the dev
+stack via `tool/verify_live.dart` on the dev machine itself).
 
-### Prerequisites
-* Android Studio (latest stable version)
-* JDK 17+
-* Android SDK (Target API 34+)
+| Flavor  | API base            | Notifications | Insecure TLS |
+|---------|---------------------|---------------|--------------|
+| `play`  | https://enclavd.com  | on            | no           |
+| `fdroid`| https://enclavd.com  | off           | no           |
+| `dev`   | https://enclavd.com  | on            | no           |
 
-### Compilation
-1. Clone the repository: `git clone https://github.com/Slime-jkl/enclavd-android.git`
-2. Open in Android Studio: Select the root directory.
-3. Build: The project uses Gradle to manage dependencies. Once opened, sync the project and run the app configuration.
+To add a feature switch: add a `bool.fromEnvironment`/`String.fromEnvironment`
+in `AppConfig`, use it in code, then wire the `--dart-define` in
+`.github/workflows/build.yml` per flavor.
 
-## Configuration
+## Building
 
-* **Website URL & UTMs**: Modify `app/src/main/res/values/strings.xml` to update the base URL or adjust tracking parameters.
-* **Branding**: Colors are centralized in `app/src/main/res/values/colors.xml`.
-* **Assets**: Launcher icons are managed as adaptive WebP assets. Use the Android Studio Image Asset Studio to update branding imagery.
+```sh
+flutter pub get
+flutter analyze --fatal-infos
+flutter test
+flutter build apk --debug --dart-define=ENCLAVD_FLAVOR=dev
+```
 
-## Technical Roadmap
+CI (`.github/workflows/build.yml`) runs the first three on every push to
+`native-dev` and produces APKs for all flavors. The iOS job exists but is
+gated behind the `build_ios` dispatch input (needs a macOS runner; no
+codesign yet).
 
-* **Current Version**: 1.3.0
-* **CI/CD**: Automated builds and integrity checks are managed via GitHub Actions (.github/workflows/android.yml).
-* **Contribution Guidelines**: 
-    * Maintain MainActivity.kt logic for intent filtering.
-    * Ensure all new UI overlays utilize Material Design components.
-    * Verify file system permissions (MediaStore) before submitting changes.
+## Layout
 
-## License
+```
+lib/
+  main.dart                 app entry + service container
+  config/app_config.dart    build-time flavor/feature switches
+  api/                      api_client · auth_service · feed_service
+  screens/                  splash · login · register · feed
+  theme/                    Enclavd design system
+  widgets/                  post card (feed)
+test/                       unit tests (pure Dart, headless)
+assets/                     Montserrat fonts, default avatar, logo
+```
 
-This project is open-sourced under the [GPL-3.0] license. See the LICENSE file for full terms.
+## Session contract (read before touching auth)
+
+The web server agent-binds every login session to the User-Agent sent at
+login, and destroys the session on any later request with a different UA.
+`AppConfig.userAgent` is that string — it is a live session contract and
+must NEVER change between app versions. The cookie jar persists
+`enclavd_sid` (DB session) + `sid` (PHP session) so the app survives
+restarts; a 401 from `/api/v1/me` means the session is dead and the app
+returns to the login screen.
