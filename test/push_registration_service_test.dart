@@ -48,8 +48,9 @@ void main() {
 
     await service.register(transport: 'fcm', token: 'tok123');
 
-    expect(client.lastPath, '/api/v1/push/register');
+    expect(client.lastPath, '/api/v1/push');
     expect(client.lastBody, {
+      'action': 'register',
       'transport': 'fcm',
       'token': 'tok123',
       'platform': 'android',
@@ -79,7 +80,7 @@ void main() {
     final service = PushRegistrationService(() async => client);
 
     await service.register(transport: 'fcm', token: 'tok'); // must not throw
-    expect(client.lastPath, '/api/v1/push/register');
+    expect(client.lastPath, '/api/v1/push');
   });
 
   test('unregister posts the token drop', () async {
@@ -90,7 +91,11 @@ void main() {
 
     await service.unregister(transport: 'fcm', token: 'tok');
 
-    expect(client.lastPath, '/api/v1/push/unregister');
-    expect(client.lastBody, {'transport': 'fcm', 'token': 'tok'});
+    expect(client.lastPath, '/api/v1/push');
+    expect(client.lastBody, {
+      'action': 'unregister',
+      'transport': 'fcm',
+      'token': 'tok',
+    });
   });
 }

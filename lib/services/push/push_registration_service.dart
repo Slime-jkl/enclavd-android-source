@@ -24,6 +24,8 @@ class PushRegistrationService {
   /// Upserts the token. [token] is the FCM registration token OR the
   /// Unified Push endpoint URL — the server treats it as the device's
   /// push address for [transport] ('fcm' | 'unifiedpush').
+  /// Path is the extensionless api/v1 convention (clean-URL rewrite maps
+  /// /api/v1/push → push.php); the action rides in the JSON body.
   Future<void> register({
     required String transport,
     required String token,
@@ -31,7 +33,8 @@ class PushRegistrationService {
     try {
       final api = await _clientFactory();
       if (!api.hasSession) return; // not logged in yet — next start retries
-      await api.postJson('/api/v1/push/register', {
+      await api.postJson('/api/v1/push', {
+        'action': 'register',
         'transport': transport,
         'token': token,
         'platform': 'android',
@@ -52,7 +55,8 @@ class PushRegistrationService {
     try {
       final api = await _clientFactory();
       if (!api.hasSession) return;
-      await api.postJson('/api/v1/push/unregister', {
+      await api.postJson('/api/v1/push', {
+        'action': 'unregister',
         'transport': transport,
         'token': token,
       });
