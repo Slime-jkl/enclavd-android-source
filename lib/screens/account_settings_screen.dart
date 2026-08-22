@@ -10,6 +10,7 @@ import '../api/profile_service.dart';
 import '../config/app_config.dart';
 import '../main.dart';
 import '../theme/enclavd_theme.dart';
+import '../utils/user_facing_errors.dart';
 import '../widgets/enclavd_avatar.dart';
 import '../widgets/field_icon.dart';
 
@@ -18,7 +19,8 @@ import '../widgets/field_icon.dart';
 /// intentionally not included): avatar, email (read-only), full name,
 /// bio, date of birth, gender, country/city and the password change.
 class AccountSettingsScreen extends StatefulWidget {
-  const AccountSettingsScreen({super.key, this.profile, this.api});
+  const AccountSettingsScreen(
+      {super.key, this.profile, this.api, this.avatarPicker});
 
   /// Injected for tests (real screen resolves AppServices.current).
   final ProfileService? profile;
@@ -26,6 +28,10 @@ class AccountSettingsScreen extends StatefulWidget {
   /// Used for the public geo lookups (countries/cities); defaults to the
   /// current container's client.
   final ApiClient? api;
+
+  /// Test seam: how an avatar file is picked. Defaults to the system
+  /// gallery via image_picker.
+  final Future<XFile?> Function()? avatarPicker;
 
   @override
   State<AccountSettingsScreen> createState() => _AccountSettingsScreenState();
@@ -52,6 +58,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   final _fullNameController = TextEditingController();
   final _bioController = TextEditingController();
   final _emailController = TextEditingController();
+  final _scroll = ScrollController();
 
   AccountSettings? _account;
   bool _loading = true;
@@ -86,6 +93,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     _fullNameController.dispose();
     _bioController.dispose();
     _emailController.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -116,16 +124,10 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       // Best-effort geo name resolution (the site resolves names
       // client-side too). Failures just leave the ids.
       _resolveGeoNames(account);
-    } on ApiException catch (e) {
+    } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.message;
-        _loading = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _error = 'Failed to load account settings.';
+        _error = userFacingError(e, fallback: 'Failed to load account settings.');
         _loading = false;
       });
     }
@@ -193,12 +195,13 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   /// compresses to the same ballpark the site's GD resize produces).
   Future<void> _pickAvatar() async {
     try {
-      final file = await ImagePicker().pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 800,
-        maxHeight: 800,
-        imageQuality: 85,
-      );
+      final file = await (widget.avatarPicker ??
+          () => ImagePicker().pickImage(
+                source: ImageSource.gallery,
+                maxWidth: 800,
+                maxHeight: 800,
+                imageQuality: 85,
+              ))();
       if (file == null) return;
       final bytes = await file.readAsBytes();
       if (!mounted) return;
@@ -208,7 +211,15 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
             'data:image/jpeg;base64,${base64Encode(bytes)}';
       });
     } catch (_) {
-      // Picker errors are user-facing only via the unchanged avatar.
+      // A picker failure (permission denied, unreadable file) must not be
+      // silent — the user tapped Change and nothing visibly happened.
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text(
+            'Could not open your photos. Please check the app\'s photo '
+            'permission and try again.'),
+        duration: Duration(seconds: 3),
+      ));
     }
   }
 
@@ -291,9 +302,11 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       _saving = true;
       _error = null;
     });
+    // Fields first (the site's single submit), then the avatar if one was
+    // picked. Each step is reported separately so the user knows exactly
+    // what failed — a picture failure must not read as "your whole profile
+    // didn't save" (the fields above it did save).
     try {
-      // Fields first (the site's single submit), then the avatar if one
-      // was picked.
       await _profile.updateProfile(
         fullName: _fullNameController.text.trim(),
         bio: _bioController.text.trim(),
@@ -303,33 +316,51 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         geoRegion: _regionId,
         geoCity: _cityId,
       );
-      if (_avatarDataUrl.isNotEmpty) {
-        await _profile.uploadAvatar(_avatarDataUrl);
-      }
-      if (!mounted) return;
-      setState(() {
-        _pendingAvatar = null;
-        _avatarDataUrl = '';
-        _saving = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Profile updated successfully!'),
-        duration: Duration(seconds: 3),
-      ));
-      await _load(); // refresh the prefilled values
-    } on ApiException catch (e) {
+    } catch (e) {
       if (!mounted) return;
       setState(() {
         _saving = false;
-        _error = e.message;
+        _error = userFacingError(
+            e, fallback: 'Could not save your changes. Please try again.');
       });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _saving = false;
-        _error = 'Failed to save changes.';
-      });
+      _revealError();
+      return;
     }
+    if (_avatarDataUrl.isNotEmpty) {
+      try {
+        await _profile.uploadAvatar(_avatarDataUrl);
+      } catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _saving = false;
+          _error = userFacingError(
+              e,
+              fallback:
+                  'Your new profile picture could not be saved. Please try again.');
+        });
+        _revealError();
+        return; // keep the picked preview so the user can retry
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _pendingAvatar = null;
+      _avatarDataUrl = '';
+      _saving = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('Profile updated successfully!'),
+      duration: Duration(seconds: 3),
+    ));
+    await _load(); // refresh the prefilled values
+  }
+
+  /// The error banner sits at the top of the list but Save lives at the
+  /// bottom — scroll the banner into view so a failure is never invisible.
+  void _revealError() {
+    if (!_scroll.hasClients) return;
+    _scroll.animateTo(0,
+        duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
   }
 
   Future<void> _changePassword() async {
@@ -420,11 +451,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                     confirmPassword: confirmText,
                   );
                   if (context.mounted) Navigator.of(context).pop(true);
-                } on ApiException catch (e) {
-                  setDialogState(() => error = e.message);
-                } catch (_) {
-                  setDialogState(
-                      () => error = 'Failed to change the password.');
+                } catch (e) {
+                  setDialogState(() => error =
+                      userFacingError(e, fallback: 'Failed to change the password.'));
                 }
               },
               child: const Text('Save'),
@@ -485,6 +514,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     }
     final account = _account!;
     return ListView(
+      controller: _scroll,
       padding: const EdgeInsets.all(16),
       children: [
         if (_error != null) ...[
