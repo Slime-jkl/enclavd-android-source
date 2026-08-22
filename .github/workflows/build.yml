@@ -165,11 +165,12 @@ jobs:
         run: |
           APK=$(ls build/app/outputs/flutter-apk/app-fdroid-*.apk | head -1)
           echo "checking $APK"
-          DEX=$(unzip -p "$APK" classes.dex | grep -c "Lcom/google/firebase" || true)
-          GMS=$(unzip -p "$APK" classes.dex | grep -c "Lcom/google/android/gms" || true)
+          # Scan EVERY dex file (play-core landed in classes4.dex last time —
+          # a classes.dex-only grep would have missed it) for google code.
+          HITS=$(for f in $(unzip -l "$APK" | grep -oE 'classes[0-9]*\.dex'); do unzip -p "$APK" "$f"; done | grep -cE "Lcom/google/firebase|Lcom/google/android/gms|Lcom/google/android/play" || true)
           MANIFEST=$(unzip -p "$APK" AndroidManifest.xml | grep -c "firebase" || true)
-          echo "dex firebase refs: $DEX | dex gms refs: $GMS | manifest firebase refs: $MANIFEST"
-          if [ "$DEX" -gt 0 ] || [ "$GMS" -gt 0 ] || [ "$MANIFEST" -gt 0 ]; then
+          echo "google refs across all dex: $HITS | manifest firebase refs: $MANIFEST"
+          if [ "$HITS" -gt 0 ] || [ "$MANIFEST" -gt 0 ]; then
             echo "FAIL: fdroid APK contains Google/Firebase references"
             exit 1
           fi

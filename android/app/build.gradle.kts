@@ -124,6 +124,11 @@ configurations.configureEach {
     if (name.contains("fdroid", ignoreCase = true)) {
         exclude(group = "com.google.firebase")
         exclude(group = "com.google.android.gms")
+        // play-core (com.google.android.play) sneaks into the fdroid APK via
+        // AGP's dependency-metadata wiring; the F-Droid scanner flags its
+        // splitinstall/splitcompat classes as Google code. Exclude the whole
+        // play group so the fdroid binary stays Google-free.
+        exclude(group = "com.google.android.play")
         exclude(module = "firebase_core")
         exclude(module = "firebase_messaging")
     }
