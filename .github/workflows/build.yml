@@ -51,12 +51,46 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # ── F-Droid reference-binary env alignment ──────────────────────────
+      # The pipe (fdroidserver buildserver-trixie image) rebuilds the same
+      # commit and byte-compares against the binary we publish. tool/
+      # fdroid_build.sh already makes the pipe build at the SAME absolute
+      # path as Actions (the /home/runner/work/... mv), so the remaining
+      # byte-level deltas are environment paths embedded in NDK-built .so
+      # files and dex: pub-cache location, SDK/NDK location, flutter SDK
+      # location, and the JDK. These steps align the fdroid job to the
+      # buildserver image (ANDROID_HOME=/opt/android-sdk, JDK 21 via
+      # default-jdk-headless on Debian trixie, srclib flutter at
+      # /home/vagrant/build/srclib/flutter, pub cache inside the checkout).
+      - name: Align Android SDK path (F-Droid buildserver)
+        if: matrix.flavor == 'fdroid'
+        run: |
+          sudo ln -sfn "$ANDROID_HOME" /opt/android-sdk
+          echo "ANDROID_HOME=/opt/android-sdk" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=/opt/android-sdk" >> "$GITHUB_ENV"
+          echo "PUB_CACHE=$GITHUB_WORKSPACE/.pub-cache" >> "$GITHUB_ENV"
+
       - name: Set up Flutter 3.47.1
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.47.1'
           channel: 'stable'
           cache: true
+
+      - name: Align flutter SDK path (F-Droid buildserver)
+        if: matrix.flavor == 'fdroid'
+        run: |
+          FLUTTER_ROOT="$(dirname "$(dirname "$(command -v flutter)")")"
+          sudo mkdir -p /home/vagrant/build/srclib
+          sudo ln -sfn "$FLUTTER_ROOT" /home/vagrant/build/srclib/flutter
+          echo "/home/vagrant/build/srclib/flutter/bin" >> "$GITHUB_PATH"
+
+      - name: Set up JDK 21 (match F-Droid buildserver)
+        if: matrix.flavor == 'fdroid'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
 
       - name: Resolve dependencies
         run: flutter pub get
