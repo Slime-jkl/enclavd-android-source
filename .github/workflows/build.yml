@@ -1,11 +1,8 @@
 name: Build native app (Flutter)
 
 on:
-  # Always build on every push to native-dev: the branch is built by CI,
-  # never on a device.
-  push:
-    branches: [ "native-dev" ]
-  # Manual trigger for a specific flavor / build type.
+  # Manual trigger only (workflow_dispatch); runs from main — native-dev was
+  # merged into main, so the branch no longer needs its own build.
   workflow_dispatch:
     inputs:
       flavor:
