@@ -37,7 +37,7 @@ const _sample = TestResults(
   expiresOn: '2035-12-01 00:00:00',
   iePercentage: 88,
   snPercentage: 18,
-  tfPercentage: 100,
+  tfPercentage: 62,
   jpPercentage: 64,
   title: 'Strategic, Visionary',
   description: 'INTJs are known for their brilliant minds.',
@@ -93,6 +93,36 @@ void main() {
     expect(barColors().contains(const Color(0xFF3B82F6)), isTrue); // blue
     expect(barColors().contains(const Color(0xFFEF4444)), isTrue); // red
 
+    // Each colored segment must actually PAINT, i.e. have non-zero size.
+    // Real regression: the empty segment ColoredBoxes collapsed to 0px
+    // height under the Row's loose cross-axis constraints (only the
+    // gray track painted), so the bars looked all gray.
+    void expectPaintable(Color color) {
+      final f = find.byWidgetPredicate(
+          (w) => w is ColoredBox && w.color == color);
+      expect(f, findsWidgets, reason: 'no segment found for $color');
+      for (final box in tester.renderObjectList<RenderBox>(f)) {
+        expect(box.size.height, 8.0,
+            reason: 'segment $color collapsed to height ${box.size.height}');
+        expect(box.size.width, greaterThan(0),
+            reason: 'segment $color has zero width');
+      }
+    }
+
+    expectPaintable(const Color(0xFF3B82F6));
+    expectPaintable(const Color(0xFFEF4444));
+
+    // Segments are proportional to the percentages: 88% blue / 12% red.
+    double segWidth(Color c) => tester
+        .renderObject<RenderBox>(find.byWidgetPredicate(
+            (w) => w is ColoredBox && w.color == c))
+        .size
+        .width;
+    final blueW = segWidth(const Color(0xFF3B82F6));
+    final redW = segWidth(const Color(0xFFEF4444));
+    expect((blueW / (blueW + redW) - 0.88).abs(), lessThan(0.01),
+        reason: 'introversion segment should be 88% of the bar');
+
     // Reveal the lower bars one by one (ListView builds lazily).
     for (final expected in [
       {const Color(0xFF22C55E), const Color(0xFFA855F7)}, // green, purple
@@ -104,6 +134,9 @@ void main() {
       final found = barColors();
       expect(found.containsAll(expected), isTrue,
           reason: 'expected $expected among $found');
+      for (final color in expected) {
+        expectPaintable(color);
+      }
     }
   });
 

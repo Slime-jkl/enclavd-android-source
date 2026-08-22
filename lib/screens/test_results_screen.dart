@@ -317,6 +317,12 @@ class _TraitBar extends StatelessWidget {
               child: ColoredBox(
                 color: const Color(0xFF6B7280), // gray-500 track
                 child: Row(
+                  // Without stretch, the empty segment ColoredBoxes get
+                  // LOOSE height constraints and collapse to 0px — the
+                  // colored segments vanish and only the gray track
+                  // shows (the "all gray bars" bug). Stretch pins them
+                  // to the track's full height.
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Expanded(
                       flex: firstPercent,
