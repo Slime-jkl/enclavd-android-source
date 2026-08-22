@@ -23,10 +23,11 @@
         android:maxSdkVersion="28"/>
     <!-- Foreground-service keep-alive (RealtimeKeepAliveService): keeps the
          process perceptible while minimized so the live SSE/WS streams keep
-         their network. FOREGROUND_SERVICE_DATA_SYNC is required on API 34+
-         for the dataSync type. -->
+         their network. FOREGROUND_SERVICE_REMOTE_MESSAGING is required on
+         API 34+ for the remoteMessaging type (chat app — Play-approved;
+         also exempt from the Android 15 dataSync 6h cap). -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING"/>
     <application
         android:label="Enclavd"
         android:name="${applicationName}"
@@ -60,7 +61,7 @@
         <service
             android:name=".RealtimeKeepAliveService"
             android:exported="false"
-            android:foregroundServiceType="dataSync" />
+            android:foregroundServiceType="remoteMessaging" />
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
