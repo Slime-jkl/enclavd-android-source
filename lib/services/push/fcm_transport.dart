@@ -103,8 +103,12 @@ class FcmTransport implements PushTransport {
 /// firebase_messaging's killed-process entrypoint: a data message woke a
 /// headless isolate (no singletons, no UI). Run the worker-style full
 /// pipeline — fresh session from prefs, fresh plugin, shared dedupe.
+/// The entry print makes logcat diagnosis unambiguous: its presence means
+/// the message WAS delivered and the isolate ran; its absence means the
+/// OS never woke the app (force-stop / OEM battery killer / Doze).
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  debugPrint('push: FCM bg handler fired: ${message.messageId ?? 'no-id'}');
   try {
     await syncFromPush();
   } catch (e) {

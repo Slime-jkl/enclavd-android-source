@@ -39,9 +39,17 @@ class MainActivity : FlutterActivity() {
 
     // The activity is no longer visible — hold the process perceptible so
     // the Dart realtime streams keep their network while minimized.
+    // Conditional fallback: with a push transport active (FCM / Unified
+    // Push), background delivery is the push service's job — the keep-alive
+    // FGS is unnecessary and its persistent notice is noise. Dart writes
+    // the flag in PushManager; the Flutter SharedPreferences live in the
+    // native "FlutterSharedPreferences" file under the "flutter." prefix.
     override fun onStop() {
         super.onStop()
-        if (keepAliveEnabled()) {
+        val pushActive = getSharedPreferences(
+            "FlutterSharedPreferences", Context.MODE_PRIVATE
+        ).getBoolean("flutter.push_transport_active", false)
+        if (keepAliveEnabled() && !pushActive) {
             val intent = Intent(this, RealtimeKeepAliveService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(intent)

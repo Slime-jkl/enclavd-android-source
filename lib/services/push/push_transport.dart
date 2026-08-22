@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:workmanager/workmanager.dart';
 
 import '../../config/app_config.dart';
 import 'fcm_transport.dart';
@@ -67,6 +69,13 @@ class PushManager {
 
   static const String fallbackLabel = '15-minute background checks';
 
+  /// Prefs flag the native side reads (FlutterSharedPreferences, key
+  /// prefixed "flutter.") to skip the keep-alive foreground service when a
+  /// push transport is active — background delivery is the push service's
+  /// job then, and the persistent "Live updates active" notice is noise.
+  /// Written by [ensureResolved]; defaults false (fallback machinery on).
+  static const String pushActivePrefsKey = 'push_transport_active';
+
   /// Binds handlers that must exist BEFORE the engine starts — FCM's
   /// killed-process callback (firebase_messaging requires the registration
   /// early). No-op on F-Droid builds (they never touch FCM) and when the
@@ -109,6 +118,22 @@ class PushManager {
       }
     }
     debugPrint('push: delivery = ${manager.activeLabel}');
+
+    // ── Conditional fallback policy ────────────────────────────────────
+    // A push transport active → the fallback tiers are unnecessary: tell
+    // the native side to skip the keep-alive FGS (MainActivity reads this
+    // flag on onStop) and cancel the 15-minute WorkManager poller (FCM/UP
+    // already trigger a sync on every event). No transport → fallback
+    // machinery stays exactly as before.
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(pushActivePrefsKey, manager._active != null);
+    if (manager._active != null) {
+      try {
+        await Workmanager().cancelByUniqueName(backgroundTaskName);
+      } catch (e) {
+        debugPrint('push: poller cancel failed: $e');
+      }
+    }
   }
 
   /// Settings status row text.
