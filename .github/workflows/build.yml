@@ -56,6 +56,24 @@ jobs:
       - name: Unit tests
         run: flutter test
 
+      # Upload signing key (Play Store). The keystore itself is a GitHub
+      # secret (base64) — never committed. When the secrets are absent the
+      # build falls back to debug signing (still installable; only the
+      # real key produces an AAB/APK Play accepts).
+      - name: Set up upload keystore
+        if: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/enclavd-upload-keystore.p12"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/enclavd-upload-keystore.p12" >> "$GITHUB_ENV"
+          echo "ANDROID_KEYSTORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_ALIAS=$ANDROID_KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_PASSWORD=$ANDROID_KEY_PASSWORD" >> "$GITHUB_ENV"
+
       - name: Build APK
         run: |
           # ── Global build-step feature switches (AppConfig) ──────────────
@@ -89,12 +107,26 @@ jobs:
             # on phones. AOT-compiled, no IME/typing jank.
             flutter build apk --release $DEFINES
           fi
+          # Hand the defines to the AAB step (release, play flavor only).
+          echo "DEFINES=$DEFINES" >> "$GITHUB_ENV"
+
+      - name: Build AAB (Play Store)
+        if: matrix.flavor == 'play' && github.event.inputs.build_type != 'debug'
+        run: flutter build appbundle --release $DEFINES
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: enclavd-${{ matrix.flavor }}-apk
           path: build/app/outputs/flutter-apk/app-*.apk
+          if-no-files-found: error
+
+      - name: Upload AAB artifact (Play Store)
+        if: matrix.flavor == 'play' && github.event.inputs.build_type != 'debug'
+        uses: actions/upload-artifact@v4
+        with:
+          name: enclavd-play-aab
+          path: build/app/outputs/bundle/release/app-release.aab
           if-no-files-found: error
 
   # iOS runner: present in the repo (ios/) so the project is cross-platform

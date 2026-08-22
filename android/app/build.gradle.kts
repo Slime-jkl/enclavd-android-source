@@ -1,3 +1,26 @@
+import java.io.FileInputStream
+import java.util.Properties
+
+// Upload signing key. Sources, in order: CI env vars (GitHub Actions
+// secrets, set by build.yml) → android/key.properties (local builds).
+// When neither provides a key the release build falls back to the debug
+// keystore, so unconfigured builds still produce installable APKs — but
+// only the real upload key produces an AAB/APK Play Store accepts.
+val uploadKey = Properties().apply {
+    val f = rootProject.file("key.properties")
+    if (f.exists()) FileInputStream(f).use { load(it) }
+}
+fun uploadSecret(name: String): String? =
+    System.getenv(name) ?: uploadKey.getProperty(name)
+
+val hasUploadKey =
+    listOf(
+        "ANDROID_KEYSTORE_PATH",
+        "ANDROID_KEYSTORE_PASSWORD",
+        "ANDROID_KEY_ALIAS",
+        "ANDROID_KEY_PASSWORD",
+    ).all { !uploadSecret(it).isNullOrBlank() }
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -19,6 +42,17 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    signingConfigs {
+        if (hasUploadKey) {
+            create("release") {
+                storeFile = file(uploadSecret("ANDROID_KEYSTORE_PATH")!!)
+                storePassword = uploadSecret("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = uploadSecret("ANDROID_KEY_ALIAS")
+                keyPassword = uploadSecret("ANDROID_KEY_PASSWORD")
+            }
+        }
+    }
+
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.enclavd.app"
@@ -36,9 +70,11 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Upload key when configured (CI secrets / key.properties);
+            // debug keystore otherwise (unconfigured local/PR builds).
+            signingConfig =
+                if (hasUploadKey) signingConfigs.getByName("release")
+                else signingConfigs.getByName("debug")
         }
     }
 }

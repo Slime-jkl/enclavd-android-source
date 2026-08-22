@@ -10,6 +10,8 @@ pubspec.lock.bak
 android/.gradle/
 android/local.properties
 android/.idea/
+# Local upload signing key (CI uses GitHub secrets instead — see build.yml)
+android/key.properties
 *.keystore
 *.jks
 
