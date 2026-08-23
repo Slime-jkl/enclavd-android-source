@@ -1,29 +1,38 @@
-# Enclavd — native app
+# Enclavd - Personality Social Network
 
-Cross-platform (Android + iOS) native client for Enclavd, written in Flutter.
-This is the `native-dev` experiment: it replaces the old WebView wrapper with
-a real native app that talks to the site's `api/v1` JSON endpoints directly.
+Stop broadcasting into the void. Enclavd is a private social network built on compatibility. Take a personality quiz, get matched with people on your wavelength, and connect through a feed built around who you actually are.
 
-**Status: early milestone — login / register / feed.** Likes, comments,
-notifications and chat are next, one milestone at a time.
+<b>CORE PRINCIPLES</b>
+<b>Personality over Popularity:</b> Your feed is filtered by personality. Find people who are on the same frequency.
+<b>Private by Design:</b> Your profile and activity exist inside a closed network. No public indexing, no search engine scraping, no exposure outside the app.
+<b>Invite-Only Network:</b> Enclavd grows through trusted invitations only. No open sign-ups, no bot accounts, no spam profiles cluttering your feed.
+<b>Minimalist Interface:</b> A clean, stripped-back design built for focus, with nothing competing for your attention except the people you're actually connecting with.
+<b>Free to Join:</b> Enclavd is free to download and use, with no barriers to finding your community.
 
-## Architecture
+<b>WHO ENCLAVD IS FOR</b>
+• You're tired of social media feeds built around outrage and engagement bait.
+• You want a private social network instead of a public profile anyone can scrape.
+• You're looking for real conversations and genuine compatibility, not more followers.
+• You'd rather join through a trusted invite than scroll past strangers and bots.
+Enclavd is a social network for people who want depth over reach.
+Take the quiz. Find your matches. Build your enclave.
+Download Enclavd and stop existing for the feed.
 
-- One codebase, two runners: `android/` and `ios/` are both committed.
-- CI builds the Android APK (GitHub Actions); nothing is built on-device.
-- All networking goes through `lib/api/`:
-  - `api_client.dart` — HTTP layer with a persisted cookie jar (the server
-    agent-binds sessions to the User-Agent, so every request carries the
-    exact same UA — see `AppConfig.userAgent`, never change it).
-  - `auth_service.dart` — login / register / me / logout, mirroring the
-    legacy flows the website uses (login_token → POST /auth; POST
-    /process_register; GET /api/v1/me; POST /api/v1/auth logout).
-  - `feed_service.dart` — `GET /api/v1/posts` with keyset pagination
-    (`last_score`/`last_id`).
-- Theme: `lib/theme/enclavd_theme.dart` — a 1:1 port of the website's
-  Tailwind tokens (dark, gray-950 background, gray-900 cards, blue-900
-  primary, Montserrat). Assets (fonts, default avatar, logo) are copied from
-  the website repo.
+## Screenshots
+
+<p>
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/1.png" width="32%">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/2.png" width="32%">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/3.png" width="32%">
+</p>
+<p>
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/4.png" width="32%">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/5.png" width="32%">
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/6.png" width="32%">
+</p>
+<p>
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/7.png" width="32%">
+</p>
 
 ## Build-time configuration (flavors)
 
@@ -70,13 +79,3 @@ lib/
 test/                       unit tests (pure Dart, headless)
 assets/                     Montserrat fonts, default avatar, logo
 ```
-
-## Session contract (read before touching auth)
-
-The web server agent-binds every login session to the User-Agent sent at
-login, and destroys the session on any later request with a different UA.
-`AppConfig.userAgent` is that string — it is a live session contract and
-must NEVER change between app versions. The cookie jar persists
-`enclavd_sid` (DB session) + `sid` (PHP session) so the app survives
-restarts; a 401 from `/api/v1/me` means the session is dead and the app
-returns to the login screen.
