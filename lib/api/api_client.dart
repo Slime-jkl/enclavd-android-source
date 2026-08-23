@@ -383,11 +383,22 @@ class ApiClient {
           request.headers.contentType = ContentType(
               'application', 'x-www-form-urlencoded',
               charset: 'utf-8');
-          request.write(const UrlQueryEncoder().encode(formFields));
+          // Explicit Content-Length: without it dart:io sends the body
+          // chunked, and Apache/PHP-FPM does not deliver large chunked
+          // request bodies to PHP intact — json_decode/api_input() then
+          // sees an empty body and the endpoint answers "Unknown action".
+          // (Reproduced Aug 2026: 16MB JSON via chunked → 400 Unknown
+          // action; same body with Content-Length → 200. The multipart
+          // path below already sets contentLength.)
+          final encoded = const UrlQueryEncoder().encode(formFields);
+          request.contentLength = utf8.encode(encoded).length;
+          request.write(encoded);
         }
       }
       if (jsonBody != null) {
-        request.write(jsonEncode(jsonBody));
+        final encoded = jsonEncode(jsonBody);
+        request.contentLength = utf8.encode(encoded).length;
+        request.write(encoded);
       }
 
       final response = await request.close().timeout(AppConfig.receiveTimeout);

@@ -268,4 +268,35 @@ void main() {
 
     await h.close();
   });
+
+  test('JSON and form POSTs send an explicit Content-Length (not chunked)',
+      () async {
+    // Regression: dart:io writes chunked (no Content-Length) unless one is
+    // set, and Apache/PHP-FPM does not deliver LARGE chunked bodies to PHP
+    // intact — the endpoint then sees an empty body and answers
+    // "Unknown action" (reproduced Aug 2026 with a 16MB avatar upload).
+    int? jsonLen;
+    int? formLen;
+    final h = await Harness.start((req) async {
+      if (req.uri.path == '/json') {
+        jsonLen = req.headers.contentLength;
+      } else if (req.uri.path == '/form') {
+        formLen = req.headers.contentLength;
+      }
+      await utf8.decoder.bind(req).join(); // drain so the test ends cleanly
+      Harness.respond(req, body: '{"success":true}');
+    });
+
+    await h.client.postJson('/json', {
+      'action': 'upload_avatar',
+      'image_data': 'data:image/jpeg;base64,${'A' * 2000000}',
+    });
+    // Explicit byte-length header, never the -1 of chunked encoding.
+    expect(jsonLen, greaterThan(2000000));
+
+    await h.client.postForm('/form', {'a': 'b'});
+    expect(formLen, greaterThan(0));
+
+    await h.close();
+  });
 }
