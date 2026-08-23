@@ -1,3 +1,15 @@
+import com.android.build.api.instrumentation.AsmClassVisitorFactory
+import com.android.build.api.instrumentation.ClassContext
+import com.android.build.api.instrumentation.ClassData
+import com.android.build.api.instrumentation.InstrumentationParameters
+import com.android.build.api.instrumentation.InstrumentationScope
+import org.objectweb.asm.AnnotationVisitor
+import org.objectweb.asm.Attribute
+import org.objectweb.asm.ClassVisitor
+import org.objectweb.asm.FieldVisitor
+import org.objectweb.asm.MethodVisitor
+import org.objectweb.asm.Opcodes
+
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
@@ -161,4 +173,52 @@ dependencies {
 
 flutter {
     source = "../.."
+}
+
+// ── F-Droid: strip the engine's Play Store integration ──────────────────
+// The Flutter embedding ships PlayStoreDeferredComponentManager, whose
+// field/method signatures reference the com.google.android.play:core API.
+// play-core is never a dependency here (the fdroid flavor excludes the whole
+// play group), so the APK carries only dangling TYPE references — but the
+// F-Droid pipe's binary check flags those class names. Nothing in the app
+// uses the class (verified: zero references in the dex), so empty it on the
+// fdroid variant: the play-core types become unreferenced and D8 drops them
+// from the dex entirely. Same repo on CI and on the pipe → same output →
+// the byte comparison stays green.
+abstract class StripPlayStoreDeferredManager : AsmClassVisitorFactory<StripPlayStoreDeferredManager.Parameters> {
+    interface Parameters : InstrumentationParameters
+
+    override fun isInstrumentable(classData: ClassData): Boolean = true
+
+    override fun createClassVisitor(context: ClassContext, nextClassVisitor: ClassVisitor): ClassVisitor {
+        val name = context.currentClassData.className.replace('.', '/')
+        return if (name == "io/flutter/embedding/engine/deferredcomponents/PlayStoreDeferredComponentManager") {
+            // Drop every member: the class becomes an empty shell, the
+            // play-core types it referenced are gone from the dex.
+            object : ClassVisitor(Opcodes.ASM9, nextClassVisitor) {
+                override fun visitField(access: Int, name: String?, descriptor: String?, signature: String?, value: Any?): FieldVisitor? = null
+                override fun visitMethod(access: Int, name: String?, descriptor: String?, signature: String?, exceptions: Array<out String>?): MethodVisitor? = null
+                override fun visitAnnotation(descriptor: String?, visible: Boolean): AnnotationVisitor? = null
+                override fun visitInnerClass(name: String?, outerName: String?, innerName: String?, access: Int) {}
+                override fun visitOuterClass(owner: String?, name: String?, descriptor: String?) {}
+                override fun visitNestMember(nestMember: String?) {}
+                override fun visitPermittedSubclass(permittedSubclass: String?) {}
+                override fun visitAttribute(attribute: Attribute?) {}
+                override fun visitSource(source: String?, debug: String?) {}
+            }
+        } else {
+            nextClassVisitor
+        }
+    }
+}
+
+androidComponents {
+    onVariants { variant ->
+        if (variant.flavorName == "fdroid") {
+            variant.instrumentation.transformClassesWith(
+                StripPlayStoreDeferredManager::class.java,
+                InstrumentationScope.ALL
+            ) {}
+        }
+    }
 }

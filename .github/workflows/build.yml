@@ -167,14 +167,14 @@ jobs:
           echo "checking $APK"
           # Scan EVERY dex file (play-core landed in classes4.dex last time —
           # a classes.dex-only grep would have missed it) for google code.
-          # firebase/gms = REAL google code → hard fail. play/core refs are
-          # phantom: the Flutter engine's PlayStoreDeferredComponentManager
-          # carries dangling type references (no play-core class is defined in
-          # the APK — verified) — the F-Droid pipe exempts those names.
-          HITS=$(for f in $(unzip -l "$APK" | grep -oE 'classes[0-9]*\.dex'); do unzip -p "$APK" "$f"; done | grep -cE "Lcom/google/firebase|Lcom/google/android/gms" || true)
-          PLAYHITS=$(for f in $(unzip -l "$APK" | grep -oE 'classes[0-9]*\.dex'); do unzip -p "$APK" "$f"; done | grep -cE "Lcom/google/android/play" || true)
+          # firebase/gms = real google code; play/core refs are the engine's
+          # dead references (PlayStoreDeferredComponentManager), which the
+          # StripPlayStoreDeferredManager instrumentation empties on the
+          # fdroid variant — so play refs must be ZERO here too. If either
+          # shows up, the fdroid APK is not Google-free.
+          HITS=$(for f in $(unzip -l "$APK" | grep -oE 'classes[0-9]*\.dex'); do unzip -p "$APK" "$f"; done | grep -cE "Lcom/google/firebase|Lcom/google/android/gms|Lcom/google/android/play" || true)
           MANIFEST=$(unzip -p "$APK" AndroidManifest.xml | grep -c "firebase" || true)
-          echo "firebase/gms refs across all dex: $HITS | play refs (phantom, engine dead-refs): $PLAYHITS | manifest firebase refs: $MANIFEST"
+          echo "google refs across all dex: $HITS | manifest firebase refs: $MANIFEST"
           if [ "$HITS" -gt 0 ] || [ "$MANIFEST" -gt 0 ]; then
             echo "FAIL: fdroid APK contains Google/Firebase references"
             exit 1
