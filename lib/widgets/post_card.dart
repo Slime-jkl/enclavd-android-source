@@ -589,6 +589,21 @@ class _PostContentState extends State<_PostContent> {
   List<InlineSpan>? _cachedSpans;
 
   @override
+  void didUpdateWidget(covariant _PostContent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Cards are keyed by post id, so editing a post keeps this State alive
+    // while the owning screen reloads the list — the cached spans MUST be
+    // dropped or the OLD text renders until the app restarts (the reported
+    // "edit doesn't show up" bug: save + reload both kept showing the old
+    // content). Collapse an expanded post too: the new content may be
+    // shorter, and the show-more clamp must recompute.
+    if (oldWidget.post.content != widget.post.content) {
+      _cachedSpans = null;
+      _expanded = false;
+    }
+  }
+
+  @override
   void dispose() {
     for (final r in _recognizers) {
       r.dispose();
