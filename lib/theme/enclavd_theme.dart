@@ -81,6 +81,11 @@ ThemeData buildEnclavdTheme() {
     fontFamily: 'Montserrat',
     colorScheme: const ColorScheme.dark(
       primary: EnclavdColors.primaryButton,
+      // White text on every primary (blue) button — FilledButton and the
+      // like derive their foreground from onPrimary, and the dark-scheme
+      // default is black (Save Changes / password dialog Save rendered
+      // black-on-blue).
+      onPrimary: Colors.white,
       secondary: EnclavdColors.link,
       surface: EnclavdColors.card,
       error: Color(0xFFF87171),
