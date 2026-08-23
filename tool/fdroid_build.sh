@@ -34,11 +34,14 @@ mv "$CHECKOUT" "$UPSTREAM"
 cd "$UPSTREAM"
 trap 'cd "$PARENT" && mv "$UPSTREAM" "$CHECKOUT" || true' EXIT
 
-# pub get MUST run here, after the move — package_config.json stores absolute
-# paths to the pub cache, so it has to be generated at the final location.
+# pub get runs in the metadata prebuild — fdroid's scanner runs right AFTER
+# prebuild (build.py scan_source) and must see the resolved dependencies, so
+# the packages are fetched there, at the upstream path. The .pub-cache lives
+# INSIDE the checkout (moved back after prebuild, moved forward again here),
+# so re-exporting the same location makes this build use the scanned cache.
+# --no-pub keeps flutter from re-running pub get (which would also undo the
+# firebase strip below via .flutter-plugins-dependencies regeneration).
 export PUB_CACHE="$(pwd)/.pub-cache"
-"$FLUTTER" config --no-analytics
-"$FLUTTER" pub get --enforce-lockfile
 
 # Zero Google code in the fdroid build: drop the firebase plugin MODULES.
 python3 tool/strip_firebase.py
