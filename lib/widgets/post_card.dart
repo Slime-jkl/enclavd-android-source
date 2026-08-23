@@ -22,6 +22,7 @@ import 'cached_image.dart';
 import 'enclavd_avatar.dart';
 import 'enclavd_image.dart';
 import 'likers_sheet.dart';
+import 'personality_chip.dart';
 import 'shimmer.dart';
 
 /// Post card — visual port of feed/components/post_card.php, now with
@@ -481,22 +482,7 @@ class _AuthorRow extends StatelessWidget {
                     ),
                     if (post.personalityType != null) ...[
                       const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: EnclavdColors.cardSecondary,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          post.personalityType!.toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: personality ?? EnclavdColors.textSecondary,
-                          ),
-                        ),
-                      ),
+                      PersonalityChip(type: post.personalityType!),
                     ],
                     if (post.warningCount > 0) ...[
                       const SizedBox(width: 6),

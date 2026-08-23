@@ -5,6 +5,7 @@ import '../api/search_service.dart';
 import '../config/app_config.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/enclavd_avatar.dart';
+import '../widgets/personality_chip.dart';
 import '../widgets/rank_badge.dart';
 import '../widgets/shimmer.dart';
 import 'post_detail_screen.dart';
@@ -239,7 +240,7 @@ class _ResultRow extends StatelessWidget {
                       RankBadge(rank: r.rank),
                       if (personality != null) ...[
                         const SizedBox(width: 6),
-                        _PersonalityChip(type: r.personalityType),
+                        PersonalityChip(type: r.personalityType),
                       ],
                     ],
                   ),
@@ -323,37 +324,6 @@ class _Subtitle extends StatelessWidget {
           ],
         );
     }
-  }
-}
-
-/// Small MBTI pill tinted by its personality group color (the native
-/// counterpart of the site's personality badge — same design language as
-/// the user menu drawer's chip).
-class _PersonalityChip extends StatelessWidget {
-  const _PersonalityChip({required this.type});
-
-  final String type;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = PersonalityColors.forType(type) ?? EnclavdColors.textSecondary;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.16),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.45)),
-      ),
-      child: Text(
-        type,
-        style: TextStyle(
-          fontSize: 9,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.4,
-          color: color,
-        ),
-      ),
-    );
   }
 }
 

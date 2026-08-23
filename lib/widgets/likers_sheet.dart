@@ -6,6 +6,7 @@ import '../api/social_service.dart';
 import '../screens/profile_screen.dart';
 import '../theme/enclavd_theme.dart';
 import 'enclavd_avatar.dart';
+import 'personality_chip.dart';
 import 'rank_badge.dart';
 import 'shimmer.dart';
 
@@ -193,25 +194,7 @@ class _LikerRow extends StatelessWidget {
                       ),
                       if (liker.personalityType != null) ...[
                         const SizedBox(width: 6),
-                        // Same pill as the feed author row (fontSize 10,
-                        // w600, cardSecondary bg).
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: EnclavdColors.cardSecondary,
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            liker.personalityType!.toUpperCase(),
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color:
-                                  personality ?? EnclavdColors.textSecondary,
-                            ),
-                          ),
-                        ),
+                        PersonalityChip(type: liker.personalityType!),
                       ],
                       const SizedBox(width: 6),
                       // Rank badge — the site's getRankStyles() badge chip

@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../theme/enclavd_theme.dart';
 
-/// The site's personality badge (MBTI) as a small pill tinted by the
-/// personality group color — the native counterpart of
-/// render_personality_badge(). Shared by the user-menu drawer, search
-/// results and the article author row.
+/// THE canonical personality badge — the feed post-card pill (site's
+/// render_personality_badge): neutral card background, fully-rounded,
+/// the MBTI type in UPPERCASE tinted by its personality group color.
+///
+/// Every personality badge in the app uses this widget — post cards,
+/// the liked-by sheet, search results, the user-menu drawer and the
+/// article author row — so the design can never drift again.
 class PersonalityChip extends StatelessWidget {
   const PersonalityChip({super.key, required this.type});
 
@@ -16,18 +19,16 @@ class PersonalityChip extends StatelessWidget {
     final color =
         PersonalityColors.forType(type) ?? EnclavdColors.textSecondary;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.16),
+        color: EnclavdColors.cardSecondary,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.45)),
       ),
       child: Text(
-        type,
+        type.toUpperCase(),
         style: TextStyle(
           fontSize: 10,
           fontWeight: FontWeight.w600,
-          letterSpacing: 0.4,
           color: color,
         ),
       ),
