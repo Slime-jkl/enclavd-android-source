@@ -192,10 +192,25 @@ abstract class StripPlayStoreDeferredManager : AsmClassVisitorFactory<StripPlayS
 
     override fun createClassVisitor(context: ClassContext, nextClassVisitor: ClassVisitor): ClassVisitor {
         val name = context.currentClassData.className.replace('.', '/')
-        return if (name == "io/flutter/embedding/engine/deferredcomponents/PlayStoreDeferredComponentManager") {
-            // Drop every member: the class becomes an empty shell, the
-            // play-core types it referenced are gone from the dex.
+        // The full phantom set: the manager class, its lambda/inner classes
+        // (implement play-core listeners) and the Play Store split
+        // Application (extends SplitCompatApplication). All dormant — nothing
+        // in the app references them (verified in the dex).
+        val isTarget =
+            name == "io/flutter/embedding/android/FlutterPlayStoreSplitApplication" ||
+            name.startsWith("io/flutter/embedding/engine/deferredcomponents/PlayStoreDeferredComponentManager")
+        return if (isTarget) {
+            // Drop every member AND repoint the superclass/interfaces at
+            // plain java/lang/Object: a class definition keeps its
+            // superclass/interface types alive even with no members, so
+            // emptying alone would leave the play-core types referenced.
             object : ClassVisitor(Opcodes.ASM9, nextClassVisitor) {
+                override fun visit(
+                    version: Int, access: Int, name: String?, signature: String?,
+                    superName: String?, interfaces: Array<out String>?
+                ) {
+                    super.visit(version, access, name, null, "java/lang/Object", arrayOf())
+                }
                 override fun visitField(access: Int, name: String?, descriptor: String?, signature: String?, value: Any?): FieldVisitor? = null
                 override fun visitMethod(access: Int, name: String?, descriptor: String?, signature: String?, exceptions: Array<out String>?): MethodVisitor? = null
                 override fun visitAnnotation(descriptor: String?, visible: Boolean): AnnotationVisitor? = null
