@@ -141,6 +141,14 @@ jobs:
             # build.gradle.kts; Flutter's own *1000 scheme disabled by
             # force-version-code-ignoring-abi in gradle.properties).
             BUILD_FLAGS="$BUILD_FLAGS --split-per-abi"
+            # Build-input parity with the pipe (fdroid-reproducibility.md):
+            # strip the firebase plugin modules the way fdroid_build.sh does
+            # (identical plugin list = identical .flutter-plugins-dependencies
+            # = identical gradle configuration = identical dex), and --no-pub
+            # so flutter build does NOT re-run pub get and regenerate the
+            # file, undoing the strip.
+            python3 tool/strip_firebase.py
+            BUILD_FLAGS="$BUILD_FLAGS --no-pub"
           fi
           if [ "${{ matrix.flavor }}" = "dev" ]; then
             # Dev build: same production API as every flavor — the app ALWAYS
