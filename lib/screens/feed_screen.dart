@@ -71,6 +71,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   // expands into an inline search field, Enter → SearchResultsScreen).
   bool _searching = false;
   final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocus = FocusNode();
 
   // New-articles dot on the Updates bottom-nav tab: true while the newest
   // article id is ahead of the id stored at the last visit (launch check
@@ -163,16 +164,25 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     _realtimeSub?.cancel();
     _sseStatusSub?.cancel();
     _searchController.dispose();
+    _searchFocus.dispose();
     _scrollController.dispose();
     super.dispose();
   }
 
-  /// Header search toggle: the magnifier (left of the bell) expands into
-  /// an inline search field; the xmark collapses it again.
-  void _toggleSearch() {
+  /// Header search: the magnifier (left of the bell) expands into an
+  /// inline search field. Closing happens via the field's own X (white,
+  /// inside the bar) or by tapping anywhere outside it — both clear the
+  /// query and collapse back to the logo.
+  void _openSearch() {
+    setState(() => _searching = true);
+  }
+
+  void _closeSearch() {
+    _searchFocus.unfocus();
+    if (!_searching) return;
     setState(() {
-      _searching = !_searching;
-      if (!_searching) _searchController.clear();
+      _searching = false;
+      _searchController.clear();
     });
   }
 
@@ -621,18 +631,36 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
               ? TextField(
                   key: const ValueKey('header-search-field'),
                   controller: _searchController,
+                  focusNode: _searchFocus,
                   autofocus: true,
                   textInputAction: TextInputAction.search,
                   onSubmitted: _submitSearch,
+                  onTapOutside: (_) => _closeSearch(),
                   style: const TextStyle(
                       fontSize: 15, color: EnclavdColors.textPrimary),
                   cursorColor: EnclavdColors.link,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     hintText: 'Search posts, people, comments…',
-                    hintStyle: TextStyle(
+                    hintStyle: const TextStyle(
                         color: EnclavdColors.textSecondary, fontSize: 15),
-                    border: InputBorder.none,
                     isDense: true,
+                    // The bar look: subtle fill + rounded corners, with the
+                    // close X INSIDE the field (white) instead of a red
+                    // button in the header actions.
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 0.08),
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 8),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(10),
+                      borderSide: BorderSide.none,
+                    ),
+                    suffixIcon: IconButton(
+                      onPressed: _closeSearch,
+                      tooltip: 'Close search',
+                      icon: const FaIcon(FontAwesomeIcons.xmark,
+                          size: 16, color: Colors.white),
+                    ),
                   ),
                 )
               : Image.asset('assets/images/enclavd-logo-white.png',
@@ -641,24 +669,15 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
         actions: [
           // Site header: the search button (left of the bell) — expands
           // into the inline field above; Enter lands on the results
-          // screen.
-          IconButton(
-            icon: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              child: FaIcon(
-                _searching
-                    ? FontAwesomeIcons.xmark
-                    : FontAwesomeIcons.magnifyingGlass,
-                key: ValueKey(_searching),
-                size: 20,
-                color: _searching
-                    ? EnclavdColors.likeActive
-                    : EnclavdColors.textSecondary,
-              ),
+          // screen. While the field is engaged it takes the button's
+          // space (the close X lives inside the bar itself).
+          if (!_searching)
+            IconButton(
+              icon: const FaIcon(FontAwesomeIcons.magnifyingGlass,
+                  size: 20, color: EnclavdColors.textSecondary),
+              tooltip: 'Search',
+              onPressed: _openSearch,
             ),
-            tooltip: _searching ? 'Close search' : 'Search',
-            onPressed: _toggleSearch,
-          ),
           // Site header: the bell notifications link (red unread badge,
           // 99+ capped) sits left of the paper-plane.
           if (AppConfig.enableNotifications) ...[
