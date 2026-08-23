@@ -1,7 +1,7 @@
 name: enclavd
 description: "Enclavd — native app (Flutter). One codebase for Android and iOS, talking to the api/v1 backend."
 publish_to: "none"
-version: 2.0.1+201
+version: 2.0.2+202
 
 environment:
   sdk: ^3.5.0
