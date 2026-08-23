@@ -44,3 +44,10 @@ python3 tool/strip_firebase.py
     --dart-define=ENCLAVD_FEATURE_NOTIFICATIONS=true \
     --dart-define=ENCLAVD_FEATURE_CHAT=true \
     --dart-define=ENCLAVD_FEATURE_SEARCH=true
+
+# The pipe's binary check rejects the 'Dependency metadata' signing-block
+# entry AGP adds for Play. Strip it — v2/v3 signatures do NOT cover the
+# signing block (validity preserved), and zip entries are untouched (the
+# byte comparison is unaffected). Actions strips identically.
+python3 tool/strip_dep_metadata.py \
+    build/app/outputs/flutter-apk/app-fdroid-release.apk

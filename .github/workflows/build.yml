@@ -156,6 +156,19 @@ jobs:
           # Hand the defines to the AAB step (release, play flavor only).
           echo "DEFINES=$DEFINES" >> "$GITHUB_ENV"
 
+      # AGP writes a "Dependency metadata" entry (block ID 0x504b4453) into
+      # the APK signing block for Play; the F-Droid pipe's binary check flags
+      # it as an extra signing block. Strip it here — v2/v3 signatures do NOT
+      # cover the signing block, so the signature stays valid (the next step
+      # verifies it), and zip entries are untouched, so the byte comparison
+      # with the pipe's build is unaffected (the pipe strips identically via
+      # tool/fdroid_build.sh).
+      - name: Strip AGP dependency metadata (F-Droid pipe)
+        if: matrix.flavor == 'fdroid'
+        run: |
+          APK=$(ls build/app/outputs/flutter-apk/app-fdroid-release.apk)
+          python3 tool/strip_dep_metadata.py "$APK"
+
       # F-Droid acceptance gate: the fdroid APK must contain NO Google
       # code. Grep the dex classes + merged manifest for firebase /
       # play-services references and fail the build if any survive the
