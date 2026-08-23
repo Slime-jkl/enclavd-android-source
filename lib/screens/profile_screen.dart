@@ -9,6 +9,7 @@ import '../config/app_config.dart';
 import '../main.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/enclavd_avatar.dart';
+import '../widgets/personality_chip.dart';
 import '../widgets/post_card.dart';
 import '../widgets/rank_badge.dart';
 import '../widgets/shimmer.dart';
@@ -365,7 +366,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return _ErrorView(message: _profileError!, onRetry: _loadAll);
     }
 
-    final itemCount = 2 + _posts.length + (_postsLoading ? 1 : 0);
+    final showEmptyState =
+        !_postsLoading && _postsError == null && _posts.isEmpty;
+    final itemCount =
+        2 + _posts.length + (showEmptyState ? 1 : 0) + (_postsLoading ? 1 : 0);
     return ListView.builder(
       controller: _scrollController,
       physics: const AlwaysScrollableScrollPhysics(),
@@ -402,6 +406,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ElevatedButton(
                       onPressed: _loadFirstPosts, child: const Text('Retry')),
                 ],
+              ),
+            );
+          }
+          if (showEmptyState) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 28),
+              child: Center(
+                child: Text(
+                  'This user has no posts.',
+                  style: TextStyle(
+                      color: EnclavdColors.textSecondary, fontSize: 14),
+                ),
               ),
             );
           }
@@ -526,18 +542,9 @@ class _ProfileHeader extends StatelessWidget {
                             ),
                           ),
                         ),
-                        if (!profile.isOwn) ...[
+                        if (profile.personalityType != null) ...[
                           const SizedBox(width: 6),
-                          Text(
-                            '• ${profile.isOnline ? 'online' : 'offline'}',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.normal,
-                              color: profile.isOnline
-                                  ? const Color(0xFF4ADE80) // green-400
-                                  : const Color(0xFF6B7280), // gray-500
-                            ),
-                          ),
+                          PersonalityChip(type: profile.personalityType!),
                         ],
                         if (profile.warningCount > 0) ...[
                           const SizedBox(width: 6),
@@ -591,7 +598,7 @@ class _ProfileHeader extends StatelessWidget {
                     if (!profile.isOwn) ...[
                       const SizedBox(height: 12),
                       // Site: Follow + Message in one row (message flips to
-                      // a disabled "Send Message" for blocked members).
+                      // a disabled "Message" for blocked members).
                       Row(
                         children: [
                           Expanded(
@@ -969,7 +976,7 @@ class _MessageButton extends StatelessWidget {
           blocked ? FontAwesomeIcons.ban : FontAwesomeIcons.envelope,
           size: 13,
         ),
-        label: Text(blocked ? 'Send Message' : 'Message'),
+        label: Text(blocked ? 'Message' : 'Message'),
       ),
     );
   }
