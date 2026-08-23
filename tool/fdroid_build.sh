@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # F-Droid pipe build for the fdroid flavor. Called from metadata:
-#   build: bash tool/fdroid_build.sh $$flutter$$
+#   build: bash tool/fdroid_build.sh $$flutter$$ [target-platform]
 #
 # Builds REPRODUCIBLY against the GitHub Actions binary: same toolchain (the
 # repo's own pins — AGP 9.1.0 / Gradle 9.3.1, no seds) and the SAME absolute
@@ -9,13 +9,19 @@
 # path into libapp.so. The metadata needs the sudo: block to create + chown
 # that path. The checkout is moved there for the build and moved back on exit
 # so fdroidserver still finds the APK at the expected location.
+#
+# Optional second arg = flutter target-platform (android-arm, android-arm64,
+# android-x64). The fdroiddata metadata has ONE build block per ABI (F-Droid's
+# build-flutter template), each pinning its ABI here; when omitted the script
+# builds ALL ABIs (CI reference builds all three in one invocation).
 set -euo pipefail
 set -x
 
-FLUTTER="${1:?usage: fdroid_build.sh <flutter-dir-or-binary>}"
+FLUTTER="${1:?usage: fdroid_build.sh <flutter-dir-or-binary> [target-platform]}"
 if [ -d "$FLUTTER" ]; then
     FLUTTER="$FLUTTER/bin/flutter"
 fi
+TARGET_PLATFORM="${2:-}"
 
 UPSTREAM="/home/runner/work/enclavd-android-source/enclavd-android-source"
 ORIG="$(pwd)"
@@ -43,7 +49,12 @@ python3 tool/strip_firebase.py
 # the version codes come out as base*10 + abi via android/app/build.gradle.kts
 # (base*1000 + abi disabled via force-version-code-ignoring-abi in
 # android/gradle.properties). Outputs: app-<abi>-fdroid-release.apk.
+TARGET_ARGS=()
+if [ -n "$TARGET_PLATFORM" ]; then
+    TARGET_ARGS=(--target-platform="$TARGET_PLATFORM")
+fi
 "$FLUTTER" build apk --release --no-pub --flavor fdroid --split-per-abi \
+    "${TARGET_ARGS[@]}" \
     --dart-define=ENCLAVD_FLAVOR=fdroid \
     --dart-define=ENCLAVD_FEATURE_NOTIFICATIONS=true \
     --dart-define=ENCLAVD_FEATURE_CHAT=true \

@@ -161,6 +161,17 @@ jobs:
             # Debug only via workflow_dispatch (JIT: good for hot-reload
             # iteration, feels laggy on-device — never the push default).
             flutter build apk --flavor "${{ matrix.flavor }}" --debug $DEFINES
+          elif [ "${{ matrix.flavor }}" = "fdroid" ]; then
+            # F-Droid reference binaries: the pipe has ONE build block per
+            # ABI (fdroiddata templates/build-flutter.yml), each invoking
+            # tool/fdroid_build.sh with a --target-platform pin. Byte
+            # reproducibility requires IDENTICAL build inputs, so build each
+            # ABI in its own invocation with the same flag — never one
+            # all-ABIs invocation (different gradle/flutter inputs → different
+            # bytes → verify_apks fails).
+            for ABI in android-arm android-arm64 android-x64; do
+              flutter build apk --flavor fdroid --release $BUILD_FLAGS --target-platform="$ABI" $DEFINES
+            done
           else
             # Release by default: the push-built APK is what gets installed
             # on phones. AOT-compiled, no IME/typing jank. --flavor selects
