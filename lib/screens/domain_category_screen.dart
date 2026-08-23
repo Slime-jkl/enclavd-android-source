@@ -7,6 +7,7 @@ import '../api/domains_service.dart';
 import '../api/messages_service.dart'; // parseDbTime (DB UTC wall-clock)
 import '../config/app_config.dart';
 import '../theme/enclavd_theme.dart';
+import '../widgets/error_view.dart';
 import '../utils/domain_icons.dart';
 import '../widgets/enclavd_avatar.dart';
 import '../widgets/post_card.dart'; // relativeTime
@@ -176,23 +177,7 @@ class _DomainCategoryScreenState extends State<DomainCategoryScreen> {
       );
     }
     if (_error != null && _threads.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const FaIcon(FontAwesomeIcons.triangleExclamation,
-                  color: EnclavdColors.likeActive, size: 28),
-              const SizedBox(height: 10),
-              Text(_error!,
-                  style: const TextStyle(color: EnclavdColors.textSecondary)),
-              const SizedBox(height: 12),
-              TextButton(onPressed: _loadFirst, child: const Text('Retry')),
-            ],
-          ),
-        ),
-      );
+return ErrorView(message: _error!, onRetry: _loadFirst);
     }
     if (_threads.isEmpty) {
       // Site empty state (category view: "No discussions in this category

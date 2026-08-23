@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -90,6 +91,17 @@ class ApiException implements Exception {
 
   @override
   String toString() => 'ApiException($status): $message';
+}
+
+/// Friendly, non-technical text for ANY caught error — the one way error
+/// messages reach a member's eyes (toasts, inline banners, error states).
+/// ApiExceptions already carry plain-language text (see ApiClient: network
+/// → "No network. Check your connection and try again.", 5xx → "Something
+/// went wrong on our side…"); anything else is a programming surprise and
+/// gets the generic ask — never raw internals.
+String friendlyErrorText(Object e) {
+  if (e is ApiException && e.message.isNotEmpty) return e.message;
+  return 'Something went wrong. Please try again.';
 }
 
 /// All api/v1 + legacy auth flows a native client needs.
@@ -227,13 +239,13 @@ class ApiClient {
   }) async {
     final resp = await _exchange(method: 'GET', path: path, query: query);
     if (resp.status < 200 || resp.status >= 300) {
-      throw ApiException(_errorFrom(resp), status: resp.status);
+      throw ApiException(_messageFor(resp), status: resp.status);
     }
     try {
       final decoded = jsonDecode(resp.body);
       if (decoded is Map<String, dynamic>) return decoded;
     } catch (_) {}
-    throw const ApiException('Invalid response from server');
+    throw const ApiException('Something went wrong on our side. Please try again.');
   }
 
   /// HTTP POST of a JSON body against the api/v1 (extensionless path).
@@ -260,12 +272,12 @@ class ApiClient {
       _csrfToken = null;
       final retry = await _postJsonOnce(path, body, await _fetchCsrfToken());
       if (retry.status < 200 || retry.status >= 300) {
-        throw ApiException(_errorFrom(retry), status: retry.status);
+        throw ApiException(_messageFor(retry), status: retry.status);
       }
       return _decodeJson(retry);
     }
     if (resp.status < 200 || resp.status >= 300) {
-      throw ApiException(_errorFrom(resp), status: resp.status);
+      throw ApiException(_messageFor(resp), status: resp.status);
     }
     return _decodeJson(resp);
   }
@@ -292,8 +304,16 @@ class ApiClient {
       final decoded = jsonDecode(resp.body);
       if (decoded is Map<String, dynamic>) return decoded;
     } catch (_) {}
-    throw const ApiException('Invalid response from server');
+    throw const ApiException('Something went wrong on our side. Please try again.');
   }
+
+  /// Friendly message for a non-2xx response: 4xx bodies carry real
+  /// business messages; 5xx is our side breaking — never surface raw
+  /// server/stack text for those, just the retry ask.
+  String _messageFor(RawResponse resp) =>
+      resp.status >= 500
+          ? 'Something went wrong on our side. Please try again.'
+          : _errorFrom(resp);
 
   /// POST a JSON body and return the decoded JSON regardless of HTTP
   /// status (2xx or 4xx/5xx), so callers can read structured error
@@ -434,10 +454,15 @@ class ApiClient {
         location: location,
         body: body,
       );
-    } on SocketException catch (e) {
-      throw ApiException('Network error: ${e.message}');
-    } on HttpException catch (e) {
-      throw ApiException('HTTP error: ${e.message}');
+    } on SocketException {
+      // Friendly, non-technical: raw messages ("Failed host lookup:
+      // 'enclavd.com'", "Connection timed out") are meaningless to a
+      // member and leak internals. Everything here is offline-ish.
+      throw const ApiException('No network. Check your connection and try again.');
+    } on HttpException {
+      throw const ApiException('No network. Check your connection and try again.');
+    } on TimeoutException {
+      throw const ApiException('No network. Check your connection and try again.');
     } finally {
       client.close(force: true);
     }

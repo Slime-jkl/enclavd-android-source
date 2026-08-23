@@ -133,7 +133,7 @@ class ArticlesService {
         query: <String, String>{'slug': slug});
     final article = json['article'];
     if (article is! Map<String, dynamic>) {
-      throw const ApiException('Invalid response from server');
+      throw const ApiException('Something went wrong on our side. Please try again.');
     }
     return Article.fromJson(article);
   }

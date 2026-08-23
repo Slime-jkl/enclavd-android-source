@@ -11,6 +11,7 @@ import '../services/message_notifications.dart';
 import '../services/realtime_service.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/enclavd_avatar.dart';
+import '../widgets/error_view.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
 
@@ -433,7 +434,7 @@ class _ChatScreenState extends State<ChatScreen> {
       );
     }
     if (_error != null && _messages.isEmpty) {
-      return _ThreadError(message: _error!, onRetry: _load);
+      return ErrorView(message: _error!, onRetry: _load);
     }
     if (_messages.isEmpty) {
       // Fresh conversation: no history yet — the input bar below is the
@@ -675,37 +676,6 @@ class _MessageBubble extends StatelessWidget {
           timeLine,
         ],
       ),
-    );
-  }
-}
-
-class _ThreadError extends StatelessWidget {
-  const _ThreadError({required this.message, required this.onRetry});
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      children: [
-        const SizedBox(height: 120),
-        const FaIcon(FontAwesomeIcons.commentSlash,
-            color: EnclavdColors.textSecondary, size: 56),
-        const SizedBox(height: 16),
-        Center(
-          child: Text(
-            message,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: EnclavdColors.textSecondary),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Center(
-          child: ElevatedButton(onPressed: onRetry, child: const Text('Retry')),
-        ),
-      ],
     );
   }
 }

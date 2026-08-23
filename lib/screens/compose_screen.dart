@@ -134,7 +134,7 @@ class _ComposeScreenState extends State<ComposeScreen> {
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _error = e.toString().replaceFirst('ApiException', 'Error');
+        _error = friendlyErrorText(e);
       });
     }
   }

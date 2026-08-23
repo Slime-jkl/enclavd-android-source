@@ -8,6 +8,7 @@ import '../api/articles_service.dart';
 import '../api/messages_service.dart'; // parseDbTime (DB UTC wall-clock)
 import '../config/app_config.dart';
 import '../theme/enclavd_theme.dart';
+import '../widgets/error_view.dart';
 import '../utils/article_html.dart';
 import '../widgets/enclavd_avatar.dart';
 import '../widgets/enclavd_image.dart';
@@ -142,23 +143,7 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
 
   Widget _buildBody() {
     if (_error != null && _article == null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const FaIcon(FontAwesomeIcons.triangleExclamation,
-                  color: EnclavdColors.likeActive, size: 28),
-              const SizedBox(height: 10),
-              Text(_error!,
-                  style: const TextStyle(color: EnclavdColors.textSecondary)),
-              const SizedBox(height: 12),
-              TextButton(onPressed: _load, child: const Text('Retry')),
-            ],
-          ),
-        ),
-      );
+return ErrorView(message: _error!, onRetry: _load);
     }
     final article = _article;
     if (article == null) {

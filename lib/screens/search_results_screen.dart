@@ -4,6 +4,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../api/search_service.dart';
 import '../config/app_config.dart';
 import '../theme/enclavd_theme.dart';
+import '../widgets/error_view.dart';
 import '../widgets/enclavd_avatar.dart';
 import '../widgets/personality_chip.dart';
 import '../widgets/rank_badge.dart';
@@ -83,23 +84,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
 
   Widget _buildBody() {
     if (_error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const FaIcon(FontAwesomeIcons.triangleExclamation,
-                  color: EnclavdColors.likeActive, size: 28),
-              const SizedBox(height: 10),
-              Text(_error!,
-                  style: const TextStyle(color: EnclavdColors.textSecondary)),
-              const SizedBox(height: 12),
-              TextButton(onPressed: _load, child: const Text('Retry')),
-            ],
-          ),
-        ),
-      );
+return ErrorView(message: _error!, onRetry: _load);
     }
     final results = _results;
     if (results == null) {

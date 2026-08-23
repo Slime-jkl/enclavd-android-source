@@ -5,6 +5,7 @@ import '../api/api_client.dart';
 import '../api/results_service.dart';
 import '../main.dart';
 import '../theme/enclavd_theme.dart';
+import '../widgets/error_view.dart';
 import 'test_screen.dart';
 
 /// The native Test Results screen — a modern port of the site's
@@ -105,29 +106,7 @@ class _TestResultsScreenState extends State<TestResultsScreen> {
     }
     if (_noResults) return _NoResultsView(onTakeTest: _openTestPage);
     if (_error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const FaIcon(FontAwesomeIcons.cloudArrowDown,
-                  size: 34, color: EnclavdColors.textSecondary),
-              const SizedBox(height: 12),
-              Text(_error!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: EnclavdColors.textSecondary)),
-              const SizedBox(height: 16),
-              FilledButton(
-                style: FilledButton.styleFrom(
-                    backgroundColor: EnclavdColors.primaryButton),
-                onPressed: _load,
-                child: const Text('Try again'),
-              ),
-            ],
-          ),
-        ),
-      );
+return ErrorView(message: _error!, onRetry: _load);
     }
     return _ResultsView(results: _results!, onTakeTest: _openTestPage);
   }

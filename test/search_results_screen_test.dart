@@ -187,7 +187,7 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(find.textContaining('Search failed'), findsOneWidget);
-    expect(find.text('Retry'), findsOneWidget);
+    expect(find.text('Try again'), findsOneWidget);
   });
 }
 

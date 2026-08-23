@@ -5,6 +5,7 @@ import '../api/auth_service.dart';
 import '../api/social_service.dart';
 import '../screens/profile_screen.dart';
 import '../theme/enclavd_theme.dart';
+import 'error_view.dart';
 import 'enclavd_avatar.dart';
 import 'personality_chip.dart';
 import 'rank_badge.dart';
@@ -109,15 +110,7 @@ class _LikersSheetState extends State<LikersSheet> {
       );
     }
     if (_error != null) {
-      return Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(_error!,
-              style: const TextStyle(color: EnclavdColors.textSecondary)),
-          const SizedBox(height: 12),
-          ElevatedButton(onPressed: _load, child: const Text('Retry')),
-        ],
-      );
+return ErrorView(message: _error!, onRetry: _load);
     }
     final likers = _likers ?? const [];
     if (likers.isEmpty) {

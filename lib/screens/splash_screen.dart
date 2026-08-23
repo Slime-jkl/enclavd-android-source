@@ -1,8 +1,9 @@
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
 
+import '../api/api_client.dart';
 import '../api/auth_service.dart';
 import '../main.dart';
+import '../widgets/error_view.dart';
 import 'ban_screen.dart';
 import 'feed_screen.dart';
 import 'login_screen.dart';
@@ -62,9 +63,9 @@ class _SplashScreenState extends State<SplashScreen> {
         await services.apiClient.clearSession();
         _goTo(LoginScreen.routeName);
       }
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
-      setState(() => _error = 'Can\'t reach Enclavd right now.');
+      setState(() => _error = friendlyErrorText(e));
     }
   }
 
@@ -75,9 +76,9 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(
-        child: _error == null
-            ? Column(
+      body: _error == null
+          ? Center(
+              child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Image.asset('assets/images/default-logo.png', height: 72),
@@ -89,25 +90,15 @@ class _SplashScreenState extends State<SplashScreen> {
                   const Text('Loading…',
                       style: TextStyle(color: Color(0xFF9CA3AF))),
                 ],
-              )
-            : Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const FaIcon(FontAwesomeIcons.wifi,
-                      color: Color(0xFF9CA3AF), size: 56),
-                  const SizedBox(height: 16),
-                  const Text('Can\'t reach Enclavd right now.'),
-                  const SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: () {
-                      setState(() => _error = null);
-                      _bootstrap();
-                    },
-                    child: const Text('Retry'),
-                  ),
-                ],
               ),
-      ),
+            )
+          : ErrorView(
+              message: _error!,
+              onRetry: () {
+                setState(() => _error = null);
+                _bootstrap();
+              },
+            ),
     );
   }
 }

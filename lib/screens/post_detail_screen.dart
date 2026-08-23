@@ -1,4 +1,3 @@
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
 
 import '../api/api_client.dart';
@@ -6,6 +5,7 @@ import '../api/feed_service.dart';
 import '../config/app_config.dart';
 import '../main.dart';
 import '../theme/enclavd_theme.dart';
+import '../widgets/error_view.dart';
 import '../widgets/post_card.dart';
 import '../widgets/shimmer.dart';
 import 'compose_screen.dart';
@@ -141,27 +141,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   Widget _buildBody() {
     final error = _error;
     if (error != null) {
-      return ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        children: [
-          const SizedBox(height: 120),
-          FaIcon(FontAwesomeIcons.cloudArrowDown,
-              color: EnclavdColors.textSecondary.withValues(alpha: 0.6),
-              size: 56),
-          const SizedBox(height: 16),
-          Center(
-            child: Text(
-              error,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: EnclavdColors.textSecondary),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Center(
-            child: ElevatedButton(onPressed: _load, child: const Text('Retry')),
-          ),
-        ],
-      );
+return ErrorView(message: error, onRetry: _load);
     }
     final post = _post;
     if (_loading || post == null) {

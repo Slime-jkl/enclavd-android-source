@@ -200,7 +200,7 @@ void main() {
     final service = _FakeArticles(); // article null → ApiException
     await pumpDetail(tester, service);
     expect(find.text('Article not found'), findsOneWidget);
-    expect(find.text('Retry'), findsOneWidget);
+    expect(find.text('Try again'), findsOneWidget);
   });
 }
 

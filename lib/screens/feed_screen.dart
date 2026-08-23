@@ -16,6 +16,7 @@ import '../services/social_notifications.dart';
 import '../services/sound_service.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/enclavd_avatar.dart';
+import '../widgets/error_view.dart';
 import '../widgets/post_card.dart';
 import '../widgets/shimmer.dart';
 import '../widgets/user_menu_drawer.dart';
@@ -897,10 +898,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
       );
     }
     if (_error != null && _posts.isEmpty) {
-      return _ErrorView(
-        message: _error!,
-        onRetry: _loadFirst,
-      );
+      return ErrorView(message: _error!, onRetry: _loadFirst);
     }
     final bannerOffset = _showTestBanner ? 1 : 0;
     return ListView.builder(
@@ -1003,38 +1001,6 @@ class _PersonalityTestBanner extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.message, required this.onRetry});
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      children: [
-        const SizedBox(height: 120),
-        FaIcon(FontAwesomeIcons.cloudArrowDown,
-            color: EnclavdColors.textSecondary.withValues(alpha: 0.6),
-            size: 56),
-        const SizedBox(height: 16),
-        Center(
-          child: Text(
-            message,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: EnclavdColors.textSecondary),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Center(
-          child: ElevatedButton(onPressed: onRetry, child: const Text('Retry')),
-        ),
-      ],
     );
   }
 }

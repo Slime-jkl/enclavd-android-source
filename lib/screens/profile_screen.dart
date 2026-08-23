@@ -9,6 +9,7 @@ import '../config/app_config.dart';
 import '../main.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/enclavd_avatar.dart';
+import '../widgets/error_view.dart';
 import '../widgets/personality_chip.dart';
 import '../widgets/post_card.dart';
 import '../widgets/rank_badge.dart';
@@ -276,7 +277,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(
             content: Text(
-                'Could not update follow. ${e.toString().replaceFirst('ApiException', '')}')));
+                'Could not update follow. ${friendlyErrorText(e)}')));
     }
   }
 
@@ -363,7 +364,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     }
     if (_profileError != null && profile == null) {
-      return _ErrorView(message: _profileError!, onRetry: _loadAll);
+      return ErrorView(message: _profileError!, onRetry: _loadAll);
     }
 
     final showEmptyState =
@@ -1021,37 +1022,6 @@ class _ProfileHeaderSkeleton extends StatelessWidget {
           ShimmerBox(width: 200, height: 13),
         ],
       ),
-    );
-  }
-}
-
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.message, required this.onRetry});
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      children: [
-        const SizedBox(height: 120),
-        const FaIcon(FontAwesomeIcons.userSlash,
-            color: EnclavdColors.textSecondary, size: 56),
-        const SizedBox(height: 16),
-        Center(
-          child: Text(
-            message,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: EnclavdColors.textSecondary),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Center(
-          child: ElevatedButton(onPressed: onRetry, child: const Text('Retry')),
-        ),
-      ],
     );
   }
 }

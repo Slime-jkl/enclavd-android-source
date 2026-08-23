@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../api/auth_service.dart';
 import '../api/site_config_service.dart';
+import '../api/api_client.dart';
 import '../config/app_config.dart';
 import '../main.dart';
 import '../theme/enclavd_theme.dart';
@@ -275,7 +276,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _error = e.toString().replaceFirst('ApiException', 'Error');
+        _error = friendlyErrorText(e);
       });
     }
   }

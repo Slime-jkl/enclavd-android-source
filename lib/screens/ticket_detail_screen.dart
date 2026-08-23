@@ -6,6 +6,7 @@ import '../api/reports_service.dart';
 import '../config/app_config.dart';
 import '../main.dart';
 import '../theme/enclavd_theme.dart';
+import '../widgets/error_view.dart';
 import '../widgets/enclavd_avatar.dart';
 import '../widgets/rank_badge.dart';
 
@@ -146,29 +147,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
       );
     }
     if (_error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const FaIcon(FontAwesomeIcons.cloudArrowDown,
-                  size: 34, color: EnclavdColors.textSecondary),
-              const SizedBox(height: 12),
-              Text(_error!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: EnclavdColors.textSecondary)),
-              const SizedBox(height: 16),
-              FilledButton(
-                style: FilledButton.styleFrom(
-                    backgroundColor: EnclavdColors.primaryButton),
-                onPressed: _load,
-                child: const Text('Try again'),
-              ),
-            ],
-          ),
-        ),
-      );
+return ErrorView(message: _error!, onRetry: _load);
     }
     final detail = _detail!;
     return ListView(

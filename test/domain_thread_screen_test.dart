@@ -226,7 +226,7 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('Thread not found.'), findsOneWidget);
-    expect(find.text('Retry'), findsOneWidget);
+    expect(find.text('Try again'), findsOneWidget);
   });
 
   testWidgets('shows shimmer while loading', (tester) async {

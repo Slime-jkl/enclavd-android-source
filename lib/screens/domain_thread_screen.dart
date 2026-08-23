@@ -12,6 +12,7 @@ import '../api/social_service.dart';
 import '../config/app_config.dart';
 import '../main.dart'; // AppServices (edit/delete need posts + social)
 import '../theme/enclavd_theme.dart';
+import '../widgets/error_view.dart';
 import '../utils/content_spans.dart'; // commentContentSpans (@mentions, URLs)
 import '../widgets/enclavd_avatar.dart';
 import '../widgets/post_card.dart';
@@ -166,7 +167,7 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _replying = false);
-      _toast(e.toString().replaceFirst('ApiException', 'Error'));
+      _toast(friendlyErrorText(e));
     }
   }
 
@@ -306,27 +307,7 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
   Widget _buildBody() {
     final error = _error;
     if (error != null) {
-      return ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        children: [
-          const SizedBox(height: 120),
-          FaIcon(FontAwesomeIcons.ghost,
-              color: EnclavdColors.textSecondary.withValues(alpha: 0.6),
-              size: 56),
-          const SizedBox(height: 16),
-          Center(
-            child: Text(
-              error,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: EnclavdColors.textSecondary),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Center(
-            child: ElevatedButton(onPressed: _load, child: const Text('Retry')),
-          ),
-        ],
-      );
+return ErrorView(message: error, onRetry: _load);
     }
     final post = _post;
     if (_loading || post == null) {

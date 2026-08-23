@@ -6,6 +6,7 @@ import '../api/feed_service.dart';
 import '../config/app_config.dart';
 import '../main.dart';
 import '../theme/enclavd_theme.dart';
+import '../widgets/error_view.dart';
 import '../widgets/post_card.dart';
 import '../widgets/shimmer.dart';
 import 'compose_screen.dart';
@@ -208,21 +209,7 @@ class _HashtagScreenState extends State<HashtagScreen> {
       );
     }
     if (_error != null && _posts.isEmpty) {
-      return ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        children: [
-          const SizedBox(height: 24),
-          Text(_error!,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: EnclavdColors.textSecondary)),
-          const SizedBox(height: 12),
-          Center(
-            child: ElevatedButton(
-                onPressed: _loadFirst, child: const Text('Retry')),
-          ),
-        ],
-      );
+return ErrorView(message: _error!, onRetry: _loadFirst);
     }
 
     final total = _lastPage?.total;

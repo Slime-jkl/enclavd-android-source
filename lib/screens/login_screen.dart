@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../api/auth_service.dart';
 import '../api/site_config_service.dart';
+import '../api/api_client.dart';
 import '../main.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/auth_password_field.dart';
@@ -167,7 +168,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _error = e.toString().replaceFirst('ApiException', 'Error');
+        _error = friendlyErrorText(e);
       });
     }
   }

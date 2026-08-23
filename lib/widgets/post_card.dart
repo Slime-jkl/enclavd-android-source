@@ -11,6 +11,7 @@ import 'package:webview_flutter_android/webview_flutter_android.dart';
 import '../api/auth_service.dart';
 import '../api/feed_service.dart';
 import '../api/social_service.dart';
+import '../api/api_client.dart';
 import '../main.dart'; // AppServices.current (mention → profile resolution)
 import '../screens/hashtag_screen.dart';
 import '../screens/profile_screen.dart';
@@ -245,7 +246,7 @@ class _PostCardState extends State<PostCard> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _commentSending = false);
-      _toast(e.toString().replaceFirst('ApiException', 'Error'));
+      _toast(friendlyErrorText(e));
     }
   }
 

@@ -5,6 +5,7 @@ import '../api/api_client.dart';
 import '../api/domains_service.dart';
 import '../api/messages_service.dart'; // parseDbTime (DB UTC wall-clock)
 import '../theme/enclavd_theme.dart';
+import '../widgets/error_view.dart';
 import '../utils/domain_icons.dart';
 import '../widgets/shimmer.dart';
 import 'domain_category_screen.dart';
@@ -105,23 +106,7 @@ class _DomainsScreenState extends State<DomainsScreen> {
       );
     }
     if (_error != null && !_loaded) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const FaIcon(FontAwesomeIcons.triangleExclamation,
-                  color: EnclavdColors.likeActive, size: 28),
-              const SizedBox(height: 10),
-              Text(_error!,
-                  style: const TextStyle(color: EnclavdColors.textSecondary)),
-              const SizedBox(height: 12),
-              TextButton(onPressed: _load, child: const Text('Retry')),
-            ],
-          ),
-        ),
-      );
+return ErrorView(message: _error!, onRetry: _load);
     }
     if (_roots.isEmpty) {
       // Site empty state (domain/index.php board: "No domains have been

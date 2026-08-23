@@ -176,7 +176,7 @@ void main() {
     ));
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.textContaining('Failed'), findsOneWidget);
-    expect(find.text('Retry'), findsOneWidget);
+    expect(find.text('Try again'), findsOneWidget);
   });
 }
 

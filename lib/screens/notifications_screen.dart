@@ -9,6 +9,7 @@ import '../config/app_config.dart';
 import '../services/realtime_service.dart';
 import '../services/social_notifications.dart';
 import '../theme/enclavd_theme.dart';
+import '../widgets/error_view.dart';
 import '../utils/html_entities.dart';
 import '../widgets/enclavd_avatar.dart';
 import 'post_detail_screen.dart';
@@ -125,22 +126,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Widget _buildBody() {
     if (_error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const FaIcon(FontAwesomeIcons.triangleExclamation,
-                  color: EnclavdColors.likeActive, size: 28),
-              const SizedBox(height: 10),
-              Text(_error!, style: const TextStyle(color: EnclavdColors.textSecondary)),
-              const SizedBox(height: 12),
-              TextButton(onPressed: _load, child: const Text('Retry')),
-            ],
-          ),
-        ),
-      );
+return ErrorView(message: _error!, onRetry: _load);
     }
     final items = _items;
     if (items == null) {

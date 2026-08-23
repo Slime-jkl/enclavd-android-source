@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import '../api/auth_service.dart';
+import '../api/api_client.dart';
 import '../main.dart';
 import '../theme/enclavd_theme.dart';
 import 'login_screen.dart';
@@ -89,7 +90,7 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _status = e.toString().replaceFirst('ApiException', 'Error');
+        _status = friendlyErrorText(e);
         _statusIsError = true;
       });
     } finally {

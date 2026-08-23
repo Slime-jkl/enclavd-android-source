@@ -156,7 +156,7 @@ void main() {
 
     // Retry succeeds: the service flips to a good feed.
     failing.feed = const ArticlesFeed(pinned: [], articles: []);
-    await tester.tap(find.text('Retry'));
+    await tester.tap(find.text('Try again'));
     await tester.pump();
     await tester.pump();
     expect(find.text('No articles yet'), findsOneWidget);

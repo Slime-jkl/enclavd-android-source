@@ -126,6 +126,6 @@ class PostsService {
       final decoded = jsonDecode(resp.body);
       if (decoded is Map<String, dynamic>) return decoded;
     } catch (_) {}
-    throw const ApiException('Invalid response from server');
+    throw const ApiException('Something went wrong on our side. Please try again.');
   }
 }

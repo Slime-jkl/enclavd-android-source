@@ -12,6 +12,7 @@ import '../services/message_notifications.dart';
 import '../services/realtime_service.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/enclavd_avatar.dart';
+import '../widgets/error_view.dart';
 import 'chat_screen.dart';
 
 /// Messages inbox — Instagram-style DM list, port of the site's
@@ -278,7 +279,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
       );
     }
     if (_error != null && _conversations.isEmpty) {
-      return _InboxError(message: _error!, onRetry: _loadConversations);
+      return ErrorView(message: _error!, onRetry: _loadConversations);
     }
     if (_conversations.isEmpty) {
       return ListView(
@@ -503,37 +504,6 @@ class ShimmerBar extends StatelessWidget {
         color: EnclavdColors.cardSecondary,
         borderRadius: BorderRadius.circular(4),
       ),
-    );
-  }
-}
-
-class _InboxError extends StatelessWidget {
-  const _InboxError({required this.message, required this.onRetry});
-
-  final String message;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      children: [
-        const SizedBox(height: 120),
-        const FaIcon(FontAwesomeIcons.commentSlash,
-            color: EnclavdColors.textSecondary, size: 56),
-        const SizedBox(height: 16),
-        Center(
-          child: Text(
-            message,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: EnclavdColors.textSecondary),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Center(
-          child: ElevatedButton(onPressed: onRetry, child: const Text('Retry')),
-        ),
-      ],
     );
   }
 }
