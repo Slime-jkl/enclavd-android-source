@@ -3,6 +3,7 @@ import com.android.build.api.instrumentation.ClassContext
 import com.android.build.api.instrumentation.ClassData
 import com.android.build.api.instrumentation.InstrumentationParameters
 import com.android.build.api.instrumentation.InstrumentationScope
+import com.android.build.api.variant.FilterConfiguration
 import org.objectweb.asm.AnnotationVisitor
 import org.objectweb.asm.Attribute
 import org.objectweb.asm.ClassVisitor
@@ -223,6 +224,31 @@ abstract class StripPlayStoreDeferredManager : AsmClassVisitorFactory<StripPlayS
             }
         } else {
             nextClassVisitor
+        }
+    }
+}
+
+// ── F-Droid ABI splits: per-ABI version codes (their required scheme) ──
+// F-Droid builds split-per-abi APKs and requires each to carry a UNIQUE
+// version code derived from the base: versionCode * 10 + abiIndex
+// (armeabi-v7a=1, arm64-v8a=2, x86_64=3 — their snippet). Flutter's own
+// split scheme would be base * 1000 + abi (1/2/4, x86 reserved slot 3) —
+// disabled via force-version-code-ignoring-abi in gradle.properties so THIS
+// block is the single writer. Uses the new Variant API (AGP 9 removed
+// android.applicationVariants / ApkVariantOutputImpl; the supported way is
+// androidComponents.onVariants + output.versionCode Property). The F-Droid
+// snippet's `variant.versionCode` (legacy base) equals flutter.versionCode
+// here — same value, sourced from the extension instead of a dead API.
+val abiVersionCodes = mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2, "x86_64" to 3)
+androidComponents {
+    onVariants { variant ->
+        variant.outputs.forEach { output ->
+            val abiVersionCode = abiVersionCodes[
+                output.filters.find { it.filterType == FilterConfiguration.FilterType.ABI }?.identifier
+            ]
+            if (abiVersionCode != null) {
+                output.versionCode.set(flutter.versionCode * 10 + abiVersionCode)
+            }
         }
     }
 }

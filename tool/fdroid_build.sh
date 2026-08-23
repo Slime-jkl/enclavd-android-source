@@ -39,15 +39,20 @@ python3 tool/strip_firebase.py
 
 # --no-pub: flutter build would re-run pub get and regenerate
 # .flutter-plugins-dependencies, undoing the strip.
-"$FLUTTER" build apk --release --no-pub --flavor fdroid \
+# --split-per-abi: F-Droid requires per-ABI APKs (their request, Oct 2026);
+# the version codes come out as base*10 + abi via android/app/build.gradle.kts
+# (base*1000 + abi disabled via force-version-code-ignoring-abi in
+# android/gradle.properties). Outputs: app-<abi>-fdroid-release.apk.
+"$FLUTTER" build apk --release --no-pub --flavor fdroid --split-per-abi \
     --dart-define=ENCLAVD_FLAVOR=fdroid \
     --dart-define=ENCLAVD_FEATURE_NOTIFICATIONS=true \
     --dart-define=ENCLAVD_FEATURE_CHAT=true \
     --dart-define=ENCLAVD_FEATURE_SEARCH=true
 
 # The pipe's binary check rejects the 'Dependency metadata' signing-block
-# entry AGP adds for Play. Strip it — v2/v3 signatures do NOT cover the
-# signing block (validity preserved), and zip entries are untouched (the
-# byte comparison is unaffected). Actions strips identically.
-python3 tool/strip_dep_metadata.py \
-    build/app/outputs/flutter-apk/app-fdroid-release.apk
+# entry AGP adds for Play. Strip it from EVERY split APK — v2/v3 signatures
+# do NOT cover the signing block (validity preserved), and zip entries are
+# untouched (the byte comparison is unaffected). Actions strips identically.
+for APK in build/app/outputs/flutter-apk/app-*-fdroid-release.apk; do
+    python3 tool/strip_dep_metadata.py "$APK"
+done

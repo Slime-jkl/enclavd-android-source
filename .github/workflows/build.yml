@@ -122,6 +122,7 @@ jobs:
           # add the --dart-define line in the right flavor block, then use
           # AppConfig.<name> in code.
           DEFINES="--dart-define=ENCLAVD_FLAVOR=${{ matrix.flavor }}"
+          BUILD_FLAGS=""
           if [ "${{ matrix.flavor }}" = "play" ]; then
             # Play Store build: full features, production API.
             DEFINES="$DEFINES --dart-define=ENCLAVD_FEATURE_NOTIFICATIONS=true --dart-define=ENCLAVD_FEATURE_CHAT=true --dart-define=ENCLAVD_FEATURE_SEARCH=true"
@@ -133,6 +134,13 @@ jobs:
             # (ntfy, Conversations, NextPush) is installed, else the
             # 15-minute polling fallback. Same production API otherwise.
             DEFINES="$DEFINES --dart-define=ENCLAVD_FEATURE_NOTIFICATIONS=true --dart-define=ENCLAVD_FEATURE_CHAT=true --dart-define=ENCLAVD_FEATURE_SEARCH=true"
+            # F-Droid requires per-ABI APKs (their request, Oct 2026). The
+            # pipe (tool/fdroid_build.sh) builds with --split-per-abi, so the
+            # reference binary MUST too — same flags, same bytes. Outputs:
+            # app-<abi>-fdroid-release.apk (version codes base*10 + abi via
+            # build.gradle.kts; Flutter's own *1000 scheme disabled by
+            # force-version-code-ignoring-abi in gradle.properties).
+            BUILD_FLAGS="$BUILD_FLAGS --split-per-abi"
           fi
           if [ "${{ matrix.flavor }}" = "dev" ]; then
             # Dev build: same production API as every flavor — the app ALWAYS
@@ -151,7 +159,7 @@ jobs:
             # the gradle product flavor (native dependency set — fdroid
             # excludes the firebase plugins); the dart-defines drive the
             # app's compile-time config.
-            flutter build apk --flavor "${{ matrix.flavor }}" --release $DEFINES
+            flutter build apk --flavor "${{ matrix.flavor }}" --release $BUILD_FLAGS $DEFINES
           fi
           # Hand the defines to the AAB step (release, play flavor only).
           echo "DEFINES=$DEFINES" >> "$GITHUB_ENV"
@@ -166,8 +174,11 @@ jobs:
       - name: Strip AGP dependency metadata (F-Droid pipe)
         if: matrix.flavor == 'fdroid'
         run: |
-          APK=$(ls build/app/outputs/flutter-apk/app-fdroid-release.apk)
-          python3 tool/strip_dep_metadata.py "$APK"
+          # Split-per-abi build → one APK per ABI; strip the signing-block
+          # entry from each (the pipe strips identically via tool/fdroid_build.sh).
+          for APK in build/app/outputs/flutter-apk/app-*-fdroid-release.apk; do
+            python3 tool/strip_dep_metadata.py "$APK"
+          done
 
       # F-Droid acceptance gate: the fdroid APK must contain NO Google
       # code. Grep the dex classes + merged manifest for firebase /
@@ -176,23 +187,29 @@ jobs:
       - name: Verify fdroid APK is GMS-free
         if: matrix.flavor == 'fdroid'
         run: |
-          APK=$(ls build/app/outputs/flutter-apk/app-fdroid-*.apk | head -1)
-          echo "checking $APK"
-          # Scan EVERY dex file (play-core landed in classes4.dex last time —
-          # a classes.dex-only grep would have missed it) for google code.
-          # firebase/gms = real google code; play/core refs are the engine's
-          # dead references (PlayStoreDeferredComponentManager), which the
-          # StripPlayStoreDeferredManager instrumentation empties on the
-          # fdroid variant — so play refs must be ZERO here too. If either
-          # shows up, the fdroid APK is not Google-free.
-          HITS=$(for f in $(unzip -l "$APK" | grep -oE 'classes[0-9]*\.dex'); do unzip -p "$APK" "$f"; done | grep -cE "Lcom/google/firebase|Lcom/google/android/gms|Lcom/google/android/play" || true)
-          MANIFEST=$(unzip -p "$APK" AndroidManifest.xml | grep -c "firebase" || true)
-          echo "google refs across all dex: $HITS | manifest firebase refs: $MANIFEST"
-          if [ "$HITS" -gt 0 ] || [ "$MANIFEST" -gt 0 ]; then
-            echo "FAIL: fdroid APK contains Google/Firebase references"
+          # Split-per-abi: scan EVERY per-ABI APK (app-<abi>-fdroid-release.apk).
+          FAILED=0
+          for APK in build/app/outputs/flutter-apk/app-*-fdroid-release.apk; do
+            echo "checking $APK"
+            # Scan EVERY dex file (play-core landed in classes4.dex last time —
+            # a classes.dex-only grep would have missed it) for google code.
+            # firebase/gms = real google code; play/core refs are the engine's
+            # dead references (PlayStoreDeferredComponentManager), which the
+            # StripPlayStoreDeferredManager instrumentation empties on the
+            # fdroid variant — so play refs must be ZERO here too. If either
+            # shows up, the fdroid APK is not Google-free.
+            HITS=$(for f in $(unzip -l "$APK" | grep -oE 'classes[0-9]*\.dex'); do unzip -p "$APK" "$f"; done | grep -cE "Lcom/google/firebase|Lcom/google/android/gms|Lcom/google/android/play" || true)
+            MANIFEST=$(unzip -p "$APK" AndroidManifest.xml | grep -c "firebase" || true)
+            echo "google refs across all dex: $HITS | manifest firebase refs: $MANIFEST"
+            if [ "$HITS" -gt 0 ] || [ "$MANIFEST" -gt 0 ]; then
+              echo "FAIL: fdroid APK contains Google/Firebase references"
+              FAILED=1
+            fi
+          done
+          if [ "$FAILED" -ne 0 ]; then
             exit 1
           fi
-          echo "fdroid APK is GMS-free: OK"
+          echo "fdroid APKs are GMS-free: OK"
 
       # Release gate: the fdroid APK we publish MUST be signed (release
       # key). F-Droid's own build is unsigned on purpose — their infra has
@@ -205,15 +222,19 @@ jobs:
         if: matrix.flavor == 'fdroid' && github.event.inputs.build_type != 'debug'
         run: |
           set -e
-          APK=$(ls build/app/outputs/flutter-apk/app-fdroid-release.apk)
           APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | tail -1)
-          CERTS=$("$APKSIGNER" verify --print-certs "$APK")
-          echo "$CERTS"
-          if echo "$CERTS" | grep -q "CN=Android Debug"; then
-            echo "FAIL: fdroid APK is signed with the DEBUG key, not the release key"
-            exit 1
-          fi
-          echo "fdroid APK signed with release key: OK"
+          # Split-per-abi: verify EVERY per-ABI APK is signed with the release
+          # key (never the debug key).
+          for APK in build/app/outputs/flutter-apk/app-*-fdroid-release.apk; do
+            echo "checking $APK"
+            CERTS=$("$APKSIGNER" verify --print-certs "$APK")
+            echo "$CERTS"
+            if echo "$CERTS" | grep -q "CN=Android Debug"; then
+              echo "FAIL: $APK is signed with the DEBUG key, not the release key"
+              exit 1
+            fi
+          done
+          echo "fdroid APKs signed with release key: OK"
 
       - name: Build AAB (Play Store)
         if: matrix.flavor == 'play' && github.event.inputs.build_type != 'debug'
