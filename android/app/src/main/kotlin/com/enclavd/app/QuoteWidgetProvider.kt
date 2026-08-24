@@ -201,21 +201,27 @@ class QuoteWidgetProvider : HomeWidgetProvider() {
         // on narrow widgets the "QUOTE OF THE DAY" title gives way to it.
         val wordmarkWidthDp = (widthDp * 0.4f).coerceIn(48f, 180f)
         val wordmarkHeightDp = wordmarkWidthDp * 231f / 1584f
-        views.setViewLayoutParams(
+        views.setViewLayoutWidth(
             R.id.quote_widget_wordmark,
-            RemoteViews.LayoutParams(
-                dp(context, wordmarkWidthDp),
-                dp(context, wordmarkHeightDp),
-            ),
+            wordmarkWidthDp,
+            TypedValue.COMPLEX_UNIT_DIP,
+        )
+        views.setViewLayoutHeight(
+            R.id.quote_widget_wordmark,
+            wordmarkHeightDp,
+            TypedValue.COMPLEX_UNIT_DIP,
         )
         // Watermark icon — a big centered mark, ~85% of the smaller side.
         val watermarkDp = (minOf(widthDp, heightDp) * 0.85f).coerceIn(48f, 260f)
-        views.setViewLayoutParams(
+        views.setViewLayoutWidth(
             R.id.quote_widget_watermark,
-            RemoteViews.LayoutParams(
-                dp(context, watermarkDp),
-                dp(context, watermarkDp),
-            ),
+            watermarkDp,
+            TypedValue.COMPLEX_UNIT_DIP,
+        )
+        views.setViewLayoutHeight(
+            R.id.quote_widget_watermark,
+            watermarkDp,
+            TypedValue.COMPLEX_UNIT_DIP,
         )
 
         // Narrow card (≈2 cells): no room for label + wordmark — the
@@ -225,9 +231,6 @@ class QuoteWidgetProvider : HomeWidgetProvider() {
             if (widthDp >= 260) View.VISIBLE else View.GONE,
         )
     }
-
-    private fun dp(context: Context, valueDp: Float): Int =
-        (valueDp * context.resources.displayMetrics.density).toInt()
 
     private data class Sizes(
         val text: Float,
