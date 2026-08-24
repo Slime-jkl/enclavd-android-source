@@ -22,6 +22,10 @@ on:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  # Pinned Flutter SDK for the ios job. The F-Droid-extracted literal pin
+  # lives in the android job (see there) — keep exactly ONE literal pin in
+  # this file or the F-Droid build fails.
+  FLUTTER_VERSION: '3.47.1'
 
 jobs:
   android:
@@ -73,6 +77,9 @@ jobs:
       - name: Set up Flutter 3.47.1
         uses: subosito/flutter-action@v2
         with:
+          # F-Droid pins the Flutter SDK from this exact line (the fdroiddata
+          # metadata seds .github/workflows/build.yml). Keep it the ONLY
+          # literal pin in this file — the ios job uses the workflow env.
           flutter-version: '3.47.1'
           channel: 'stable'
           cache: true
@@ -288,7 +295,7 @@ jobs:
       - name: Set up Flutter 3.47.1
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.47.1'
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
           cache: true
 
