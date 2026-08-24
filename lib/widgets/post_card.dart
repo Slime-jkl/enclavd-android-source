@@ -47,6 +47,8 @@ class PostCard extends StatefulWidget {
     this.onEditPost,
     this.onDeletePost,
     this.hideInlineComments = false,
+    this.commentsOpen,
+    this.onToggleComments,
   });
 
   final Post post;
@@ -64,6 +66,14 @@ class PostCard extends StatefulWidget {
   /// first, below the OP). Tapping the comment count is a no-op here.
   final bool hideInlineComments;
 
+  /// Controlled comment-section state: when both are non-null the card's
+  /// section open/close is decided by the OWNING list (the feed keeps
+  /// only ONE post's comments open at a time) — taps are reported via
+  /// [onToggleComments] and the card renders `commentsOpen` as-is. The
+  /// card still owns the comment DATA (list/loading/error) either way.
+  final bool? commentsOpen;
+  final VoidCallback? onToggleComments;
+
   @override
   State<PostCard> createState() => _PostCardState();
 }
@@ -73,7 +83,10 @@ class _PostCardState extends State<PostCard> {
   late bool _liked;
   late int _commentCount;
 
-  bool _commentsOpen = false;
+  /// Section open state, either from the owning list (controlled mode) or
+  /// this card's own internal toggle.
+  bool get _commentsOpen => widget.commentsOpen ?? _internalCommentsOpen;
+  bool _internalCommentsOpen = false;
   bool _commentsLoading = false;
   List<Comment> _comments = const [];
   String? _commentsError;
@@ -209,12 +222,28 @@ class _PostCardState extends State<PostCard> {
     // Forum-thread mode: the replies live below the OP (oldest first) —
     // the card's inline section is suppressed entirely.
     if (widget.hideInlineComments) return;
+    final toggle = widget.onToggleComments;
+    if (toggle != null) {
+      // Controlled mode: the owning list decides which section is open
+      // (only one at a time). The card still owns the comment DATA and
+      // loads on the first open.
+      final opening = !(widget.commentsOpen ?? false);
+      toggle();
+      if (opening) {
+        setState(() {
+          _commentsLoading = true;
+          _commentsError = null;
+        });
+        await _loadComments();
+      }
+      return;
+    }
     if (_commentsOpen) {
-      setState(() => _commentsOpen = false);
+      setState(() => _internalCommentsOpen = false);
       return;
     }
     setState(() {
-      _commentsOpen = true;
+      _internalCommentsOpen = true;
       _commentsLoading = true;
       _commentsError = null;
     });
@@ -283,7 +312,12 @@ class _PostCardState extends State<PostCard> {
   Future<void> _sendComment() async {
     final content = _commentController.text.trim();
     if (content.isEmpty || _commentSending) return;
-    setState(() => _commentSending = true);
+    setState(() {
+      _commentSending = true;
+      // Optimistic: the count bumps the instant the user sends — the
+      // server's authoritative total corrects it on success.
+      _commentCount += 1;
+    });
     try {
       final (comment, newCount) =
           await widget.social.createComment(widget.post.id, content);
@@ -297,22 +331,32 @@ class _PostCardState extends State<PostCard> {
       FocusScope.of(context).unfocus();
     } catch (e) {
       if (!mounted) return;
-      setState(() => _commentSending = false);
+      setState(() {
+        _commentSending = false;
+        _commentCount -= 1; // roll back the optimistic bump
+      });
       _toast(friendlyErrorText(e));
     }
   }
 
   Future<void> _deleteComment(Comment comment) async {
+    setState(() {
+      _comments = _comments.where((c) => c.id != comment.id).toList();
+      _commentCount -= 1; // optimistic — server total corrects on success
+    });
     try {
       final newCount =
           await widget.social.deleteComment(comment.id, widget.post.id);
       if (!mounted) return;
-      setState(() {
-        _comments = _comments.where((c) => c.id != comment.id).toList();
-        _commentCount = newCount;
-      });
+      setState(() => _commentCount = newCount);
     } catch (_) {
       if (!mounted) return;
+      setState(() {
+        _commentCount += 1; // roll back
+        // Restore the comment (newest-first by id, like the server order).
+        _comments = [..._comments, comment]
+          ..sort((a, b) => b.id.compareTo(a.id));
+      });
       _toast('Could not delete the comment.');
     }
   }

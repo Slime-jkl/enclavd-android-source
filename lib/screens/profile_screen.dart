@@ -56,6 +56,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _postsLoading = false;
   bool _postsInitialLoadDone = false;
   String? _postsError;
+
+  // One comment section open at a time across the profile's post list.
+  int? _openCommentsPostId;
   final _scrollController = ScrollController();
 
   @override
@@ -436,6 +439,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           social: _services.social,
           onEditPost: _editPost,
           onDeletePost: _deletePost,
+          // Only ONE comment section open at a time across the list.
+          commentsOpen: _openCommentsPostId == _posts[index - 2].id,
+          onToggleComments: () => setState(() {
+            _openCommentsPostId = _openCommentsPostId == _posts[index - 2].id
+                ? null
+                : _posts[index - 2].id;
+          }),
         );
       },
     );
