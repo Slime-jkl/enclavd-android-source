@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:home_widget/home_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
 
@@ -72,6 +73,11 @@ void main(List<String> args) {
     // it yet. Both are fire-and-forget — nothing here blocks startup.
     unawaited(DailyQuoteService.scheduleNextRun());
     unawaited(DailyQuoteService.refreshWidgetIfStale());
+    // Widget 👍/👎 taps: register the headless Dart callback that records
+    // the rating in the API. The handle is saved at startup; the tap itself
+    // wakes its own isolate even when the app is killed.
+    unawaited(HomeWidget.registerInteractivityCallback(
+        quoteWidgetRateCallback));
   }
   runApp(const EnclavdApp());
 }

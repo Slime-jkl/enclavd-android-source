@@ -90,6 +90,18 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/enclavd_quote_widget_info" />
         </receiver>
+        <!-- home_widget interactive widgets: 👍/👎 taps on the daily-quote
+             widget deliver a broadcast here, which wakes a headless Dart
+             callback that posts the rating to the API (works even when the
+             app is killed). The plugin's own manifest is empty — this must
+             be declared in the app manifest. -->
+        <receiver
+            android:name="es.antonborri.home_widget.HomeWidgetBackgroundReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="es.antonborri.home_widget.action.BACKGROUND"/>
+            </intent-filter>
+        </receiver>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

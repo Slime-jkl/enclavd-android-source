@@ -58,6 +58,47 @@ void main() {
     });
   });
 
+  group('DailyQuoteService.parseRateAction', () {
+    test('parses like/dislike taps carrying a quote id', () {
+      final like = DailyQuoteService.parseRateAction(
+          Uri.parse('enclavdwidget://like?id=983'));
+      expect(like?.action, 'like');
+      expect(like?.quoteId, 983);
+      final dislike = DailyQuoteService.parseRateAction(
+          Uri.parse('enclavdwidget://dislike?id=12'));
+      expect(dislike?.action, 'dislike');
+      expect(dislike?.quoteId, 12);
+    });
+
+    test('rejects null, foreign hosts and malformed ids', () {
+      expect(DailyQuoteService.parseRateAction(null), isNull);
+      expect(
+          DailyQuoteService.parseRateAction(
+              Uri.parse('enclavdwidget://other?id=983')),
+          isNull);
+      expect(
+          DailyQuoteService.parseRateAction(
+              Uri.parse('https://enclavd.com/like?id=1')),
+          isNull);
+      expect(
+          DailyQuoteService.parseRateAction(
+              Uri.parse('enclavdwidget://like?id=abc')),
+          isNull);
+      expect(
+          DailyQuoteService.parseRateAction(
+              Uri.parse('enclavdwidget://like')),
+          isNull);
+      expect(
+          DailyQuoteService.parseRateAction(
+              Uri.parse('enclavdwidget://like?id=0')),
+          isNull);
+      expect(
+          DailyQuoteService.parseRateAction(
+              Uri.parse('enclavdwidget://dislike?id=-5')),
+          isNull);
+    });
+  });
+
   group('DailyQuoteService defaults', () {
     test('the feature is enabled by default', () async {
       SharedPreferences.setMockInitialValues({});

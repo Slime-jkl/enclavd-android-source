@@ -8,24 +8,43 @@ import 'package:workmanager/workmanager.dart';
 import '../api/api_client.dart';
 import 'daily_quote_widget.dart';
 
-/// A daily quote, exactly as the API serves it: text, author and tags.
+/// A daily quote, exactly as the API serves it: id, text, author and tags.
 class QuoteData {
   const QuoteData({
+    required this.id,
     required this.text,
     required this.author,
     required this.tags,
   });
 
+  final int id;
   final String text;
   final String author;
   final List<String> tags;
 }
 
+/// Today's quote plus the user's rating state for it (null = unrated).
+class TodayQuote {
+  const TodayQuote({required this.quote, required this.rated});
+
+  final QuoteData quote;
+  final String? rated; // 'like' | 'dislike' | null
+}
+
+/// A parsed widget rate tap: which action, on which quote.
+class RateAction {
+  const RateAction({required this.action, required this.quoteId});
+
+  final String action; // 'like' | 'dislike'
+  final int quoteId;
+}
+
 /// Daily quote delivery: ONE notification per day at a RANDOM time between
-/// 06:00 and 20:00 LOCAL, plus the home-screen widget showing today's quote.
+/// 06:00 and 20:00 LOCAL, plus the home-screen widget showing today's quote
+/// with 👍/👎 buttons that record the rating in the API.
 ///
 /// Mechanics (no new native machinery — reuses the existing WorkManager +
-/// flutter_local_notifications stack):
+/// flutter_local_notifications stack + home_widget's interactive widgets):
 ///  - A one-shot WorkManager task is armed with `initialDelay` = time until
 ///    the next random slot. The task runs even when the app is swiped away
 ///    (system service), fetches today's quote from api/v1/quote with the
@@ -37,6 +56,11 @@ class QuoteData {
 ///  - The widget is also refreshed on app foreground when it's stale
 ///    ([refreshWidgetIfStale], date-gated in prefs) — covers the case where
 ///    the OS delayed or dropped the background run.
+///  - The 👍/👎 buttons deliver a broadcast to home_widget's
+///    HomeWidgetBackgroundReceiver, which wakes a headless Dart isolate
+///    running [quoteWidgetRateCallback] (registered at app start). The tap
+///    URI carries the action + quote id; the callback posts the rating with
+///    the persisted session and re-renders the widget tinted.
 ///  - The notification is its own channel ('daily_quote') so users can
 ///    silence it independently in OS settings; the app-side Settings toggle
 ///    arms/cancels the whole pipeline.
@@ -51,6 +75,9 @@ class DailyQuoteService {
   /// Local date (YYYY-MM-DD) the widget was last refreshed with today's
   /// quote — used by [refreshWidgetIfStale] to avoid refetching every start.
   static const String widgetDatePrefsKey = 'daily_quote_widget_date';
+
+  /// URI scheme used by the widget's rate buttons (provider → callback).
+  static const String widgetRateScheme = 'enclavdwidget';
 
   static const int _notificationId = 10001; // fixed id: one slot per day
   static const String _channelId = 'daily_quote';
@@ -74,6 +101,19 @@ class DailyQuoteService {
     return candidate.isAfter(now)
         ? candidate
         : candidate.add(const Duration(days: 1));
+  }
+
+  /// Parses a widget rate tap URI (`enclavdwidget://like?id=983`). Returns
+  /// null when the tap is not a well-formed rate action (foreign tap, bad
+  /// id). Pure — unit-tested.
+  @visibleForTesting
+  static RateAction? parseRateAction(Uri? uri) {
+    if (uri == null) return null;
+    final action = uri.host; // 'like' | 'dislike'
+    if (action != 'like' && action != 'dislike') return null;
+    final quoteId = int.tryParse(uri.queryParameters['id'] ?? '');
+    if (quoteId == null || quoteId <= 0) return null;
+    return RateAction(action: action, quoteId: quoteId);
   }
 
   static bool isEnabled(SharedPreferences prefs) =>
@@ -131,13 +171,13 @@ class DailyQuoteService {
       ),
     );
 
-    final QuoteData? quote = await _fetchToday(api);
-    if (quote != null) {
+    final TodayQuote? today = await _fetchToday(api);
+    if (today != null) {
       try {
         await plugin.show(
           id: _notificationId,
           title: '💬 Quote of the day',
-          body: '“${quote.text}”\n— ${quote.author}',
+          body: '“${today.quote.text}”\n— ${today.quote.author}',
           notificationDetails: const NotificationDetails(
             android: AndroidNotificationDetails(
               _channelId,
@@ -153,12 +193,7 @@ class DailyQuoteService {
       } catch (e) {
         debugPrint('daily quote: notification failed: $e');
       }
-      await DailyQuoteWidget.push(
-        text: quote.text,
-        author: quote.author,
-        tags: quote.tags,
-      );
-      await prefs.setString(widgetDatePrefsKey, _todayKey());
+      await pushTodayToWidget(api: api, prefs: prefs, today: today);
     } else {
       debugPrint('daily quote: fetch failed, nothing delivered');
     }
@@ -176,12 +211,62 @@ class DailyQuoteService {
     final api = ApiClient(store: PrefsSessionStore(prefs));
     await api.restoreSession();
     if (!api.hasSession) return;
-    final quote = await _fetchToday(api);
-    if (quote == null) return;
+    final today = await _fetchToday(api);
+    if (today == null) return;
+    await pushTodayToWidget(api: api, prefs: prefs, today: today);
+  }
+
+  /// Background entry point for widget rate taps (registered via
+  /// HomeWidget.registerInteractivityCallback). Posts the rating with the
+  /// persisted session, then re-renders the widget. On a stale/duplicate
+  /// tap (server rejects) it re-syncs the widget to the server's truth
+  /// instead of leaving dead buttons.
+  static Future<void> rateFromWidget(Uri? uri) async {
+    final rate = parseRateAction(uri);
+    if (rate == null) {
+      debugPrint('quote widget: ignoring foreign tap $uri');
+      return;
+    }
+    final prefs = await SharedPreferences.getInstance();
+    if (!isEnabled(prefs)) return;
+    final api = ApiClient(store: PrefsSessionStore(prefs));
+    await api.restoreSession();
+    if (!api.hasSession) {
+      debugPrint('quote widget: no session, rating dropped');
+      return; // logged out — the widget can't rate; next login re-pushes
+    }
+    try {
+      final data = await api.postJson(
+        '/api/v1/quote',
+        {'action': rate.action, 'quote_id': rate.quoteId},
+      );
+      final rated = (data['rated'] ?? rate.action).toString();
+      await DailyQuoteWidget.markRated(quoteId: rate.quoteId, rated: rated);
+      debugPrint('quote widget: $rated recorded for quote ${rate.quoteId}');
+    } catch (e) {
+      // 400 'Quote already rated' (double tap) / 'no current quote' (widget
+      // stale across the daily rotation) — re-sync to today's state.
+      debugPrint('quote widget: rate failed ($e) — resyncing');
+      final today = await _fetchToday(api);
+      if (today != null) {
+        await pushTodayToWidget(api: api, prefs: prefs, today: today);
+      }
+    }
+  }
+
+  /// Writes today's quote (with the user's rating state) to the widget and
+  /// stamps the local date so [refreshWidgetIfStale] stays quiet.
+  static Future<void> pushTodayToWidget({
+    required ApiClient api,
+    required SharedPreferences prefs,
+    required TodayQuote today,
+  }) async {
     await DailyQuoteWidget.push(
-      text: quote.text,
-      author: quote.author,
-      tags: quote.tags,
+      text: today.quote.text,
+      author: today.quote.author,
+      tags: today.quote.tags,
+      quoteId: today.quote.id,
+      rated: today.rated,
     );
     await prefs.setString(widgetDatePrefsKey, _todayKey());
   }
@@ -189,16 +274,24 @@ class DailyQuoteService {
   /// GET-ward fetch of the daily quote (POST /api/v1/quote {action:today} —
   /// the same idempotent-per-day call the web toast uses; CSRF rides the
   /// persisted session's PHP sid via ApiClient.postJson).
-  static Future<QuoteData?> _fetchToday(ApiClient api) async {
+  static Future<TodayQuote?> _fetchToday(ApiClient api) async {
     try {
       final data = await api.postJson('/api/v1/quote', {'action': 'today'});
       final q = data['quote'];
       if (q is! Map<String, dynamic>) return null;
-      return QuoteData(
-        text: (q['text'] ?? '').toString(),
-        author: (q['author'] ?? '').toString(),
-        tags: (q['tags'] as List?)?.map((e) => e.toString()).toList() ??
-            const [],
+      return TodayQuote(
+        quote: QuoteData(
+          id: (q['id'] ?? 0) is int
+              ? q['id'] as int
+              : int.tryParse((q['id'] ?? '').toString()) ?? 0,
+          text: (q['text'] ?? '').toString(),
+          author: (q['author'] ?? '').toString(),
+          tags: (q['tags'] as List?)?.map((e) => e.toString()).toList() ??
+              const [],
+        ),
+        rated: (data['rated'] as String?)?.isNotEmpty == true
+            ? data['rated'] as String
+            : null,
       );
     } catch (e) {
       debugPrint('daily quote: fetch failed: $e');
@@ -211,4 +304,13 @@ class DailyQuoteService {
     return '${n.year}-${n.month.toString().padLeft(2, '0')}-'
         '${n.day.toString().padLeft(2, '0')}';
   }
+}
+
+/// Top-level entry point for widget rate taps. Registered in the MAIN
+/// isolate at app start (HomeWidget.registerInteractivityCallback needs a
+/// stable handle); the actual call runs in a headless background isolate
+/// spawned by home_widget's receiver. @pragma keeps it in the AOT snapshot.
+@pragma('vm:entry-point')
+Future<void> quoteWidgetRateCallback(Uri? uri) async {
+  await DailyQuoteService.rateFromWidget(uri);
 }
