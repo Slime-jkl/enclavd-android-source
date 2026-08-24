@@ -66,6 +66,10 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
   bool _repliesHasMore = false;
   bool _repliesLoadingMore = false;
 
+  /// The one expanded long reply (by id); null = all collapsed. Only ONE
+  /// read-more can be open at a time — opening another closes this one.
+  int? _expandedReplyId;
+
   final _replyController = TextEditingController();
   final _replyFocus = FocusNode();
   bool _replying = false;
@@ -414,6 +418,12 @@ return ErrorView(message: error, onRetry: _load);
               number: i + 1,
               onDelete: _deleteReply,
               onReply: _replyToReply,
+              expanded: _replies[i].id == _expandedReplyId,
+              onToggle: () => setState(() {
+                _expandedReplyId = _expandedReplyId == _replies[i].id
+                    ? null
+                    : _replies[i].id;
+              }),
             ),
         if (_repliesHasMore)
           Center(
@@ -474,8 +484,9 @@ class _RepliesHeader extends StatelessWidget {
 /// One forum reply — the site's domain_comment_card port: #number + avatar
 /// + username (rank color) + relative time + content (@mentions/URLs
 /// linkified like the feed comments), delete for own replies, reply (→
-/// @mention) for others'. Long replies collapse at 500 chars with a
-/// read-more toggle, like the feed comments.
+/// @mention) for others'. Long replies collapse at 200 chars with a
+/// read-more toggle, like the feed comments. Expansion is CONTROLLED by
+/// the thread screen: only one reply is expanded at a time.
 class _ForumReplyRow extends StatefulWidget {
   const _ForumReplyRow({
     super.key,
@@ -483,12 +494,20 @@ class _ForumReplyRow extends StatefulWidget {
     required this.number,
     required this.onDelete,
     required this.onReply,
+    required this.expanded,
+    required this.onToggle,
   });
 
   final Comment reply;
   final int number;
   final void Function(Comment) onDelete;
   final void Function(Comment) onReply;
+
+  /// Whether this row's full text is shown (owned by the thread screen).
+  final bool expanded;
+
+  /// Flips this row's expansion (the screen enforces one-at-a-time).
+  final VoidCallback onToggle;
 
   @override
   State<_ForumReplyRow> createState() => _ForumReplyRowState();
@@ -500,8 +519,8 @@ class _ForumReplyRowState extends State<_ForumReplyRow> {
   String? _cachedFor; // 'full' | 'short' — which slice the cache holds
 
   /// Long replies start collapsed to this many chars (word-boundary cut).
-  static const int _readMoreLimit = 500;
-  bool _collapsed = true;
+  static const int _readMoreLimit = 200;
+  bool get _expanded => widget.expanded;
 
   @override
   void dispose() {
@@ -515,14 +534,16 @@ class _ForumReplyRowState extends State<_ForumReplyRow> {
 
   String get _visibleContent {
     final content = reply.content;
-    if (!_collapsed || content.length <= _readMoreLimit) return content;
+    if (_expanded || content.length <= _readMoreLimit) return content;
     final preview = content.substring(0, _readMoreLimit);
     final lastSpace = preview.lastIndexOf(' ');
-    return lastSpace > 200 ? content.substring(0, lastSpace) : preview;
+    return lastSpace > _readMoreLimit * 0.6
+        ? content.substring(0, lastSpace)
+        : preview;
   }
 
   List<InlineSpan> _spans() {
-    final key = _collapsed ? 'short' : 'full';
+    final key = _expanded ? 'full' : 'short';
     if (_cachedFor == key && _cachedSpans != null) return _cachedSpans!;
     for (final r in _recognizers) {
       r.dispose();
@@ -666,11 +687,11 @@ class _ForumReplyRowState extends State<_ForumReplyRow> {
                   ),
                   if (reply.content.length > _readMoreLimit)
                     GestureDetector(
-                      onTap: () => setState(() => _collapsed = !_collapsed),
+                      onTap: widget.onToggle,
                       child: Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: Text(
-                          _collapsed ? 'Read more' : 'Show less',
+                          _expanded ? 'Show less' : 'Read more',
                           style: const TextStyle(
                             color: EnclavdColors.link,
                             fontSize: 12.5,
@@ -724,7 +745,9 @@ class _ReplyComposer extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
+          // The button rides the input's center line — multi-line growth
+          // keeps it aligned with the field, never below it.
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Expanded(
               child: TextField(
@@ -738,18 +761,7 @@ class _ReplyComposer extends StatelessWidget {
                 style: const TextStyle(
                     fontSize: 14, color: EnclavdColors.textPrimary),
                 cursorColor: EnclavdColors.link,
-                buildCounter: (context,
-                        {required currentLength,
-                        required isFocused,
-                        required maxLength}) =>
-                    Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Text(
-                    '$currentLength/$maxLength',
-                    style: const TextStyle(
-                        fontSize: 10.5, color: EnclavdColors.textSecondary),
-                  ),
-                ),
+                // The 1000-char cap stays enforced silently — no counter.
                 decoration: const InputDecoration(
                   hintText: 'Reply…',
                   hintStyle: TextStyle(
@@ -757,6 +769,7 @@ class _ReplyComposer extends StatelessWidget {
                   filled: true,
                   fillColor: EnclavdColors.background,
                   isDense: true,
+                  counterText: '',
                   contentPadding:
                       EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   border: OutlineInputBorder(
@@ -775,7 +788,7 @@ class _ReplyComposer extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 4),
             IconButton(
               onPressed: sending ? null : onSend,
               icon: sending

@@ -229,7 +229,7 @@ void main() {
   });
 
   testWidgets('long replies collapse with a read-more toggle', (tester) async {
-    final long = 'word ' * 120; // 600 chars, over the 500 limit
+    final long = 'word ' * 120; // 600 chars, over the 200 limit
     final social = _FakeSocial(replies: [_reply(1, long)]);
     await tester.pumpWidget(wrap(DomainThreadScreen(
       domains: _FakeDomains(_detail()),
@@ -239,11 +239,11 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    // Collapsed: the preview (word-boundary cut ≤ 500) + Read more.
+    // Collapsed: the preview (word-boundary cut ≤ 200) + Read more.
     expect(find.text('Read more'), findsOneWidget);
     expect(find.text(long), findsNothing);
 
-    // The 500-char preview wraps below the 600px test viewport — bring
+    // The 200-char preview wraps below the 600px test viewport — bring
     // the toggle on screen before tapping (bounded pumps: a settled
     // scroll animation is enough, no infinite-animation traps).
     await tester.ensureVisible(find.text('Read more'));
@@ -252,6 +252,40 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('Show less'), findsOneWidget);
     expect(find.text(long), findsOneWidget);
+  });
+
+  testWidgets('only one long reply is expanded at a time', (tester) async {
+    final long1 = 'first ' * 60; // 360 chars, over the 200 limit
+    final long2 = 'second ' * 60; // 420 chars, over the 200 limit
+    final social = _FakeSocial(replies: [_reply(1, long1), _reply(2, long2)]);
+    await tester.pumpWidget(wrap(DomainThreadScreen(
+      domains: _FakeDomains(_detail()),
+      postId: 218,
+      social: social,
+      posts: _FakePosts(),
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // Both collapsed; both carry a Read more toggle.
+    expect(find.text('Read more'), findsNWidgets(2));
+
+    // Expand the first — the second stays collapsed.
+    await tester.ensureVisible(find.text('Read more').first);
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('Read more').first);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Show less'), findsOneWidget);
+    expect(find.text(long1), findsOneWidget);
+    expect(find.text(long2), findsNothing);
+
+    // Expanding the second collapses the first: one open at a time.
+    await tester.ensureVisible(find.text('Read more'));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('Read more'));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Show less'), findsOneWidget);
+    expect(find.text(long1), findsNothing);
+    expect(find.text(long2), findsOneWidget);
   });
 
   testWidgets('load more appends the next page of replies', (tester) async {

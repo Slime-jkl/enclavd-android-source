@@ -1311,7 +1311,11 @@ class _DashedBorderPainter extends CustomPainter {
 }
 
 /// Lazy-loaded comments: list (newest first) + composer.
-class _CommentsSection extends StatelessWidget {
+///
+/// Stateful: owns the read-more state for the whole list — only ONE long
+/// comment can be expanded at a time; opening another collapses the
+/// previous one (the feed stays scannable).
+class _CommentsSection extends StatefulWidget {
   const _CommentsSection({
     required this.comments,
     required this.loading,
@@ -1345,8 +1349,17 @@ class _CommentsSection extends StatelessWidget {
   final String apiBaseUrl;
 
   @override
+  State<_CommentsSection> createState() => _CommentsSectionState();
+}
+
+class _CommentsSectionState extends State<_CommentsSection> {
+  /// The one expanded comment (by id); null = all collapsed.
+  int? _expandedCommentId;
+
+  @override
   Widget build(BuildContext context) {
-    if (loading) {
+    final comments = widget.comments;
+    if (widget.loading) {
       return const Column(
         children: [
           ShimmerBox(width: double.infinity, height: 40),
@@ -1355,8 +1368,8 @@ class _CommentsSection extends StatelessWidget {
         ],
       );
     }
-    if (error != null) {
-      return Text(error!,
+    if (widget.error != null) {
+      return Text(widget.error!,
           style: const TextStyle(color: EnclavdColors.textSecondary));
     }
     return Column(
@@ -1365,10 +1378,10 @@ class _CommentsSection extends StatelessWidget {
         // Composer at the TOP of the comments (the site's newest-first
         // list reads better when the reply box is right under the post).
         _CommentComposer(
-          controller: controller,
-          focusNode: focusNode,
-          sending: sending,
-          onSend: onSend,
+          controller: widget.controller,
+          focusNode: widget.focusNode,
+          sending: widget.sending,
+          onSend: widget.onSend,
         ),
         const Divider(height: 20),
         for (final comment in comments)
@@ -1378,15 +1391,20 @@ class _CommentsSection extends StatelessWidget {
             // cached mention recognizers to a different comment.
             key: ValueKey(comment.id),
             comment: comment,
-            apiBaseUrl: apiBaseUrl,
-            onDelete: onDelete,
-            onReply: onReply,
+            apiBaseUrl: widget.apiBaseUrl,
+            onDelete: widget.onDelete,
+            onReply: widget.onReply,
+            expanded: comment.id == _expandedCommentId,
+            onToggle: () => setState(() {
+              _expandedCommentId =
+                  _expandedCommentId == comment.id ? null : comment.id;
+            }),
           ),
-        if (hasMore)
+        if (widget.hasMore)
           Center(
             child: TextButton.icon(
-              onPressed: loadingMore ? null : onLoadMore,
-              icon: loadingMore
+              onPressed: widget.loadingMore ? null : widget.onLoadMore,
+              icon: widget.loadingMore
                   ? const SizedBox(
                       width: 14,
                       height: 14,
@@ -1394,7 +1412,8 @@ class _CommentsSection extends StatelessWidget {
                     )
                   : const FaIcon(FontAwesomeIcons.anglesDown,
                       size: 13, color: EnclavdColors.link),
-              label: Text(loadingMore ? 'Loading…' : 'Load more comments'),
+              label: Text(
+                  widget.loadingMore ? 'Loading…' : 'Load more comments'),
               style: TextButton.styleFrom(
                 foregroundColor: EnclavdColors.link,
                 textStyle:
@@ -1408,8 +1427,9 @@ class _CommentsSection extends StatelessWidget {
 }
 
 /// The comment composer: one field + send button, capped at 1000 chars
-/// (the app-side limit) with a live counter. The borderless underline
-/// style is the site's comment-box look.
+/// (the app-side limit — silently, no visible counter). The modern look
+/// is the same as the forum reply bar: a filled rounded field with the
+/// send button centered on it.
 class _CommentComposer extends StatelessWidget {
   const _CommentComposer({
     required this.controller,
@@ -1426,7 +1446,9 @@ class _CommentComposer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
+      // The button rides the input's center line — multi-line growth
+      // keeps it aligned with the field, never below it.
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(
           child: TextField(
@@ -1437,37 +1459,36 @@ class _CommentComposer extends StatelessWidget {
             maxLength: 1000,
             textInputAction: TextInputAction.send,
             onSubmitted: (_) => onSend(),
-            // Compact counter below the field (a 1000-char cap is a hard
-            // UX limit — the user must see it approaching).
-            buildCounter: (context,
-                    {required currentLength,
-                    required isFocused,
-                    required maxLength}) =>
-                Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text(
-                '$currentLength/$maxLength',
-                style: const TextStyle(
-                    fontSize: 10.5, color: EnclavdColors.textSecondary),
-              ),
-            ),
+            // The 1000-char cap stays enforced silently — no counter UI.
+            style: const TextStyle(
+                fontSize: 14, color: EnclavdColors.textPrimary),
+            cursorColor: EnclavdColors.link,
             decoration: const InputDecoration(
               hintText: 'Add a comment…',
+              hintStyle: TextStyle(
+                  color: EnclavdColors.textSecondary, fontSize: 14),
+              filled: true,
+              fillColor: EnclavdColors.background,
               isDense: true,
-              // No box of its own and NO focus outline — the theme's
-              // blue OutlineInputBorder must not appear here either.
-              filled: false,
-              border: InputBorder.none,
-              enabledBorder: InputBorder.none,
-              focusedBorder: InputBorder.none,
-              errorBorder: InputBorder.none,
-              focusedErrorBorder: InputBorder.none,
+              counterText: '',
               contentPadding:
                   EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.all(Radius.circular(10)),
+                borderSide: BorderSide(color: EnclavdColors.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.all(Radius.circular(10)),
+                borderSide: BorderSide(color: EnclavdColors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.all(Radius.circular(10)),
+                borderSide: BorderSide(color: EnclavdColors.link, width: 2),
+              ),
             ),
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 4),
         IconButton(
           onPressed: sending ? null : onSend,
           icon: sending
@@ -1478,6 +1499,7 @@ class _CommentComposer extends StatelessWidget {
                 )
               : const FaIcon(FontAwesomeIcons.paperPlane,
                   size: 18, color: EnclavdColors.link),
+          tooltip: 'Send comment',
         ),
       ],
     );
@@ -1520,8 +1542,10 @@ Color rankColorFromCssClass(String cssClass) {
 /// against the post's commenters, so every mention is a real user), URLs →
 /// link-blue → system browser. NO hashtags (site parity).
 ///
-/// Long comments (> 500 chars) collapse to a word-boundary preview with a
-/// "Read more" toggle — the site's max keeps the feed readable.
+/// Long comments (> 200 chars) collapse to a word-boundary preview with a
+/// "Read more" toggle — the site's max keeps the feed readable. Expansion
+/// is CONTROLLED by the owning comments section: only one comment is
+/// expanded at a time (opening another collapses the previous one).
 class _CommentRow extends StatefulWidget {
   const _CommentRow({
     super.key,
@@ -1529,6 +1553,8 @@ class _CommentRow extends StatefulWidget {
     required this.apiBaseUrl,
     required this.onDelete,
     required this.onReply,
+    required this.expanded,
+    required this.onToggle,
   });
 
   final Comment comment;
@@ -1537,6 +1563,12 @@ class _CommentRow extends StatefulWidget {
 
   /// Wires the row's reply icon to the composer ("@username " + focus).
   final void Function(Comment) onReply;
+
+  /// Whether this row's full text is shown (owned by the section).
+  final bool expanded;
+
+  /// Flips this row's expansion (the section enforces one-at-a-time).
+  final VoidCallback onToggle;
 
   @override
   State<_CommentRow> createState() => _CommentRowState();
@@ -1550,11 +1582,11 @@ class _CommentRowState extends State<_CommentRow> {
   String? _cachedFor; // 'full' | 'short' — which slice the cache holds
 
   /// Long comments collapse to this many characters (word-boundary cut).
-  static const int _readMoreLimit = 500;
+  static const int _readMoreLimit = 200;
 
   /// Long comments start COLLAPSED to their preview (the feed stays
-  /// scannable); "Read more" expands them, "Show less" re-collapses.
-  bool _collapsed = true;
+  /// scannable); the section's one-at-a-time rule drives expansion.
+  bool get _expanded => widget.expanded;
 
   @override
   void dispose() {
@@ -1571,16 +1603,18 @@ class _CommentRowState extends State<_CommentRow> {
   /// so a mid-word / mid-mention slice never renders).
   String get _visibleContent {
     final content = comment.content;
-    if (!_collapsed || content.length <= _readMoreLimit) return content;
+    if (_expanded || content.length <= _readMoreLimit) return content;
     final preview = content.substring(0, _readMoreLimit);
     final lastSpace = preview.lastIndexOf(' ');
     // Only back off to a word boundary when it leaves a substantial
-    // preview (a 480+ char single word is still cut hard).
-    return lastSpace > 200 ? content.substring(0, lastSpace) : preview;
+    // preview (a 120+ char single word is still cut hard).
+    return lastSpace > _readMoreLimit * 0.6
+        ? content.substring(0, lastSpace)
+        : preview;
   }
 
   List<InlineSpan> _spans() {
-    final key = _collapsed ? 'short' : 'full';
+    final key = _expanded ? 'full' : 'short';
     if (_cachedFor == key && _cachedSpans != null) return _cachedSpans!;
     // Toggling the read-more rebuilds the spans: drop the recognizers of
     // the previous slice so none are orphaned.
@@ -1706,11 +1740,11 @@ class _CommentRowState extends State<_CommentRow> {
                 ),
                 if (comment.content.length > _readMoreLimit)
                   GestureDetector(
-                    onTap: () => setState(() => _collapsed = !_collapsed),
+                    onTap: widget.onToggle,
                     child: Padding(
                       padding: const EdgeInsets.only(top: 2),
                       child: Text(
-                        _collapsed ? 'Read more' : 'Show less',
+                        _expanded ? 'Show less' : 'Read more',
                         style: const TextStyle(
                           color: EnclavdColors.link,
                           fontSize: 12.5,
