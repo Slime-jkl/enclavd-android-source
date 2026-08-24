@@ -30,6 +30,11 @@ void main() {
                 'lock_duration': 900,
                 'applies_to': ['login', 'register'],
               },
+              'nav': [
+                {'url': '', 'text': 'Home', 'public': true},
+                {'url': 'articles', 'text': 'Updates', 'public': true},
+                {'url': 'domain', 'text': 'Domains', 'public': false},
+              ],
             },
           }),
         );
@@ -48,6 +53,14 @@ void main() {
       expect(cfg.rateLimit.captchaAt, 3);
       expect(cfg.rateLimit.lockAt, 10);
       expect(cfg.rateLimit.appliesTo, ['login', 'register']);
+      expect(cfg.nav, hasLength(3));
+      expect(cfg.nav[0].url, '');
+      expect(cfg.nav[0].text, 'Home');
+      expect(cfg.nav[0].public, isTrue);
+      expect(cfg.nav[1].url, 'articles');
+      expect(cfg.nav[1].text, 'Updates');
+      expect(cfg.nav[2].url, 'domain');
+      expect(cfg.nav[2].public, isFalse);
 
       await h.close();
     });
@@ -64,6 +77,7 @@ void main() {
       expect(cfg.maintenance.allowedRanks, isEmpty);
       expect(cfg.rateLimit.enabled, isTrue);
       expect(cfg.rateLimit.cooldowns, isEmpty);
+      expect(cfg.nav, isEmpty);
 
       await h.close();
     });

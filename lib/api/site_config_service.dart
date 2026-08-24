@@ -7,6 +7,7 @@ class SiteConfig {
     this.requireEmailVerification = false,
     required this.maintenance,
     required this.rateLimit,
+    this.nav = const [],
   });
 
   final bool isInvitationRequired;
@@ -19,6 +20,11 @@ class SiteConfig {
   final MaintenanceConfig maintenance;
   final RateLimitConfig rateLimit;
 
+  /// The site's global nav rules (site_config.php $nav_links), in order:
+  /// which pages exist, their labels and the public-visibility flag. The
+  /// app renders its menu from this list.
+  final List<NavLink> nav;
+
   factory SiteConfig.fromJson(Map<String, dynamic> json) => SiteConfig(
         isInvitationRequired: json['isInvitationRequired'] as bool? ?? false,
         requireEmailVerification:
@@ -29,6 +35,38 @@ class SiteConfig {
         rateLimit: RateLimitConfig.fromJson(
             (json['rate_limit'] as Map?)?.cast<String, dynamic>() ??
                 const {}),
+        nav: (json['nav'] as List?)
+            ?.map((e) => NavLink.fromJson(
+                (e as Map?)?.cast<String, dynamic>() ?? const {}))
+            .toList() ??
+            const [],
+      );
+}
+
+/// One navigation entry (site_config.php $nav_links) — the site's global
+/// nav rules. 'public' entries are shown to logged-out visitors; logged-in
+/// users see every entry (the same rule header.php applies).
+class NavLink {
+  const NavLink({
+    required this.url,
+    required this.text,
+    required this.public,
+  });
+
+  /// Clean-URL key of the page ('', 'articles', 'domain', ...). The app
+  /// maps each known url to its native screen; unknown urls are skipped.
+  final String url;
+
+  /// Display label (site_config.php $link['text']).
+  final String text;
+
+  /// Shown to guests when true; the app renders it when public || logged in.
+  final bool public;
+
+  factory NavLink.fromJson(Map<String, dynamic> json) => NavLink(
+        url: json['url'] as String? ?? '',
+        text: json['text'] as String? ?? '',
+        public: json['public'] as bool? ?? false,
       );
 }
 

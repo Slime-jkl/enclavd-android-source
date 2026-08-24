@@ -8,6 +8,7 @@ import '../api/api_client.dart';
 import '../api/articles_service.dart';
 import '../api/auth_service.dart';
 import '../api/feed_service.dart';
+import '../api/site_config_service.dart';
 import '../config/app_config.dart';
 import '../main.dart';
 import '../services/message_notifications.dart';
@@ -79,13 +80,51 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   // + resume; cleared when the Updates tab is opened).
   bool _hasNewArticles = false;
 
-  // The shell hosts three main tabs in place — feed (0), articles (1) and
-  // domains (2) — under the SAME header + bottom nav (the site's header
+  // The shell hosts the site's nav pages in place — feed, articles and
+  // domains — under the SAME header + bottom nav (the site's header
   // persists across pages). The articles/domains bodies build lazily on
   // first tab visit so their loads only happen when the user SEES the tab.
   int _navIndex = 0;
   bool _articlesTabBuilt = false;
   bool _domainsTabBuilt = false;
+
+  // Server-driven bottom nav (GET /api/v1/site_config → nav): the site's
+  // global nav rules decide which pages exist, their order and labels.
+  // Empty until the fetch lands; the getters below fall back to the
+  // shipped defaults, so the menu is never missing over a network blip.
+  List<NavLink> _nav = const [];
+
+  /// Fallback tabs when the server config can't be fetched — the exact
+  /// set the app shipped with (labels match the old hardcoded bar).
+  static const _defaultNav = [
+    NavLink(url: '', text: 'Feed', public: true),
+    NavLink(url: 'articles', text: 'Updates', public: true),
+    NavLink(url: 'domain', text: 'Domains', public: false),
+  ];
+
+  /// Pages the native app can actually render; server nav entries for any
+  /// other url are skipped (the web may list pages the app has no screen
+  /// for, e.g. faq, leaderboard — they simply don't become tabs).
+  static const _knownNavUrls = {'', 'articles', 'domain'};
+
+  /// Server nav when loaded, else the shipped defaults.
+  List<NavLink> get _effectiveNav => _nav.isNotEmpty ? _nav : _defaultNav;
+
+  /// The tabs to render right now — the site's global nav rules applied:
+  /// known pages only, deduped, shown when public OR the session is live
+  /// (the same rule header.php applies: guests see public pages, logged-in
+  /// users see everything).
+  List<NavLink> get _tabs {
+    final loggedIn = _services?.apiClient.hasSession ?? true;
+    final seen = <String>{};
+    return [
+      for (final link in _effectiveNav)
+        if (_knownNavUrls.contains(link.url) &&
+            seen.add(link.url) &&
+            (link.public || loggedIn))
+          link,
+    ];
+  }
 
   @override
   void initState() {
@@ -102,6 +141,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     _loadFirst();
     _loadUnread();
     _loadNotifUnread();
+    _loadNav();
     _checkNewArticles();
     // The site's header badges are SSE-driven with a 30s poll fallback —
     // the app runs the same pairing: SSE events update them instantly,
@@ -240,6 +280,22 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
       setState(() => _me = me);
     } catch (_) {
       // Non-fatal: the header falls back to a placeholder avatar.
+    }
+  }
+
+  /// The bottom nav is server-driven: site_config.php $nav_links decides
+  /// which pages exist, their order and labels. A fetch failure falls back
+  /// to the shipped defaults — the app never loses its menu over a
+  /// network blip (the same fetch also feeds the login/register gates).
+  Future<void> _loadNav() async {
+    final services = _services;
+    if (services == null) return;
+    try {
+      final cfg = await services.siteConfig.fetch();
+      if (!mounted) return;
+      setState(() => _nav = cfg.nav);
+    } catch (_) {
+      // Non-fatal: keep the default tabs.
     }
   }
 
@@ -586,6 +642,9 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final me = _me;
+    // The tabs rendered right now, derived from the server nav rules
+    // (order, labels, public||logged-in filter) or the shipped defaults.
+    final tabs = _tabs;
     return Scaffold(
       key: _scaffoldKey,
       appBar: AppBar(
@@ -763,40 +822,43 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
           : UserMenuDrawer(auth: _services!.auth, onSignOut: _logout),
       // Both main tabs live in the shell: the feed and the articles list
       // switch in place, keeping their scroll positions; the header, the
-      // user-menu drawer and the bottom nav stay common.
+      // user-menu drawer and the bottom nav stay common. Children align
+      // with the server-driven tab order.
       body: IndexedStack(
         index: _navIndex,
         children: [
-          RefreshIndicator(
-            onRefresh: _refresh,
-            color: EnclavdColors.link,
-            child: _buildBody(),
-          ),
-          if (_articlesTabBuilt && _services != null)
-            ArticlesScreen(articles: _services!.articles)
-          else
-            const SizedBox.shrink(),
-          if (_domainsTabBuilt && _services != null)
-            DomainsScreen(domains: _services!.domains)
-          else
-            const SizedBox.shrink(),
+          for (final tab in tabs)
+            switch (tab.url) {
+              '' => RefreshIndicator(
+                  onRefresh: _refresh,
+                  color: EnclavdColors.link,
+                  child: _buildBody(),
+                ),
+              'articles' => _articlesTabBuilt && _services != null
+                  ? ArticlesScreen(articles: _services!.articles)
+                  : const SizedBox.shrink(),
+              'domain' => _domainsTabBuilt && _services != null
+                  ? DomainsScreen(domains: _services!.domains)
+                  : const SizedBox.shrink(),
+              _ => const SizedBox.shrink(),
+            },
         ],
       ),
       // The composer FAB is feed-only (the site's New Post button lives on
       // the feed page).
-      floatingActionButton: _navIndex == 0
-          ? FloatingActionButton(
-              onPressed: _openComposer,
-              backgroundColor: EnclavdColors.primaryButton,
-              foregroundColor: Colors.white,
-              tooltip: 'Create post',
-              child: const FaIcon(FontAwesomeIcons.pen, size: 20),
-            )
-          : null,
-      // Main navigation like the site's bottom bar: Home/Updates/Domains.
-      // Matches the header's tone: background (gray-950) with the M3
-      // surface tint and shadow killed — otherwise Material 3 washes the
-      // bar lighter than the AppBar it sits under.
+      floatingActionButton:
+          _navIndex < tabs.length && tabs[_navIndex].url == ''
+              ? FloatingActionButton(
+                  onPressed: _openComposer,
+                  backgroundColor: EnclavdColors.primaryButton,
+                  foregroundColor: Colors.white,
+                  tooltip: 'Create post',
+                  child: const FaIcon(FontAwesomeIcons.pen, size: 20),
+                )
+              : null,
+      // Main navigation driven by the site's global nav rules
+      // (site_config.php $nav_links): order, labels and the
+      // public/logged-in visibility filter come from the server.
       bottomNavigationBar: NavigationBar(
         backgroundColor: EnclavdColors.background,
         surfaceTintColor: Colors.transparent,
@@ -804,57 +866,55 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
         indicatorColor: EnclavdColors.primaryButton.withValues(alpha: 0.35),
         selectedIndex: _navIndex,
         onDestinationSelected: (index) {
-          if (index == 0) {
-            // Feed tab = the app's home: switch back (if on Updates) and
-            // jump to the top + refresh (the site's header logo does the
-            // same — home + re-poll).
-            if (_navIndex != 0) {
-              setState(() => _navIndex = 0);
-            }
-            _jumpToTopAndRefresh();
-          } else if (index == 1) {
-            // Updates = the native articles tab (the site's /articles).
-            // First visit builds the body — its load advances the seen-id
-            // baseline — and the red dot clears here: the user has arrived.
-            setState(() {
-              _navIndex = 1;
+          if (index < 0 || index >= tabs.length) return;
+          final url = tabs[index].url;
+          setState(() {
+            _navIndex = index;
+            if (url == 'articles') {
+              // Updates = the native articles tab (the site's /articles).
+              // First visit builds the body — its load advances the
+              // seen-id baseline — and the red dot clears here: the user
+              // has arrived.
               _articlesTabBuilt = true;
               _hasNewArticles = false;
-            });
-          } else if (index == 2) {
-            // Domains = the native forum tab (the site's /domain). Built
-            // lazily on first visit like the Updates tab.
-            setState(() {
-              _navIndex = 2;
+            } else if (url == 'domain') {
+              // Domains = the native forum tab (the site's /domain). Built
+              // lazily on first visit like the Updates tab.
               _domainsTabBuilt = true;
-            });
+            }
+          });
+          if (url == '') {
+            // Feed tab = the app's home: jump to the top + refresh (the
+            // site's header logo does the same — home + re-poll).
+            _jumpToTopAndRefresh();
           }
         },
         destinations: [
-          const NavigationDestination(
-            icon: FaIcon(FontAwesomeIcons.barsStaggered,
-                color: EnclavdColors.textSecondary),
-            selectedIcon:
-                FaIcon(FontAwesomeIcons.barsStaggered, color: EnclavdColors.link),
-            label: 'Feed',
-          ),
-          NavigationDestination(
-            // The red dot rides the icon while new articles exist since the
-            // last visit (the site's unread-marker color, bg-red-500).
-            icon: _updatesIcon(selected: false),
-            selectedIcon: _updatesIcon(selected: true),
-            label: 'Updates',
-          ),
-          const NavigationDestination(
-            icon: FaIcon(FontAwesomeIcons.globe,
-                color: EnclavdColors.textSecondary),
-            selectedIcon:
-                FaIcon(FontAwesomeIcons.globe, color: EnclavdColors.link),
-            label: 'Domains',
-          ),
+          for (final tab in tabs)
+            NavigationDestination(
+              icon: _tabIcon(tab, selected: false),
+              selectedIcon: _tabIcon(tab, selected: true),
+              label: tab.text,
+            ),
         ],
       ),
     );
+  }
+
+  /// Native icon for a nav entry, keyed by its site url (the web's Font
+  /// Awesome classes are web-only; the app picks its own icons per page).
+  /// The Updates icon keeps its unread red dot.
+  Widget _tabIcon(NavLink tab, {required bool selected}) {
+    switch (tab.url) {
+      case 'articles':
+        return _updatesIcon(selected: selected);
+      case 'domain':
+        return FaIcon(FontAwesomeIcons.globe,
+            color: selected ? EnclavdColors.link : EnclavdColors.textSecondary);
+      default: // '' = home, plus any future known page
+        return FaIcon(FontAwesomeIcons.barsStaggered,
+            color: selected ? EnclavdColors.link : EnclavdColors.textSecondary);
+    }
   }
 
   /// The Updates tab icon; a red dot (site's unread-marker color) sits on
