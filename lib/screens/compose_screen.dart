@@ -17,7 +17,7 @@ import 'image_editor_screen.dart';
 
 /// Post composer — port of the site's post_form.php / edit modal.
 ///
-/// Create mode: text (500 max, live "N/500 characters" counter) + optional
+/// Create mode: text (2000 max, live "N/2000 characters" counter) + optional
 /// image (fa-image → gallery → the image editor for crop/resize/filters —
 /// ied port — then preview with fa-xmark remove; server requires text OR
 /// image). Submit = fa-paper-plane "Post".
@@ -263,6 +263,9 @@ class _ComposeScreenState extends State<ComposeScreen> {
             focusNode: _focus,
             minLines: 3,
             maxLines: 8,
+            // Hard 2000-char cap (the site's MAX_CHARS / api limit) — the
+            // counter below mirrors the site's "N/2000 characters".
+            maxLength: 2000,
             textCapitalization: TextCapitalization.sentences,
             style: base,
             cursorColor: EnclavdColors.textPrimary,
@@ -287,13 +290,13 @@ class _ComposeScreenState extends State<ComposeScreen> {
             ),
           ),
           const SizedBox(height: 4),
-          // Mirrors post_form.php's "N/500 characters" (textSecondary, right).
+          // Mirrors post_form.php's "N/2000 characters" (textSecondary, right).
           Align(
             alignment: Alignment.centerRight,
             child: ValueListenableBuilder<TextEditingValue>(
               valueListenable: _controller,
               builder: (context, value, _) => Text(
-                '${value.text.characters.length}/500 characters',
+                '${value.text.characters.length}/2000 characters',
                 style: const TextStyle(
                     color: EnclavdColors.textSecondary, fontSize: 12),
               ),

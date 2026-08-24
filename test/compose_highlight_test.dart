@@ -61,7 +61,7 @@ void main() {
       ));
       await tester.enterText(find.byType(TextField), '12345');
       await tester.pump();
-      expect(find.text('5/500 characters'), findsOneWidget);
+      expect(find.text('5/2000 characters'), findsOneWidget);
     });
   });
 }
