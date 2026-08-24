@@ -53,6 +53,10 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- Widget taps land here (home_widget's launcher action). -->
+            <intent-filter>
+                <action android:name="es.antonborri.home_widget.action.LAUNCH"/>
+            </intent-filter>
         </activity>
         <!-- Keep-alive while minimized: no engine, no work — it only holds
              the process in the perceptible state so Doze/standby don't cut
@@ -73,6 +77,19 @@
         <receiver
             android:exported="false"
             android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver" />
+        <!-- Daily-quote home-screen widget. exported=true is REQUIRED: the
+             launcher (an external caller) delivers APPWIDGET_UPDATE. The
+             provider renders data pushed from Dart — it never fetches. -->
+        <receiver
+            android:name=".QuoteWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/enclavd_quote_widget_info" />
+        </receiver>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

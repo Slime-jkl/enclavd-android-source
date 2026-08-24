@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Daily-quote home-screen widget: a wide card (4x2). updatePeriodMillis
+     is 0 on purpose — the widget is passive and only re-renders when the
+     app pushes new data (daily background task / foreground refresh), so
+     the system never re-renders stale content on its own. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen"
+    android:description="@string/quote_widget_description"
+    android:initialLayout="@layout/enclavd_quote_widget"
+    android:previewLayout="@layout/enclavd_quote_widget" />

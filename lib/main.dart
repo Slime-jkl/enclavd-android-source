@@ -28,6 +28,7 @@ import 'screens/maintenance_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/verify_email_screen.dart';
+import 'services/daily_quote_service.dart';
 import 'services/message_notification_source.dart';
 import 'services/message_notifications.dart';
 import 'services/notification_worker.dart';
@@ -66,6 +67,11 @@ void main(List<String> args) {
   if (AppConfig.enableNotifications) {
     Workmanager().initialize(notificationDispatcher);
     unawaited(registerBackgroundNotifications());
+    // Daily quote: arm the random-time one-shot (keeps an already-armed
+    // slot) and refresh the home-screen widget if today's quote isn't in
+    // it yet. Both are fire-and-forget — nothing here blocks startup.
+    unawaited(DailyQuoteService.scheduleNextRun());
+    unawaited(DailyQuoteService.refreshWidgetIfStale());
   }
   runApp(const EnclavdApp());
 }
@@ -188,6 +194,10 @@ class AppServices {
     unawaited(PushManager.ensureResolved(
       PushRegistrationService(() async => current?.apiClient ?? api),
     ));
+    // Daily-quote home-screen widget: refresh once per day when the session
+    // is live (post-login create). Own client from prefs on purpose — the
+    // container's client may predate the login cookies on a cold start.
+    unawaited(DailyQuoteService.refreshWidgetIfStale());
     return services;
   }
 }

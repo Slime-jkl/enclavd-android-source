@@ -84,9 +84,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(SoundService.muted, isFalse, reason: 'sounds default ON');
-    expect(find.byType(SwitchListTile), findsNWidgets(4),
+    expect(find.byType(SwitchListTile), findsNWidgets(5),
         reason: 'sounds + message notifications + notification alerts '
-            '+ live updates while minimized');
+            '+ daily quote + live updates while minimized');
 
     // Turn sounds off.
     await tester.tap(find.widgetWithText(SwitchListTile, 'Sound effects'));
@@ -252,11 +252,18 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
+    // The warning row is the last ListView item — with five toggles above
+    // it, scroll it into view before asserting.
+    await tester.scrollUntilVisible(
+        find.text('Notifications are blocked on this phone'), 200);
+
     expect(find.text('Notifications are blocked on this phone'),
         findsOneWidget,
         reason: 'toggle ON but the OS denies → the warning must be visible');
     expect(find.text('Open settings'), findsOneWidget);
 
+    await tester.ensureVisible(find.text('Open settings'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Open settings'));
     await tester.pumpAndSettle();
     expect(notifier.openSettingsCalls, 1,

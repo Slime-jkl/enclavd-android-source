@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
 
 import '../api/api_client.dart';
+import 'daily_quote_service.dart';
 import 'message_notification_source.dart';
 import 'message_notifications.dart';
 import 'notification_source.dart';
@@ -54,11 +55,19 @@ Future<void> registerBackgroundNotifications() async {
 /// @pragma so the AOT snapshot keeps it. Every failure returns true —
 /// WorkManager treats false as a failed run; a transient blip must not
 /// burn the backoff chain, the next tick retries.
+///
+/// Branches on the task name: the daily-quote one-shot (random-time slot,
+/// see DailyQuoteService) gets its own handler; everything else falls
+/// through to the periodic source poller.
 @pragma('vm:entry-point')
 void notificationDispatcher() {
   Workmanager().executeTask((taskName, inputData) async {
     try {
-      await runBackgroundSources(backgroundSources());
+      if (taskName == DailyQuoteService.taskName) {
+        await DailyQuoteService.runTask();
+      } else {
+        await runBackgroundSources(backgroundSources());
+      }
     } catch (e) {
       debugPrint('notification worker: $e');
     }

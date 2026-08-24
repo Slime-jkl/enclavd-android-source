@@ -3,6 +3,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/background_keep_alive.dart';
+import '../services/daily_quote_service.dart';
 import '../services/message_notifications.dart';
 import '../services/push/push_transport.dart';
 import '../services/social_notifications.dart';
@@ -25,10 +26,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   static const _prefsKey = 'sounds_enabled';
   static const _notifPrefsKey = MessageNotifications.enabledPrefsKey;
   static const _socialNotifPrefsKey = SocialNotifications.enabledPrefsKey;
+  static const _dailyQuotePrefsKey = DailyQuoteService.enabledPrefsKey;
 
   bool? _soundsEnabled; // null until loaded
   bool? _notificationsEnabled; // null until loaded
   bool? _socialNotificationsEnabled; // null until loaded
+  bool? _dailyQuoteEnabled; // null until loaded
   bool? _keepAliveEnabled; // null until loaded
   bool? _osBlocked; // null until checked; true = OS denies notifications
 
@@ -44,12 +47,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     SoundService.muted = !enabled;
     final notifications = prefs.getBool(_notifPrefsKey) ?? true;
     final social = prefs.getBool(_socialNotifPrefsKey) ?? true;
+    final dailyQuote = prefs.getBool(_dailyQuotePrefsKey) ?? true;
     final keepAlive = await BackgroundKeepAlive.isEnabled();
     if (!mounted) return;
     setState(() {
       _soundsEnabled = enabled;
       _notificationsEnabled = notifications;
       _socialNotificationsEnabled = social;
+      _dailyQuoteEnabled = dailyQuote;
       _keepAliveEnabled = keepAlive;
     });
     await _refreshOsBlocked();
@@ -93,6 +98,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await SocialNotifications.instance?.setEnabled(enabled);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_socialNotifPrefsKey, enabled);
+  }
+
+  /// Daily quote: on = arm the random-time run (a pending slot is kept);
+  /// off = cancel the run so nothing fires until re-enabled.
+  Future<void> _toggleDailyQuote(bool enabled) async {
+    setState(() => _dailyQuoteEnabled = enabled);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_dailyQuotePrefsKey, enabled);
+    if (enabled) {
+      await DailyQuoteService.scheduleNextRun();
+    } else {
+      await DailyQuoteService.cancel();
+    }
   }
 
   Future<void> _toggleKeepAlive(bool enabled) async {
@@ -212,6 +230,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       title: const Text('Notification alerts'),
                       subtitle: const Text(
                           'Likes, comments and mentions, like on the website'),
+                    ),
+            ),
+            const SizedBox(height: 10),
+            Material(
+              color: EnclavdColors.card,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: EnclavdColors.border),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: _dailyQuoteEnabled == null
+                  ? const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Center(
+                          child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2))),
+                    )
+                  : SwitchListTile(
+                      value: _dailyQuoteEnabled!,
+                      onChanged: _toggleDailyQuote,
+                      activeTrackColor: EnclavdColors.primaryButton,
+                      secondary: const FaIcon(FontAwesomeIcons.quoteLeft,
+                          color: EnclavdColors.link, size: 18),
+                      title: const Text('Daily quote'),
+                      subtitle: const Text(
+                          'Today\u2019s quote as a home-screen widget and one '
+                          'notification a day at a random time'),
                     ),
             ),
             const SizedBox(height: 10),

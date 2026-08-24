@@ -28,6 +28,10 @@ dependencies:
   # device notifications with a reply action from the drawer.
   flutter_local_notifications: ^22.3.0
   workmanager: ^0.10.9
+  # Home-screen widget (daily quote): the widget itself is native Kotlin
+  # (res/ layout + QuoteWidgetProvider); this plugin only ships data to it
+  # and triggers the re-render. Zero transitive dependencies.
+  home_widget: ^0.9.3
   # In-app YouTube playback: post-card embeds load the real youtube-nocookie
   # embed player in a WebView (plays inline, streamed from YouTube) instead
   # of redirecting to the YouTube app. flutter.dev first-party plugin.
