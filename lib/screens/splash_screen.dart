@@ -81,7 +81,8 @@ class _SplashScreenState extends State<SplashScreen> {
     if (!wantsQuote) {
       try {
         final launch = await HomeWidget.initiallyLaunchedFromHomeWidget();
-        wantsQuote = launch != null && launch.contains('quote-settings');
+        wantsQuote =
+            launch != null && launch.toString().contains('quote-settings');
       } catch (_) {
         // home_widget unavailable (tests) — nothing to resolve.
       }

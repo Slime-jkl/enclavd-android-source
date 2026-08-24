@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
-import 'package:workmanager_platform_interface/workmanager_platform_interface.dart';
 
 import 'package:enclavd/screens/quote_help_screen.dart';
 import 'package:enclavd/screens/quote_settings_screen.dart';
@@ -67,9 +66,13 @@ void main() {
     await tester.pumpWidget(wrap(const QuoteSettingsScreen()));
     await tester.pumpAndSettle();
 
-    expect(find.text('Daily quote'), findsOneWidget);
-    expect(find.text('Show tags'), findsOneWidget);
-    expect(find.text('Light variant'), findsOneWidget);
+    expect(
+        find.widgetWithText(SwitchListTile, 'Daily quote'), findsOneWidget,
+        reason: 'the section label also reads "Daily quote" — scope to the '
+            'toggle');
+    expect(find.widgetWithText(SwitchListTile, 'Show tags'), findsOneWidget);
+    expect(find.widgetWithText(SwitchListTile, 'Light variant'),
+        findsOneWidget);
     // No logo toggle — the logo is always on by design.
     expect(find.text('Show logo'), findsNothing);
     expect(find.text('How daily quotes work'), findsOneWidget);
@@ -100,7 +103,7 @@ void main() {
     // Construct the Workmanager singleton FIRST (in the Linux test env it
     // binds the Linux impl), then swap in the recording fake — the impl
     // reads WorkmanagerPlatform.instance live at call time.
-    Workmanager().setPluginRegistrant((_) {});
+    Workmanager();
     final wm = _FakeWorkmanager();
     WorkmanagerPlatform.instance = wm;
 
@@ -145,16 +148,16 @@ void main() {
         .toList();
     expect(
         saved.any((a) =>
-            a is Map && a['key'] == 'widget_show_tags' && a['value'] == false),
+            a is Map && a['id'] == 'widget_show_tags' && a['data'] == false),
         isTrue,
         reason: 'tags toggle persists false');
     expect(
         saved.any((a) =>
-            a is Map && a['key'] == 'widget_light' && a['value'] == true),
+            a is Map && a['id'] == 'widget_light' && a['data'] == true),
         isTrue,
         reason: 'light toggle persists true');
     expect(
-        saved.any((a) => a is Map && a['key'] == 'widget_show_logo'),
+        saved.any((a) => a is Map && a['id'] == 'widget_show_logo'),
         isFalse,
         reason: 'no logo key is ever written (logo always on)');
   });
