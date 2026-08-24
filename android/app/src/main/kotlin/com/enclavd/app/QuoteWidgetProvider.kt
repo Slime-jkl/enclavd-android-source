@@ -25,8 +25,19 @@ import es.antonborri.home_widget.HomeWidgetProvider
  * updateWidget; the like/dislike buttons deliver their tap to a headless
  * Dart callback (HomeWidgetBackgroundIntent → broadcast → WorkManager job
  * → Dart) carrying the quote id in the URI. Display preferences (show
- * tags / show logo / light variant) are ALSO widget data, toggled from the
- * app's Settings — every render reads them from the same source.
+ * tags / light variant) are ALSO widget data, toggled from the app's
+ * Quote of the day settings — every render reads them from the same
+ * source.
+ *
+ * Design ("white-house document"): the logo is ALWAYS on — a large
+ * low-opacity watermark of the app icon in the middle of the card with
+ * the quote text over it, plus the app header's wordmark at the top
+ * right (it takes over the "QUOTE OF THE DAY" title on narrow widgets).
+ * The quote renders without wrapping quotation marks; a large blue
+ * stylized " mark sits above it instead. After a vote the buttons
+ * disappear and a "Liked ✓" / "Disliked ✓" confirmation takes their
+ * place — the user always sees what their tap did (and a vote cast on
+ * the website shows up here the same way on the next push).
  *
  * Text sizes scale with the widget's current width (dp), read from the
  * launcher's options; onAppWidgetOptionsChanged re-renders on resize.
@@ -67,16 +78,15 @@ class QuoteWidgetProvider : HomeWidgetProvider() {
         val rated = data.getString(KEY_RATED, null)
 
         val showTags = data.getBoolean(KEY_SHOW_TAGS, true)
-        val showLogo = data.getBoolean(KEY_SHOW_LOGO, true)
         val light = data.getBoolean(KEY_LIGHT, false)
 
         for (widgetId in appWidgetIds) {
-            val widthDp = appWidgetManager
-                .getAppWidgetOptions(widgetId)
-                .getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 250)
+            val options = appWidgetManager.getAppWidgetOptions(widgetId)
+            val widthDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 250)
+            val heightDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 110)
             val views = RemoteViews(context.packageName, R.layout.enclavd_quote_widget)
             applyColors(views, light)
-            applyTextSizes(views, widthDp)
+            applySizes(views, widthDp, heightDp)
 
             if (text.isNullOrBlank()) {
                 // Freshly added widget, nothing pushed yet — say how to make
@@ -85,13 +95,18 @@ class QuoteWidgetProvider : HomeWidgetProvider() {
                     R.id.quote_widget_text,
                     "Open Enclavd to see today's quote",
                 )
+                views.setViewVisibility(R.id.quote_widget_mark, View.GONE)
                 views.setViewVisibility(R.id.quote_widget_author, View.GONE)
                 views.setViewVisibility(R.id.quote_widget_tags, View.GONE)
                 views.setViewVisibility(R.id.quote_widget_actions, View.GONE)
+                views.setViewVisibility(R.id.quote_widget_rated, View.GONE)
             } else {
-                views.setTextViewText(R.id.quote_widget_text, "\u201C$text\u201D")
-                views.setTextViewText(R.id.quote_widget_author, "\u2014 $author")
+                // No wrapping quotes — the big blue mark above carries the
+                // quotation styling now.
+                views.setTextViewText(R.id.quote_widget_text, text)
+                views.setTextViewText(R.id.quote_widget_author, "— $author")
                 views.setTextViewText(R.id.quote_widget_tags, tagSpans(tags, light))
+                views.setViewVisibility(R.id.quote_widget_mark, View.VISIBLE)
                 views.setViewVisibility(R.id.quote_widget_author, View.VISIBLE)
                 views.setViewVisibility(
                     R.id.quote_widget_tags,
@@ -100,27 +115,37 @@ class QuoteWidgetProvider : HomeWidgetProvider() {
                 renderActions(context, views, quoteId, rated, light)
             }
 
-            // Logo + label header: logo toggleable, hidden on the placeholder.
+            // Logo is ALWAYS on (the toggle was removed): watermark + the
+            // header wordmark, each in the variant that reads on the card.
             views.setImageViewResource(
-                R.id.quote_widget_logo,
+                R.id.quote_widget_watermark,
                 if (light) R.drawable.quote_widget_logo_dark
                 else R.drawable.quote_widget_logo,
             )
-            views.setViewVisibility(
-                R.id.quote_widget_logo,
-                if (showLogo) View.VISIBLE else View.GONE,
+            views.setImageViewResource(
+                R.id.quote_widget_wordmark,
+                if (light) R.drawable.enclavd_logo_dark
+                else R.drawable.enclavd_logo_white,
             )
+            // Watermark at ~10% opacity (25/255 ≈ 9.8%).
+            views.setInt(R.id.quote_widget_watermark, "setImageAlpha", 25)
 
-            // Tapping the card (outside the buttons) opens the app.
-            val openApp =
-                HomeWidgetLaunchIntent.getActivity(context, MainActivity::class.java)
+            // Tapping the card (outside the buttons) opens the app on the
+            // Quote of the day settings screen — the deep link is resolved
+            // by Dart at launch; without a live session it falls back to
+            // the normal start (the gate decides).
+            val openApp = HomeWidgetLaunchIntent.getActivity(
+                context,
+                MainActivity::class.java,
+                Uri.parse("enclavdwidget://quote-settings"),
+            )
             views.setOnClickPendingIntent(R.id.quote_widget_root, openApp)
 
             appWidgetManager.updateAppWidget(widgetId, views)
         }
     }
 
-    /** Dark (default) vs light card: background, text colors, logo glyph. */
+    /** Dark (default) vs light card: background, text colors, logo glyphs. */
     private fun applyColors(views: RemoteViews, light: Boolean) {
         views.setInt(
             R.id.quote_widget_root,
@@ -144,23 +169,69 @@ class QuoteWidgetProvider : HomeWidgetProvider() {
             R.id.quote_widget_tags,
             if (light) Color.rgb(107, 114, 128) else Color.rgb(156, 163, 175),
         )
+        // The stylized mark: brand blue, deeper on light for contrast.
+        views.setTextColor(
+            R.id.quote_widget_mark,
+            if (light) Color.rgb(37, 99, 235) else Color.rgb(59, 130, 246),
+        )
     }
 
-    /** Text scales with the widget width: compact at min, roomier when big. */
-    private fun applyTextSizes(views: RemoteViews, widthDp: Int) {
-        val (text, author, tags, label) = when {
-            widthDp >= 500 -> Sizes(19f, 15f, 13f, 12f)
-            widthDp >= 320 -> Sizes(16f, 13f, 12f, 11f)
-            else -> Sizes(14f, 12f, 11f, 10f)
+    /**
+     * Sizes scale with the widget width. The QUOTE is the star: it grows
+     * aggressively (17sp at min → 30sp on large) so it stays the first
+     * thing the eye lands on; everything else stays small. The blue mark
+     * is always ~1.5× the quote. The wordmark and watermark grow with
+     * the widget too.
+     */
+    private fun applySizes(views: RemoteViews, widthDp: Int, heightDp: Int) {
+        val (text, mark, author, tags, label) = when {
+            widthDp >= 500 -> Sizes(30f, 46f, 14f, 13f, 11f)
+            widthDp >= 360 -> Sizes(24f, 37f, 13f, 12f, 11f)
+            widthDp >= 280 -> Sizes(20f, 31f, 12f, 11f, 10f)
+            else -> Sizes(17f, 26f, 11f, 10f, 10f)
         }
         views.setTextViewTextSize(R.id.quote_widget_text, TypedValue.COMPLEX_UNIT_SP, text)
+        views.setTextViewTextSize(R.id.quote_widget_mark, TypedValue.COMPLEX_UNIT_SP, mark)
         views.setTextViewTextSize(R.id.quote_widget_author, TypedValue.COMPLEX_UNIT_SP, author)
         views.setTextViewTextSize(R.id.quote_widget_tags, TypedValue.COMPLEX_UNIT_SP, tags)
         views.setTextViewTextSize(R.id.quote_widget_label, TypedValue.COMPLEX_UNIT_SP, label)
+        views.setTextViewTextSize(R.id.quote_widget_rated, TypedValue.COMPLEX_UNIT_SP, author)
+
+        // Wordmark (1584x231 ≈ 6.86:1) — up to ~40% of the widget width;
+        // on narrow widgets the "QUOTE OF THE DAY" title gives way to it.
+        val wordmarkWidthDp = (widthDp * 0.4f).coerceIn(48f, 180f)
+        val wordmarkHeightDp = wordmarkWidthDp * 231f / 1584f
+        views.setViewLayoutParams(
+            R.id.quote_widget_wordmark,
+            RemoteViews.LayoutParams(
+                dp(context, wordmarkWidthDp),
+                dp(context, wordmarkHeightDp),
+            ),
+        )
+        // Watermark icon — a big centered mark, ~85% of the smaller side.
+        val watermarkDp = (minOf(widthDp, heightDp) * 0.85f).coerceIn(48f, 260f)
+        views.setViewLayoutParams(
+            R.id.quote_widget_watermark,
+            RemoteViews.LayoutParams(
+                dp(context, watermarkDp),
+                dp(context, watermarkDp),
+            ),
+        )
+
+        // Narrow card (≈2 cells): no room for label + wordmark — the
+        // wordmark overrides the title (the user's rule).
+        views.setViewVisibility(
+            R.id.quote_widget_label,
+            if (widthDp >= 260) View.VISIBLE else View.GONE,
+        )
     }
+
+    private fun dp(context: Context, valueDp: Float): Int =
+        (valueDp * context.resources.displayMetrics.density).toInt()
 
     private data class Sizes(
         val text: Float,
+        val mark: Float,
         val author: Float,
         val tags: Float,
         val label: Float,
@@ -168,7 +239,8 @@ class QuoteWidgetProvider : HomeWidgetProvider() {
 
     /**
      * Like/dislike row: unrated → both neutral + wired to the Dart rate
-     * callback; rated → chosen one tinted (green/red), neither clickable.
+     * callback; rated → the buttons DISAPPEAR and a small confirmation
+     * ("Liked ✓" / "Disliked ✓") takes their place — the vote feedback.
      */
     private fun renderActions(
         context: Context,
@@ -177,10 +249,10 @@ class QuoteWidgetProvider : HomeWidgetProvider() {
         rated: String?,
         light: Boolean,
     ) {
-        val neutralBg =
-            if (light) R.drawable.quote_widget_action_bg_light
-            else R.drawable.quote_widget_action_bg
         if (rated.isNullOrBlank()) {
+            val neutralBg =
+                if (light) R.drawable.quote_widget_action_bg_light
+                else R.drawable.quote_widget_action_bg
             views.setInt(R.id.quote_widget_like, "setBackgroundResource", neutralBg)
             views.setInt(R.id.quote_widget_dislike, "setBackgroundResource", neutralBg)
             if (!quoteId.isNullOrBlank()) {
@@ -199,21 +271,25 @@ class QuoteWidgetProvider : HomeWidgetProvider() {
                     ),
                 )
             }
+            views.setViewVisibility(R.id.quote_widget_actions, View.VISIBLE)
+            views.setViewVisibility(R.id.quote_widget_rated, View.GONE)
         } else {
-            views.setInt(
-                R.id.quote_widget_like,
-                "setBackgroundResource",
-                if (rated == "like") R.drawable.quote_widget_action_bg_liked
-                else neutralBg,
-            )
-            views.setInt(
-                R.id.quote_widget_dislike,
-                "setBackgroundResource",
-                if (rated == "dislike") R.drawable.quote_widget_action_bg_disliked
-                else neutralBg,
-            )
+            views.setViewVisibility(R.id.quote_widget_actions, View.GONE)
+            views.setViewVisibility(R.id.quote_widget_rated, View.VISIBLE)
+            if (rated == "like") {
+                views.setTextViewText(R.id.quote_widget_rated, "✓ Liked")
+                views.setTextColor(
+                    R.id.quote_widget_rated,
+                    if (light) Color.rgb(22, 163, 74) else Color.rgb(74, 222, 128),
+                )
+            } else {
+                views.setTextViewText(R.id.quote_widget_rated, "✓ Disliked")
+                views.setTextColor(
+                    R.id.quote_widget_rated,
+                    if (light) Color.rgb(220, 38, 38) else Color.rgb(248, 113, 113),
+                )
+            }
         }
-        views.setViewVisibility(R.id.quote_widget_actions, View.VISIBLE)
     }
 
     /** "#" in the brand blue (blue-600 on light for contrast), names muted. */
@@ -242,7 +318,6 @@ class QuoteWidgetProvider : HomeWidgetProvider() {
         private const val KEY_ID = "quote_id"
         private const val KEY_RATED = "quote_rated"
         private const val KEY_SHOW_TAGS = "widget_show_tags"
-        private const val KEY_SHOW_LOGO = "widget_show_logo"
         private const val KEY_LIGHT = "widget_light"
     }
 }

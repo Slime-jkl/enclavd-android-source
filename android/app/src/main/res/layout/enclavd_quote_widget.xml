@@ -1,94 +1,149 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Daily-quote widget card: dark gray-900 surface, same look as the web
      toast. Rendered by QuoteWidgetProvider via RemoteViews — only views in
-     the RemoteViews whitelist are allowed here (LinearLayout/TextView). -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+     the RemoteViews whitelist are allowed here (FrameLayout/LinearLayout/
+     TextView/ImageView).
+
+     Design (Aug 2026, the "white-house document" look):
+       - A big, low-opacity logo watermark fills the middle of the card,
+         with the quote text over it (alpha set by the provider).
+       - Header row: "QUOTE OF THE DAY" label (start) + the app header's
+         wordmark logo (end). On narrow widgets the label is hidden and
+         the wordmark takes over (provider decides).
+       - A large blue stylized " mark above the quote text (the provider
+         sizes it above the quote itself); the quote text itself carries
+         NO wrapping quotation marks anymore.
+       - Like/dislike buttons; after a vote they disappear and a small
+         "Liked ✓" / "Disliked ✓" confirmation takes their place.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/quote_widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/quote_widget_bg"
-    android:orientation="vertical"
     android:padding="14dp">
 
+    <!-- Watermark: the app's logo mark, enlarged in the middle at ~10%
+         opacity, text renders over it. -->
+    <ImageView
+        android:id="@+id/quote_widget_watermark"
+        android:layout_width="120dp"
+        android:layout_height="120dp"
+        android:layout_gravity="center"
+        android:src="@drawable/quote_widget_logo"
+        android:importantForAccessibility="no"
+        android:contentDescription="@null" />
+
     <LinearLayout
-        android:id="@+id/quote_widget_header"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:orientation="vertical">
 
-        <ImageView
-            android:id="@+id/quote_widget_logo"
-            android:layout_width="20dp"
-            android:layout_height="20dp"
-            android:src="@drawable/quote_widget_logo"
-            android:importantForAccessibility="no"
-            android:contentDescription="@null" />
+        <LinearLayout
+            android:id="@+id/quote_widget_header"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
 
+            <TextView
+                android:id="@+id/quote_widget_label"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="QUOTE OF THE DAY"
+                android:textColor="#9CA3AF"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.08" />
+
+            <!-- The app header's wordmark (text logo), top right. Its size
+                 is computed from the widget width by the provider. -->
+            <ImageView
+                android:id="@+id/quote_widget_wordmark"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:src="@drawable/quote_widget_logo"
+                android:importantForAccessibility="no"
+                android:contentDescription="@null" />
+        </LinearLayout>
+
+        <!-- Stylized blue quote mark, larger than the quote itself. -->
         <TextView
-            android:id="@+id/quote_widget_label"
+            android:id="@+id/quote_widget_mark"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:text="QUOTE OF THE DAY"
+            android:layout_marginTop="2dp"
+            android:text="&#8220;"
+            android:textColor="#3B82F6"
+            android:textSize="34sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/quote_widget_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="-6dp"
+            android:text="—"
+            android:textColor="#E5E7EB"
+            android:textSize="20sp"
+            android:textStyle="italic" />
+
+        <TextView
+            android:id="@+id/quote_widget_author"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
             android:textColor="#9CA3AF"
-            android:textSize="11sp"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/quote_widget_tags"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textColor="#9CA3AF"
+            android:textSize="12sp" />
+
+        <!-- Like/dislike row: taps wake a headless Dart callback (the
+             rating is recorded in the API, then this widget re-renders).
+             After a vote the provider hides this row and shows the rated
+             confirmation instead. -->
+        <LinearLayout
+            android:id="@+id/quote_widget_actions"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/quote_widget_like"
+                android:layout_width="44dp"
+                android:layout_height="36dp"
+                android:background="@drawable/quote_widget_action_bg"
+                android:gravity="center"
+                android:text="👍"
+                android:textSize="16sp" />
+
+            <TextView
+                android:id="@+id/quote_widget_dislike"
+                android:layout_width="44dp"
+                android:layout_height="36dp"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/quote_widget_action_bg"
+                android:gravity="center"
+                android:text="👎"
+                android:textSize="16sp" />
+        </LinearLayout>
+
+        <!-- Vote confirmation (shown instead of the buttons once rated). -->
+        <TextView
+            android:id="@+id/quote_widget_rated"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:textSize="13sp"
             android:textStyle="bold"
-            android:letterSpacing="0.08" />
+            android:visibility="gone" />
     </LinearLayout>
-
-    <TextView
-        android:id="@+id/quote_widget_text"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:text="—"
-        android:textColor="#E5E7EB"
-        android:textSize="16sp"
-        android:textStyle="italic" />
-
-    <TextView
-        android:id="@+id/quote_widget_author"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:textColor="#9CA3AF"
-        android:textSize="13sp" />
-
-    <TextView
-        android:id="@+id/quote_widget_tags"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:textColor="#9CA3AF"
-        android:textSize="12sp" />
-
-    <!-- Like/dislike row: taps wake a headless Dart callback (the rating is
-         recorded in the API, then this widget re-renders tinted). -->
-    <LinearLayout
-        android:id="@+id/quote_widget_actions"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="10dp"
-        android:orientation="horizontal">
-
-        <TextView
-            android:id="@+id/quote_widget_like"
-            android:layout_width="44dp"
-            android:layout_height="36dp"
-            android:background="@drawable/quote_widget_action_bg"
-            android:gravity="center"
-            android:text="👍"
-            android:textSize="16sp" />
-
-        <TextView
-            android:id="@+id/quote_widget_dislike"
-            android:layout_width="44dp"
-            android:layout_height="36dp"
-            android:layout_marginStart="8dp"
-            android:background="@drawable/quote_widget_action_bg"
-            android:gravity="center"
-            android:text="👎"
-            android:textSize="16sp" />
-    </LinearLayout>
-</LinearLayout>
+</FrameLayout>

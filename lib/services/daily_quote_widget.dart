@@ -24,10 +24,11 @@ class DailyQuoteWidget {
   static const String keyId = 'quote_id';
   static const String keyRated = 'quote_rated';
 
-  /// Display-preference keys (toggled in Settings). The native provider
-  /// reads these from the same widget storage, so a toggle re-renders.
+  /// Display-preference keys (toggled in the Quote of the day settings).
+  /// The native provider reads these from the same widget storage, so a
+  /// toggle re-renders. The logo has NO key: it is always on by design
+  /// (the watermark + header wordmark), there is nothing to toggle.
   static const String keyShowTags = 'widget_show_tags';
-  static const String keyShowLogo = 'widget_show_logo';
   static const String keyLight = 'widget_light';
 
   static Future<bool> showTags() async {
@@ -37,16 +38,6 @@ class DailyQuoteWidget {
           true;
     } catch (e) {
       return true; // plugin unavailable (tests) → defaults
-    }
-  }
-
-  static Future<bool> showLogo() async {
-    try {
-      return await HomeWidget.getWidgetData<bool>(keyShowLogo,
-              defaultValue: true) ??
-          true;
-    } catch (e) {
-      return true;
     }
   }
 
@@ -64,15 +55,11 @@ class DailyQuoteWidget {
   /// failure, like every other widget call.
   static Future<void> setDisplayPrefs({
     bool? showTags,
-    bool? showLogo,
     bool? light,
   }) async {
     try {
       if (showTags != null) {
         await HomeWidget.saveWidgetData<bool>(keyShowTags, showTags);
-      }
-      if (showLogo != null) {
-        await HomeWidget.saveWidgetData<bool>(keyShowLogo, showLogo);
       }
       if (light != null) {
         await HomeWidget.saveWidgetData<bool>(keyLight, light);

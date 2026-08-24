@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:home_widget/home_widget.dart';
 
 import '../api/api_client.dart';
 import '../api/auth_service.dart';
@@ -8,6 +9,7 @@ import 'ban_screen.dart';
 import 'feed_screen.dart';
 import 'login_screen.dart';
 import 'maintenance_screen.dart';
+import 'quote_settings_screen.dart';
 
 /// Startup screen: restores the persisted session and probes /api/v1/me.
 ///
@@ -57,6 +59,7 @@ class _SplashScreenState extends State<SplashScreen> {
             return;
           case Gate.feed:
             _goTo(FeedScreen.routeName);
+            await _maybeOpenQuoteSettings();
             return;
         }
       } else {
@@ -66,6 +69,29 @@ class _SplashScreenState extends State<SplashScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = friendlyErrorText(e));
+    }
+  }
+
+  /// Widget tap / quote-notification deep link → the Quote of the day
+  /// settings screen, but ONLY past the session gate (this runs after a
+  /// live session resolved; no session → the login screen won the start,
+  /// and the requested screen never opens).
+  Future<void> _maybeOpenQuoteSettings() async {
+    var wantsQuote = QuoteDeepLink.pending;
+    if (!wantsQuote) {
+      try {
+        final launch = await HomeWidget.initiallyLaunchedFromHomeWidget();
+        wantsQuote = launch != null && launch.contains('quote-settings');
+      } catch (_) {
+        // home_widget unavailable (tests) — nothing to resolve.
+      }
+    }
+    if (!wantsQuote) return;
+    QuoteDeepLink.consume();
+    final nav = navigatorKey.currentState;
+    if (nav != null && nav.mounted) {
+      nav.push(MaterialPageRoute<void>(
+          builder: (_) => const QuoteSettingsScreen()));
     }
   }
 

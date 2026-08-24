@@ -3,8 +3,9 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import '../theme/enclavd_theme.dart';
 
-/// How daily quotes work — the pick, the tags, the widget and the buttons.
-/// A plain-language page (no internals) reachable from App settings.
+/// How daily quotes work — TLDR. Short, direct, no filler: one quote a
+/// day, rate it with 👍/👎, the pick learns your taste. Each feature gets
+/// a single compact card.
 class QuoteHelpScreen extends StatelessWidget {
   const QuoteHelpScreen({super.key});
 
@@ -16,72 +17,53 @@ class QuoteHelpScreen extends StatelessWidget {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: const [
-            _Section(
+            _Tldr(
               icon: FontAwesomeIcons.quoteLeft,
-              title: 'One quote every day',
+              title: 'One quote a day',
               body:
-                  'Every day you get one quote, chosen for you. It appears '
-                  'on your home screen (the widget), as a notification, and '
-                  'on the website — a fresh one every day, and you will '
-                  'never see the same one twice until the whole collection '
-                  'has been shown.',
+                  'A new quote every morning — on the widget, the '
+                  'notification, and the website. No repeats until you\u2019ve '
+                  'seen them all.',
             ),
-            SizedBox(height: 10),
-            _Section(
-              icon: FontAwesomeIcons.tags,
-              title: 'The tags',
-              body:
-                  'Every quote carries 1–3 themes — wisdom, courage, '
-                  'happiness, strategy and more. Your likes and dislikes '
-                  'build a personal score for each theme: liking a quote '
-                  'pushes its themes up, disliking one pushes them down. '
-                  'The better a theme scores for you, the more often quotes '
-                  'about it get picked.',
-            ),
-            SizedBox(height: 10),
-            _Section(
+            SizedBox(height: 8),
+            _Tldr(
               icon: FontAwesomeIcons.thumbsUp,
-              title: 'Like and dislike',
+              title: 'Rate it',
               body:
-                  'Rate the quote with the 👍/👎 buttons — on the widget '
-                  'without even opening the app, or on the website. Each '
-                  'quote can be rated once, and every rating nudges '
-                  'tomorrow\u2019s pick toward (or away from) its themes. '
-                  'Rate a few and the daily quote starts feeling like it '
-                  'was chosen for you.',
+                  'Tap 👍 or 👎. One vote per quote. The buttons disappear '
+                  'after you vote, so you always know it counted.',
             ),
-            SizedBox(height: 10),
-            _Section(
-              icon: FontAwesomeIcons.solidSun,
+            SizedBox(height: 8),
+            _Tldr(
+              icon: FontAwesomeIcons.tags,
+              title: 'It learns',
+              body:
+                  'Every quote has themes. Liking one pushes its themes up; '
+                  'disliking pushes them down. Rate a few and the picks get '
+                  'smarter.',
+            ),
+            SizedBox(height: 8),
+            _Tldr(
+              icon: FontAwesomeIcons.houseChimney,
               title: 'The widget',
               body:
-                  'Add \u201CEnclavd \u2014 Daily quote\u201D from your '
-                  'launcher\u2019s widget picker. It shows today\u2019s '
-                  'quote, resizes freely, and its text scales with the '
-                  'size. Tap the card to open the app. In App settings you '
-                  'can show or hide the tags and the logo, or switch to a '
-                  'light card.',
+                  'Add it from your launcher. Tap the card to open these '
+                  'settings. Resize it — the quote grows with it.',
             ),
-            SizedBox(height: 10),
-            _Section(
+            SizedBox(height: 8),
+            _Tldr(
               icon: FontAwesomeIcons.bell,
               title: 'The notification',
               body:
-                  'Once a day, at a random time between 6 am and 8 pm your '
-                  'time, a notification brings the quote. While the widget '
-                  'is on your home screen the notification is skipped — '
-                  'the quote is already in front of you. You can turn the '
-                  'whole feature off in App settings.',
+                  'Once a day, random time between 6 am and 8 pm. Skipped '
+                  'while the widget is on your home screen.',
             ),
-            SizedBox(height: 10),
-            _Section(
+            SizedBox(height: 8),
+            _Tldr(
               icon: FontAwesomeIcons.arrowRotateRight,
-              title: 'A new pick every day',
+              title: 'Turn it off',
               body:
-                  'The pick renews at midnight. No preferences yet? The '
-                  'first quotes are a random sample — each rating makes the '
-                  'next one smarter. After 1,600+ quotes you will have seen '
-                  'them all, and the cycle restarts.',
+                  'Master switch at the top of the Quote of the day screen.',
             ),
             SizedBox(height: 16),
           ],
@@ -91,9 +73,9 @@ class QuoteHelpScreen extends StatelessWidget {
   }
 }
 
-/// One explainer card: icon + heading + plain-language body.
-class _Section extends StatelessWidget {
-  const _Section({
+/// One TLDR card: icon + heading + one or two short lines.
+class _Tldr extends StatelessWidget {
+  const _Tldr({
     required this.icon,
     required this.title,
     required this.body,
@@ -106,7 +88,7 @@ class _Section extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: EnclavdColors.card,
         borderRadius: BorderRadius.circular(12),
@@ -115,7 +97,7 @@ class _Section extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          FaIcon(icon, color: EnclavdColors.link, size: 20),
+          FaIcon(icon, color: EnclavdColors.link, size: 18),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -124,14 +106,15 @@ class _Section extends StatelessWidget {
                 Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 15,
+                    fontSize: 14.5,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 3),
                 Text(
                   body,
-                  style: const TextStyle(fontSize: 13.5, height: 1.45),
+                  style: const TextStyle(
+                      fontSize: 13, height: 1.4, color: EnclavdColors.textSecondary),
                 ),
               ],
             ),

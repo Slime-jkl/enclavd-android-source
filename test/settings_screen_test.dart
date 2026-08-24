@@ -88,7 +88,7 @@ void main() {
       (tester) async {
     SharedPreferences.setMockInitialValues({});
     // Tall viewport so the lazy ListView builds ALL toggles (the screen
-    // now has 8 — the last ones sit below the default 600px fold).
+    // now has 4 — the daily-quote options moved to their own screen).
     tester.view.physicalSize = const Size(800, 2200);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -99,9 +99,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(SoundService.muted, isFalse, reason: 'sounds default ON');
-    expect(find.byType(SwitchListTile), findsNWidgets(8),
+    expect(find.byType(SwitchListTile), findsNWidgets(4),
         reason: 'sounds + message notifications + notification alerts '
-            '+ daily quote + widget tags + widget logo + widget light '
             '+ live updates while minimized');
 
     // Turn sounds off.
@@ -275,7 +274,7 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    // The warning row is the last ListView item — with five toggles above
+    // The warning row is the last ListView item — with four toggles above
     // it, scroll it into view before asserting.
     await tester.scrollUntilVisible(
         find.text('Notifications are blocked on this phone'), 200);

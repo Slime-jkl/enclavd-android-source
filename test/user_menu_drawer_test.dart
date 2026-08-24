@@ -107,6 +107,8 @@ void main() {
           reason: 'Profile item removed at the user request');
       expect(find.text('Account settings'), findsOneWidget);
       expect(find.text('App settings'), findsOneWidget);
+      expect(find.text('Quote of the day'), findsOneWidget,
+          reason: 'the feature has its own menu entry, not buried in settings');
       await scrollDrawerToBottom(tester);
       expect(find.text('Test Results'), findsOneWidget);
       expect(find.text('Invitations'), findsOneWidget);

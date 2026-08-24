@@ -62,7 +62,12 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
   String? _error;
   String? _repliesError;
 
+  // Reply pagination: one page (10) at a time, oldest-first forum order.
+  bool _repliesHasMore = false;
+  bool _repliesLoadingMore = false;
+
   final _replyController = TextEditingController();
+  final _replyFocus = FocusNode();
   bool _replying = false;
 
   AppServices? _services;
@@ -76,6 +81,7 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
   @override
   void dispose() {
     _replyController.dispose();
+    _replyFocus.dispose();
     super.dispose();
   }
 
@@ -130,11 +136,12 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
       });
     }
     try {
-      final replies =
-          await _social.listComments(widget.postId, asc: true); // forum order
+      // Page 1, oldest first (forum order); "Load more" appends the rest.
+      final page = await _social.listComments(widget.postId, asc: true);
       if (!mounted) return;
       setState(() {
-        _replies = replies;
+        _replies = page.comments;
+        _repliesHasMore = page.hasMore;
         _repliesLoading = false;
       });
     } catch (_) {
@@ -144,6 +151,41 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
         _repliesError = 'Could not load replies.';
       });
     }
+  }
+
+  /// Appends the next page of older replies below the loaded ones.
+  Future<void> _loadMoreReplies() async {
+    if (_repliesLoadingMore || !_repliesHasMore) return;
+    setState(() => _repliesLoadingMore = true);
+    try {
+      final page = await _social.listComments(
+        widget.postId,
+        asc: true,
+        offset: _replies.length,
+      );
+      if (!mounted) return;
+      setState(() {
+        _replies = [..._replies, ...page.comments];
+        _repliesHasMore = page.hasMore;
+        _repliesLoadingMore = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _repliesLoadingMore = false);
+      _toast('Could not load more replies.');
+    }
+  }
+
+  /// Reply flow: "@username " lands in the bottom composer + focus (the
+  /// server validates mentions against the thread's commenters).
+  void _replyToReply(Comment reply) {
+    final current = _replyController.text.trim();
+    final mention = '@${reply.username} ';
+    _replyController.text =
+        current.isEmpty ? mention : '$current $mention';
+    _replyController.selection =
+        TextSelection.collapsed(offset: _replyController.text.length);
+    _replyFocus.requestFocus();
   }
 
   Future<void> _sendReply() async {
@@ -298,6 +340,7 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
           ? null
           : _ReplyComposer(
               controller: _replyController,
+              focusNode: _replyFocus,
               sending: _replying,
               onSend: _sendReply,
             ),
@@ -370,7 +413,28 @@ return ErrorView(message: error, onRetry: _load);
               reply: _replies[i],
               number: i + 1,
               onDelete: _deleteReply,
+              onReply: _replyToReply,
             ),
+        if (_repliesHasMore)
+          Center(
+            child: TextButton.icon(
+              onPressed: _repliesLoadingMore ? null : _loadMoreReplies,
+              icon: _repliesLoadingMore
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const FaIcon(FontAwesomeIcons.anglesDown,
+                      size: 13, color: EnclavdColors.link),
+              label: Text(_repliesLoadingMore ? 'Loading…' : 'Load more replies'),
+              style: TextButton.styleFrom(
+                foregroundColor: EnclavdColors.link,
+                textStyle:
+                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
         const SizedBox(height: 12),
       ],
     );
@@ -409,18 +473,22 @@ class _RepliesHeader extends StatelessWidget {
 
 /// One forum reply — the site's domain_comment_card port: #number + avatar
 /// + username (rank color) + relative time + content (@mentions/URLs
-/// linkified like the feed comments), delete for own replies.
+/// linkified like the feed comments), delete for own replies, reply (→
+/// @mention) for others'. Long replies collapse at 500 chars with a
+/// read-more toggle, like the feed comments.
 class _ForumReplyRow extends StatefulWidget {
   const _ForumReplyRow({
     super.key,
     required this.reply,
     required this.number,
     required this.onDelete,
+    required this.onReply,
   });
 
   final Comment reply;
   final int number;
   final void Function(Comment) onDelete;
+  final void Function(Comment) onReply;
 
   @override
   State<_ForumReplyRow> createState() => _ForumReplyRowState();
@@ -429,6 +497,11 @@ class _ForumReplyRow extends StatefulWidget {
 class _ForumReplyRowState extends State<_ForumReplyRow> {
   final List<TapGestureRecognizer> _recognizers = [];
   List<InlineSpan>? _cachedSpans;
+  String? _cachedFor; // 'full' | 'short' — which slice the cache holds
+
+  /// Long replies start collapsed to this many chars (word-boundary cut).
+  static const int _readMoreLimit = 500;
+  bool _collapsed = true;
 
   @override
   void dispose() {
@@ -440,16 +513,33 @@ class _ForumReplyRowState extends State<_ForumReplyRow> {
 
   Comment get reply => widget.reply;
 
+  String get _visibleContent {
+    final content = reply.content;
+    if (!_collapsed || content.length <= _readMoreLimit) return content;
+    final preview = content.substring(0, _readMoreLimit);
+    final lastSpace = preview.lastIndexOf(' ');
+    return lastSpace > 200 ? content.substring(0, lastSpace) : preview;
+  }
+
   List<InlineSpan> _spans() {
-    final cached = _cachedSpans;
-    if (cached != null) return cached;
+    final key = _collapsed ? 'short' : 'full';
+    if (_cachedFor == key && _cachedSpans != null) return _cachedSpans!;
+    for (final r in _recognizers) {
+      r.dispose();
+    }
+    _recognizers.clear();
+    final text = _visibleContent;
     final spans = commentContentSpans(
-      reply.content,
+      text,
       onMention: (username) => _openMention(username),
       onUrl: (url) => _openUrl(url),
       recognizers: _recognizers,
     );
+    if (text.length < reply.content.length) {
+      spans.add(const TextSpan(text: '…'));
+    }
     _cachedSpans = spans;
+    _cachedFor = key;
     return spans;
   }
 
@@ -542,6 +632,21 @@ class _ForumReplyRowState extends State<_ForumReplyRow> {
                         style: const TextStyle(
                             color: EnclavdColors.textSecondary, fontSize: 11),
                       ),
+                      // Reply on other members' replies → @mention in the
+                      // bottom composer.
+                      if (!reply.isOwner) ...[
+                        const SizedBox(width: 6),
+                        GestureDetector(
+                          onTap: () => widget.onReply(reply),
+                          behavior: HitTestBehavior.opaque,
+                          child: const Padding(
+                            padding: EdgeInsets.all(2),
+                            child: FaIcon(FontAwesomeIcons.reply,
+                                size: 13,
+                                color: EnclavdColors.textSecondary),
+                          ),
+                        ),
+                      ],
                       if (reply.isOwner) ...[
                         const SizedBox(width: 6),
                         GestureDetector(
@@ -559,6 +664,21 @@ class _ForumReplyRowState extends State<_ForumReplyRow> {
                     style: const TextStyle(
                         color: EnclavdColors.textPrimary, fontSize: 14),
                   ),
+                  if (reply.content.length > _readMoreLimit)
+                    GestureDetector(
+                      onTap: () => setState(() => _collapsed = !_collapsed),
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          _collapsed ? 'Read more' : 'Show less',
+                          style: const TextStyle(
+                            color: EnclavdColors.link,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -577,15 +697,17 @@ class _ForumReplyRowState extends State<_ForumReplyRow> {
 }
 
 /// Bottom reply composer (site: the thread's #reply-form, always visible
-/// like the chat input bar).
+/// like the chat input bar). Replies cap at 1000 chars like comments.
 class _ReplyComposer extends StatelessWidget {
   const _ReplyComposer({
     required this.controller,
+    required this.focusNode,
     required this.sending,
     required this.onSend,
   });
 
   final TextEditingController controller;
+  final FocusNode focusNode;
   final bool sending;
   final VoidCallback onSend;
 
@@ -602,17 +724,32 @@ class _ReplyComposer extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
             Expanded(
               child: TextField(
                 controller: controller,
+                focusNode: focusNode,
                 minLines: 1,
                 maxLines: 4,
+                maxLength: 1000,
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) => onSend(),
                 style: const TextStyle(
                     fontSize: 14, color: EnclavdColors.textPrimary),
                 cursorColor: EnclavdColors.link,
+                buildCounter: (context,
+                        {required currentLength,
+                        required isFocused,
+                        required maxLength}) =>
+                    Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    '$currentLength/$maxLength',
+                    style: const TextStyle(
+                        fontSize: 10.5, color: EnclavdColors.textSecondary),
+                  ),
+                ),
                 decoration: const InputDecoration(
                   hintText: 'Reply…',
                   hintStyle: TextStyle(
@@ -641,8 +778,14 @@ class _ReplyComposer extends StatelessWidget {
             const SizedBox(width: 8),
             IconButton(
               onPressed: sending ? null : onSend,
-              icon: const FaIcon(FontAwesomeIcons.paperPlane,
-                  size: 18, color: EnclavdColors.link),
+              icon: sending
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const FaIcon(FontAwesomeIcons.paperPlane,
+                      size: 18, color: EnclavdColors.link),
               tooltip: 'Send reply',
             ),
           ],

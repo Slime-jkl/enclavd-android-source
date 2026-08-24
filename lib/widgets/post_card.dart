@@ -77,7 +77,16 @@ class _PostCardState extends State<PostCard> {
   bool _commentsLoading = false;
   List<Comment> _comments = const [];
   String? _commentsError;
+
+  // Pagination: comments load one page (10) at a time, with a "Load
+  // more" row appending the next page until [hasMore] goes false.
+  bool _commentsHasMore = false;
+  bool _commentsLoadingMore = false;
+
+  // Owned by the card so the reply flow (icon on a comment row) can
+  // insert "@username " and pull focus to the composer.
   final _commentController = TextEditingController();
+  final _commentFocus = FocusNode();
   bool _commentSending = false;
 
   // True while a like toggle is in flight (blocks double-taps).
@@ -102,6 +111,7 @@ class _PostCardState extends State<PostCard> {
   @override
   void dispose() {
     _commentController.dispose();
+    _commentFocus.dispose();
     super.dispose();
   }
 
@@ -213,10 +223,13 @@ class _PostCardState extends State<PostCard> {
 
   Future<void> _loadComments() async {
     try {
-      final comments = await widget.social.listComments(widget.post.id);
+      final page =
+          await widget.social.listComments(widget.post.id); // page 1, DESC
       if (!mounted) return;
       setState(() {
-        _comments = comments;
+        _comments = page.comments;
+        _commentCount = page.total;
+        _commentsHasMore = page.hasMore;
         _commentsLoading = false;
       });
     } catch (_) {
@@ -226,6 +239,45 @@ class _PostCardState extends State<PostCard> {
         _commentsError = 'Could not load comments.';
       });
     }
+  }
+
+  /// Appends the next page (offset = current length) below the existing
+  /// rows. The "Load more" row stays until the server says there is no
+  /// next page.
+  Future<void> _loadMoreComments() async {
+    if (_commentsLoadingMore || !_commentsHasMore) return;
+    setState(() => _commentsLoadingMore = true);
+    try {
+      final page = await widget.social.listComments(
+        widget.post.id,
+        offset: _comments.length,
+      );
+      if (!mounted) return;
+      setState(() {
+        _comments = [..._comments, ...page.comments];
+        _commentCount = page.total;
+        _commentsHasMore = page.hasMore;
+        _commentsLoadingMore = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _commentsLoadingMore = false);
+      _toast('Could not load more comments.');
+    }
+  }
+
+  /// Reply flow: "@username " lands in the composer and the field is
+  /// focused so the mention is immediately followed by typing. Appending
+  /// (not replacing) keeps whatever the user already typed.
+  void _replyToComment(Comment comment) {
+    final current = _commentController.text.trim();
+    final mention = '@${comment.username} ';
+    _commentController.text = current.isEmpty
+        ? mention
+        : '$current $mention';
+    _commentController.selection = TextSelection.collapsed(
+        offset: _commentController.text.length);
+    _commentFocus.requestFocus();
   }
 
   Future<void> _sendComment() async {
@@ -335,10 +387,15 @@ class _PostCardState extends State<PostCard> {
                       comments: _comments,
                       loading: _commentsLoading,
                       error: _commentsError,
+                      hasMore: _commentsHasMore,
+                      loadingMore: _commentsLoadingMore,
                       sending: _commentSending,
                       controller: _commentController,
+                      focusNode: _commentFocus,
                       onSend: _sendComment,
+                      onLoadMore: _loadMoreComments,
                       onDelete: _deleteComment,
+                      onReply: _replyToComment,
                       apiBaseUrl: widget.apiBaseUrl,
                     ),
                   ],
@@ -1259,20 +1316,32 @@ class _CommentsSection extends StatelessWidget {
     required this.comments,
     required this.loading,
     required this.error,
+    required this.hasMore,
+    required this.loadingMore,
     required this.sending,
     required this.controller,
+    required this.focusNode,
     required this.onSend,
+    required this.onLoadMore,
     required this.onDelete,
+    required this.onReply,
     required this.apiBaseUrl,
   });
 
   final List<Comment> comments;
   final bool loading;
   final String? error;
+
+  /// Another page exists on the server (the "Load more" row shows).
+  final bool hasMore;
+  final bool loadingMore;
   final bool sending;
   final TextEditingController controller;
+  final FocusNode focusNode;
   final VoidCallback onSend;
+  final VoidCallback onLoadMore;
   final void Function(Comment) onDelete;
+  final void Function(Comment) onReply;
   final String apiBaseUrl;
 
   @override
@@ -1293,6 +1362,15 @@ class _CommentsSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Composer at the TOP of the comments (the site's newest-first
+        // list reads better when the reply box is right under the post).
+        _CommentComposer(
+          controller: controller,
+          focusNode: focusNode,
+          sending: sending,
+          onSend: onSend,
+        ),
+        const Divider(height: 20),
         for (final comment in comments)
           _CommentRow(
             // Key by comment id: the list mutates at the TOP (new comments
@@ -1302,48 +1380,104 @@ class _CommentsSection extends StatelessWidget {
             comment: comment,
             apiBaseUrl: apiBaseUrl,
             onDelete: onDelete,
+            onReply: onReply,
           ),
-        const Divider(height: 20),
-        // Composer
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Expanded(
-              child: TextField(
-                controller: controller,
-                minLines: 1,
-                maxLines: 3,
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => onSend(),
-                decoration: const InputDecoration(
-                  hintText: 'Add a comment…',
-                  isDense: true,
-                  // No box of its own and NO focus outline — the theme's
-                  // blue OutlineInputBorder must not appear here either.
-                  filled: false,
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  errorBorder: InputBorder.none,
-                  focusedErrorBorder: InputBorder.none,
-                  contentPadding:
-                      EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            IconButton(
-              onPressed: sending ? null : onSend,
-              icon: sending
+        if (hasMore)
+          Center(
+            child: TextButton.icon(
+              onPressed: loadingMore ? null : onLoadMore,
+              icon: loadingMore
                   ? const SizedBox(
-                      width: 18,
-                      height: 18,
+                      width: 14,
+                      height: 14,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const FaIcon(FontAwesomeIcons.paperPlane,
-                      size: 18, color: EnclavdColors.link),
+                  : const FaIcon(FontAwesomeIcons.anglesDown,
+                      size: 13, color: EnclavdColors.link),
+              label: Text(loadingMore ? 'Loading…' : 'Load more comments'),
+              style: TextButton.styleFrom(
+                foregroundColor: EnclavdColors.link,
+                textStyle:
+                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
             ),
-          ],
+          ),
+      ],
+    );
+  }
+}
+
+/// The comment composer: one field + send button, capped at 1000 chars
+/// (the app-side limit) with a live counter. The borderless underline
+/// style is the site's comment-box look.
+class _CommentComposer extends StatelessWidget {
+  const _CommentComposer({
+    required this.controller,
+    required this.focusNode,
+    required this.sending,
+    required this.onSend,
+  });
+
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final bool sending;
+  final VoidCallback onSend;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Expanded(
+          child: TextField(
+            controller: controller,
+            focusNode: focusNode,
+            minLines: 1,
+            maxLines: 3,
+            maxLength: 1000,
+            textInputAction: TextInputAction.send,
+            onSubmitted: (_) => onSend(),
+            // Compact counter below the field (a 1000-char cap is a hard
+            // UX limit — the user must see it approaching).
+            buildCounter: (context,
+                    {required currentLength,
+                    required isFocused,
+                    required maxLength}) =>
+                Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                '$currentLength/$maxLength',
+                style: const TextStyle(
+                    fontSize: 10.5, color: EnclavdColors.textSecondary),
+              ),
+            ),
+            decoration: const InputDecoration(
+              hintText: 'Add a comment…',
+              isDense: true,
+              // No box of its own and NO focus outline — the theme's
+              // blue OutlineInputBorder must not appear here either.
+              filled: false,
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              errorBorder: InputBorder.none,
+              focusedErrorBorder: InputBorder.none,
+              contentPadding:
+                  EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          onPressed: sending ? null : onSend,
+          icon: sending
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const FaIcon(FontAwesomeIcons.paperPlane,
+                  size: 18, color: EnclavdColors.link),
         ),
       ],
     );
@@ -1379,23 +1513,30 @@ Color rankColorFromCssClass(String cssClass) {
 }
 
 /// One comment row: avatar, username (rank color), content, relative time,
-/// delete for own comments.
+/// delete for own comments, reply (→ @mention) for everyone else's.
 ///
 /// Content renders the site's comment pipeline (render_comment_content):
 /// @mentions → link-blue profile links (the server validates mentions
 /// against the post's commenters, so every mention is a real user), URLs →
 /// link-blue → system browser. NO hashtags (site parity).
+///
+/// Long comments (> 500 chars) collapse to a word-boundary preview with a
+/// "Read more" toggle — the site's max keeps the feed readable.
 class _CommentRow extends StatefulWidget {
   const _CommentRow({
     super.key,
     required this.comment,
     required this.apiBaseUrl,
     required this.onDelete,
+    required this.onReply,
   });
 
   final Comment comment;
   final String apiBaseUrl;
   final void Function(Comment) onDelete;
+
+  /// Wires the row's reply icon to the composer ("@username " + focus).
+  final void Function(Comment) onReply;
 
   @override
   State<_CommentRow> createState() => _CommentRowState();
@@ -1406,6 +1547,14 @@ class _CommentRowState extends State<_CommentRow> {
   // Spans hands ownership to the caller; creating them in build() leaks).
   final List<TapGestureRecognizer> _recognizers = [];
   List<InlineSpan>? _cachedSpans;
+  String? _cachedFor; // 'full' | 'short' — which slice the cache holds
+
+  /// Long comments collapse to this many characters (word-boundary cut).
+  static const int _readMoreLimit = 500;
+
+  /// Long comments start COLLAPSED to their preview (the feed stays
+  /// scannable); "Read more" expands them, "Show less" re-collapses.
+  bool _collapsed = true;
 
   @override
   void dispose() {
@@ -1417,16 +1566,40 @@ class _CommentRowState extends State<_CommentRow> {
 
   Comment get comment => widget.comment;
 
+  /// The slice currently on screen: full text, or the word-boundary
+  /// preview of a long comment (cuts at the last space before the limit
+  /// so a mid-word / mid-mention slice never renders).
+  String get _visibleContent {
+    final content = comment.content;
+    if (!_collapsed || content.length <= _readMoreLimit) return content;
+    final preview = content.substring(0, _readMoreLimit);
+    final lastSpace = preview.lastIndexOf(' ');
+    // Only back off to a word boundary when it leaves a substantial
+    // preview (a 480+ char single word is still cut hard).
+    return lastSpace > 200 ? content.substring(0, lastSpace) : preview;
+  }
+
   List<InlineSpan> _spans() {
-    final cached = _cachedSpans;
-    if (cached != null) return cached;
+    final key = _collapsed ? 'short' : 'full';
+    if (_cachedFor == key && _cachedSpans != null) return _cachedSpans!;
+    // Toggling the read-more rebuilds the spans: drop the recognizers of
+    // the previous slice so none are orphaned.
+    for (final r in _recognizers) {
+      r.dispose();
+    }
+    _recognizers.clear();
+    final text = _visibleContent;
     final spans = commentContentSpans(
-      comment.content,
+      text,
       onMention: (username) => _openMention(username),
       onUrl: (url) => _openUrl(url),
       recognizers: _recognizers,
     );
+    if (text.length < comment.content.length) {
+      spans.add(const TextSpan(text: '…'));
+    }
     _cachedSpans = spans;
+    _cachedFor = key;
     return spans;
   }
 
@@ -1501,6 +1674,20 @@ class _CommentRowState extends State<_CommentRow> {
                       style: const TextStyle(
                           color: EnclavdColors.textSecondary, fontSize: 11),
                     ),
+                    // Reply on OTHER people's comments: inserts "@user "
+                    // into the composer (the mention the server validates).
+                    if (!comment.isOwner) ...[
+                      const SizedBox(width: 6),
+                      GestureDetector(
+                        onTap: () => widget.onReply(comment),
+                        behavior: HitTestBehavior.opaque,
+                        child: const Padding(
+                          padding: EdgeInsets.all(2),
+                          child: FaIcon(FontAwesomeIcons.reply,
+                              size: 13, color: EnclavdColors.textSecondary),
+                        ),
+                      ),
+                    ],
                     if (comment.isOwner) ...[
                       const SizedBox(width: 6),
                       GestureDetector(
@@ -1517,6 +1704,21 @@ class _CommentRowState extends State<_CommentRow> {
                   style: const TextStyle(
                       color: EnclavdColors.textPrimary, fontSize: 14),
                 ),
+                if (comment.content.length > _readMoreLimit)
+                  GestureDetector(
+                    onTap: () => setState(() => _collapsed = !_collapsed),
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        _collapsed ? 'Read more' : 'Show less',
+                        style: const TextStyle(
+                          color: EnclavdColors.link,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),

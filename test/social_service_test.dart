@@ -156,7 +156,7 @@ void main() {
       await h.close();
     });
 
-    test('listComments parses comment items', () async {
+    test('listComments parses a page (comments + total + has_more)', () async {
       final h = await Harness.start((req) async {
         Harness.respond(
           req,
@@ -180,20 +180,51 @@ void main() {
                 'can_moderate': false,
               }
             ],
-            'total': 1,
+            'total': 17,
+            'has_more': true,
           }),
         );
       });
 
       final social = SocialService(h.client);
-      final comments = await social.listComments(10);
-      expect(comments.length, 1);
-      final c = comments.first;
+      // Default page = 10 newest-first (the app's load-more seam).
+      final page = await social.listComments(10);
+      expect(page.comments.length, 1);
+      expect(page.total, 17, reason: 'total is the FULL count, not the page');
+      expect(page.hasMore, isTrue);
+      final c = page.comments.first;
       expect(c.id, 5);
       expect(c.username, 'ana');
       expect(c.content, 'hello there');
       expect(c.createdAt, '5m'); // server already relative-formats
       expect(c.isOwner, isTrue);
+      // The request carries the pagination params.
+      final q = h.requests.last.uri.queryParameters;
+      expect(q['limit'], '10');
+      expect(q.containsKey('offset'), isFalse);
+
+      await h.close();
+    });
+
+    test('listComments forwards asc/limit/offset to the server', () async {
+      final h = await Harness.start((req) async {
+        Harness.respond(
+            req,
+            body: jsonEncode({
+              'success': true,
+              'comments': <dynamic>[],
+              'total': 0,
+              'has_more': false,
+            }));
+      });
+
+      final social = SocialService(h.client);
+      final page = await social.listComments(10, asc: true, offset: 20);
+      expect(page.comments, isEmpty);
+      final q = h.requests.last.uri.queryParameters;
+      expect(q['order'], 'asc');
+      expect(q['limit'], '10');
+      expect(q['offset'], '20');
 
       await h.close();
     });

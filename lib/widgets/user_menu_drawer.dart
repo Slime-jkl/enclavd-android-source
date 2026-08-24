@@ -8,6 +8,7 @@ import '../screens/account_settings_screen.dart';
 import '../screens/invitations_screen.dart';
 import '../screens/legal_screen.dart';
 import '../screens/profile_screen.dart';
+import '../screens/quote_settings_screen.dart';
 import '../screens/report_issue_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/test_results_screen.dart';
@@ -31,10 +32,11 @@ import 'shimmer.dart';
 /// Items (functionality parity with the site menu, minus Profile and
 /// Control Panel which were removed at the user's request): the current
 /// user's avatar/username → their profile; Account settings (the app's
-/// edit-profile); App settings; Test Results; Invitations; Legal;
-/// Report an issue; Sign out. Everything is a native screen — the only
-/// website link left is the about card's changelog button at the bottom
-/// (moved here from the app settings screen).
+/// edit-profile); App settings; Quote of the day (the feature's own
+/// settings); Test Results; Invitations; Legal; Report an issue; Sign
+/// out. Everything is a native screen — the only website link left is
+/// the about card's changelog button at the bottom (moved here from the
+/// app settings screen).
 class UserMenuDrawer extends StatefulWidget {
   const UserMenuDrawer({
     super.key,
@@ -116,6 +118,11 @@ class _UserMenuDrawerState extends State<UserMenuDrawer> {
                   icon: FontAwesomeIcons.gear,
                   label: 'App settings',
                   onTap: () => _push(const SettingsScreen()),
+                ),
+                _MenuItem(
+                  icon: FontAwesomeIcons.quoteLeft,
+                  label: 'Quote of the day',
+                  onTap: () => _push(const QuoteSettingsScreen()),
                 ),
                 const _SectionLabel('Community'),
                 _MenuItem(

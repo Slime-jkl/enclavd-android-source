@@ -36,18 +36,30 @@ class _FakeDomains extends DomainsService {
 
 /// Fake social service with canned replies + a captured send.
 class _FakeSocial extends SocialService {
-  _FakeSocial({this.replies = const []})
+  _FakeSocial({this.replies = const [], this.hasMore = false})
       : super(ApiClient(store: _NoopStore(), apiBaseUrl: 'https://example.com'));
 
   final List<Comment> replies;
+
+  /// Whether the server reports another page after the first one.
+  final bool hasMore;
   final List<int> ascQueries = [];
+  final List<int> offsets = [];
   final List<String> sent = [];
 
   @override
-  Future<List<Comment>> listComments(int postId, {bool asc = false}) async {
+  Future<CommentPage> listComments(int postId,
+      {bool asc = false, int limit = SocialService.pageSize, int offset = 0}) async {
     ascQueries.add(postId);
+    offsets.add(offset);
     expect(asc, isTrue, reason: 'forum replies must be oldest-first');
-    return replies;
+    // Fake serves the full list for page 0; later pages come back empty.
+    final pageComments = offset == 0 ? replies : const <Comment>[];
+    return CommentPage(
+      comments: pageComments,
+      total: replies.length,
+      hasMore: offset == 0 && hasMore,
+    );
   }
 
   @override
@@ -214,6 +226,84 @@ void main() {
 
     expect(find.text('My own reply'), findsNothing);
     expect(find.text('First reply'), findsOneWidget);
+  });
+
+  testWidgets('long replies collapse with a read-more toggle', (tester) async {
+    final long = 'word ' * 120; // 600 chars, over the 500 limit
+    final social = _FakeSocial(replies: [_reply(1, long)]);
+    await tester.pumpWidget(wrap(DomainThreadScreen(
+      domains: _FakeDomains(_detail()),
+      postId: 218,
+      social: social,
+      posts: _FakePosts(),
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // Collapsed: the preview (word-boundary cut ≤ 500) + Read more.
+    expect(find.text('Read more'), findsOneWidget);
+    expect(find.text(long), findsNothing);
+
+    // The 500-char preview wraps below the 600px test viewport — bring
+    // the toggle on screen before tapping (bounded pumps: a settled
+    // scroll animation is enough, no infinite-animation traps).
+    await tester.ensureVisible(find.text('Read more'));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('Read more'));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Show less'), findsOneWidget);
+    expect(find.text(long), findsOneWidget);
+  });
+
+  testWidgets('load more appends the next page of replies', (tester) async {
+    final social = _FakeSocial(
+      replies: [_reply(1, 'First reply'), _reply(2, 'Second reply')],
+      hasMore: true,
+    );
+    await tester.pumpWidget(wrap(DomainThreadScreen(
+      domains: _FakeDomains(_detail()),
+      postId: 218,
+      social: social,
+      posts: _FakePosts(),
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Load more replies'), findsOneWidget);
+    await tester.tap(find.text('Load more replies'));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // Second page fetched at offset 2; nothing more to load.
+    expect(social.offsets, [0, 2]);
+    expect(find.text('Load more replies'), findsNothing);
+  });
+
+  testWidgets('reply icon on another reply fills the composer with @mention',
+      (tester) async {
+    final social = _FakeSocial(replies: [
+      _reply(1, 'First reply'), // someone else's
+    ]);
+    await tester.pumpWidget(wrap(DomainThreadScreen(
+      domains: _FakeDomains(_detail()),
+      postId: 218,
+      social: social,
+      posts: _FakePosts(),
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // Not own → the reply icon shows (no trash). The header's "Replies"
+    // row also uses the fa-reply glyph (link-blue); the row icon is the
+    // muted one — match on the gray color.
+    final replyIcon = find.byWidgetPredicate((w) =>
+        w is FaIcon &&
+        w.icon?.codePoint == FontAwesomeIcons.reply.codePoint &&
+        w.color == EnclavdColors.textSecondary);
+    expect(replyIcon, findsOneWidget);
+    expect(findFa(FontAwesomeIcons.trashCan), findsNothing);
+
+    await tester.tap(replyIcon);
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.controller?.text, '@Someone ');
   });
 
   testWidgets('missing thread shows the ghost error + retry', (tester) async {

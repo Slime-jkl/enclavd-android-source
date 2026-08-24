@@ -127,12 +127,41 @@ class Liker {
   }
 }
 
+/// One page of comments (GET /api/v1/comments with &limit=&offset=).
+/// [total] is the post's FULL comment count (not the page size) and
+/// [hasMore] tells the caller whether another page exists.
+class CommentPage {
+  const CommentPage({
+    required this.comments,
+    required this.total,
+    required this.hasMore,
+  });
+
+  final List<Comment> comments;
+  final int total;
+  final bool hasMore;
+
+  factory CommentPage.fromJson(Map<String, dynamic> json) {
+    final raw = json['comments'] as List<dynamic>? ?? const [];
+    return CommentPage(
+      comments: [
+        for (final c in raw)
+          if (c is Map<String, dynamic>) Comment.fromJson(c),
+      ],
+      total: (json['total'] as num?)?.toInt() ?? raw.length,
+      hasMore: json['has_more'] as bool? ?? false,
+    );
+  }
+}
+
 /// SocialService — likes + comments over api/v1 (JSON + CSRF).
 ///
 /// Contracts (both verified against the live handlers):
 ///   POST /api/v1/likes    {post_id}       → {success, action: liked|unliked,
 ///                                            like_count}
 ///   GET  /api/v1/comments ?post_id=N      → {success, comments:[...], total}
+///        (optional &limit=N&offset=M       → one page; total stays the
+///         &order=asc)                       FULL count, has_more added)
 ///   POST /api/v1/comments {action:create, post_id, content}
 ///                                           → {success, comment:{...},
 ///                                              comment_count}
@@ -142,6 +171,10 @@ class SocialService {
   SocialService(this._api);
 
   final ApiClient _api;
+
+  /// Comments are fetched 10 at a time in the app (the load-more seam);
+  /// the server caps limit at 50 anyway.
+  static const int pageSize = 10;
 
   /// Toggles a like on a post. Returns the server's authoritative state.
   Future<LikeResult> toggleLike(int postId) async {
@@ -160,19 +193,19 @@ class SocialService {
     ];
   }
 
-  /// Fetches the comment list for a post. Newest first by default (the
-  /// feed's inline comments); pass [asc] true for forum reading order
-  /// (oldest first — the site's domain thread replies).
-  Future<List<Comment>> listComments(int postId, {bool asc = false}) async {
+  /// Fetches ONE page of comments for a post. Newest first by default
+  /// (the feed's inline comments); pass [asc] true for forum reading
+  /// order (oldest first — the site's domain thread replies). [limit]
+  /// defaults to [pageSize] (10); pass limit 0 for the legacy full list.
+  Future<CommentPage> listComments(int postId,
+      {bool asc = false, int limit = pageSize, int offset = 0}) async {
     final json = await _api.getJson('/api/v1/comments', query: {
       'post_id': '$postId',
       if (asc) 'order': 'asc',
+      if (limit > 0) 'limit': '$limit',
+      if (offset > 0) 'offset': '$offset',
     });
-    final raw = json['comments'] as List<dynamic>? ?? const [];
-    return [
-      for (final c in raw)
-        if (c is Map<String, dynamic>) Comment.fromJson(c),
-    ];
+    return CommentPage.fromJson(json);
   }
 
   /// Creates a comment. Returns the created comment + the new total.

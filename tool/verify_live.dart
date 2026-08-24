@@ -290,21 +290,22 @@ Future<void> main() async {
       await social.createComment(target.id, 'native-app verify $stamp');
   check('comment created', created.id > 0 && created.content.contains('$stamp'),
       '#${created.id}');
-  check('comment count reflects create', countAfterCreate == before.length + 1,
-      '$countAfterCreate vs ${before.length + 1}');
+  check('comment count reflects create',
+      countAfterCreate == before.total + 1,
+      '$countAfterCreate vs ${before.total + 1}');
 
   final afterCreate = await social.listComments(target.id);
   check('list shows the new comment',
-      afterCreate.any((c) => c.id == created.id && c.isOwner));
+      afterCreate.comments.any((c) => c.id == created.id && c.isOwner));
 
   final countAfterDelete = await social.deleteComment(created.id, target.id);
   check(
       'comment delete returns previous count',
-      countAfterDelete == before.length,
-      '$countAfterDelete vs ${before.length}');
+      countAfterDelete == before.total,
+      '$countAfterDelete vs ${before.total}');
   final afterDelete = await social.listComments(target.id);
   check('list no longer has the deleted comment',
-      !afterDelete.any((c) => c.id == created.id));
+      !afterDelete.comments.any((c) => c.id == created.id));
 
   // ── 8b. Messages — inbox → start → send → history → read state ─────────
   // The dev account already has conversations; the inbox must parse.

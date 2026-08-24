@@ -26,6 +26,7 @@ import 'screens/ban_screen.dart';
 import 'screens/feed_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/maintenance_screen.dart';
+import 'screens/quote_settings_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/verify_email_screen.dart';
@@ -80,6 +81,35 @@ void main(List<String> args) {
         quoteWidgetRateCallback));
   }
   runApp(const EnclavdApp());
+}
+
+/// The app's ONE navigator key — deep links (the daily-quote notification
+/// tap) push through it even when no screen context is handy.
+final navigatorKey = GlobalKey<NavigatorState>();
+
+/// Deep link into the Quote of the day settings (widget tap / quote
+/// notification tap). When the app is already up the push happens
+/// immediately; on a cold start the navigator doesn't exist yet, so the
+/// request is parked here and SplashScreen consumes it AFTER the session
+/// gate (no active session → the gate sends the user to login instead,
+/// the requested quote screen never opens).
+class QuoteDeepLink {
+  QuoteDeepLink._();
+
+  static bool pending = false;
+
+  static void requestOpen() {
+    pending = true;
+    final nav = navigatorKey.currentState;
+    if (nav != null && nav.mounted) {
+      pending = false;
+      nav.push(MaterialPageRoute<void>(
+          builder: (_) => const QuoteSettingsScreen()));
+    }
+  }
+
+  /// Clears the parked request (called after a cold-start resolution).
+  static void consume() => pending = false;
 }
 
 /// Simple service container — no DI framework, constructor injection only.
@@ -137,7 +167,15 @@ class AppServices {
     // and SocialNotifications SHARE it, so the plugin initializes exactly
     // once and both paths show through the same channel definitions.
     final notifier = FlutterLocalNotifier(
-      onResponse: (r) => MessageNotifications.instance?.handleResponse(r),
+      onResponse: (r) {
+        // The daily-quote notification tap deep-links into the Quote of
+        // the day settings (the widget tap uses the same target).
+        if (r.payload == 'quote') {
+          QuoteDeepLink.requestOpen();
+          return;
+        }
+        MessageNotifications.instance?.handleResponse(r);
+      },
     );
     // One MessageNotifications for the app's lifetime: first create wins,
     // later ones reuse it so the plugin initializes once and the
@@ -216,6 +254,7 @@ class EnclavdApp extends StatelessWidget {
     return MaterialApp(
       title: 'Enclavd',
       debugShowCheckedModeBanner: false,
+      navigatorKey: navigatorKey,
       theme: buildEnclavdTheme(),
       // The site's microdot.php port: a faint user-id watermark tiled over
       // EVERY screen while logged in (pointer-events none). Lives above
