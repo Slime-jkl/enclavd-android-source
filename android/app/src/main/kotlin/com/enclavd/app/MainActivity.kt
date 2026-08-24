@@ -1,12 +1,18 @@
 package com.enclavd.app
 
+import android.appwidget.AppWidgetManager
+import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.SharedPreferences
 import android.os.Build
+import android.os.Bundle
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import es.antonborri.home_widget.HomeWidgetPlugin
 
 class MainActivity : FlutterActivity() {
 
@@ -14,6 +20,42 @@ class MainActivity : FlutterActivity() {
         const val KEEP_ALIVE_CHANNEL = "enclavd/keepalive"
         const val PREFS_NAME = "enclavd_keepalive"
         const val PREFS_ENABLED = "enabled"
+    }
+
+    // Live re-render of the daily-quote widget on system theme flips
+    // (context-registered — CONFIGURATION_CHANGED is implicit and cannot
+    // be manifest-registered on API 26+). Unregistered in onDestroy.
+    private var configReceiver: BroadcastReceiver? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // The widget follows the system light/dark theme: repaint it now
+        // (a theme may have flipped while the app was dead) and register
+        // so future flips repaint it live while this process lives.
+        renderQuoteWidget()
+        val receiver = QuoteWidgetConfigReceiver()
+        val filter = IntentFilter(Intent.ACTION_CONFIGURATION_CHANGED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(receiver, filter)
+        }
+        configReceiver = receiver
+    }
+
+    private fun renderQuoteWidget() {
+        val manager = AppWidgetManager.getInstance(this)
+        val ids = manager.getAppWidgetIds(
+            ComponentName(this, QuoteWidgetProvider::class.java),
+        )
+        if (ids.isEmpty()) return
+        QuoteWidgetProvider().render(
+            this,
+            manager,
+            ids,
+            HomeWidgetPlugin.getData(this),
+        )
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -66,6 +108,8 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        configReceiver?.let { unregisterReceiver(it) }
+        configReceiver = null
         stopService(Intent(this, RealtimeKeepAliveService::class.java))
         super.onDestroy()
     }

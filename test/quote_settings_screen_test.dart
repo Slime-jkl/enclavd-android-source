@@ -71,6 +71,8 @@ void main() {
         reason: 'the section label also reads "Daily quote" — scope to the '
             'toggle');
     expect(find.widgetWithText(SwitchListTile, 'Show tags'), findsOneWidget);
+    expect(find.widgetWithText(SwitchListTile, 'Follow system theme'),
+        findsOneWidget);
     expect(find.widgetWithText(SwitchListTile, 'Light variant'),
         findsOneWidget);
     // No logo toggle — the logo is always on by design.
@@ -78,7 +80,8 @@ void main() {
     expect(find.text('How daily quotes work'), findsOneWidget);
     expect(find.textContaining('always shown on the widget'), findsOneWidget);
 
-    // Defaults: daily quote ON, tags ON, light OFF.
+    // Defaults: daily quote ON, tags ON, follow-system ON (light variant
+    // greyed out), light OFF.
     expect(
         tester
             .widget<SwitchListTile>(
@@ -90,6 +93,19 @@ void main() {
             .widget<SwitchListTile>(find.widgetWithText(SwitchListTile, 'Show tags'))
             .value,
         isTrue);
+    expect(
+        tester
+            .widget<SwitchListTile>(
+                find.widgetWithText(SwitchListTile, 'Follow system theme'))
+            .value,
+        isTrue);
+    expect(
+        tester
+            .widget<SwitchListTile>(
+                find.widgetWithText(SwitchListTile, 'Light variant'))
+            .onChanged,
+        isNull,
+        reason: 'manual light/dark is locked while following the system theme');
     expect(
         tester
             .widget<SwitchListTile>(find.widgetWithText(SwitchListTile, 'Light variant'))
@@ -139,6 +155,17 @@ void main() {
 
     await tester.tap(find.widgetWithText(SwitchListTile, 'Show tags'));
     await tester.pumpAndSettle();
+    // The manual Light variant is greyed out while the widget follows the
+    // system theme (the default) — the follow toggle must go off first.
+    expect(
+        tester
+            .widget<SwitchListTile>(
+                find.widgetWithText(SwitchListTile, 'Light variant'))
+            .onChanged,
+        isNull,
+        reason: 'manual light/dark is disabled while following the system theme');
+    await tester.tap(find.widgetWithText(SwitchListTile, 'Follow system theme'));
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(SwitchListTile, 'Light variant'));
     await tester.pumpAndSettle();
 
@@ -153,9 +180,14 @@ void main() {
         reason: 'tags toggle persists false');
     expect(
         saved.any((a) =>
+            a is Map && a['id'] == 'widget_follow_system' && a['data'] == false),
+        isTrue,
+        reason: 'follow-system toggle persists false');
+    expect(
+        saved.any((a) =>
             a is Map && a['id'] == 'widget_light' && a['data'] == true),
         isTrue,
-        reason: 'light toggle persists true');
+        reason: 'light toggle persists true once the manual override unlocks');
     expect(
         saved.any((a) => a is Map && a['id'] == 'widget_show_logo'),
         isFalse,

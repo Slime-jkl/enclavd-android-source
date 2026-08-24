@@ -5,16 +5,16 @@
      TextView/ImageView).
 
      Design (Aug 2026, the "white-house document" look):
-       - A big, low-opacity logo watermark fills the middle of the card,
+       - A big, ~5%-opacity logo watermark fills the middle of the card,
          with the quote text over it (alpha set by the provider).
        - Header row: "QUOTE OF THE DAY" label (start) + the app header's
-         wordmark logo (end). On narrow widgets the label is hidden and
-         the wordmark takes over (provider decides).
-       - A large blue stylized " mark above the quote text (the provider
-         sizes it above the quote itself); the quote text itself carries
-         NO wrapping quotation marks anymore.
-       - Like/dislike buttons; after a vote they disappear and a small
-         "Liked ✓" / "Disliked ✓" confirmation takes their place.
+         wordmark logo (end), small and fixed. On narrow widgets the label
+         is hidden and the wordmark takes over (provider decides).
+       - A large blue stylized " mark above the quote text and its mirror,
+         the closing ", in the bottom-right corner; the quote text itself
+         carries NO wrapping quotation marks.
+       - Like/dislike buttons; after a vote they disappear and a single
+         👍/👎 emoji marks the rating.
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/quote_widget_root"
@@ -146,4 +146,18 @@
             android:textStyle="bold"
             android:visibility="gone" />
     </LinearLayout>
+
+    <!-- Closing quote mark, bottom-right — the mirror of the opening "
+         above the quote (sized by the provider like the opening mark). -->
+    <TextView
+        android:id="@+id/quote_widget_close_mark"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="4dp"
+        android:layout_marginBottom="2dp"
+        android:text="&#8221;"
+        android:textColor="#3B82F6"
+        android:textSize="28sp"
+        android:textStyle="bold" />
 </FrameLayout>

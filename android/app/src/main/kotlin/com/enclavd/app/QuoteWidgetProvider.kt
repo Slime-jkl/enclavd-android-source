@@ -3,6 +3,7 @@ package com.enclavd.app
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.SharedPreferences
+import android.content.res.Configuration
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
@@ -25,22 +26,25 @@ import es.antonborri.home_widget.HomeWidgetProvider
  * updateWidget; the like/dislike buttons deliver their tap to a headless
  * Dart callback (HomeWidgetBackgroundIntent → broadcast → WorkManager job
  * → Dart) carrying the quote id in the URI. Display preferences (show
- * tags / light variant) are ALSO widget data, toggled from the app's
- * Quote of the day settings — every render reads them from the same
- * source.
+ * tags / light variant / follow system theme) are ALSO widget data,
+ * toggled from the app's Quote of the day settings — every render reads
+ * them from the same source.
  *
  * Design ("white-house document"): the logo is ALWAYS on — a large
- * low-opacity watermark of the app icon in the middle of the card with
+ * ~5%-opacity watermark of the app icon in the middle of the card with
  * the quote text over it, plus the app header's wordmark at the top
- * right (it takes over the "QUOTE OF THE DAY" title on narrow widgets).
- * The quote renders without wrapping quotation marks; a large blue
- * stylized " mark sits above it instead. After a vote the buttons
- * disappear and a "Liked ✓" / "Disliked ✓" confirmation takes their
- * place — the user always sees what their tap did (and a vote cast on
- * the website shows up here the same way on the next push).
+ * right (small and fixed; it takes over the "QUOTE OF THE DAY" title on
+ * narrow widgets). The quote renders without wrapping quotation marks;
+ * a large blue stylized " mark sits above it and its mirror, the
+ * closing ", in the bottom-right corner. After a vote the buttons
+ * disappear and a single 👍/👎 emoji — the choice itself — marks the
+ * rating. The card follows the SYSTEM light/dark theme by default
+ * (QuoteWidgetConfigReceiver re-renders it when the theme flips).
  *
- * Text sizes scale with the widget's current width (dp), read from the
- * launcher's options; onAppWidgetOptionsChanged re-renders on resize.
+ * All sizes scale seamlessly with the widget's current width (dp): one
+ * continuous scale factor drives every element, so resizing the widget
+ * scales the whole card proportionally. onAppWidgetOptionsChanged
+ * re-renders on resize.
  */
 class QuoteWidgetProvider : HomeWidgetProvider() {
 
@@ -63,7 +67,9 @@ class QuoteWidgetProvider : HomeWidgetProvider() {
         render(context, appWidgetManager, intArrayOf(appWidgetId), HomeWidgetPlugin.getData(context))
     }
 
-    private fun render(
+    /** Re-render all pinned widgets (also called by QuoteWidgetConfigReceiver
+     *  when the system light/dark theme changes). */
+    internal fun render(
         context: Context,
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray,
@@ -78,7 +84,11 @@ class QuoteWidgetProvider : HomeWidgetProvider() {
         val rated = data.getString(KEY_RATED, null)
 
         val showTags = data.getBoolean(KEY_SHOW_TAGS, true)
-        val light = data.getBoolean(KEY_LIGHT, false)
+        // Follow the SYSTEM light/dark mode by default; the manual light
+        // variant is only used when system-follow is switched off.
+        val followSystem = data.getBoolean(KEY_FOLLOW_SYSTEM, true)
+        val light = if (followSystem) !isNight(context)
+        else data.getBoolean(KEY_LIGHT, false)
 
         for (widgetId in appWidgetIds) {
             val options = appWidgetManager.getAppWidgetOptions(widgetId)
@@ -96,17 +106,19 @@ class QuoteWidgetProvider : HomeWidgetProvider() {
                     "Open Enclavd to see today's quote",
                 )
                 views.setViewVisibility(R.id.quote_widget_mark, View.GONE)
+                views.setViewVisibility(R.id.quote_widget_close_mark, View.GONE)
                 views.setViewVisibility(R.id.quote_widget_author, View.GONE)
                 views.setViewVisibility(R.id.quote_widget_tags, View.GONE)
                 views.setViewVisibility(R.id.quote_widget_actions, View.GONE)
                 views.setViewVisibility(R.id.quote_widget_rated, View.GONE)
             } else {
-                // No wrapping quotes — the big blue mark above carries the
-                // quotation styling now.
+                // No wrapping quotes — the big blue marks carry the
+                // quotation styling now (opening above, closing bottom-right).
                 views.setTextViewText(R.id.quote_widget_text, text)
                 views.setTextViewText(R.id.quote_widget_author, "— $author")
                 views.setTextViewText(R.id.quote_widget_tags, tagSpans(tags, light))
                 views.setViewVisibility(R.id.quote_widget_mark, View.VISIBLE)
+                views.setViewVisibility(R.id.quote_widget_close_mark, View.VISIBLE)
                 views.setViewVisibility(R.id.quote_widget_author, View.VISIBLE)
                 views.setViewVisibility(
                     R.id.quote_widget_tags,
@@ -127,8 +139,9 @@ class QuoteWidgetProvider : HomeWidgetProvider() {
                 if (light) R.drawable.enclavd_logo_dark
                 else R.drawable.enclavd_logo_white,
             )
-            // Watermark at ~10% opacity (25/255 ≈ 9.8%).
-            views.setInt(R.id.quote_widget_watermark, "setImageAlpha", 25)
+            // Watermark at ~5% opacity (13/255 ≈ 5.1%) — a faint texture
+            // behind the text, not a visible logo.
+            views.setInt(R.id.quote_widget_watermark, "setImageAlpha", 13)
 
             // Tapping the card (outside the buttons) opens the app on the
             // Quote of the day settings screen — the deep link is resolved
@@ -169,38 +182,50 @@ class QuoteWidgetProvider : HomeWidgetProvider() {
             R.id.quote_widget_tags,
             if (light) Color.rgb(107, 114, 128) else Color.rgb(156, 163, 175),
         )
-        // The stylized mark: brand blue, deeper on light for contrast.
-        views.setTextColor(
-            R.id.quote_widget_mark,
-            if (light) Color.rgb(37, 99, 235) else Color.rgb(59, 130, 246),
-        )
+        // The stylized marks: brand blue, deeper on light for contrast.
+        val markColor =
+            if (light) Color.rgb(37, 99, 235) else Color.rgb(59, 130, 246)
+        views.setTextColor(R.id.quote_widget_mark, markColor)
+        views.setTextColor(R.id.quote_widget_close_mark, markColor)
     }
 
     /**
-     * Sizes scale with the widget width. The QUOTE is the star: it grows
-     * aggressively (17sp at min → 30sp on large) so it stays the first
-     * thing the eye lands on; everything else stays small. The blue mark
-     * is always ~1.5× the quote. The wordmark and watermark grow with
-     * the widget too.
+     * Sizes scale SEAMLESSLY with the widget width: one continuous scale
+     * factor (360dp = 1.0) drives every element — quote, marks, meta,
+     * label, action buttons — so a resize scales the whole card
+     * proportionally instead of jumping between a few fixed sizes. The
+     * quote stays the star; everything else stays small. The wordmark is
+     * SMALL and FIXED (label height, never scales) by design.
      */
     private fun applySizes(views: RemoteViews, widthDp: Int, heightDp: Int) {
-        val (text, mark, author, tags, label) = when {
-            widthDp >= 500 -> Sizes(30f, 46f, 14f, 13f, 11f)
-            widthDp >= 360 -> Sizes(24f, 37f, 13f, 12f, 11f)
-            widthDp >= 280 -> Sizes(20f, 31f, 12f, 11f, 10f)
-            else -> Sizes(17f, 26f, 11f, 10f, 10f)
-        }
+        val scale = (widthDp / 360f).coerceIn(0.7f, 1.5f)
+        val text = 20f * scale
+        val mark = 31f * scale
+        val author = 13f * scale
+        val tags = 12f * scale
+        val label = 11f * scale
+        val rated = 18f * scale
+        val actionEmoji = 16f * scale
         views.setTextViewTextSize(R.id.quote_widget_text, TypedValue.COMPLEX_UNIT_SP, text)
         views.setTextViewTextSize(R.id.quote_widget_mark, TypedValue.COMPLEX_UNIT_SP, mark)
+        views.setTextViewTextSize(R.id.quote_widget_close_mark, TypedValue.COMPLEX_UNIT_SP, mark)
         views.setTextViewTextSize(R.id.quote_widget_author, TypedValue.COMPLEX_UNIT_SP, author)
         views.setTextViewTextSize(R.id.quote_widget_tags, TypedValue.COMPLEX_UNIT_SP, tags)
         views.setTextViewTextSize(R.id.quote_widget_label, TypedValue.COMPLEX_UNIT_SP, label)
-        views.setTextViewTextSize(R.id.quote_widget_rated, TypedValue.COMPLEX_UNIT_SP, author)
+        views.setTextViewTextSize(R.id.quote_widget_rated, TypedValue.COMPLEX_UNIT_SP, rated)
 
-        // Wordmark (1584x231 ≈ 6.86:1) — up to ~40% of the widget width;
-        // on narrow widgets the "QUOTE OF THE DAY" title gives way to it.
-        val wordmarkWidthDp = (widthDp * 0.4f).coerceIn(48f, 180f)
-        val wordmarkHeightDp = wordmarkWidthDp * 231f / 1584f
+        // Like/dislike buttons scale with the card too.
+        views.setViewLayoutWidth(R.id.quote_widget_like, 44f * scale, TypedValue.COMPLEX_UNIT_DIP)
+        views.setViewLayoutHeight(R.id.quote_widget_like, 36f * scale, TypedValue.COMPLEX_UNIT_DIP)
+        views.setViewLayoutWidth(R.id.quote_widget_dislike, 44f * scale, TypedValue.COMPLEX_UNIT_DIP)
+        views.setViewLayoutHeight(R.id.quote_widget_dislike, 36f * scale, TypedValue.COMPLEX_UNIT_DIP)
+        views.setTextViewTextSize(R.id.quote_widget_like, TypedValue.COMPLEX_UNIT_SP, actionEmoji)
+        views.setTextViewTextSize(R.id.quote_widget_dislike, TypedValue.COMPLEX_UNIT_SP, actionEmoji)
+
+        // Wordmark (1584x231 ≈ 6.86:1): SMALL and FIXED — about the height
+        // of the "QUOTE OF THE DAY" label, never scaling with the width.
+        val wordmarkHeightDp = 16f
+        val wordmarkWidthDp = wordmarkHeightDp * 1584f / 231f
         views.setViewLayoutWidth(
             R.id.quote_widget_wordmark,
             wordmarkWidthDp,
@@ -211,7 +236,8 @@ class QuoteWidgetProvider : HomeWidgetProvider() {
             wordmarkHeightDp,
             TypedValue.COMPLEX_UNIT_DIP,
         )
-        // Watermark icon — a big centered mark, ~85% of the smaller side.
+        // Watermark icon — a big centered mark, ~85% of the smaller side
+        // (it is a faint 5%-alpha texture, so it can stay generous).
         val watermarkDp = (minOf(widthDp, heightDp) * 0.85f).coerceIn(48f, 260f)
         views.setViewLayoutWidth(
             R.id.quote_widget_watermark,
@@ -232,18 +258,18 @@ class QuoteWidgetProvider : HomeWidgetProvider() {
         )
     }
 
-    private data class Sizes(
-        val text: Float,
-        val mark: Float,
-        val author: Float,
-        val tags: Float,
-        val label: Float,
-    )
+    /** True when the system is in dark (night) mode. */
+    private fun isNight(context: Context): Boolean {
+        val mode =
+            context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+        return mode == Configuration.UI_MODE_NIGHT_YES
+    }
 
     /**
      * Like/dislike row: unrated → both neutral + wired to the Dart rate
-     * callback; rated → the buttons DISAPPEAR and a small confirmation
-     * ("Liked ✓" / "Disliked ✓") takes their place — the vote feedback.
+     * callback; rated → the buttons DISAPPEAR and a single emoji of the
+     * chosen side (👍 or 👎) marks the vote — visible but not loud, no
+     * colored confirmation banner.
      */
     private fun renderActions(
         context: Context,
@@ -279,19 +305,16 @@ class QuoteWidgetProvider : HomeWidgetProvider() {
         } else {
             views.setViewVisibility(R.id.quote_widget_actions, View.GONE)
             views.setViewVisibility(R.id.quote_widget_rated, View.VISIBLE)
-            if (rated == "like") {
-                views.setTextViewText(R.id.quote_widget_rated, "✓ Liked")
-                views.setTextColor(
-                    R.id.quote_widget_rated,
-                    if (light) Color.rgb(22, 163, 74) else Color.rgb(74, 222, 128),
-                )
-            } else {
-                views.setTextViewText(R.id.quote_widget_rated, "✓ Disliked")
-                views.setTextColor(
-                    R.id.quote_widget_rated,
-                    if (light) Color.rgb(220, 38, 38) else Color.rgb(248, 113, 113),
-                )
-            }
+            // Just the chosen side's emoji — muted like the rest of the
+            // meta text (the emoji glyph itself carries the color).
+            views.setTextViewText(
+                R.id.quote_widget_rated,
+                if (rated == "like") "\uD83D\uDC4D" else "\uD83D\uDC4E",
+            )
+            views.setTextColor(
+                R.id.quote_widget_rated,
+                if (light) Color.rgb(107, 114, 128) else Color.rgb(156, 163, 175),
+            )
         }
     }
 
@@ -322,5 +345,6 @@ class QuoteWidgetProvider : HomeWidgetProvider() {
         private const val KEY_RATED = "quote_rated"
         private const val KEY_SHOW_TAGS = "widget_show_tags"
         private const val KEY_LIGHT = "widget_light"
+        private const val KEY_FOLLOW_SYSTEM = "widget_follow_system"
     }
 }

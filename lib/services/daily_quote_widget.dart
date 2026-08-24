@@ -31,6 +31,11 @@ class DailyQuoteWidget {
   static const String keyShowTags = 'widget_show_tags';
   static const String keyLight = 'widget_light';
 
+  /// When true (default) the widget's light/dark look follows the SYSTEM
+  /// theme; `keyLight` is then only a manual override, used when this is
+  /// switched off.
+  static const String keyFollowSystem = 'widget_follow_system';
+
   static Future<bool> showTags() async {
     try {
       return await HomeWidget.getWidgetData<bool>(keyShowTags,
@@ -51,11 +56,23 @@ class DailyQuoteWidget {
     }
   }
 
+  /// Whether the widget follows the system light/dark theme (default true).
+  static Future<bool> followsSystemTheme() async {
+    try {
+      return await HomeWidget.getWidgetData<bool>(keyFollowSystem,
+              defaultValue: true) ??
+          true;
+    } catch (e) {
+      return true;
+    }
+  }
+
   /// Persists the display prefs and re-renders the widget. Silent on
   /// failure, like every other widget call.
   static Future<void> setDisplayPrefs({
     bool? showTags,
     bool? light,
+    bool? followSystem,
   }) async {
     try {
       if (showTags != null) {
@@ -63,6 +80,9 @@ class DailyQuoteWidget {
       }
       if (light != null) {
         await HomeWidget.saveWidgetData<bool>(keyLight, light);
+      }
+      if (followSystem != null) {
+        await HomeWidget.saveWidgetData<bool>(keyFollowSystem, followSystem);
       }
       await HomeWidget.updateWidget(
         name: widgetName,

@@ -27,6 +27,7 @@ class _QuoteSettingsScreenState extends State<QuoteSettingsScreen> {
   bool? _dailyQuoteEnabled; // null until loaded
   bool? _widgetShowTags; // null until loaded
   bool? _widgetLight; // null until loaded
+  bool? _widgetFollowSystem; // null until loaded
 
   @override
   void initState() {
@@ -42,11 +43,13 @@ class _QuoteSettingsScreenState extends State<QuoteSettingsScreen> {
     // plugin hiccup degrades to defaults instead of throwing.
     final showTags = await DailyQuoteWidget.showTags();
     final light = await DailyQuoteWidget.lightMode();
+    final followSystem = await DailyQuoteWidget.followsSystemTheme();
     if (!mounted) return;
     setState(() {
       _dailyQuoteEnabled = dailyQuote;
       _widgetShowTags = showTags;
       _widgetLight = light;
+      _widgetFollowSystem = followSystem;
     });
   }
 
@@ -69,6 +72,11 @@ class _QuoteSettingsScreenState extends State<QuoteSettingsScreen> {
   Future<void> _toggleWidgetShowTags(bool enabled) async {
     setState(() => _widgetShowTags = enabled);
     await DailyQuoteWidget.setDisplayPrefs(showTags: enabled);
+  }
+
+  Future<void> _toggleWidgetFollowSystem(bool enabled) async {
+    setState(() => _widgetFollowSystem = enabled);
+    await DailyQuoteWidget.setDisplayPrefs(followSystem: enabled);
   }
 
   Future<void> _toggleWidgetLight(bool enabled) async {
@@ -108,12 +116,26 @@ class _QuoteSettingsScreenState extends State<QuoteSettingsScreen> {
             ),
             const SizedBox(height: 10),
             _toggleRow(
+              loading: _widgetFollowSystem == null,
+              value: _widgetFollowSystem ?? true,
+              onChanged: _toggleWidgetFollowSystem,
+              icon: FontAwesomeIcons.moon,
+              title: 'Follow system theme',
+              subtitle: 'Match your phone\u2019s light/dark mode',
+            ),
+            const SizedBox(height: 10),
+            _toggleRow(
               loading: _widgetLight == null,
               value: _widgetLight ?? false,
+              // Manual light/dark is only meaningful when the card is NOT
+              // following the system theme — greyed out otherwise.
+              enabled: _widgetFollowSystem == false,
               onChanged: _toggleWidgetLight,
               icon: FontAwesomeIcons.sun,
               title: 'Light variant',
-              subtitle: 'Light card instead of the dark one',
+              subtitle: (_widgetFollowSystem ?? true)
+                  ? 'Turn off \u2018Follow system theme\u2019 to choose'
+                  : 'Light card instead of the dark one',
             ),
             const SizedBox(height: 10),
             Material(
@@ -156,6 +178,8 @@ class _QuoteSettingsScreenState extends State<QuoteSettingsScreen> {
 
   /// One settings row with the loading-skeleton fallback (the screen shows
   /// real values once the prefs land; never a bare static placeholder).
+  /// [enabled] false = the row is dimmed and not tappable (the manual
+  /// Light variant while the widget follows the system theme).
   Widget _toggleRow({
     required bool loading,
     required bool value,
@@ -163,6 +187,7 @@ class _QuoteSettingsScreenState extends State<QuoteSettingsScreen> {
     required FaIconData icon,
     required String title,
     required String subtitle,
+    bool enabled = true,
   }) {
     return Material(
       color: EnclavdColors.card,
@@ -180,13 +205,16 @@ class _QuoteSettingsScreenState extends State<QuoteSettingsScreen> {
                       height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2))),
             )
-          : SwitchListTile(
-              value: value,
-              onChanged: onChanged,
-              activeTrackColor: EnclavdColors.primaryButton,
-              secondary: FaIcon(icon, color: EnclavdColors.link, size: 18),
-              title: Text(title),
-              subtitle: Text(subtitle),
+          : Opacity(
+              opacity: enabled ? 1 : 0.45,
+              child: SwitchListTile(
+                value: value,
+                onChanged: enabled ? onChanged : null,
+                activeTrackColor: EnclavdColors.primaryButton,
+                secondary: FaIcon(icon, color: EnclavdColors.link, size: 18),
+                title: Text(title),
+                subtitle: Text(subtitle),
+              ),
             ),
     );
   }
