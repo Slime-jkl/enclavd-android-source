@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../screens/quote_help_screen.dart';
 import '../services/background_keep_alive.dart';
 import '../services/daily_quote_service.dart';
+import '../services/daily_quote_widget.dart';
 import '../services/message_notifications.dart';
 import '../services/push/push_transport.dart';
 import '../services/social_notifications.dart';
@@ -32,6 +34,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool? _notificationsEnabled; // null until loaded
   bool? _socialNotificationsEnabled; // null until loaded
   bool? _dailyQuoteEnabled; // null until loaded
+  bool? _widgetShowTags; // null until loaded
+  bool? _widgetShowLogo; // null until loaded
+  bool? _widgetLight; // null until loaded
   bool? _keepAliveEnabled; // null until loaded
   bool? _osBlocked; // null until checked; true = OS denies notifications
 
@@ -49,12 +54,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final social = prefs.getBool(_socialNotifPrefsKey) ?? true;
     final dailyQuote = prefs.getBool(_dailyQuotePrefsKey) ?? true;
     final keepAlive = await BackgroundKeepAlive.isEnabled();
+    // Widget display prefs live in home_widget's storage — the same source
+    // the native provider renders from. Read through the service so a
+    // plugin hiccup degrades to defaults instead of throwing.
+    final showTags = await DailyQuoteWidget.showTags();
+    final showLogo = await DailyQuoteWidget.showLogo();
+    final light = await DailyQuoteWidget.lightMode();
     if (!mounted) return;
     setState(() {
       _soundsEnabled = enabled;
       _notificationsEnabled = notifications;
       _socialNotificationsEnabled = social;
       _dailyQuoteEnabled = dailyQuote;
+      _widgetShowTags = showTags;
+      _widgetShowLogo = showLogo;
+      _widgetLight = light;
       _keepAliveEnabled = keepAlive;
     });
     await _refreshOsBlocked();
@@ -111,6 +125,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } else {
       await DailyQuoteService.cancel();
     }
+  }
+
+  /// Widget display prefs: each toggle persists to the widget storage and
+  /// re-renders the pinned widget immediately.
+  Future<void> _toggleWidgetShowTags(bool enabled) async {
+    setState(() => _widgetShowTags = enabled);
+    await DailyQuoteWidget.setDisplayPrefs(showTags: enabled);
+  }
+
+  Future<void> _toggleWidgetShowLogo(bool enabled) async {
+    setState(() => _widgetShowLogo = enabled);
+    await DailyQuoteWidget.setDisplayPrefs(showLogo: enabled);
+  }
+
+  Future<void> _toggleWidgetLight(bool enabled) async {
+    setState(() => _widgetLight = enabled);
+    await DailyQuoteWidget.setDisplayPrefs(light: enabled);
   }
 
   Future<void> _toggleKeepAlive(bool enabled) async {
@@ -258,9 +289,122 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           color: EnclavdColors.link, size: 18),
                       title: const Text('Daily quote'),
                       subtitle: const Text(
-                          'Today\u2019s quote as a home-screen widget and one '
-                          'notification a day at a random time'),
+                          'Today\u2019s quote on your home screen, plus a '
+                          'notification at a random time when no widget is '
+                          'added'),
                     ),
+            ),
+            const SizedBox(height: 10),
+            const _SectionLabel('Daily quote widget'),
+            const SizedBox(height: 6),
+            Material(
+              color: EnclavdColors.card,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: EnclavdColors.border),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: _widgetShowTags == null
+                  ? const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Center(
+                          child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2))),
+                    )
+                  : SwitchListTile(
+                      value: _widgetShowTags!,
+                      onChanged: _toggleWidgetShowTags,
+                      activeTrackColor: EnclavdColors.primaryButton,
+                      secondary: const FaIcon(FontAwesomeIcons.tags,
+                          color: EnclavdColors.link, size: 18),
+                      title: const Text('Show tags'),
+                      subtitle: const Text(
+                          'Display the quote\u2019s tags on the widget'),
+                    ),
+            ),
+            const SizedBox(height: 10),
+            Material(
+              color: EnclavdColors.card,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: EnclavdColors.border),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: _widgetShowLogo == null
+                  ? const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Center(
+                          child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2))),
+                    )
+                  : SwitchListTile(
+                      value: _widgetShowLogo!,
+                      onChanged: _toggleWidgetShowLogo,
+                      activeTrackColor: EnclavdColors.primaryButton,
+                      secondary: const FaIcon(FontAwesomeIcons.circleHalfStroke,
+                          color: EnclavdColors.link, size: 18),
+                      title: const Text('Show logo'),
+                      subtitle: const Text(
+                          'Show the Enclavd logo in the widget header'),
+                    ),
+            ),
+            const SizedBox(height: 10),
+            Material(
+              color: EnclavdColors.card,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: EnclavdColors.border),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: _widgetLight == null
+                  ? const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Center(
+                          child: SizedBox(
+                              width: 20,
+                              height: 20,
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2))),
+                    )
+                  : SwitchListTile(
+                      value: _widgetLight!,
+                      onChanged: _toggleWidgetLight,
+                      activeTrackColor: EnclavdColors.primaryButton,
+                      secondary: const FaIcon(FontAwesomeIcons.sun,
+                          color: EnclavdColors.link, size: 18),
+                      title: const Text('Light variant'),
+                      subtitle: const Text(
+                          'Light card instead of the dark one'),
+                    ),
+            ),
+            const SizedBox(height: 10),
+            Material(
+              color: EnclavdColors.card,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: const BorderSide(color: EnclavdColors.border),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: ListTile(
+                leading: const FaIcon(FontAwesomeIcons.circleQuestion,
+                    color: EnclavdColors.link, size: 18),
+                title: const Text('How daily quotes work'),
+                subtitle: const Text(
+                    'The pick, the tags, the widget and the buttons'),
+                trailing: const Icon(Icons.chevron_right,
+                    color: EnclavdColors.border),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const QuoteHelpScreen(),
+                  ),
+                ),
+              ),
             ),
             const SizedBox(height: 10),
             Material(

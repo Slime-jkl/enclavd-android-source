@@ -66,17 +66,32 @@ void main() {
       const MethodChannel('enclavd/keepalive'),
       (call) async => call.method == 'isEnabled' ? true : null,
     );
+    // Same for home_widget: the daily-quote widget display prefs are read
+    // on load (and written on toggle). A null response = defaults, which
+    // is exactly what the screen needs in tests.
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+      const MethodChannel('home_widget'),
+      (call) async => null,
+    );
   });
   tearDown(() {
     SoundService.muted = false;
     MessageNotifications.instance = null;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(const MethodChannel('enclavd/keepalive'), null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(const MethodChannel('home_widget'), null);
   });
 
   testWidgets('sound toggle flips SoundService.muted and persists',
       (tester) async {
     SharedPreferences.setMockInitialValues({});
+    // Tall viewport so the lazy ListView builds ALL toggles (the screen
+    // now has 8 — the last ones sit below the default 600px fold).
+    tester.view.physicalSize = const Size(800, 2200);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
     await tester.pumpWidget(MaterialApp(
       theme: buildEnclavdTheme(),
       home: const SettingsScreen(),
@@ -84,9 +99,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(SoundService.muted, isFalse, reason: 'sounds default ON');
-    expect(find.byType(SwitchListTile), findsNWidgets(5),
+    expect(find.byType(SwitchListTile), findsNWidgets(8),
         reason: 'sounds + message notifications + notification alerts '
-            '+ daily quote + live updates while minimized');
+            '+ daily quote + widget tags + widget logo + widget light '
+            '+ live updates while minimized');
 
     // Turn sounds off.
     await tester.tap(find.widgetWithText(SwitchListTile, 'Sound effects'));
@@ -208,6 +224,11 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
+    // The keep-alive tile is the last toggle — scroll it into view first
+    // (the lazy ListView doesn't build items below the fold).
+    await tester.scrollUntilVisible(
+        find.text('Live updates while minimized'), 200);
+
     expect(
         tester
             .widget<SwitchListTile>(find.widgetWithText(
@@ -232,6 +253,8 @@ void main() {
       home: const SettingsScreen(),
     ));
     await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+        find.text('Live updates while minimized'), 200);
     expect(
         tester
             .widget<SwitchListTile>(find.widgetWithText(

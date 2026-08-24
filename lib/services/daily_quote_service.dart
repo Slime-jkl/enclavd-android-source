@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:home_widget/home_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
 
@@ -173,25 +174,34 @@ class DailyQuoteService {
 
     final TodayQuote? today = await _fetchToday(api);
     if (today != null) {
-      try {
-        await plugin.show(
-          id: _notificationId,
-          title: '💬 Quote of the day',
-          body: '“${today.quote.text}”\n— ${today.quote.author}',
-          notificationDetails: const NotificationDetails(
-            android: AndroidNotificationDetails(
-              _channelId,
-              _channelName,
-              channelDescription: _channelDescription,
-              importance: Importance.defaultImportance,
-              priority: Priority.defaultPriority,
+      // The widget IS the daily surface: when at least one instance sits
+      // on the home screen the quote is already in front of the user, so
+      // the notification is skipped (no double delivery). The widget is
+      // still refreshed and tomorrow's slot armed either way.
+      final widgetInUse = await _hasWidgetInstance();
+      if (widgetInUse) {
+        debugPrint('daily quote: widget present, notification skipped');
+      } else {
+        try {
+          await plugin.show(
+            id: _notificationId,
+            title: '💬 Quote of the day',
+            body: '“${today.quote.text}”\n— ${today.quote.author}',
+            notificationDetails: const NotificationDetails(
+              android: AndroidNotificationDetails(
+                _channelId,
+                _channelName,
+                channelDescription: _channelDescription,
+                importance: Importance.defaultImportance,
+                priority: Priority.defaultPriority,
+              ),
             ),
-          ),
-          payload: 'quote',
-        );
-        debugPrint('daily quote: notification shown');
-      } catch (e) {
-        debugPrint('daily quote: notification failed: $e');
+            payload: 'quote',
+          );
+          debugPrint('daily quote: notification shown');
+        } catch (e) {
+          debugPrint('daily quote: notification failed: $e');
+        }
       }
       await pushTodayToWidget(api: api, prefs: prefs, today: today);
     } else {
@@ -199,6 +209,20 @@ class DailyQuoteService {
     }
 
     await scheduleNextRun(); // armed regardless — tomorrow retries
+  }
+
+  /// Whether at least one daily-quote widget is pinned on the home screen.
+  /// home_widget reports one entry per widget instance on Android. On a
+  /// probe failure the safe default is false → the notification fires.
+  static Future<bool> _hasWidgetInstance() async {
+    try {
+      final widgets = await HomeWidget.getInstalledWidgets();
+      return widgets.any((w) =>
+          (w.androidClassName ?? '').contains('QuoteWidgetProvider'));
+    } catch (e) {
+      debugPrint('daily quote: widget presence check failed: $e');
+      return false;
+    }
   }
 
   /// Foreground refresh for the widget: once per LOCAL day, if a session

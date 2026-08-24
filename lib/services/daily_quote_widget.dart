@@ -24,6 +24,68 @@ class DailyQuoteWidget {
   static const String keyId = 'quote_id';
   static const String keyRated = 'quote_rated';
 
+  /// Display-preference keys (toggled in Settings). The native provider
+  /// reads these from the same widget storage, so a toggle re-renders.
+  static const String keyShowTags = 'widget_show_tags';
+  static const String keyShowLogo = 'widget_show_logo';
+  static const String keyLight = 'widget_light';
+
+  static Future<bool> showTags() async {
+    try {
+      return await HomeWidget.getWidgetData<bool>(keyShowTags,
+              defaultValue: true) ??
+          true;
+    } catch (e) {
+      return true; // plugin unavailable (tests) → defaults
+    }
+  }
+
+  static Future<bool> showLogo() async {
+    try {
+      return await HomeWidget.getWidgetData<bool>(keyShowLogo,
+              defaultValue: true) ??
+          true;
+    } catch (e) {
+      return true;
+    }
+  }
+
+  static Future<bool> lightMode() async {
+    try {
+      return await HomeWidget.getWidgetData<bool>(keyLight,
+              defaultValue: false) ??
+          false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Persists the display prefs and re-renders the widget. Silent on
+  /// failure, like every other widget call.
+  static Future<void> setDisplayPrefs({
+    bool? showTags,
+    bool? showLogo,
+    bool? light,
+  }) async {
+    try {
+      if (showTags != null) {
+        await HomeWidget.saveWidgetData<bool>(keyShowTags, showTags);
+      }
+      if (showLogo != null) {
+        await HomeWidget.saveWidgetData<bool>(keyShowLogo, showLogo);
+      }
+      if (light != null) {
+        await HomeWidget.saveWidgetData<bool>(keyLight, light);
+      }
+      await HomeWidget.updateWidget(
+        name: widgetName,
+        androidName: widgetAndroidName,
+      );
+    } catch (e) {
+      debugPrint('quote widget: display prefs failed: $e');
+    }
+  }
+
   /// Full refresh: saves the quote fields (including the quote id the rate
   /// buttons need and the current rated state) and asks the launcher to
   /// re-render. Silent on failure — a widget hiccup must never break the
