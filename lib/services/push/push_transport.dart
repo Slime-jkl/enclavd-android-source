@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
 
 import '../../config/app_config.dart';
-import 'fcm_transport.dart';
+import 'transport_selector.dart';
 import '../message_notifications.dart';
 import '../notification_worker.dart';
 import 'push_registration_service.dart';

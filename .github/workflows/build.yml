@@ -148,13 +148,17 @@ jobs:
             # build.gradle.kts; Flutter's own *1000 scheme disabled by
             # force-version-code-ignoring-abi in gradle.properties).
             BUILD_FLAGS="$BUILD_FLAGS --split-per-abi"
-            # Build-input parity with the pipe (fdroid-reproducibility.md):
-            # strip the firebase plugin modules the way fdroid_build.sh does
-            # (identical plugin list = identical .flutter-plugins-dependencies
-            # = identical gradle configuration = identical dex), and --no-pub
-            # so flutter build does NOT re-run pub get and regenerate the
-            # file, undoing the strip.
+            # Maintainer-required order: strip -> pub get --enforce-lockfile
+            # -> build. strip_firebase.py removes firebase from pubspec.yaml
+            # and rewires the push transport selector to the firebase-free
+            # stub; the committed pubspec-fdroid.lock (generated from the
+            # stripped pubspec) is moved into place; pub get then resolves
+            # ZERO Google code. --no-pub keeps the build from re-resolving
+            # (which would regenerate .flutter-plugins-dependencies from the
+            # full pubspec). The pipe's prebuild runs the identical sequence.
             python3 tool/strip_firebase.py
+            cp pubspec-fdroid.lock pubspec.lock
+            flutter pub get --enforce-lockfile
             BUILD_FLAGS="$BUILD_FLAGS --no-pub"
           fi
           if [ "${{ matrix.flavor }}" = "dev" ]; then

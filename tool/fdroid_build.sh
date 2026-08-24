@@ -39,15 +39,12 @@ trap 'cd "$PARENT" && mv "$UPSTREAM" "$CHECKOUT" || true' EXIT
 # the packages are fetched there, at the upstream path. The .pub-cache lives
 # INSIDE the checkout (moved back after prebuild, moved forward again here),
 # so re-exporting the same location makes this build use the scanned cache.
-# --no-pub keeps flutter from re-running pub get (which would also undo the
-# firebase strip below via .flutter-plugins-dependencies regeneration).
+# The firebase strip + pubspec-fdroid.lock move happen in the metadata
+# PREBUILD (maintainer order: strip -> pub get --enforce-lockfile -> build),
+# so the resolved cache is already firebase-free by the time we get here.
+# --no-pub keeps flutter from re-running pub get against the FULL pubspec
+# (which would re-add firebase and regenerate .flutter-plugins-dependencies).
 export PUB_CACHE="$(pwd)/.pub-cache"
-
-# Zero Google code in the fdroid build: drop the firebase plugin MODULES.
-python3 tool/strip_firebase.py
-
-# --no-pub: flutter build would re-run pub get and regenerate
-# .flutter-plugins-dependencies, undoing the strip.
 # --split-per-abi: F-Droid requires per-ABI APKs (their request, Oct 2026);
 # the version codes come out as base*10 + abi via android/app/build.gradle.kts
 # (base*1000 + abi disabled via force-version-code-ignoring-abi in

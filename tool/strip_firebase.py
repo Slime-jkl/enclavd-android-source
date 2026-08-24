@@ -1,62 +1,70 @@
 #!/usr/bin/env python3
-"""Strip Firebase plugin modules from the fdroid flavor build.
+"""Prepare the F-Droid build: remove every trace of Firebase BEFORE pub get.
 
-The Flutter plugin loader includes EVERY pubspec plugin as a gradle project
-(reading .flutter-plugins-dependencies), and included projects get configured
-even when no variant depends on them. So the fdroid flavor's java-level
-excludes, the dropped registrant, and AppConfig.enableFcm=false keep the APK
-GMS-free, but :firebase_core / :firebase_messaging still configure at build
-time — which fails the F-Droid pipe (firebase_core NPE under the pipe's
-toolchain) and is wrong on principle: zero Google code in the fdroid build.
+The F-Droid maintainer's required order is strip -> pub get --enforce-lockfile
+-> build: the fdroid build must not RESOLVE or compile any Google code, so
+the pubspec itself is stripped of firebase_core/firebase_messaging and the
+committed firebase-free lockfile (pubspec-fdroid.lock) is moved into place
+before pub get runs.
 
-File structure (verified against flutter_tools 3.47.1, flutter_plugins.dart):
-the JSON has a TOP-LEVEL "plugins" key whose values ("android", "ios", ...)
-are LISTS of plugin objects, each carrying a "name" field. Anything else
-(plugins dicts keyed by name) is the wrong shape and strips nothing.
+What this script does (run in the repo root, BEFORE `flutter pub get`, on
+BOTH the CI fdroid job and the pipe's metadata prebuild):
 
-Run AFTER `flutter pub get` and BEFORE `flutter build apk` for the fdroid
-flavor only (the play/dev builds must keep firebase). Mutates
-.flutter-plugins-dependencies in place. `flutter build` will not regenerate it
-as long as .dart_tool/package_config.json is fresh (pub get just ran).
+  1. pubspec.yaml — drop the firebase dependency block (the comment and the
+     two firebase_* lines).
+  2. transport_selector — rewire lib/services/push/transport_selector.dart
+     to export the firebase-free stub (fcm_transport_stub.dart) instead of
+     the real FCM transport, so no file in the fdroid compile graph imports
+     a firebase package.
+
+pubspec-fdroid.lock is generated once (strip -> `flutter pub get` -> copy)
+and committed; the prebuild moves it into place before pub get. Regenerate
+it whenever pubspec dependencies change. Play/dev builds never run this:
+they keep the full pubspec, the FCM selector, and the regular pubspec.lock.
 """
 
-import json
+import re
 import sys
 
-PATH = ".flutter-plugins-dependencies"
-FIREBASE = ("firebase_core", "firebase_messaging")
+PUBSPEC = "pubspec.yaml"
+SELECTOR = "lib/services/push/transport_selector.dart"
+FDROID_SELECTOR = """// F-Droid flavor — rewired by tool/strip_firebase.py before pub get.
+// (The play/dev default export lives in git.)
+export 'fcm_transport_stub.dart';
+"""
+
+
+def strip_pubspec() -> int:
+    lines = open(PUBSPEC, encoding="utf-8").read().splitlines(keepends=True)
+    out = []
+    in_firebase_block = False
+    removed = 0
+    for ln in lines:
+        if "Push transports: firebase_core" in ln:
+            in_firebase_block = True
+        if in_firebase_block:
+            # The block runs from the comment to the last firebase_* dep;
+            # the unifiedpush line ends it.
+            if re.match(r"^\s*unifiedpush:", ln):
+                in_firebase_block = False
+            else:
+                removed += 1
+                continue
+        if re.match(r"^\s*firebase_(core|messaging):", ln):
+            removed += 1
+            continue
+        out.append(ln)
+    open(PUBSPEC, "w", encoding="utf-8").writelines(out)
+    return removed
 
 
 def main() -> int:
-    try:
-        with open(PATH, encoding="utf-8") as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        print(f"error: {PATH} not found — run 'flutter pub get' first")
-        return 1
-    except json.JSONDecodeError as exc:
-        print(f"error: {PATH} is not valid JSON: {exc}")
-        return 1
-
-    plugins = data.get("plugins")
-    if not isinstance(plugins, dict):
-        print(f"error: no top-level 'plugins' object in {PATH}")
-        return 1
-
-    stripped = 0
-    for platform in ("android", "ios"):
-        entries = plugins.get(platform)
-        if not isinstance(entries, list):
-            continue
-        kept = [p for p in entries if p.get("name") not in FIREBASE]
-        stripped += len(entries) - len(kept)
-        plugins[platform] = kept
-
-    with open(PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
-        f.write("\n")
-
-    print(f"stripped {stripped} firebase plugin module(s) from {PATH}")
+    removed = strip_pubspec()
+    open(SELECTOR, "w", encoding="utf-8").write(FDROID_SELECTOR)
+    print(
+        f"stripped {removed} firebase line(s) from {PUBSPEC}; "
+        f"{SELECTOR} -> fcm_transport_stub"
+    )
     return 0
 
 
