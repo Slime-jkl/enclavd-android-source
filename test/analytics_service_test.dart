@@ -33,7 +33,7 @@ void main() {
   AnalyticsService service() => AnalyticsService(
         endpoint: 'http://127.0.0.1:${server.port}/api/event',
         domain: 'enclavd.com',
-        userAgent: AppAnalyticsUa,
+        userAgent: appAnalyticsUa,
       );
 
   Future<Map<String, dynamic>> lastBody() async {
@@ -52,7 +52,7 @@ void main() {
     expect(requests.last.uri.path, '/api/event');
     expect(requests.last.headers.contentType?.mimeType, 'text/plain');
     expect(requests.last.headers.value(HttpHeaders.userAgentHeader),
-        AppAnalyticsUa);
+        appAnalyticsUa);
     expect(body, {
       'n': 'pageview',
       'u': 'https://enclavd.com/feed',
@@ -106,7 +106,7 @@ void main() {
     final a = AnalyticsService(
       endpoint: 'http://127.0.0.1:1/api/event', // nothing listens
       domain: 'enclavd.com',
-      userAgent: AppAnalyticsUa,
+      userAgent: appAnalyticsUa,
     );
     a.pageview('/feed'); // must not throw / crash
     await Future<void>.delayed(const Duration(milliseconds: 100));
@@ -172,17 +172,26 @@ void main() {
 }
 
 /// Minimal non-PageRoute stub (dialogs/sheets are not PageRoutes).
-class _FakeRoute extends Route<dynamic> {
+/// Extends TransitionRoute — Route itself doesn't declare
+/// createOverlayEntries/opaque (they live on OverlayRoute/TransitionRoute
+/// in current Flutter), so the overrides must target the right base.
+class _FakeRoute extends TransitionRoute<dynamic> {
   _FakeRoute({required super.settings});
 
   @override
-  List<OverlayEntry> createOverlayEntries() => <OverlayEntry>[];
+  Iterable<OverlayEntry> createOverlayEntries() => <OverlayEntry>[];
+
+  @override
+  Duration get transitionDuration => Duration.zero;
 
   @override
   bool get opaque => false;
+
+  @override
+  bool get popGestureEnabled => false;
 }
 
 /// The pinned Chrome/124 UA from AppConfig (mirrors the wrapper's constant).
-const AppAnalyticsUa =
+const appAnalyticsUa =
     'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 '
     '(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36';
