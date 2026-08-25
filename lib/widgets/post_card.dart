@@ -407,14 +407,14 @@ class _PostCardState extends State<PostCard> {
                               videoId: id, apiBaseUrl: widget.apiBaseUrl),
                         if (widget.post.image != null &&
                             widget.post.image!.isNotEmpty) ...[
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 4),
                           _PostImage(
                               post: widget.post, apiBaseUrl: widget.apiBaseUrl),
                         ],
                       ],
                     ),
                   ),
-                  const Divider(height: 24),
+                  const Divider(height: 8),
                   _ActionRow(
                     liked: _liked,
                     likeCount: _likeCount,
