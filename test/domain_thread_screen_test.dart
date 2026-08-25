@@ -10,6 +10,8 @@ import 'package:enclavd/api/social_service.dart';
 import 'package:enclavd/screens/domain_thread_screen.dart';
 import 'package:enclavd/services/sound_service.dart';
 import 'package:enclavd/theme/enclavd_theme.dart';
+import 'package:enclavd/widgets/enclavd_avatar.dart';
+import 'package:enclavd/widgets/post_card.dart'; // PostCard (must be ABSENT)
 import 'package:enclavd/widgets/shimmer.dart';
 
 class _NoopStore implements SessionStore {
@@ -119,7 +121,9 @@ DomainThreadDetail _detail() => DomainThreadDetail.fromJson({
       ],
     });
 
-Comment _reply(int id, String text, {bool own = false}) => Comment(
+Comment _reply(int id, String text,
+        {bool own = false, String rank = 'Member'}) =>
+    Comment(
       id: id,
       postId: 218,
       userId: own ? 1 : 2,
@@ -131,6 +135,7 @@ Comment _reply(int id, String text, {bool own = false}) => Comment(
       createdAt: '5m',
       content: text,
       isOwner: own,
+      rank: rank,
     );
 
 void main() {
@@ -310,7 +315,31 @@ void main() {
     expect(find.text('Load more replies'), findsNothing);
   });
 
-  testWidgets('reply icon on another reply fills the composer with @mention',
+  testWidgets('OP is a forum card: rank badge, large avatar, no PostCard',
+      (tester) async {
+    final social = _FakeSocial(replies: [_reply(1, 'First reply')]);
+    await tester.pumpWidget(wrap(DomainThreadScreen(
+      domains: _FakeDomains(_detail()),
+      postId: 218,
+      social: social,
+      posts: _FakePosts(),
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // The OP is NOT a feed PostCard — it's the forum card.
+    expect(find.byType(PostCard), findsNothing);
+    // Author rank badge (SysOp fixture) + reply rank badge (Member).
+    expect(find.text('SysOp'), findsOneWidget);
+    expect(find.text('Member'), findsOneWidget);
+    // Bigger forum avatars: 46px OP vs 40px reply.
+    EnclavdAvatar avatarOf(String urlPart) => tester.widget<EnclavdAvatar>(
+        find.byWidgetPredicate(
+            (w) => w is EnclavdAvatar && w.url.contains(urlPart)));
+    expect(avatarOf('dev.png').size, 46, reason: 'OP avatar is forum-large');
+    expect(avatarOf('x.png').size, 40, reason: 'reply avatar is forum-large');
+  });
+
+  testWidgets('reply on another reply quotes it in the composer and on send',
       (tester) async {
     final social = _FakeSocial(replies: [
       _reply(1, 'First reply'), // someone else's
@@ -323,21 +352,55 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    // Not own → the reply icon shows (no trash). The header's "Replies"
-    // row also uses the fa-reply glyph (link-blue); the row icon is the
-    // muted one — match on the gray color.
-    final replyIcon = find.byWidgetPredicate((w) =>
-        w is FaIcon &&
-        w.icon?.codePoint == FontAwesomeIcons.reply.codePoint &&
-        w.color == EnclavdColors.textSecondary);
-    expect(replyIcon, findsOneWidget);
-    expect(findFa(FontAwesomeIcons.trashCan), findsNothing);
+    // Reply affordance (quote icon + label) only on others' replies.
+    expect(find.text('Reply'), findsOneWidget);
+    expect(find.text('Delete'), findsNothing);
 
-    await tester.tap(replyIcon);
+    await tester.tap(find.text('Reply'));
     await tester.pump(const Duration(milliseconds: 50));
 
+    // Quote banner above the composer names the target and shows the text
+    // (the card + the banner → two occurrences).
+    expect(find.text('Replying to @Someone'), findsOneWidget);
+    expect(find.text('First reply'), findsNWidgets(2));
+
+    // Input starts clean; sending carries the plain-text quote prefix.
     final field = tester.widget<TextField>(find.byType(TextField));
-    expect(field.controller?.text, '@Someone ');
+    expect(field.controller?.text, isEmpty);
+
+    await tester.enterText(find.byType(TextField), 'Agreed!');
+    await tester.tap(find.byTooltip('Send reply'));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(social.sent, ['@Someone wrote: "First reply"\n\nAgreed!']);
+    // The quote banner clears after the send.
+    expect(find.text('Replying to @Someone'), findsNothing);
+  });
+
+  testWidgets('the quote banner can be dismissed before sending',
+      (tester) async {
+    final social = _FakeSocial(replies: [_reply(1, 'First reply')]);
+    await tester.pumpWidget(wrap(DomainThreadScreen(
+      domains: _FakeDomains(_detail()),
+      postId: 218,
+      social: social,
+      posts: _FakePosts(),
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.tap(find.text('Reply'));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Replying to @Someone'), findsOneWidget);
+
+    await tester.tap(findFa(FontAwesomeIcons.xmark));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Replying to @Someone'), findsNothing);
+
+    // A plain (unquoted) reply sends without a prefix.
+    await tester.enterText(find.byType(TextField), 'Just this');
+    await tester.tap(find.byTooltip('Send reply'));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(social.sent, ['Just this']);
   });
 
   testWidgets('missing thread shows the ghost error + retry', (tester) async {

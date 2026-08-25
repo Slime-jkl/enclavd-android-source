@@ -34,6 +34,7 @@ class Comment {
     required this.createdAt,
     required this.content,
     required this.isOwner,
+    this.rank = '',
   });
 
   final int id;
@@ -48,6 +49,11 @@ class Comment {
   final String content;
   final bool isOwner;
 
+  /// Raw rank name ('SysOp'…). The comments API only recently started
+  /// sending it; until a deploy lands, derive it from [nameColor] (the
+  /// server's CSS class → rank is a 1:1 mapping).
+  final String rank;
+
   factory Comment.fromJson(Map<String, dynamic> json) => Comment(
         id: (json['id'] as num?)?.toInt() ?? 0,
         postId: (json['post_id'] as num?)?.toInt() ?? 0,
@@ -61,7 +67,23 @@ class Comment {
         createdAt: json['created_at'] as String? ?? '',
         content: json['content'] as String? ?? '',
         isOwner: json['is_owner'] as bool? ?? false,
+        rank: (json['rank'] as String?)?.isNotEmpty == true
+            ? json['rank'] as String
+            : _rankFromNameColor(json['name_color'] as String? ?? ''),
       );
+}
+
+/// Reverse of the server's name_color → rank (the comments API only sent
+/// the CSS class until it shipped the raw rank; unknown classes → Member).
+/// Mirrors rankColorFromCssClass in post_card.dart.
+String _rankFromNameColor(String cssClass) {
+  if (cssClass.contains('purple')) return 'SysOp';
+  if (cssClass.contains('red')) return 'Admin';
+  if (cssClass.contains('blue')) return 'Officer';
+  if (cssClass.contains('yellow')) return 'Founding Member';
+  if (cssClass.contains('white')) return 'Labcoat';
+  if (cssClass.contains('neutral')) return 'Blocked';
+  return 'Member';
 }
 
 /// A user who liked a post (GET /api/v1/likes?post_id=N).

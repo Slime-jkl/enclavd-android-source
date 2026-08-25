@@ -11,6 +11,7 @@ import '../widgets/error_view.dart';
 import '../utils/domain_icons.dart';
 import '../widgets/enclavd_avatar.dart';
 import '../widgets/post_card.dart'; // relativeTime
+import '../widgets/rank_badge.dart';
 import '../widgets/shimmer.dart';
 import 'domain_thread_screen.dart';
 import '../services/analytics_service.dart';
@@ -340,7 +341,8 @@ class _ThreadRow extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      // Meta: author (rank color) · relative date.
+                      // Meta: author (rank color) + rank badge · relative
+                      // date (forum-identity like the thread view).
                       Row(
                         children: [
                           Flexible(
@@ -357,6 +359,8 @@ class _ThreadRow extends StatelessWidget {
                               ),
                             ),
                           ),
+                          const SizedBox(width: 6),
+                          RankBadge(rank: post.rank),
                           const SizedBox(width: 6),
                           Text(
                             '· ${relativeTime(post.createdAt)}',

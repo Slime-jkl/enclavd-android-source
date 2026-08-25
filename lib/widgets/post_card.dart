@@ -408,7 +408,7 @@ class _PostCardState extends State<PostCard> {
                         if (widget.post.image != null &&
                             widget.post.image!.isNotEmpty) ...[
                           const SizedBox(height: 4),
-                          _PostImage(
+                          PostImage(
                               post: widget.post, apiBaseUrl: widget.apiBaseUrl),
                         ],
                       ],
@@ -771,17 +771,21 @@ class _PostContentState extends State<_PostContent> {
 /// Post image — port of the site's `feed-image w-auto max-h-[50vh] mx-auto`:
 /// capped at half the viewport height (a very tall image must never blow the
 /// card up), centered, tap → fullscreen viewer (site's openImageModal).
-class _PostImage extends StatefulWidget {
-  const _PostImage({required this.post, required this.apiBaseUrl});
+class PostImage extends StatefulWidget {
+  const PostImage({
+    super.key,
+    required this.post,
+    required this.apiBaseUrl,
+  });
 
   final Post post;
   final String apiBaseUrl;
 
   @override
-  State<_PostImage> createState() => _PostImageState();
+  State<PostImage> createState() => PostImageState();
 }
 
-class _PostImageState extends State<_PostImage> {
+class PostImageState extends State<PostImage> {
   /// Real image aspect ratio (width/height), probed from the decoded
   /// bytes. Lets the card hug the image's actual shape — a landscape
   /// rectangle gets a short box — instead of a fixed 50vh box that left
