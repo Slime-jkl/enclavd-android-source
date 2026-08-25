@@ -771,52 +771,118 @@ class _PostContentState extends State<_PostContent> {
 /// Post image — port of the site's `feed-image w-auto max-h-[50vh] mx-auto`:
 /// capped at half the viewport height (a very tall image must never blow the
 /// card up), centered, tap → fullscreen viewer (site's openImageModal).
-class _PostImage extends StatelessWidget {
+class _PostImage extends StatefulWidget {
   const _PostImage({required this.post, required this.apiBaseUrl});
 
   final Post post;
   final String apiBaseUrl;
 
   @override
+  State<_PostImage> createState() => _PostImageState();
+}
+
+class _PostImageState extends State<_PostImage> {
+  /// Real image aspect ratio (width/height), probed from the decoded
+  /// bytes. Lets the card hug the image's actual shape — a landscape
+  /// rectangle gets a short box — instead of a fixed 50vh box that left
+  /// dead card space above and below non-square images.
+  double? _aspect;
+  ImageStream? _stream;
+  bool _probeStarted = false;
+
+  String get _url =>
+      resolveMediaUrl(widget.apiBaseUrl, galleryName: widget.post.image);
+
+  late final ImageStreamListener _probeListener = ImageStreamListener(
+    (info, _) {
+      // Tiny probe decode was only for the aspect ratio — detach at once
+      // so the only long-lived frame is EnclavdImage's display decode.
+      _stream?.removeListener(_probeListener);
+      _stream = null;
+      if (!mounted || _aspect != null) return;
+      setState(() => _aspect = info.image.width / info.image.height);
+    },
+    // Probe failures fall through to EnclavdImage's own errorBuilder
+    // (no-image.jpg) — the box just stays at the default height.
+    onError: (_, __) {
+      _stream?.removeListener(_probeListener);
+      _stream = null;
+    },
+  );
+
+  @override
+  void dispose() {
+    _stream?.removeListener(_probeListener);
+    super.dispose();
+  }
+
+  /// Starts the dimension probe once. A 128px decode is plenty for an
+  /// aspect ratio and lands almost instantly even on huge originals; the
+  /// display decode (at card width) runs separately inside EnclavdImage,
+  /// which keeps its own shimmer until that frame is ready.
+  void _ensureProbe() {
+    if (_probeStarted) return;
+    _probeStarted = true;
+    final provider = ResizeImage.resizeIfNeeded(
+      128,
+      null,
+      CachedNetworkImageProvider(_url),
+    );
+    final stream = provider.resolve(ImageConfiguration.empty);
+    _stream = stream;
+    stream.addListener(_probeListener);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final url = resolveMediaUrl(apiBaseUrl, galleryName: post.image);
     return Center(
-      child: GestureDetector(
-        onTap: () => _viewFullImage(context, url),
-        // Long-press → save the image to the device gallery (Enclavd
-        // folder). Distinct from tap (fullscreen viewer), mirrors how
-        // long-press is used elsewhere (heart drag, etc.).
-        onLongPress: () => _showSaveSheet(context, url),
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            EnclavdImage(
-              url,
-              fit: BoxFit.contain,
-              // max-h-[50vh] from the site's feed-image class.
-              height: MediaQuery.sizeOf(context).height * 0.5,
-              errorAsset: 'assets/images/no-image.jpg',
-              borderRadius: BorderRadius.circular(8),
-              placeholderHeight: 160,
-            ),
-            // The site shows a fa-expand overlay on hover; on touch there's
-            // no hover, so keep a subtle always-on hint that it opens.
-            Positioned(
-              top: 8,
-              right: 8,
-              child: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.45),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: const FaIcon(FontAwesomeIcons.expand,
-                    size: 13, color: Colors.white),
+      child: LayoutBuilder(builder: (context, constraints) {
+        final contentWidth = constraints.maxWidth;
+        // The site's feed-image cap (max-h-[50vh]): portraits taller than
+        // this keep the cap and center with side air, exactly like the
+        // site's mx-auto w-auto. Everything else renders at its natural
+        // aspect ratio, full card width.
+        final maxHeight = MediaQuery.sizeOf(context).height * 0.5;
+        _ensureProbe();
+        final height = _aspect == null
+            ? 180.0 // probing: shimmer at a sane default
+            : math.min(contentWidth / _aspect!, maxHeight);
+        return GestureDetector(
+          onTap: () => _viewFullImage(context, _url),
+          // Long-press → save the image to the device gallery (Enclavd
+          // folder). Distinct from tap (fullscreen viewer), mirrors how
+          // long-press is used elsewhere (heart drag, etc.).
+          onLongPress: () => _showSaveSheet(context, _url),
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              EnclavdImage(
+                _url,
+                width: contentWidth,
+                height: height,
+                fit: BoxFit.contain,
+                errorAsset: 'assets/images/no-image.jpg',
+                borderRadius: BorderRadius.circular(8),
               ),
-            ),
-          ],
-        ),
-      ),
+              // The site shows a fa-expand overlay on hover; on touch there's
+              // no hover, so keep a subtle always-on hint that it opens.
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.45),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const FaIcon(FontAwesomeIcons.expand,
+                      size: 13, color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+        );
+      }),
     );
   }
 
