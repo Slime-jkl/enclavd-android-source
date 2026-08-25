@@ -26,6 +26,7 @@ import 'articles_screen.dart';
 import 'ban_screen.dart';
 import 'domains_screen.dart';
 import 'login_screen.dart';
+import 'maintenance_screen.dart';
 import 'messages_screen.dart';
 import 'notifications_screen.dart';
 import 'search_results_screen.dart';
@@ -51,6 +52,15 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   AppServices? _services;
   CurrentUser? _me;
   bool _banGateHandled = false;
+
+  // Maintenance mode (site_config.php 'maintenance'): the web shows a
+  // banner to allowed ranks while non-allowed ranks hit the full-page
+  // lockout. The app mirrors that split on the SAME gate — banner when
+  // the rank is allowed, MaintenanceScreen when it isn't — and the
+  // mid-session re-check (feed load or app resume) picks up a toggle
+  // made while the app was open, exactly like the ban gate above.
+  MaintenanceConfig? _maintenance;
+  bool _maintenanceGateHandled = false;
 
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   final _scrollController = ScrollController();
@@ -281,6 +291,32 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
         Navigator.of(context)
             .pushNamedAndRemoveUntil(BanScreen.routeName, (_) => false);
         return;
+      }
+      // Mid-session maintenance gate (web parity — header.php locks out
+      // non-allowed ranks on every page load): enabled + rank not in the
+      // allowed list → maintenance screen; enabled + allowed → banner.
+      // A config fetch failure keeps the current banner state — the web
+      // server still enforces its own pages either way.
+      if (me != null) {
+        try {
+          final cfg = await _services!.siteConfig.fetch();
+          if (!mounted) return;
+          if (cfg.maintenance.enabled) {
+            if (!cfg.maintenance.allowedRanks.contains(me.rank)) {
+              if (_maintenanceGateHandled) return;
+              _maintenanceGateHandled = true;
+              Navigator.of(context)
+                  .pushNamedAndRemoveUntil(
+                      MaintenanceScreen.routeName, (_) => false);
+              return;
+            }
+            setState(() => _maintenance = cfg.maintenance);
+          } else {
+            setState(() => _maintenance = null);
+          }
+        } catch (_) {
+          // Non-fatal: keep whatever banner state we had.
+        }
       }
       setState(() => _me = me);
     } catch (_) {
@@ -829,24 +865,35 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
       // switch in place, keeping their scroll positions; the header, the
       // user-menu drawer and the bottom nav stay common. Children align
       // with the server-driven tab order.
-      body: IndexedStack(
-        index: _navIndex,
+      body: Column(
         children: [
-          for (final tab in tabs)
-            switch (tab.url) {
-              '' => RefreshIndicator(
-                  onRefresh: _refresh,
-                  color: EnclavdColors.link,
-                  child: _buildBody(),
-                ),
-              'articles' => _articlesTabBuilt && _services != null
-                  ? ArticlesScreen(articles: _services!.articles)
-                  : const SizedBox.shrink(),
-              'domain' => _domainsTabBuilt && _services != null
-                  ? DomainsScreen(domains: _services!.domains)
-                  : const SizedBox.shrink(),
-              _ => const SizedBox.shrink(),
-            },
+          // Maintenance banner for allowed ranks (the web's info-yellow
+          // box under the header) — non-allowed ranks never reach this
+          // screen; the gate sends them to MaintenanceScreen instead.
+          if (_maintenance != null)
+            _MaintenanceBanner(config: _maintenance!),
+          Expanded(
+            child: IndexedStack(
+              index: _navIndex,
+              children: [
+                for (final tab in tabs)
+                  switch (tab.url) {
+                    '' => RefreshIndicator(
+                        onRefresh: _refresh,
+                        color: EnclavdColors.link,
+                        child: _buildBody(),
+                      ),
+                    'articles' => _articlesTabBuilt && _services != null
+                        ? ArticlesScreen(articles: _services!.articles)
+                        : const SizedBox.shrink(),
+                    'domain' => _domainsTabBuilt && _services != null
+                        ? DomainsScreen(domains: _services!.domains)
+                        : const SizedBox.shrink(),
+                    _ => const SizedBox.shrink(),
+                  },
+              ],
+            ),
+          ),
         ],
       ),
       // The composer FAB is feed-only (the site's New Post button lives on
@@ -1070,6 +1117,67 @@ class _PersonalityTestBanner extends StatelessWidget {
                   const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
             ),
             child: const Text('Take personality test'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Maintenance banner for allowed ranks — web parity with header.php's
+/// info-yellow box (non-allowed ranks never see this screen; the gate
+/// sends them to MaintenanceScreen). Compact native strip: wrench icon,
+/// status line, then the reason + estimated end when provided.
+class _MaintenanceBanner extends StatelessWidget {
+  const _MaintenanceBanner({required this.config});
+
+  final MaintenanceConfig config;
+
+  @override
+  Widget build(BuildContext context) {
+    const amber = EnclavdColors.warning;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: amber.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: amber.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const FaIcon(FontAwesomeIcons.screwdriverWrench,
+              size: 14, color: amber),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Maintenance Mode',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'The site is currently in maintenance mode.',
+                  style: TextStyle(
+                      fontSize: 11.5, color: EnclavdColors.textSecondary),
+                ),
+                if (config.reason.isNotEmpty || config.estTime.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    [
+                      if (config.reason.isNotEmpty) 'Reason: ${config.reason}',
+                      if (config.estTime.isNotEmpty) 'Ends: ${config.estTime}',
+                    ].join('  ·  '),
+                    style: const TextStyle(
+                        fontSize: 11, color: EnclavdColors.textSecondary),
+                  ),
+                ],
+              ],
+            ),
           ),
         ],
       ),
