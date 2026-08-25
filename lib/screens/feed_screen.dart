@@ -972,6 +972,11 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
       case 'domain':
         return FaIcon(FontAwesomeIcons.globe,
             color: selected ? EnclavdColors.link : EnclavdColors.textSecondary);
+      case 'vote':
+        // Community Voting — the FA6 vote-yea glyph, app-defined (the
+        // site's nav config carries no icon for the Vote page).
+        return FaIcon(FontAwesomeIcons.checkToSlot,
+            color: selected ? EnclavdColors.link : EnclavdColors.textSecondary);
       default: // '' = home, plus any future known page
         return FaIcon(FontAwesomeIcons.barsStaggered,
             color: selected ? EnclavdColors.link : EnclavdColors.textSecondary);

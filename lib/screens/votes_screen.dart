@@ -25,8 +25,10 @@ import 'profile_screen.dart';
 ///    "No votes yet" when nobody has voted;
 ///  - creator row (avatar + username → profile, rank badge);
 ///  - "How Voting Works" info card with the expandable rank-powers table.
-/// Modern-app look: rounded card rows with gaps, shimmer on first load,
-/// pull-to-refresh.
+/// Modern-app look (user rule: native UI, not a website copy): cards stack
+/// VERTICALLY — the doughnut sits centered as the poll's summary, options
+/// run full-width with their own progress bars, generous paddings, rounded
+/// corners, pull-to-refresh, shimmer first load.
 ///
 /// This widget is the FEED SHELL's Votes tab body (no Scaffold/AppBar of
 /// its own — the shell supplies the shared header and bottom nav); it is
@@ -158,7 +160,7 @@ class _VotesScreenState extends State<VotesScreen> {
       color: EnclavdColors.link,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
           _HowVotingWorks(
             votingPower: data!.votingPower,
@@ -203,12 +205,12 @@ class _VotesScreenState extends State<VotesScreen> {
       );
 
   Widget _skeleton() => ListView(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
-          const ShimmerBox(width: double.infinity, height: 96),
+          const ShimmerBox(width: double.infinity, height: 110),
           const SizedBox(height: 16),
           for (var i = 0; i < 3; i++) ...[
-            const ShimmerBox(width: double.infinity, height: 220),
+            const ShimmerBox(width: double.infinity, height: 280),
             const SizedBox(height: 12),
           ],
         ],
@@ -233,11 +235,11 @@ class _HowVotingWorks extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: EnclavdColors.card,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: EnclavdColors.border),
       ),
       child: Column(
@@ -247,7 +249,7 @@ class _HowVotingWorks extends StatelessWidget {
             children: [
               FaIcon(FontAwesomeIcons.circleInfo,
                   size: 14, color: EnclavdColors.warning),
-              SizedBox(width: 8),
+              SizedBox(width: 9),
               Text(
                 'How Voting Works',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
@@ -259,68 +261,83 @@ class _HowVotingWorks extends StatelessWidget {
             'Vote on upcoming features. One vote per feature, changeable '
             'until the voting period ends.',
             style: TextStyle(
-                fontSize: 12.5,
-                color: EnclavdColors.textSecondary,
-                height: 1.45),
+                fontSize: 13, color: EnclavdColors.textSecondary, height: 1.5),
           ),
-          const SizedBox(height: 6),
-          Text.rich(
-            TextSpan(
+          const SizedBox(height: 12),
+          // Highlight row: the viewer's own weight (the site's "Voting
+          // Power: N×" line), modern stat-chip style.
+          Container(
+            width: double.infinity,
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: _VotesScreenState._accent.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                  color: _VotesScreenState._accent.withValues(alpha: 0.25)),
+            ),
+            child: Row(
               children: [
-                const TextSpan(
-                  text: 'Your vote counts ',
+                const FaIcon(FontAwesomeIcons.weightHanging,
+                    size: 13, color: _VotesScreenState._accent),
+                const SizedBox(width: 9),
+                const Text(
+                  'Your voting power',
                   style: TextStyle(
-                      fontSize: 12.5, color: EnclavdColors.textSecondary),
+                      fontSize: 13, color: EnclavdColors.textSecondary),
                 ),
-                TextSpan(
-                  text: '×$votingPower',
-                  style:
-                      const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+                const Spacer(),
+                Text(
+                  '×$votingPower',
+                  style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
+                      color: _VotesScreenState._accent),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           InkWell(
             onTap: onToggle,
             borderRadius: BorderRadius.circular(8),
-            child: const Padding(
-              padding: EdgeInsets.symmetric(vertical: 4),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
               child: Row(
                 children: [
-                  Text(
+                  const Text(
                     'View Rank Voting Powers',
                     style: TextStyle(
-                        fontSize: 12.5, color: EnclavdColors.link),
+                        fontSize: 13, color: EnclavdColors.link),
                   ),
-                  Spacer(),
-                  FaIcon(FontAwesomeIcons.chevronDown,
-                      size: 12,
-                      color: EnclavdColors.textSecondary,
-                      // ignore: deprecated_member_use
-                      semanticLabel: 'toggle'),
+                  const Spacer(),
+                  FaIcon(
+                    open
+                        ? FontAwesomeIcons.chevronUp
+                        : FontAwesomeIcons.chevronDown,
+                    size: 12,
+                    color: EnclavdColors.textSecondary,
+                  ),
                 ],
               ),
             ),
           ),
           if (open) ...[
-            const SizedBox(height: 4),
             for (final power in rankPowers)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 5),
+                padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Row(
                   children: [
                     Text(
                       power.name,
                       style: TextStyle(
-                          fontSize: 12.5,
-                          color: RankColors.forRank(power.rank)),
+                          fontSize: 13, color: RankColors.forRank(power.rank)),
                     ),
                     const Spacer(),
                     Text(
                       '×${power.votingPower}',
                       style: const TextStyle(
-                          fontSize: 12.5, fontWeight: FontWeight.w700),
+                          fontSize: 13, fontWeight: FontWeight.w700),
                     ),
                   ],
                 ),
@@ -341,11 +358,20 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: 8, bottom: 10),
+      padding: const EdgeInsets.only(top: 18, bottom: 12),
       child: Row(
         children: [
-          FaIcon(icon, size: 15, color: EnclavdColors.textSecondary),
-          const SizedBox(width: 8),
+          // Icon chip — the modern-section-header look.
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: EnclavdColors.primaryButton.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: FaIcon(icon, size: 13, color: EnclavdColors.link),
+          ),
+          const SizedBox(width: 10),
           Text(
             title,
             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
@@ -365,11 +391,19 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 28),
+      padding: const EdgeInsets.symmetric(vertical: 36),
       child: Column(
         children: [
-          FaIcon(icon, size: 30, color: EnclavdColors.textSecondary),
-          const SizedBox(height: 10),
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: EnclavdColors.cardSecondary.withValues(alpha: 0.6),
+            ),
+            child: FaIcon(icon, size: 22, color: EnclavdColors.textSecondary),
+          ),
+          const SizedBox(height: 12),
           Text(
             text,
             style: const TextStyle(fontSize: 13, color: EnclavdColors.textSecondary),
@@ -380,8 +414,10 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-/// One poll card. Active: radio-style options + Submit/Change Vote.
-/// Completed: read-only options with final percentages.
+/// One poll card — stacked vertically for mobile: title + status, the
+/// doughnut as the poll's summary (total votes in the center), the end
+/// chip, description, full-width option rows with progress bars, the vote
+/// action, then the creator footer.
 class _VoteCard extends StatelessWidget {
   const _VoteCard({
     required this.vote,
@@ -402,18 +438,19 @@ class _VoteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final myVote = vote.myOption;
-    const accent = _VotesScreenState._accent;
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: EnclavdColors.card,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: EnclavdColors.border),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // Title row + status pill (completed only — active polls carry
+          // their end chip under the doughnut).
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -421,172 +458,207 @@ class _VoteCard extends StatelessWidget {
                 child: Text(
                   vote.title,
                   style: const TextStyle(
-                      fontSize: 15.5, fontWeight: FontWeight.w700),
+                      fontSize: 16.5,
+                      fontWeight: FontWeight.w700,
+                      height: 1.3),
                 ),
               ),
-              const SizedBox(width: 10),
-              _EndsPill(vote: vote),
+              if (vote.completed) ...[
+                const SizedBox(width: 10),
+                _StatusPill(vote: vote),
+              ],
             ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            vote.description,
-            style: const TextStyle(
-                fontSize: 12.5,
-                color: EnclavdColors.textSecondary,
-                height: 1.45),
-          ),
+          const SizedBox(height: 14),
+          // Poll summary: the doughnut (or "No votes yet" placeholder).
+          Center(child: _Donut(vote: vote)),
+          const SizedBox(height: 10),
+          // End/ended chip — the card's clock line.
+          Center(child: _EndChip(vote: vote)),
+          const SizedBox(height: 14),
+          if (vote.description.isNotEmpty) ...[
+            Text(
+              vote.description,
+              style: const TextStyle(
+                  fontSize: 13.5,
+                  color: EnclavdColors.textSecondary,
+                  height: 1.5),
+            ),
+            const SizedBox(height: 14),
+          ],
+          for (var i = 0; i < vote.options.length; i++)
+            _optionRow(i, myVote),
+          if (!vote.completed) ...[
+            const SizedBox(height: 14),
+            _voteButton(myVote),
+          ],
+          const SizedBox(height: 16),
+          const Divider(height: 1, color: EnclavdColors.divider),
           const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  children: [
-                    for (var i = 0; i < vote.options.length; i++)
-                      _optionRow(i, myVote, accent),
-                    if (!vote.completed) ...[
-                      const SizedBox(height: 10),
-                      _voteButton(myVote, accent),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(width: 14),
-              _Donut(vote: vote),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              const Text('Created by',
-                  style: TextStyle(
-                      fontSize: 11.5, color: EnclavdColors.textSecondary)),
-              const SizedBox(width: 6),
-              InkWell(
-                onTap: onCreatorTap,
-                borderRadius: BorderRadius.circular(10),
-                child: Row(
-                  children: [
-                    EnclavdAvatar(
-                      size: 20,
-                      url: vote.creatorAvatar.startsWith('/')
-                          ? '${AppConfig.apiBaseUrl}${vote.creatorAvatar}'
-                          : vote.creatorAvatar,
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      vote.creatorUsername,
-                      style: const TextStyle(
-                          fontSize: 12.5, color: EnclavdColors.link),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              RankBadge(rank: vote.creatorRank),
-            ],
-          ),
+          _creatorRow(),
         ],
       ),
     );
   }
 
-  Widget _optionRow(int i, int? myVote, Color accent) {
+  Widget _creatorRow() {
+    return Row(
+      children: [
+        const Text('Created by',
+            style:
+                TextStyle(fontSize: 11.5, color: EnclavdColors.textSecondary)),
+        const SizedBox(width: 8),
+        InkWell(
+          onTap: onCreatorTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Row(
+            children: [
+              EnclavdAvatar(
+                size: 22,
+                url: vote.creatorAvatar.startsWith('/')
+                    ? '${AppConfig.apiBaseUrl}${vote.creatorAvatar}'
+                    : vote.creatorAvatar,
+              ),
+              const SizedBox(width: 7),
+              Text(
+                vote.creatorUsername,
+                style:
+                    const TextStyle(fontSize: 13, color: EnclavdColors.link),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        RankBadge(rank: vote.creatorRank),
+      ],
+    );
+  }
+
+  /// One full-width option: radio/check, text, percentage + weighted count,
+  /// and the option-colored progress bar under them (modern poll pattern —
+  /// the site's cramped %-text rows scaled to a phone).
+  Widget _optionRow(int i, int? myVote) {
+    const accent = _VotesScreenState._accent;
     final isSelected = selected == i; // pending selection
     final isMine = myVote == i; // current vote
     final highlighted = isSelected || isMine;
     final tappable = onSelect != null && !submitting;
+    final color = domainColorFromHex(
+        i < vote.colors.length ? vote.colors[i] : '#a855f7');
+    final pct = vote.pct(i);
     return InkWell(
       key: ValueKey('vote-${vote.id}-option-$i'),
       onTap: tappable ? () => onSelect!(i) : null,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(12),
       child: Container(
-        width: double.infinity,
-        margin: const EdgeInsets.only(bottom: 6),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: highlighted ? accent.withValues(alpha: 0.10) : null,
-          borderRadius: BorderRadius.circular(10),
+          color: highlighted
+              ? accent.withValues(alpha: 0.10)
+              : EnclavdColors.cardSecondary.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(12),
           border: highlighted
-              ? Border.all(color: accent.withValues(alpha: 0.30))
-              : null,
+              ? Border.all(color: accent.withValues(alpha: 0.35))
+              : Border.all(color: Colors.transparent),
         ),
-        child: Row(
+        child: Column(
           children: [
-            // Radio-style indicator (site's form-radio, purple accent).
-            Container(
-              width: 17,
-              height: 17,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  width: 2,
-                  color: highlighted
-                      ? accent
-                      : EnclavdColors.textSecondary.withValues(alpha: 0.6),
-                ),
-              ),
-              child: highlighted
-                  ? Center(
-                      child: Container(
-                        width: 7,
-                        height: 7,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: accent,
-                        ),
+            Row(
+              children: [
+                // Radio-style indicator (site's form-radio) → check once
+                // this is the viewer's current vote.
+                if (isMine)
+                  const FaIcon(FontAwesomeIcons.circleCheck,
+                      size: 16, color: _VotesScreenState._accent)
+                else
+                  Container(
+                    width: 16,
+                    height: 16,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        width: 2,
+                        color: isSelected
+                            ? accent
+                            : EnclavdColors.textSecondary
+                                .withValues(alpha: 0.55),
                       ),
-                    )
-                  : null,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
+                    ),
+                    child: isSelected
+                        ? Center(
+                            child: Container(
+                              width: 6,
+                              height: 6,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: accent,
+                              ),
+                            ),
+                          )
+                        : null,
+                  ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Text(
                     vote.options[i],
                     style: const TextStyle(fontSize: 13.5),
                   ),
-                  if (isMine) ...[
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        const FaIcon(FontAwesomeIcons.circleCheck,
-                            size: 11, color: _VotesScreenState._accent),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            _myVoteLabel(),
-                            style: const TextStyle(
-                                fontSize: 11,
-                                color: _VotesScreenState._accent),
-                          ),
-                        ),
-                      ],
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '${pct.toStringAsFixed(1)}%',
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w700),
+                    ),
+                    Text(
+                      '${vote.counts[i]} votes',
+                      style: const TextStyle(
+                          fontSize: 10.5, color: EnclavdColors.textSecondary),
                     ),
                   ],
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '${vote.pct(i).toStringAsFixed(1)}%',
-                  style: const TextStyle(
-                      fontSize: 12.5, fontWeight: FontWeight.w600),
-                ),
-                Text(
-                  '${vote.counts[i]} votes',
-                  style: const TextStyle(
-                      fontSize: 10.5, color: EnclavdColors.textSecondary),
                 ),
               ],
             ),
+            const SizedBox(height: 8),
+            // Progress bar — the option's weighted share, filled with the
+            // option's own color.
+            ClipRRect(
+              borderRadius: BorderRadius.circular(2.5),
+              child: SizedBox(
+                height: 5,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Container(color: Colors.white.withValues(alpha: 0.07)),
+                    FractionallySizedBox(
+                      widthFactor: pct.clamp(0.0, 100.0) / 100,
+                      child: Container(color: color),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            if (isMine) ...[
+              const SizedBox(height: 7),
+              Row(
+                children: [
+                  const FaIcon(FontAwesomeIcons.circleCheck,
+                      size: 11, color: _VotesScreenState._accent),
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: Text(
+                      _myVoteLabel(),
+                      style: const TextStyle(
+                          fontSize: 11, color: _VotesScreenState._accent),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
@@ -601,26 +673,29 @@ class _VoteCard extends StatelessWidget {
     return time.isEmpty ? 'Your current vote' : 'Your current vote - $time';
   }
 
-  Widget _voteButton(int? myVote, Color accent) {
+  Widget _voteButton(int? myVote) {
     return FilledButton.icon(
       onPressed: submitting ? null : onSubmit,
       style: FilledButton.styleFrom(
         backgroundColor: EnclavdColors.primaryButton,
-        minimumSize: const Size.fromHeight(42),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        textStyle: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
+        minimumSize: const Size.fromHeight(46),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
       ),
       icon: submitting
           ? const SizedBox(
-              width: 15,
-              height: 15,
+              width: 16,
+              height: 16,
               child: CircularProgressIndicator(
                   strokeWidth: 2, color: Colors.white),
             )
           : FaIcon(
-              myVote != null ? FontAwesomeIcons.rotate : FontAwesomeIcons.circleCheck,
-              size: 13,
-              color: accent,
+              myVote != null
+                  ? FontAwesomeIcons.rotate
+                  : FontAwesomeIcons.circleCheck,
+              size: 14,
+              color: _VotesScreenState._accent,
             ),
       label: Text(submitting
           ? 'Submitting…'
@@ -629,53 +704,61 @@ class _VoteCard extends StatelessWidget {
   }
 }
 
-/// Ends/status pill (the card's clock chip): active polls show the end
-/// time, completed ones the status ('Completed' green / 'Cancelled' red).
-class _EndsPill extends StatelessWidget {
-  const _EndsPill({required this.vote});
+/// Status pill for completed polls ('Completed' green / 'Cancelled' red).
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.vote});
 
   final Vote vote;
 
   @override
   Widget build(BuildContext context) {
-    if (vote.completed) {
-      final isCompleted = vote.status == 'completed';
-      final color =
-          isCompleted ? const Color(0xFF22C55E) : const Color(0xFFF87171);
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withValues(alpha: 0.35)),
-        ),
-        child: Text(
-          vote.status.isEmpty
-              ? 'Ended'
-              : vote.status[0].toUpperCase() + vote.status.substring(1),
-          style: TextStyle(
-              fontSize: 10.5,
-              fontWeight: FontWeight.w600,
-              color: color),
-        ),
-      );
-    }
+    final isCompleted = vote.status == 'completed';
+    final color =
+        isCompleted ? const Color(0xFF22C55E) : const Color(0xFFF87171);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: EnclavdColors.cardSecondary,
+        color: color.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Text(
+        vote.status.isEmpty
+            ? 'Ended'
+            : vote.status[0].toUpperCase() + vote.status.substring(1),
+        style: TextStyle(
+            fontSize: 11, fontWeight: FontWeight.w600, color: color),
+      ),
+    );
+  }
+}
+
+/// The card's clock line: "Ends: …" for active polls, "Ended: …" for
+/// completed ones (site's end-label chip, centered under the doughnut).
+class _EndChip extends StatelessWidget {
+  const _EndChip({required this.vote});
+
+  final Vote vote;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = vote.completed ? 'Ended' : 'Ends';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
+      decoration: BoxDecoration(
+        color: EnclavdColors.cardSecondary.withValues(alpha: 0.7),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           const FaIcon(FontAwesomeIcons.clock,
-              size: 10, color: EnclavdColors.textSecondary),
-          const SizedBox(width: 5),
+              size: 10.5, color: EnclavdColors.textSecondary),
+          const SizedBox(width: 6),
           Text(
-            'Ends: ${formatMessageTime(vote.endDate)}',
+            '$label ${formatMessageTime(vote.endDate)}',
             style: const TextStyle(
-                fontSize: 10.5, color: EnclavdColors.textSecondary),
+                fontSize: 11.5, color: EnclavdColors.textSecondary),
           ),
         ],
       ),
@@ -683,9 +766,10 @@ class _EndsPill extends StatelessWidget {
   }
 }
 
-/// Native doughnut — the site's Chart.js canvas for one poll. Weighted
-/// counts per option, option colors, small gaps between segments (the
-/// site's spacing:3); the center shows the total vote count.
+/// Native doughnut — the site's Chart.js canvas for one poll, here the
+/// card's centered summary. Weighted counts per option, option colors,
+/// small gaps between segments (the site's spacing:3); the center shows
+/// the total vote count.
 class _Donut extends StatelessWidget {
   const _Donut({required this.vote});
 
@@ -695,47 +779,42 @@ class _Donut extends StatelessWidget {
   Widget build(BuildContext context) {
     if (vote.totalVotes <= 0) {
       return const SizedBox(
-        width: 76,
-        height: 76,
+        width: 120,
+        height: 110,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             FaIcon(FontAwesomeIcons.chartPie,
-                size: 24, color: EnclavdColors.textSecondary),
-            SizedBox(height: 6),
+                size: 26, color: EnclavdColors.textSecondary),
+            SizedBox(height: 8),
             Text('No votes yet',
                 style: TextStyle(
-                    fontSize: 9.5, color: EnclavdColors.textSecondary)),
+                    fontSize: 12, color: EnclavdColors.textSecondary)),
           ],
         ),
       );
     }
-    return Column(
-      children: [
-        SizedBox(
-          width: 76,
-          height: 76,
-          child: CustomPaint(
-            painter: _DonutPainter(vote.counts, vote.colors),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '${vote.totalVotes}',
-                    style: const TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w700),
-                  ),
-                  const Text('votes',
-                      style: TextStyle(
-                          fontSize: 9.5,
-                          color: EnclavdColors.textSecondary)),
-                ],
+    return SizedBox(
+      width: 120,
+      height: 110,
+      child: CustomPaint(
+        painter: _DonutPainter(vote.counts, vote.colors),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '${vote.totalVotes}',
+                style: const TextStyle(
+                    fontSize: 20, fontWeight: FontWeight.w800),
               ),
-            ),
+              const Text('votes',
+                  style: TextStyle(
+                      fontSize: 11, color: EnclavdColors.textSecondary)),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 }
@@ -750,7 +829,7 @@ class _DonutPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final total = counts.fold<int>(0, (a, b) => a + b);
     if (total <= 0) return;
-    const stroke = 11.0;
+    const stroke = 14.0;
     final center = Offset(size.width / 2, size.height / 2);
     final rect = Rect.fromCircle(
         center: center, radius: (size.shortestSide - stroke) / 2);

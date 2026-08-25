@@ -93,6 +93,12 @@ VotesData _data({
     );
 
 Future<void> _pump(WidgetTester tester, VotesService service) async {
+  // Tall viewport: the redesigned cards stack vertically (doughnut +
+  // progress-bar options) and easily exceed the default 600px test screen.
+  tester.view.physicalSize = const Size(800, 2200);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(MaterialApp(
     home: Scaffold(body: VotesScreen(votes: service)),
   ));
