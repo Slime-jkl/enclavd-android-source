@@ -79,6 +79,11 @@ void main(List<String> args) {
     // wakes its own isolate even when the app is killed.
     unawaited(HomeWidget.registerInteractivityCallback(
         quoteWidgetRateCallback));
+    // The widget's data can go stale while the process sits in the
+    // background (the daily slot is a single random moment and Doze may
+    // delay it for hours) — every return to the foreground is a cheap,
+    // date-gated chance to catch up.
+    WidgetsBinding.instance.addObserver(_QuoteResumeRefresh());
   }
   runApp(const EnclavdApp());
 }
@@ -110,6 +115,19 @@ class QuoteDeepLink {
 
   /// Clears the parked request (called after a cold-start resolution).
   static void consume() => pending = false;
+}
+
+/// Foreground refresher for the daily-quote widget: the widget only ever
+/// renders data pushed to it (the daily background slot + app opens), so
+/// every time the app comes back to the foreground is a free, date-gated
+/// chance to catch up if the OS delayed or dropped the background run.
+class _QuoteResumeRefresh with WidgetsBindingObserver {
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(DailyQuoteService.refreshWidgetIfStale());
+    }
+  }
 }
 
 /// Simple service container — no DI framework, constructor injection only.

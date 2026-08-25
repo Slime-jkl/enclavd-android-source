@@ -24,12 +24,20 @@ class QuoteData {
   final List<String> tags;
 }
 
-/// Today's quote plus the user's rating state for it (null = unrated).
+/// Today's quote plus the user's rating state for it (null = unrated) and
+/// the SERVER's quote day (YYYY-MM-DD) — the server's clock decides when a
+/// new quote becomes current, so that date (not the device's local day) is
+/// what the widget freshness stamp must record.
 class TodayQuote {
-  const TodayQuote({required this.quote, required this.rated});
+  const TodayQuote({
+    required this.quote,
+    required this.rated,
+    required this.date,
+  });
 
   final QuoteData quote;
   final String? rated; // 'like' | 'dislike' | null
+  final String date; // server quote day, e.g. '2026-08-25'
 }
 
 /// A parsed widget rate tap: which action, on which quote.
@@ -279,20 +287,46 @@ class DailyQuoteService {
   }
 
   /// Writes today's quote (with the user's rating state) to the widget and
-  /// stamps the local date so [refreshWidgetIfStale] stays quiet.
+  /// stamps the freshness date so [refreshWidgetIfStale] stays quiet.
+  ///
+  /// The stamp is the SERVER's quote day ([TodayQuote.date]), NOT the
+  /// device's local day. The gate compares the stamp against the local
+  /// day, so any offset between the device clock and the server clock
+  /// (timezone, skew) makes the gate re-fetch on the next app open until
+  /// the server has actually rotated — the widget can never lock onto a
+  /// stale quote for a whole day the way a device-day stamp could
+  /// (server rotates at UTC midnight; a device ahead/behind would keep
+  /// serving yesterday's quote all day).
+  ///
+  /// The stamp advances ONLY on a successful push: [DailyQuoteWidget.push]
+  /// reports failures now, so a plugin hiccup leaves the gate open and the
+  /// next start retries, instead of burning the whole day on a failed push.
   static Future<void> pushTodayToWidget({
     required ApiClient api,
     required SharedPreferences prefs,
     required TodayQuote today,
   }) async {
-    await DailyQuoteWidget.push(
+    final ok = await DailyQuoteWidget.push(
       text: today.quote.text,
       author: today.quote.author,
       tags: today.quote.tags,
       quoteId: today.quote.id,
       rated: today.rated,
     );
-    await prefs.setString(widgetDatePrefsKey, _todayKey());
+    if (ok) {
+      await prefs.setString(widgetDatePrefsKey, today.date);
+    }
+  }
+
+  /// Fresh session hook (successful login): drop the freshness stamp so
+  /// the very next refresh actually fetches, and fetch right away — a
+  /// stale session could have silently starved the widget for days, and
+  /// now it catches up immediately instead of trusting the old stamp.
+  static Future<void> refreshWidgetNow() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!isEnabled(prefs)) return;
+    await prefs.remove(widgetDatePrefsKey);
+    await refreshWidgetIfStale();
   }
 
   /// GET-ward fetch of the daily quote (POST /api/v1/quote {action:today} —
@@ -316,6 +350,11 @@ class DailyQuoteService {
         rated: (data['rated'] as String?)?.isNotEmpty == true
             ? data['rated'] as String
             : null,
+        // The server's quote day — the truth for the freshness stamp.
+        // Fall back to the device day only if the server ever omits it.
+        date: (data['date'] as String?)?.isNotEmpty == true
+            ? data['date'] as String
+            : _todayKey(),
       );
     } catch (e) {
       debugPrint('daily quote: fetch failed: $e');

@@ -1,9 +1,12 @@
 import 'dart:math';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:enclavd/api/api_client.dart';
 import 'package:enclavd/services/daily_quote_service.dart';
+import 'package:enclavd/services/daily_quote_widget.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -104,6 +107,81 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
       expect(DailyQuoteService.isEnabled(prefs), isTrue);
+    });
+  });
+
+  group('DailyQuoteService freshness stamp', () {
+    const channel = MethodChannel('home_widget');
+
+    TodayQuote quoteFor(String serverDate) => TodayQuote(
+          quote: const QuoteData(
+              id: 42, text: 't', author: 'a', tags: ['x']),
+          rated: null,
+          date: serverDate,
+        );
+
+    tearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    test(
+        'stamps the SERVER quote day on a successful push, not the '
+        'device day', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async => true);
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+
+      // Server day deliberately far from the real date (2026-08-25).
+      await DailyQuoteService.pushTodayToWidget(
+        api: ApiClient(store: PrefsSessionStore(prefs)),
+        prefs: prefs,
+        today: quoteFor('2026-01-02'),
+      );
+
+      expect(prefs.getString(DailyQuoteService.widgetDatePrefsKey),
+          '2026-01-02');
+    });
+
+    test('does NOT stamp when the widget push fails', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel,
+              (call) async => throw PlatformException(code: 'boom'));
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+
+      final ok = await DailyQuoteWidget.push(
+        text: 't',
+        author: 'a',
+        tags: const ['x'],
+        quoteId: 42,
+      );
+      expect(ok, isFalse);
+
+      await DailyQuoteService.pushTodayToWidget(
+        api: ApiClient(store: PrefsSessionStore(prefs)),
+        prefs: prefs,
+        today: quoteFor('2026-08-25'),
+      );
+
+      expect(prefs.getString(DailyQuoteService.widgetDatePrefsKey), isNull);
+    });
+
+    test('refreshWidgetNow clears a blocking stamp even when the fetch '
+        'fails (no network in tests)', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async => true);
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(DailyQuoteService.widgetDatePrefsKey, '2026-08-24');
+
+      await DailyQuoteService.refreshWidgetNow();
+
+      // The fetch cannot succeed here (flutter_test mocks HttpClient to
+      // 400) — the important guarantee is that the blocking stamp is gone,
+      // so the NEXT app start retries instead of trusting it.
+      expect(prefs.getString(DailyQuoteService.widgetDatePrefsKey), isNull);
     });
   });
 }

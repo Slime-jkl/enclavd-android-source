@@ -7,6 +7,7 @@ import '../api/auth_service.dart';
 import '../api/site_config_service.dart';
 import '../api/api_client.dart';
 import '../main.dart';
+import '../services/daily_quote_service.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/auth_password_field.dart';
 import '../widgets/field_icon.dart';
@@ -177,6 +178,11 @@ class _LoginScreenState extends State<LoginScreen> {
   /// rank → maintenance screen, otherwise the feed. A transient me()/config
   /// failure falls through to the feed (the server gates its own pages).
   Future<void> _postLogin(AuthService auth, SiteConfigService config) async {
+    // Fresh session — catch the daily-quote widget up immediately. A
+    // stale session (or the device/server clock edge) can leave the
+    // widget on an old quote with the freshness stamp blocking retries;
+    // login is the guaranteed moment the session is valid again.
+    unawaited(DailyQuoteService.refreshWidgetNow());
     try {
       final user = await auth.me();
       if (user != null) {

@@ -95,9 +95,12 @@ class DailyQuoteWidget {
 
   /// Full refresh: saves the quote fields (including the quote id the rate
   /// buttons need and the current rated state) and asks the launcher to
-  /// re-render. Silent on failure — a widget hiccup must never break the
-  /// caller (e.g. the daily notification flow).
-  static Future<void> push({
+  /// re-render. Returns true only when the whole push succeeded — callers
+  /// must not treat a failed push as done (a swallowed failure would let
+  /// the freshness stamp advance without the widget ever updating). Silent
+  /// on failure: a widget hiccup must never break the caller (e.g. the
+  /// daily notification flow).
+  static Future<bool> push({
     required String text,
     required String author,
     required List<String> tags,
@@ -114,8 +117,10 @@ class DailyQuoteWidget {
         name: widgetName,
         androidName: widgetAndroidName,
       );
+      return true;
     } catch (e) {
       debugPrint('quote widget: update failed: $e');
+      return false;
     }
   }
 

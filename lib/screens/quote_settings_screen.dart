@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -53,14 +55,19 @@ class _QuoteSettingsScreenState extends State<QuoteSettingsScreen> {
     });
   }
 
-  /// Daily quote: on = arm the random-time run (a pending slot is kept);
-  /// off = cancel the run so nothing fires until re-enabled.
+  /// Daily quote: on = arm the random-time run (a pending slot is kept)
+  /// and catch the widget up right away; off = cancel the run so nothing
+  /// fires until re-enabled.
   Future<void> _toggleDailyQuote(bool enabled) async {
     setState(() => _dailyQuoteEnabled = enabled);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_dailyQuotePrefsKey, enabled);
     if (enabled) {
       await DailyQuoteService.scheduleNextRun();
+      // The widget may be stale from before the feature was off (or the
+      // freshness stamp may be blocking) — drop the stamp and refresh
+      // immediately so re-enabling gives instant feedback.
+      unawaited(DailyQuoteService.refreshWidgetNow());
     } else {
       await DailyQuoteService.cancel();
     }
