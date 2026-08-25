@@ -16,6 +16,7 @@ import '../widgets/rank_badge.dart';
 import '../widgets/shimmer.dart';
 import 'chat_screen.dart';
 import 'compose_screen.dart';
+import '../services/analytics_service.dart';
 
 /// Profile screen — the "top part" of the site's profile page (profile.php)
 /// + that member's posts via GET /api/v1/posts?user_id=N.
@@ -64,6 +65,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    trackScreen('/profile');
     _scrollController.addListener(_onScroll);
     _loadAll();
   }

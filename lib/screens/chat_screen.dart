@@ -14,6 +14,7 @@ import '../widgets/enclavd_avatar.dart';
 import '../widgets/error_view.dart';
 import 'login_screen.dart';
 import 'profile_screen.dart';
+import '../services/analytics_service.dart';
 
 /// Chat thread — one conversation, Instagram-style bubbles.
 ///
@@ -98,6 +99,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    trackScreen('/chat');
     // Reading a thread counts as "messages screen open" for the
     // notification-suppression rule.
     MessageNotifications.instance?.setMessagesOpen(true);

@@ -14,6 +14,7 @@ import '../utils/html_entities.dart';
 import '../widgets/enclavd_avatar.dart';
 import 'post_detail_screen.dart';
 import 'profile_screen.dart';
+import '../services/analytics_service.dart';
 
 /// The in-app notification drawer — the site's bell dropdown (header.php +
 /// components/notifications.js) as a native screen.
@@ -57,6 +58,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   void initState() {
     super.initState();
+    trackScreen('/notifications');
     // The drawer is on screen — the live path must not ALSO pop a system
     // notification for something the user is literally looking at.
     SocialNotifications.instance?.setDrawerOpen(true);

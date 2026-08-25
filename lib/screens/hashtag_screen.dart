@@ -10,6 +10,7 @@ import '../widgets/error_view.dart';
 import '../widgets/post_card.dart';
 import '../widgets/shimmer.dart';
 import 'compose_screen.dart';
+import '../services/analytics_service.dart';
 
 /// Hashtag page — port of the site's feed/tag.php.
 ///
@@ -42,6 +43,7 @@ class _HashtagScreenState extends State<HashtagScreen> {
   @override
   void initState() {
     super.initState();
+    trackScreen('/hashtag');
     _scrollController.addListener(_onScroll);
     _loadFirst();
   }

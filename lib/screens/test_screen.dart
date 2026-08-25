@@ -7,6 +7,7 @@ import '../main.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/shimmer.dart';
 import 'test_results_screen.dart';
+import '../services/analytics_service.dart';
 
 /// The native Personality Assessment — modern port of test_page.php:
 /// intro card (about/instructions), then the 40 questions one at a time
@@ -47,6 +48,7 @@ class _TestScreenState extends State<TestScreen> {
   @override
   void initState() {
     super.initState();
+    trackScreen('/test');
     _load();
   }
 

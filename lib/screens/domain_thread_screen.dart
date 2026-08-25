@@ -19,6 +19,7 @@ import '../widgets/post_card.dart';
 import '../widgets/shimmer.dart';
 import 'compose_screen.dart';
 import 'profile_screen.dart';
+import '../services/analytics_service.dart';
 
 /// Forum thread view (site: /domain thread view) — the OP post rendered as
 /// a full interactive PostCard, then the replies oldest-first (forum
@@ -79,6 +80,7 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
   @override
   void initState() {
     super.initState();
+    trackScreen('/thread');
     _load();
   }
 

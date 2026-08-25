@@ -7,6 +7,7 @@ import '../api/invitations_service.dart';
 import '../main.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/error_view.dart';
+import '../services/analytics_service.dart';
 
 /// The native Invitations screen — a modern port of the site's
 /// invitations.php USER view (no admin invite creation, no see-all
@@ -36,6 +37,7 @@ class _InvitationsScreenState extends State<InvitationsScreen> {
   @override
   void initState() {
     super.initState();
+    trackScreen('/invitations');
     _load();
   }
 

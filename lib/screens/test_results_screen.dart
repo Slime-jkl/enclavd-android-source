@@ -7,6 +7,7 @@ import '../main.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/error_view.dart';
 import 'test_screen.dart';
+import '../services/analytics_service.dart';
 
 /// The native Test Results screen — a modern port of the site's
 /// results.php: the personality badge, the type description with
@@ -37,6 +38,7 @@ class _TestResultsScreenState extends State<TestResultsScreen> {
   @override
   void initState() {
     super.initState();
+    trackScreen('/test-results');
     _load();
   }
 

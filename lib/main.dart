@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -31,6 +32,7 @@ import 'screens/quote_settings_screen.dart';
 import 'screens/register_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/verify_email_screen.dart';
+import 'services/analytics_service.dart';
 import 'services/daily_quote_service.dart';
 import 'services/message_notification_source.dart';
 import 'services/message_notifications.dart';
@@ -263,6 +265,17 @@ class AppServices {
     // is live (post-login create). Own client from prefs on purpose — the
     // container's client may predate the login cookies on a cold start.
     unawaited(DailyQuoteService.refreshWidgetIfStale());
+    // Analytics: the app's own self-hosted Plausible (the site's :2000
+    // endpoint). ONLY release builds of the play/fdroid flavors report —
+    // debug runs and the dev flavor (kDebugMode / isDev) must never
+    // pollute the production dashboard.
+    AnalyticsService.instance = (kDebugMode || AppConfig.isDev)
+        ? null
+        : AnalyticsService(
+            endpoint: AppConfig.analyticsEndpoint,
+            domain: AppConfig.analyticsDomain,
+            userAgent: AppConfig.analyticsUserAgent,
+          );
     return services;
   }
 }
@@ -276,6 +289,7 @@ class EnclavdApp extends StatelessWidget {
       title: 'Enclavd',
       debugShowCheckedModeBanner: false,
       navigatorKey: navigatorKey,
+      navigatorObservers: [AnalyticsRouteObserver()],
       theme: buildEnclavdTheme(),
       // The site's microdot.php port: a faint user-id watermark tiled over
       // EVERY screen while logged in (pointer-events none). Lives above

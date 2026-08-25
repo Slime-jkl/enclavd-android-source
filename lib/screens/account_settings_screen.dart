@@ -14,6 +14,7 @@ import '../widgets/error_view.dart';
 import '../utils/user_facing_errors.dart';
 import '../widgets/enclavd_avatar.dart';
 import '../widgets/field_icon.dart';
+import '../services/analytics_service.dart';
 
 /// The native Account settings screen — a modern port of the site's
 /// profile-edit.php GENERAL INFO tab (the Connected Devices tab is
@@ -86,6 +87,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   @override
   void initState() {
     super.initState();
+    trackScreen('/settings/account');
     _load();
   }
 

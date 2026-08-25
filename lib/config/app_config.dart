@@ -83,6 +83,27 @@ class AppConfig {
   static const Duration receiveTimeout = Duration(seconds: 20);
   static const int httpClientRetries = 2; // transient network failures
 
+  /// ---- Analytics -----------------------------------------------------------
+  /// The app's own self-hosted Plausible (the website's analytics, proxied
+  /// by the web server on :2000). The app POSTs pageviews to the SAME
+  /// endpoint the site's header script.js uses, so app screens land in the
+  /// same dashboard as web pages.
+  static const String analyticsEndpoint =
+      'https://enclavd.com:2000/api/event';
+
+  /// The Plausible site the events belong to (the site's data-domain).
+  static const String analyticsDomain = 'enclavd.com';
+
+  /// User-Agent sent on analytics requests. Plausible silently drops
+  /// events whose UA is not browser-like, so the app's own UA
+  /// (EnclavdNative/1.0) would be discarded. This is the PINNED Chrome/124
+  /// string the old WebView wrapper always sent — it passes the bot filter
+  /// AND keeps the same visitor identity for the same phone across app
+  /// versions (Plausible identifies visitors by IP + UA hash).
+  static const String analyticsUserAgent =
+      'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 '
+      '(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36';
+
   /// ---- Feed ---------------------------------------------------------------
   static const int feedPageSize = 10; // matches api/v1 default limit range
   static const int feedFetchBeyond = 2; // pages fetched ahead of the fold

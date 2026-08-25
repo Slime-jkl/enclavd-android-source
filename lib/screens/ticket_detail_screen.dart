@@ -5,6 +5,7 @@ import '../api/api_client.dart';
 import '../api/reports_service.dart';
 import '../config/app_config.dart';
 import '../main.dart';
+import '../services/analytics_service.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/error_view.dart';
 import '../widgets/enclavd_avatar.dart';
@@ -47,6 +48,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
   @override
   void initState() {
     super.initState();
+    trackScreen('/report');
     _load();
   }
 

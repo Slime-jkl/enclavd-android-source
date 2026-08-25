@@ -8,6 +8,7 @@ import '../services/push/push_transport.dart';
 import '../services/social_notifications.dart';
 import '../services/sound_service.dart';
 import '../theme/enclavd_theme.dart';
+import '../services/analytics_service.dart';
 
 /// App settings — the app-side preferences screen (sounds, notification
 /// toggles, keep-alive). The daily-quote feature lives in its own
@@ -36,6 +37,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+    trackScreen('/settings');
     _load();
   }
 

@@ -11,6 +11,7 @@ import '../widgets/rank_badge.dart';
 import '../widgets/shimmer.dart';
 import 'post_detail_screen.dart';
 import 'profile_screen.dart';
+import '../services/analytics_service.dart';
 
 /// Search results — the screen the notification drawer's search bar
 /// lands on. Fetches api/v1/search?q=…&format=json (posts, users,
@@ -43,6 +44,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
   @override
   void initState() {
     super.initState();
+    trackScreen('/search');
     _load();
   }
 

@@ -13,6 +13,7 @@ import '../widgets/enclavd_avatar.dart';
 import '../widgets/post_card.dart'; // relativeTime
 import '../widgets/shimmer.dart';
 import 'domain_thread_screen.dart';
+import '../services/analytics_service.dart';
 
 /// Thread list for one domain category (site: /domain category view).
 ///
@@ -60,6 +61,7 @@ class _DomainCategoryScreenState extends State<DomainCategoryScreen> {
   @override
   void initState() {
     super.initState();
+    trackScreen('/forum');
     _category = widget.category;
     _scrollController.addListener(_onScroll);
     _loadFirst();

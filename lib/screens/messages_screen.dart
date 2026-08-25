@@ -14,6 +14,7 @@ import '../theme/enclavd_theme.dart';
 import '../widgets/enclavd_avatar.dart';
 import '../widgets/error_view.dart';
 import 'chat_screen.dart';
+import '../services/analytics_service.dart';
 
 /// Messages inbox — Instagram-style DM list, port of the site's
 /// messages.php conversations sidebar.
@@ -69,6 +70,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
   @override
   void initState() {
     super.initState();
+    trackScreen('/messages');
     // In the messages area: suppress message notifications while this is
     // the visible screen (the app-lifecycle check in the service handles
     // the minimized case).

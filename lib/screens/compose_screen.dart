@@ -14,6 +14,7 @@ import '../services/sound_service.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/enclavd_image.dart';
 import 'image_editor_screen.dart';
+import '../services/analytics_service.dart';
 
 /// Post composer — port of the site's post_form.php / edit modal.
 ///
@@ -59,6 +60,7 @@ class _ComposeScreenState extends State<ComposeScreen> {
   @override
   void initState() {
     super.initState();
+    trackScreen('/compose');
     _controller = TextEditingController(text: widget.post?.content ?? '');
   }
 

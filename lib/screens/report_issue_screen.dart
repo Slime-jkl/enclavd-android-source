@@ -7,6 +7,7 @@ import '../main.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/error_view.dart';
 import 'ticket_detail_screen.dart';
+import '../services/analytics_service.dart';
 
 /// The native Report an issue screen — a modern port of the site's
 /// reports.php USER view: the report form (issue type + description) and
@@ -39,6 +40,7 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
   @override
   void initState() {
     super.initState();
+    trackScreen('/reports');
     _load();
   }
 

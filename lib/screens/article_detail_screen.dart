@@ -17,6 +17,7 @@ import '../widgets/pinned_badge.dart';
 import '../widgets/rank_badge.dart';
 import '../widgets/shimmer.dart';
 import 'profile_screen.dart';
+import '../services/analytics_service.dart';
 
 /// The native article screen — the site's /article/<slug> (article.php) as
 /// a modern app. Site parity:
@@ -66,6 +67,7 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
   @override
   void initState() {
     super.initState();
+    trackScreen('/article');
     _load();
   }
 

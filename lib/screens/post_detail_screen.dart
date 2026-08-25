@@ -9,6 +9,7 @@ import '../widgets/error_view.dart';
 import '../widgets/post_card.dart';
 import '../widgets/shimmer.dart';
 import 'compose_screen.dart';
+import '../services/analytics_service.dart';
 
 /// Post detail — a single post by id (api/v1/posts ?post_id=N) rendered
 /// with the regular interactive PostCard (likes, comments, edit/delete).
@@ -34,6 +35,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   @override
   void initState() {
     super.initState();
+    trackScreen('/post');
     _load();
   }
 

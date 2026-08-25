@@ -11,6 +11,7 @@ import '../api/feed_service.dart';
 import '../api/site_config_service.dart';
 import '../config/app_config.dart';
 import '../main.dart';
+import '../services/analytics_service.dart';
 import '../services/message_notifications.dart';
 import '../services/realtime_service.dart';
 import '../services/social_notifications.dart';
@@ -949,6 +950,10 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
             // site's header logo does the same — home + re-poll).
             _jumpToTopAndRefresh();
           }
+          // App analytics: the tab switch IS a pageview of the site-style
+          // page the user is on (the site's own paths, so the app merges
+          // into the same Plausible dashboard).
+          trackScreen(url == '' ? '/feed' : '/$url');
         },
         destinations: [
           for (final tab in tabs)
