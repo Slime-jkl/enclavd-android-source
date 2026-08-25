@@ -31,6 +31,7 @@ import 'messages_screen.dart';
 import 'notifications_screen.dart';
 import 'search_results_screen.dart';
 import 'test_screen.dart';
+import 'votes_screen.dart';
 
 /// Feed screen — the ranked feed via GET /api/v1/posts.
 ///
@@ -102,6 +103,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   int _navIndex = 0;
   bool _articlesTabBuilt = false;
   bool _domainsTabBuilt = false;
+  bool _votesTabBuilt = false;
 
   // Server-driven bottom nav (GET /api/v1/site_config → nav): the site's
   // global nav rules decide which pages exist, their order and labels.
@@ -120,7 +122,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   /// Pages the native app can actually render; server nav entries for any
   /// other url are skipped (the web may list pages the app has no screen
   /// for, e.g. faq, leaderboard — they simply don't become tabs).
-  static const _knownNavUrls = {'', 'articles', 'domain'};
+  static const _knownNavUrls = {'', 'articles', 'domain', 'vote'};
 
   /// Server nav when loaded, else the shipped defaults.
   List<NavLink> get _effectiveNav => _nav.isNotEmpty ? _nav : _defaultNav;
@@ -889,6 +891,9 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                     'domain' => _domainsTabBuilt && _services != null
                         ? DomainsScreen(domains: _services!.domains)
                         : const SizedBox.shrink(),
+                    'vote' => _votesTabBuilt && _services != null
+                        ? VotesScreen(votes: _services!.votes)
+                        : const SizedBox.shrink(),
                     _ => const SizedBox.shrink(),
                   },
               ],
@@ -933,6 +938,10 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
               // Domains = the native forum tab (the site's /domain). Built
               // lazily on first visit like the Updates tab.
               _domainsTabBuilt = true;
+            } else if (url == 'vote') {
+              // Votes = the native community-voting tab (the site's /vote).
+              // Built lazily on first visit like the other tabs.
+              _votesTabBuilt = true;
             }
           });
           if (url == '') {
