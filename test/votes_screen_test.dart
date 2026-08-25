@@ -1,8 +1,10 @@
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:enclavd/api/api_client.dart';
 import 'package:enclavd/api/votes_service.dart';
 import 'package:enclavd/screens/votes_screen.dart';
+import 'package:enclavd/widgets/rank_badge.dart';
 
 /// Fake service with canned payloads (no sockets under flutter test).
 class _FakeVotes extends VotesService {
@@ -190,5 +192,75 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('vote-1-option-0')));
     await tester.pump();
     expect(service.voteCalls, 0);
+  });
+
+  testWidgets('rank powers render the global rank badges', (tester) async {
+    final service = _FakeVotes(_data());
+
+    await _pump(tester, service);
+
+    // Section collapsed by default — no badges until expanded (empty
+    // data means no vote cards, whose creator rows also carry badges).
+    expect(find.byType(RankBadge), findsNothing);
+    await tester.tap(find.text('View Rank Voting Powers'));
+    await tester.pump();
+
+    // One badge per rank power (SysOp + Admin from the canned payload).
+    expect(find.byType(RankBadge), findsNWidgets(2));
+    // The ×N weight still shows per row, plus the viewer's own power
+    // highlight row above the list.
+    expect(find.text('×1'), findsNWidgets(3));
+  });
+
+  testWidgets('vote button icon is white, matching the button label',
+      (tester) async {
+    final service = _FakeVotes(_data(active: [_vote()]));
+
+    await _pump(tester, service);
+
+    FaIcon iconIn(Finder button) =>
+        tester.widget<FaIcon>(find.descendant(of: button, matching: find.byType(FaIcon)));
+    expect(iconIn(find.widgetWithText(FilledButton, 'Submit Vote')).color,
+        Colors.white);
+
+    // After voting the icon swaps to rotate (Change Vote) — still white.
+    await tester.tap(find.byKey(const ValueKey('vote-1-option-1')));
+    await tester.pump();
+    await tester.tap(find.text('Submit Vote'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(iconIn(find.widgetWithText(FilledButton, 'Change Vote')).color,
+        Colors.white);
+  });
+
+  testWidgets('empty-state icons are centered in their circles',
+      (tester) async {
+    final service = _FakeVotes(_data());
+
+    await _pump(tester, service);
+
+    // The two empty-state circles (56px, circular decoration).
+    final circles = find.byWidgetPredicate((w) =>
+        w is Container &&
+        w.decoration is BoxDecoration &&
+        (w.decoration as BoxDecoration).shape == BoxShape.circle &&
+        (w.constraints?.maxWidth ?? 0) == 56);
+    expect(circles, findsNWidgets(2),
+        reason: 'one circle per empty state (active + completed)');
+
+    for (final circle in circles.evaluate()) {
+      final icon = find.descendant(
+          of: find.byWidget(circle.widget), matching: find.byType(FaIcon));
+      expect(icon, findsOneWidget);
+      // Icon center == circle center (the old bare-FaIcon painted top-left).
+      final circleFinder = find.byWidget(circle.widget);
+      final c = tester.getCenter(circleFinder);
+      final i = tester.getCenter(icon);
+      expect((i.dx - c.dx).abs(), lessThan(1.0),
+          reason: 'icon horizontally centered');
+      expect((i.dy - c.dy).abs(), lessThan(1.0),
+          reason: 'icon vertically centered');
+    }
   });
 }

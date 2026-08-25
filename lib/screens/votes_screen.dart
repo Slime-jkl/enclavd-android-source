@@ -20,7 +20,7 @@ import 'profile_screen.dart';
 /// ones, read-only with final results. Site parity:
 ///  - counts are WEIGHTED (rank voting power), the site's card math;
 ///  - one vote per poll, changeable until the period ends;
-///  - "Your current vote" highlight on the chosen option, purple accent;
+///  - "Your current vote" highlight on the chosen option, theme accent;
 ///  - doughnut chart per poll (the site's Chart.js canvas, native painter),
 ///    "No votes yet" when nobody has voted;
 ///  - creator row (avatar + username → profile, rank badge);
@@ -52,9 +52,9 @@ class _VotesScreenState extends State<VotesScreen> {
   int? _submittingId;
   bool _ranksOpen = false;
 
-  /// The purple accent shared by every selected/my-vote affordance
-  /// (site purple-500).
-  static const _accent = Color(0xFFA855F7);
+  /// The accent shared by every selected/my-vote affordance — the app's
+  /// link blue (the old site-purple read as off-theme on the dark cards).
+  static const _accent = EnclavdColors.link;
 
   @override
   void initState() {
@@ -328,11 +328,9 @@ class _HowVotingWorks extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Row(
                   children: [
-                    Text(
-                      power.name,
-                      style: TextStyle(
-                          fontSize: 13, color: RankColors.forRank(power.rank)),
-                    ),
+                    // Global rank badge (icon + rank name), not a bare
+                    // colored label — the app's rank identity everywhere.
+                    RankBadge(rank: power.rank),
                     const Spacer(),
                     Text(
                       '×${power.votingPower}',
@@ -361,16 +359,9 @@ class _SectionHeader extends StatelessWidget {
       padding: const EdgeInsets.only(top: 18, bottom: 12),
       child: Row(
         children: [
-          // Icon chip — the modern-section-header look.
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              color: EnclavdColors.primaryButton.withValues(alpha: 0.16),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: FaIcon(icon, size: 13, color: EnclavdColors.link),
-          ),
+          // Bare section icon — no tinted chip behind it (the chip
+          // read as clutter next to the title).
+          FaIcon(icon, size: 15, color: EnclavdColors.link),
           const SizedBox(width: 10),
           Text(
             title,
@@ -397,6 +388,7 @@ class _EmptyState extends StatelessWidget {
           Container(
             width: 56,
             height: 56,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: EnclavdColors.cardSecondary.withValues(alpha: 0.6),
@@ -695,7 +687,7 @@ class _VoteCard extends StatelessWidget {
                   ? FontAwesomeIcons.rotate
                   : FontAwesomeIcons.circleCheck,
               size: 14,
-              color: _VotesScreenState._accent,
+              color: Colors.white, // matches the button's label
             ),
       label: Text(submitting
           ? 'Submitting…'
