@@ -171,6 +171,69 @@ void main() {
   });
 
   testWidgets(
+      'rate-limited failure: the live countdown replaces the static '
+      'flash copy (no double banner)', (tester) async {
+    // auth.php appends "Please wait N second(s)..." to the failure flash
+    // when the cooldown kicks in — that parsed text is static and used to
+    // render a SECOND red banner beside the ticking countdown, frozen at
+    // the number from the moment of parse.
+    final auth = _FakeAuth()
+      ..onLogin = () => const LoginResult(
+            LoginOutcome.failure,
+            'Invalid e-mail or password. Please wait 5 second(s) before '
+            'trying again.',
+          );
+    final config = _FakeConfig()
+      ..state = const RateLimitState(
+        blocked: false,
+        cooldown: 5,
+        needsCaptcha: false,
+        captchaOk: false,
+        lockRemaining: 0,
+      );
+
+    await tester.pumpWidget(MaterialApp(
+      home: LoginScreen(auth: auth, siteConfig: config),
+    ));
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextFormField).at(0), 'a@b.c');
+    await tester.enterText(find.byType(TextFormField).at(1), 'pw');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Login'));
+    await tester.pump(); // failure banner frame
+    await tester.pump(); // rate state lands
+
+    // Exactly ONE red banner — the live countdown — and the frozen
+    // flash copy is gone.
+    expect(find.textContaining('second(s)'), findsOneWidget);
+    expect(find.textContaining('Invalid e-mail or password'), findsNothing);
+  });
+
+  testWidgets('non-rate failure keeps the server message banner',
+      (tester) async {
+    final auth = _FakeAuth()
+      ..onLogin = () => const LoginResult(
+            LoginOutcome.failure,
+            'Invalid e-mail or password.',
+          );
+    final config = _FakeConfig(); // cooldown 0 — no rate banner
+
+    await tester.pumpWidget(MaterialApp(
+      home: LoginScreen(auth: auth, siteConfig: config),
+    ));
+    await tester.pump();
+
+    await tester.enterText(find.byType(TextFormField).at(0), 'a@b.c');
+    await tester.enterText(find.byType(TextFormField).at(1), 'pw');
+    await tester.tap(find.widgetWithText(ElevatedButton, 'Login'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Invalid e-mail or password.'), findsOneWidget);
+    expect(find.textContaining('second(s)'), findsNothing);
+  });
+
+  testWidgets(
       'captcha required: question shown, answer sent with the login POST',
       (tester) async {
     final auth = _FakeAuth()..meUser = _normal;

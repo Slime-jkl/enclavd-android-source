@@ -102,6 +102,14 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       setState(() {
         _rl = state;
+        // A rate-limited state means the server's own failure flash was a
+        // STATIC "wait N second(s)" copy (auth.php appends it to the
+        // message) — the live countdown banner below replaces it, so the
+        // screen never shows two red messages, one frozen at the parsed
+        // number. Non-rate failures keep their banner.
+        if (state.waitSeconds > 0 || state.blocked == true) {
+          _error = null;
+        }
         _syncCountdown(state);
       });
     } catch (_) {
