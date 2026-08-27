@@ -1,4 +1,5 @@
 # Enclavd - Personality Social Network
+<img src="fastlane/metadata/android/en-US/images/featureGraphic.png">
 
 Stop broadcasting into the void. Enclavd is a private social network built on compatibility. Take a personality quiz, get matched with people on your wavelength, and connect through a feed built around who you actually are.
 
