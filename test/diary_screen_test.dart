@@ -127,6 +127,12 @@ DiarySnapshot _locked() => DiarySnapshot(
     );
 
 Future<void> _pump(WidgetTester tester, DiaryService diary) async {
+  // Phone-sized viewport: the stats + mood strip sit above the entry
+  // card now, so the wizard and the recent list must be reachable on a
+  // tall screen (default 800x600 would push wizard buttons off-screen).
+  tester.view.physicalSize = const Size(800, 1600);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
   await tester.pumpWidget(MaterialApp(
     theme: buildEnclavdTheme(),
     home: DiaryScreen(diary: diary),
@@ -135,28 +141,41 @@ Future<void> _pump(WidgetTester tester, DiaryService diary) async {
   await tester.pump(const Duration(milliseconds: 50));
 }
 
+/// Scroll a target into view before tapping it — the stats + mood strip
+/// now sit above the entry card, so wizard buttons can start below the
+/// 600px test viewport fold.
+Future<void> _tap(WidgetTester tester, Finder finder) async {
+  await tester.ensureVisible(finder);
+  await tester.pump();
+  await tester.tap(finder);
+  await tester.pump();
+}
+
 void main() {
   testWidgets('unlocked diary renders the wizard, stats and recent entries',
       (tester) async {
     await _pump(tester, _FakeDiary(snapshot: _unlocked()));
 
     expect(find.text('Diary'), findsOneWidget); // app bar
-    expect(find.text("Today's entry"), findsOneWidget);
+    expect(find.text("Today's diary"), findsOneWidget);
     expect(find.text('Step 1 of 5'), findsOneWidget);
-    expect(find.text('Welcome to Diary'), findsOneWidget);
+    expect(find.text('Welcome to Diary'), findsNothing);
+    expect(find.textContaining('Pick how today went'), findsOneWidget);
     // All five moods are tappable (uppercase labels, like the site).
     for (final label in ['ROUGH', 'FLAT', 'STEADY', 'GRINDING', 'UNSTOPPABLE']) {
       expect(find.text(label), findsOneWidget);
     }
     expect(find.text('Tap a mood…'), findsOneWidget);
 
-    // Stats + strip + recent below the fold.
-    await tester.drag(find.byType(ListView), const Offset(0, -700));
-    await tester.pump();
+    // Stats + strip are at the top now (the modern layout).
     expect(find.text('4'), findsOneWidget); // day streak
     expect(find.text('9'), findsOneWidget); // best streak
     expect(find.text('12'), findsOneWidget); // entries
     expect(find.text('Mood · last 30 days'), findsOneWidget);
+
+    // Recent entries below the fold.
+    await tester.drag(find.byType(ListView), const Offset(0, -700));
+    await tester.pump();
     expect(find.text('Recent entries'), findsOneWidget);
     expect(find.text('Yesterday'), findsOneWidget);
     expect(find.text('Fixed the login bug'), findsOneWidget);
@@ -172,40 +191,34 @@ void main() {
         findsOneWidget);
     expect(find.text('I understand. Start my journal'), findsOneWidget);
 
-    await tester.tap(find.text('I understand. Start my journal'));
-    await tester.pump();
+    await _tap(tester, find.text('I understand. Start my journal'));
     expect(find.text('Step 2 of 6'), findsOneWidget);
-    expect(find.text('Welcome to Diary'), findsOneWidget);
+    expect(find.textContaining('Pick how today went'), findsOneWidget);
   });
 
   testWidgets('mood and win are required with the site texts', (tester) async {
     await _pump(tester, _FakeDiary(snapshot: _unlocked()));
 
     // No mood picked → the site's exact message.
-    await tester.tap(find.text('Start'));
-    await tester.pump();
+    await _tap(tester, find.text('Start'));
     expect(find.text('Pick a mood for today.'), findsOneWidget);
 
     // Picking a mood clears the error and shows its hint.
-    await tester.tap(find.text('GRINDING'));
-    await tester.pump();
+    await _tap(tester, find.text('GRINDING'));
     expect(find.text('Pick a mood for today.'), findsNothing);
     expect(find.text('Locked in and pushing.'), findsOneWidget);
 
     // Straight to the win step, then Next without a win → site message.
-    await tester.tap(find.text('Start'));
-    await tester.pump();
+    await _tap(tester, find.text('Start'));
     expect(find.text('What was a small win you achieved today?'), findsOneWidget);
     expect(find.text('REQUIRED'), findsOneWidget);
-    await tester.tap(find.text('Next'));
-    await tester.pump();
+    await _tap(tester, find.text('Next'));
     expect(find.text('Name one small win. Even a tiny one counts.'),
         findsOneWidget);
 
     // A win unlocks the next step (optional fields have no gate).
     await tester.enterText(find.byType(TextField), 'Closed three tickets');
-    await tester.tap(find.text('Next'));
-    await tester.pump();
+    await _tap(tester, find.text('Next'));
     expect(find.text('What are you avoiding?'), findsOneWidget);
     expect(find.text('OPTIONAL'), findsOneWidget);
   });
@@ -232,21 +245,15 @@ void main() {
     );
     await _pump(tester, diary);
 
-    await tester.tap(find.text('STEADY'));
-    await tester.pump();
-    await tester.tap(find.text('Start'));
-    await tester.pump();
+    await _tap(tester, find.text('STEADY'));
+    await _tap(tester, find.text('Start'));
     await tester.enterText(find.byType(TextField), 'Closed three tickets');
-    await tester.tap(find.text('Next'));
-    await tester.pump();
+    await _tap(tester, find.text('Next'));
     await tester.enterText(find.byType(TextField), 'The refactor');
-    await tester.tap(find.text('Next'));
-    await tester.pump();
+    await _tap(tester, find.text('Next'));
     // Optional steps pass through freely.
-    await tester.tap(find.text('Next'));
-    await tester.pump();
-    await tester.tap(find.text('Lock it in'));
-    await tester.pump();
+    await _tap(tester, find.text('Next'));
+    await _tap(tester, find.text('Lock it in'));
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(sent, {
@@ -259,33 +266,44 @@ void main() {
     expect(find.text('Locked in.'), findsOneWidget);
     expect(find.text('See you tomorrow.'), findsOneWidget);
     expect(find.text('This entry earned you +2 prestige.'), findsOneWidget);
-    // Today's summary card shows the mood + answers.
-    expect(find.text('Steady'), findsOneWidget);
-    expect(find.text("Today's mood"), findsOneWidget);
+    // The summary card is gone (site parity): no mood label anywhere.
+    expect(find.text('Steady'), findsNothing);
+    expect(find.text("Today's mood"), findsNothing);
+
+    // Today's answers now live in the expanded Recent entries row.
+    await tester.drag(find.byType(ListView), const Offset(0, -700));
+    await tester.pump();
     expect(find.text('SMALL WIN'), findsWidgets);
+    expect(find.text('Closed three tickets'), findsWidgets);
+    expect(find.text('AVOIDING'), findsWidgets);
+    expect(find.text('The refactor'), findsWidgets);
   });
 
-  testWidgets('a locked day renders the summary, stats, strip and recent',
+  testWidgets('a locked day renders the lock, stats, strip and recent',
       (tester) async {
     await _pump(tester, _FakeDiary(snapshot: _locked()));
 
     expect(find.text('Locked in.'), findsOneWidget);
-    expect(find.text('Today'), findsOneWidget); // date label
-    expect(find.text('Unstoppable'), findsOneWidget);
-    expect(find.text("Today's mood"), findsOneWidget);
-    // Only filled fields render (tomorrow was left empty).
+    // Date label on the locked card + the expanded recent row for today.
+    expect(find.text('Today'), findsWidgets);
+    expect(find.text('Unstoppable'), findsNothing); // mood label not shown
+    expect(find.text("Today's mood"), findsNothing);
+
+    // Stats + strip are at the top now — visible without scrolling.
+    expect(find.text('13'), findsOneWidget); // entries stat
+    expect(find.text('Mood · last 30 days'), findsOneWidget);
+
+    // Today's answers render in the expanded recent row (only filled
+    // fields; tomorrow was left empty).
+    await tester.drag(find.byType(ListView), const Offset(0, -700));
+    await tester.pump();
+    expect(find.text('Recent entries'), findsOneWidget);
+    expect(find.text('Yesterday'), findsOneWidget);
+    expect(find.text('Fixed the login bug'), findsOneWidget);
     expect(find.text('SMALL WIN'), findsWidgets);
     expect(find.text('AVOIDING'), findsWidgets);
     expect(find.text('THOUGHT EXPLORED'), findsWidgets);
     expect(find.text('TOMORROW'), findsNothing);
-
-    await tester.drag(find.byType(ListView), const Offset(0, -700));
-    await tester.pump();
-    expect(find.text('13'), findsOneWidget); // entries stat
-    expect(find.text('Mood · last 30 days'), findsOneWidget);
-    expect(find.text('Recent entries'), findsOneWidget);
-    expect(find.text('Yesterday'), findsOneWidget);
-    expect(find.text('Fixed the login bug'), findsOneWidget);
   });
 
   testWidgets('load failure shows the friendly error view; retry reloads',
@@ -298,7 +316,7 @@ void main() {
     // (the app's user-facing error contract — same as every other screen).
     expect(find.text(kInternalError), findsOneWidget);
     expect(find.text('Try again'), findsOneWidget);
-    expect(find.text("Today's entry"), findsNothing);
+    expect(find.text("Today's diary"), findsNothing);
 
     diary.error = null;
     diary.snapshot = _unlocked();
@@ -307,6 +325,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(diary.fetchCalls, 2);
-    expect(find.text("Today's entry"), findsOneWidget);
+    expect(find.text("Today's diary"), findsOneWidget);
   });
 }

@@ -184,7 +184,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
       appBar: AppBar(
         title: const Row(
           children: [
-            FaIcon(FontAwesomeIcons.book, size: 18, color: Color(0xFFC084FC)),
+            FaIcon(FontAwesomeIcons.book, size: 18, color: EnclavdColors.link),
             SizedBox(width: 10),
             Text('Diary'),
           ],
@@ -215,16 +215,19 @@ class _DiaryScreenState extends State<DiaryScreen> {
           ),
         ),
         const SizedBox(height: 20),
-        // The locked gate is "today has an entry", NOT the response's
-        // `locked` flag: a fresh save returns locked:false (locked means
-        // "a second save is a no-op") yet must land on the locked hero —
-        // same rule as the web page's `$today_entry` check.
-        if (snapshot.entry != null) _lockedCard() else _wizardCard(),
-        const SizedBox(height: 8),
+        // Stats + 30-day strip first (the modern layout, like the site),
+        // then today's entry — the wizard or the locked card — and the
+        // recent-entries list at the bottom. The locked gate is "today
+        // has an entry", NOT the response's `locked` flag: a fresh save
+        // returns locked:false (locked means "a second save is a no-op")
+        // yet must land on the locked card — same rule as the web page's
+        // `$today_entry` check.
         _statsRow(snapshot.stats),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         _moodStrip(snapshot.stats),
-        const SizedBox(height: 8),
+        const SizedBox(height: 16),
+        if (snapshot.entry != null) _lockedCard() else _wizardCard(),
+        const SizedBox(height: 16),
         _recentSection(snapshot),
       ],
     );
@@ -242,7 +245,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
             Row(
               children: [
                 const Text(
-                  "Today's entry",
+                  "Today's diary",
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
                 const Spacer(),
@@ -253,17 +256,14 @@ class _DiaryScreenState extends State<DiaryScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: LinearProgressIndicator(
-                value: (_step + 1) / _totalSteps,
-                minHeight: 4,
-                backgroundColor: const Color(0x80374151),
-                valueColor:
-                    const AlwaysStoppedAnimation<Color>(Color(0xFF8B5CF6)),
-              ),
+            const SizedBox(height: 2),
+            Text(
+              formatDiaryDate(_snapshot!.date),
+              style: const TextStyle(
+                  color: EnclavdColors.textSecondary, fontSize: 12),
             ),
+            const SizedBox(height: 12),
+            _diaryProgress((_step + 1) / _totalSteps),
             const SizedBox(height: 20),
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 200),
@@ -285,6 +285,34 @@ class _DiaryScreenState extends State<DiaryScreen> {
     );
   }
 
+  /// Progress bar: site parity (diary.php's .diary-progress-fill is a
+  /// purple→blue gradient, fully rounded). Implemented with a fractionally
+  /// sized gradient so the fill stays rounded at any width.
+  Widget _diaryProgress(double value) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(999),
+      child: SizedBox(
+        height: 4,
+        child: Stack(
+          children: [
+            Container(color: const Color(0x80374151)),
+            FractionallySizedBox(
+              alignment: Alignment.centerLeft,
+              widthFactor: value.clamp(0.0, 1.0),
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF8B5CF6), Color(0xFF3B82F6)],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _stepBody() {
     if (_hasWarningStep && _step == 0) return _warningStep();
     if (_step == _moodIndex) return _moodStep();
@@ -294,7 +322,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
     return _thoughtStep();
   }
 
-  Widget _stepQuestion(String emoji, String title, Widget body,
+  Widget _stepQuestion(String emoji, String? title, Widget body,
       {String? tag, bool required = false, String? hint}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -302,9 +330,10 @@ class _DiaryScreenState extends State<DiaryScreen> {
         Text(emoji,
             style: const TextStyle(fontSize: 34, height: 1)),
         const SizedBox(height: 12),
-        Text(title,
-            style: const TextStyle(
-                fontSize: 18, fontWeight: FontWeight.w700, height: 1.35)),
+        if (title != null)
+          Text(title,
+              style: const TextStyle(
+                  fontSize: 18, fontWeight: FontWeight.w700, height: 1.35)),
         if (tag != null) ...[
           const SizedBox(height: 10),
           Text(
@@ -351,14 +380,13 @@ class _DiaryScreenState extends State<DiaryScreen> {
   Widget _moodStep() {
     return _stepQuestion(
       '📓',
-      'Welcome to Diary',
+      null,
       Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'One entry a day. No feed, no likes, no take-backs. Pick how '
-            'today went, then walk through the questions. Once you hit '
-            'Lock it in, it stays. Two minutes, tops.',
+            'Pick how today went, then walk through the questions. Once '
+            'you hit Lock it in, it stays. Two minutes, tops.',
             style: TextStyle(
                 color: EnclavdColors.textSecondary,
                 fontSize: 14,
@@ -570,75 +598,39 @@ class _DiaryScreenState extends State<DiaryScreen> {
   Widget _lockedCard() {
     final entry = _snapshot!.entry!;
     final prestige = _lastPrestige;
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 28),
-          child: Column(
-            children: [
-              const Text('🔒', style: TextStyle(fontSize: 56, height: 1)),
-              const SizedBox(height: 16),
-              const Text(
-                'Locked in.',
-                style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                formatDiaryDate(entry.date),
-                style: const TextStyle(
-                    color: EnclavdColors.textSecondary, fontSize: 14),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                'See you tomorrow.',
-                style: TextStyle(
-                    color: EnclavdColors.textSecondary, fontSize: 13),
-              ),
-              if (prestige != null &&
-                  (prestige.awarded > 0 || prestige.penalty > 0)) ...[
-                const SizedBox(height: 12),
-                _prestigeLine(prestige),
-              ],
-            ],
-          ),
-        ),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Text(entry.moodEmoji,
-                        style: const TextStyle(fontSize: 34, height: 1)),
-                    const SizedBox(width: 14),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(entry.moodLabel,
-                            style: const TextStyle(
-                                fontSize: 16, fontWeight: FontWeight.w700)),
-                        const Text(
-                          "Today's mood",
-                          style: TextStyle(
-                              color: EnclavdColors.textSecondary,
-                              fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                for (final f in _entryFields(entry)) ...[
-                  const SizedBox(height: 6),
-                  _DiaryFieldRow(
-                      icon: f.icon, label: f.label, text: f.text),
-                ],
-              ],
+    // Just the lock, centered (site parity: today's answers already live
+    // in the expanded Recent entries row below).
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+        child: Column(
+          children: [
+            const Text('🔒', style: TextStyle(fontSize: 56, height: 1)),
+            const SizedBox(height: 16),
+            const Text(
+              'Locked in.',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
             ),
-          ),
+            const SizedBox(height: 6),
+            Text(
+              formatDiaryDate(entry.date),
+              style: const TextStyle(
+                  color: EnclavdColors.textSecondary, fontSize: 14),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'See you tomorrow.',
+              style: TextStyle(
+                  color: EnclavdColors.textSecondary, fontSize: 13),
+            ),
+            if (prestige != null &&
+                (prestige.awarded > 0 || prestige.penalty > 0)) ...[
+              const SizedBox(height: 12),
+              _prestigeLine(prestige),
+            ],
+          ],
         ),
-      ],
+      ),
     );
   }
 
@@ -683,6 +675,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
         decoration: BoxDecoration(
           color: EnclavdColors.cardSecondary,
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: EnclavdColors.border, width: 1.5),
         ),
         child: Column(
           children: [
@@ -801,26 +794,15 @@ class _DiaryScreenState extends State<DiaryScreen> {
         else
           for (final entry in snapshot.recent)
             _RecentEntryTile(
+              // One state per date: without the key, the tile at index 0
+              // reuses the previous day's State after a save, so today's
+              // row would stay collapsed instead of opening by default.
+              key: ValueKey(entry.date),
               entry: entry,
               initiallyOpen: entry.date == snapshot.date,
             ),
       ],
     );
-  }
-
-  /// The four answer fields, skipping empty ones (site parity: the page
-  /// only renders filled fields).
-  List<({String icon, String label, String text})> _entryFields(
-      DiaryEntry entry) {
-    return [
-      if (entry.win.isNotEmpty) (icon: '🏆', label: 'Small win', text: entry.win),
-      if (entry.avoided.isNotEmpty)
-        (icon: '🚧', label: 'Avoiding', text: entry.avoided),
-      if (entry.tomorrow.isNotEmpty)
-        (icon: '🎯', label: 'Tomorrow', text: entry.tomorrow),
-      if (entry.thought.isNotEmpty)
-        (icon: '💭', label: 'Thought explored', text: entry.thought),
-    ];
   }
 
   // ── Loading ──────────────────────────────────────────────────────────
@@ -902,6 +884,7 @@ class _DiaryFieldRow extends StatelessWidget {
 /// the full answers (site parity with diary.php's details/summary rows).
 class _RecentEntryTile extends StatefulWidget {
   const _RecentEntryTile({
+    super.key,
     required this.entry,
     required this.initiallyOpen,
   });
