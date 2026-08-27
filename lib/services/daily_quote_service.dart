@@ -49,17 +49,25 @@ class RateAction {
 }
 
 /// Daily quote delivery: ONE notification per day at a RANDOM time between
-/// 06:00 and 20:00 LOCAL, plus the home-screen widget showing today's quote
-/// with 👍/👎 buttons that record the rating in the API.
+/// 08:00 and 20:00 LOCAL (shown only when NO widget is pinned on the home
+/// screen — the widget is the daily surface when it exists), plus the
+/// home-screen widget showing today's quote with 👍/👎 buttons that record
+/// the rating in the API.
 ///
 /// Mechanics (no new native machinery — reuses the existing WorkManager +
 /// flutter_local_notifications stack + home_widget's interactive widgets):
 ///  - A one-shot WorkManager task is armed with `initialDelay` = time until
 ///    the next random slot. The task runs even when the app is swiped away
 ///    (system service), fetches today's quote from api/v1/quote with the
-///    persisted session, shows the notification, refreshes the widget, then
-///    arms TOMORROW's random slot. After a run nothing is pending, so the
-///    next `registerOneOffTask` is a fresh registration.
+///    persisted session, shows the notification when no widget exists,
+///    refreshes the widget, then arms TOMORROW's random slot. After a run
+///    nothing is pending, so the next `registerOneOffTask` is a fresh
+///    registration.
+///  - The WIDGET rolls over at the server's day boundary (UTC midnight):
+///    a second one-shot ([rolloverTaskName], ~10 min after UTC midnight)
+///    fetches today's quote and pushes it to the widget WHEN A WIDGET IS
+///    PINNED — the card flips with the app closed, no notification. No
+///    widget → the run is a no-op (the random slot owns the notification).
 ///  - App starts arm a slot ONLY if none is pending (ExistingWorkPolicy.keep
 ///    preserves an already-armed run instead of re-randomizing it away).
 ///  - The widget is also refreshed on app foreground when it's stale
@@ -78,6 +86,11 @@ class DailyQuoteService {
 
   static const String taskName = 'enclavd-daily-quote';
 
+  /// The widget rollover one-shot: fires ~10 min after UTC midnight (the
+  /// server's day boundary) and pushes today's quote to a pinned widget —
+  /// the card flips without the app being opened. Notification-free.
+  static const String rolloverTaskName = 'enclavd-quote-rollover';
+
   /// App-side master toggle for the feature (Settings screen).
   static const String enabledPrefsKey = 'daily_quote_enabled';
 
@@ -93,11 +106,16 @@ class DailyQuoteService {
   static const String _channelName = 'Daily quote';
   static const String _channelDescription = "Today's quote, once a day";
 
-  /// Random-time window: 06:00–20:00 local, 20:00 exclusive.
-  static const int _windowStartHour = 6;
-  static const int _windowLengthMinutes = 14 * 60; // 840 → up to 19:59
+  /// Random-time window: 08:00–20:00 local, 20:00 exclusive (user spec).
+  static const int _windowStartHour = 8;
+  static const int _windowLengthMinutes = 12 * 60; // 720 → up to 19:59
 
-  /// The next delivery slot: today at a random minute in [06:00, 20:00)
+  /// The widget rollover fires this long after UTC midnight — a buffer for
+  /// device-clock skew so the fetch lands after the server's CURDATE() has
+  /// actually flipped (the server rotates at UTC midnight).
+  static const int _rolloverOffsetMinutes = 10;
+
+  /// The next delivery slot: today at a random minute in [08:00, 20:00)
   /// when that is still ahead of [now], otherwise tomorrow. [random] is
   /// injectable for deterministic tests.
   @visibleForTesting
@@ -110,6 +128,18 @@ class DailyQuoteService {
     return candidate.isAfter(now)
         ? candidate
         : candidate.add(const Duration(days: 1));
+  }
+
+  /// When the widget rollover fires: the next UTC midnight + 10 min. The
+  /// server's day boundary is UTC (MariaDB CURDATE()), so the fetch must be
+  /// timed against UTC, not the device's local midnight — in BST that is
+  /// 01:10 local. Pure — unit-tested.
+  @visibleForTesting
+  static DateTime nextMidnightFire(DateTime now) {
+    final utc = now.toUtc();
+    return DateTime.utc(utc.year, utc.month, utc.day)
+        .add(const Duration(days: 1))
+        .add(const Duration(minutes: _rolloverOffsetMinutes));
   }
 
   /// Parses a widget rate tap URI (`enclavdwidget://like?id=983`). Returns
@@ -144,12 +174,72 @@ class DailyQuoteService {
       existingWorkPolicy: ExistingWorkPolicy.keep,
     );
     debugPrint('daily quote: next run in ${delay.inMinutes} min');
+    await scheduleMidnightRun(); // the widget rollover rides along
   }
 
-  /// Cancels the armed run (Settings toggle off).
+  /// Arms the widget rollover one-shot for ~10 min after the next UTC
+  /// midnight. `keep` preserves an already-armed run; after a completed run
+  /// nothing is pending, so this registers fresh (same contract as
+  /// [scheduleNextRun]).
+  static Future<void> scheduleMidnightRun() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!isEnabled(prefs)) return;
+    final now = DateTime.now();
+    final fireAt = nextMidnightFire(now);
+    final delay = fireAt.difference(now);
+    await Workmanager().registerOneOffTask(
+      rolloverTaskName,
+      rolloverTaskName,
+      initialDelay: delay,
+      constraints: Constraints(networkType: NetworkType.connected),
+      existingWorkPolicy: ExistingWorkPolicy.keep,
+    );
+    debugPrint('daily quote: widget rollover in ${delay.inMinutes} min');
+  }
+
+  /// Cancels the armed runs (Settings toggle off): the random slot AND the
+  /// midnight rollover.
   static Future<void> cancel() async {
     await Workmanager().cancelByUniqueName(taskName);
+    await Workmanager().cancelByUniqueName(rolloverTaskName);
     debugPrint('daily quote: cancelled');
+  }
+
+  /// The widget rollover run (headless isolate — same contract as
+  /// [runTask]): fires ~10 min after UTC midnight with the app closed.
+  /// Pushes today's quote to the widget ONLY when a widget is pinned —
+  /// the card flips at the day boundary without any notification. No
+  /// widget → no-op (the random-time [runTask] owns the notification
+  /// surface). Always re-arms tomorrow's boundary, success or not, so a
+  /// transient failure self-heals on the next day.
+  static Future<void> runMidnightRollover() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (!isEnabled(prefs)) return;
+      if (!await _hasWidgetInstance()) {
+        debugPrint('quote widget: rollover — no widget pinned, skipping');
+        return;
+      }
+      final api = ApiClient(store: PrefsSessionStore(prefs));
+      await api.restoreSession();
+      if (!api.hasSession) {
+        debugPrint('quote widget: rollover — no session, skipping');
+        return;
+      }
+      final today = await _fetchToday(api);
+      if (today == null) {
+        debugPrint('quote widget: rollover — fetch failed');
+        return;
+      }
+      if (prefs.getString(widgetDatePrefsKey) == today.date) {
+        debugPrint(
+            'quote widget: rollover — already fresh for ${today.date}');
+        return;
+      }
+      await pushTodayToWidget(api: api, prefs: prefs, today: today);
+    } finally {
+      await scheduleMidnightRun(); // next boundary is armed regardless
+    }
   }
 
   /// The background run (headless isolate — same contract as the poller):

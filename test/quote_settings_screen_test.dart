@@ -10,10 +10,11 @@ import 'package:enclavd/services/daily_quote_service.dart';
 import 'package:enclavd/theme/enclavd_theme.dart';
 
 /// Records WorkManager arming/cancelling (the master toggle's effect)
-/// without touching platform channels.
+/// without touching platform channels. Name-keyed: the toggle arms/cancels
+/// BOTH the random slot and the UTC-midnight widget rollover.
 class _FakeWorkmanager extends WorkmanagerPlatform {
-  int armed = 0;
-  int cancelled = 0;
+  final List<String> armed = [];
+  final List<String> cancelled = [];
 
   @override
   Future<void> registerOneOffTask(
@@ -30,12 +31,12 @@ class _FakeWorkmanager extends WorkmanagerPlatform {
     ForegroundServiceConfig? foregroundServiceConfig,
     bool expedited = false,
   }) async {
-    armed++;
+    armed.add(uniqueName);
   }
 
   @override
   Future<void> cancelByUniqueName(String uniqueName) async {
-    cancelled++;
+    cancelled.add(uniqueName);
   }
 }
 
@@ -126,17 +127,19 @@ void main() {
     await tester.pumpWidget(wrap(const QuoteSettingsScreen()));
     await tester.pumpAndSettle();
 
-    // Off → cancels the armed run.
+    // Off → cancels BOTH unique names: the random slot and the rollover.
     await tester.tap(find.widgetWithText(SwitchListTile, 'Daily quote'));
     await tester.pumpAndSettle();
-    expect(wm.cancelled, 1);
+    expect(wm.cancelled, contains(DailyQuoteService.taskName));
+    expect(wm.cancelled, contains(DailyQuoteService.rolloverTaskName));
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getBool(DailyQuoteService.enabledPrefsKey), isFalse);
 
-    // On again → re-arms.
+    // On again → re-arms both.
     await tester.tap(find.widgetWithText(SwitchListTile, 'Daily quote'));
     await tester.pumpAndSettle();
-    expect(wm.armed, 1);
+    expect(wm.armed, contains(DailyQuoteService.taskName));
+    expect(wm.armed, contains(DailyQuoteService.rolloverTaskName));
     expect(prefs.getBool(DailyQuoteService.enabledPrefsKey), isTrue);
   });
 

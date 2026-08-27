@@ -3,23 +3,54 @@ import 'dart:math';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:workmanager/workmanager.dart';
 
 import 'package:enclavd/api/api_client.dart';
 import 'package:enclavd/services/daily_quote_service.dart';
 import 'package:enclavd/services/daily_quote_widget.dart';
 
+/// Records WorkManager arming/cancelling (the rollover's re-arm and the
+/// toggle's cancel) without touching platform channels.
+class _FakeWorkmanager extends WorkmanagerPlatform {
+  final List<String> armed = [];
+  final List<String> cancelled = [];
+
+  @override
+  Future<void> registerOneOffTask(
+    String uniqueName,
+    String taskName, {
+    Map<String, dynamic>? inputData,
+    Duration? initialDelay,
+    Constraints? constraints,
+    ExistingWorkPolicy? existingWorkPolicy,
+    BackoffPolicy? backoffPolicy,
+    Duration? backoffPolicyDelay,
+    String? tag,
+    OutOfQuotaPolicy? outOfQuotaPolicy,
+    ForegroundServiceConfig? foregroundServiceConfig,
+    bool expedited = false,
+  }) async {
+    armed.add(uniqueName);
+  }
+
+  @override
+  Future<void> cancelByUniqueName(String uniqueName) async {
+    cancelled.add(uniqueName);
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('DailyQuoteService.nextSlot', () {
-    test('always lands in [06:00, 20:00) local, today or tomorrow', () {
+    test('always lands in [08:00, 20:00) local, today or tomorrow', () {
       final rng = Random(42);
       for (var i = 0; i < 300; i++) {
         final now = DateTime(2026, 8, 24, rng.nextInt(24), rng.nextInt(60),
             rng.nextInt(60));
         final slot = DailyQuoteService.nextSlot(now, random: rng);
-        expect(slot.hour, inInclusiveRange(6, 19),
-            reason: 'slot outside the 06:00-20:00 window for now=$now');
+        expect(slot.hour, inInclusiveRange(8, 19),
+            reason: 'slot outside the 08:00-20:00 window for now=$now');
         expect(slot.minute, inInclusiveRange(0, 59));
         expect(slot.second, 0, reason: 'slot must be on a whole minute');
 
@@ -38,7 +69,7 @@ void main() {
     test('uses today when the slot is still ahead, tomorrow when past', () {
       final rng = Random(7);
 
-      // 05:00 — every candidate (>= 06:00 today) is still ahead → today.
+      // 05:00 — every candidate (>= 08:00 today) is still ahead → today.
       final early = DateTime(2026, 8, 24, 5);
       final s1 = DailyQuoteService.nextSlot(early, random: rng);
       expect(DateTime(s1.year, s1.month, s1.day),
@@ -99,6 +130,69 @@ void main() {
           DailyQuoteService.parseRateAction(
               Uri.parse('enclavdwidget://dislike?id=-5')),
           isNull);
+    });
+  });
+
+  group('DailyQuoteService.nextMidnightFire', () {
+    test('fires 10 min after the next UTC midnight', () {
+      expect(
+          DailyQuoteService.nextMidnightFire(DateTime.utc(2026, 8, 25, 23, 30)),
+          DateTime.utc(2026, 8, 26, 0, 10));
+      expect(
+          DailyQuoteService.nextMidnightFire(DateTime.utc(2026, 8, 25, 12)),
+          DateTime.utc(2026, 8, 26, 0, 10));
+    });
+
+    test("rolls to the day AFTER when today's boundary already passed", () {
+      // 00:15 UTC — the 00:10 fire time is gone; next is tomorrow's.
+      expect(
+          DailyQuoteService.nextMidnightFire(DateTime.utc(2026, 8, 25, 0, 15)),
+          DateTime.utc(2026, 8, 26, 0, 10));
+    });
+
+    test('is immune to month/year rollover', () {
+      expect(
+          DailyQuoteService.nextMidnightFire(
+              DateTime.utc(2026, 12, 31, 23, 59)),
+          DateTime.utc(2027, 1, 1, 0, 10));
+    });
+  });
+
+  group('DailyQuoteService.runMidnightRollover', () {
+    const channel = MethodChannel('home_widget');
+
+    tearDown(() {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, null);
+    });
+
+    test('no widget pinned → no fetch/push, still re-arms tomorrow', () async {
+      // getInstalledWidgets → [] (nothing pinned); other calls → null.
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+        if (call.method == 'getInstalledWidgets') return <dynamic>[];
+        return null;
+      });
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+          DailyQuoteService.widgetDatePrefsKey, '2026-08-25');
+
+      // Bind the Workmanager singleton first (Linux test env), then swap in
+      // the recording fake — the impl reads WorkmanagerPlatform.instance
+      // live at call time.
+      Workmanager();
+      final wm = _FakeWorkmanager();
+      WorkmanagerPlatform.instance = wm;
+
+      await DailyQuoteService.runMidnightRollover();
+
+      // Nothing fetched/pushed: the freshness stamp is untouched…
+      expect(prefs.getString(DailyQuoteService.widgetDatePrefsKey),
+          '2026-08-25');
+      // …but the next boundary is armed (finally), so the rollover chain
+      // survives even a day where the random slot is dropped.
+      expect(wm.armed, contains(DailyQuoteService.rolloverTaskName));
     });
   });
 

@@ -57,14 +57,17 @@ Future<void> registerBackgroundNotifications() async {
 /// burn the backoff chain, the next tick retries.
 ///
 /// Branches on the task name: the daily-quote one-shot (random-time slot,
-/// see DailyQuoteService) gets its own handler; everything else falls
-/// through to the periodic source poller.
+/// see DailyQuoteService) and the widget rollover one-shot (UTC-midnight
+/// widget refresh) get their own handlers; everything else falls through
+/// to the periodic source poller.
 @pragma('vm:entry-point')
 void notificationDispatcher() {
   Workmanager().executeTask((taskName, inputData) async {
     try {
       if (taskName == DailyQuoteService.taskName) {
         await DailyQuoteService.runTask();
+      } else if (taskName == DailyQuoteService.rolloverTaskName) {
+        await DailyQuoteService.runMidnightRollover();
       } else {
         await runBackgroundSources(backgroundSources());
       }
