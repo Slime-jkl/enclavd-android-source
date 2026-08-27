@@ -39,7 +39,9 @@ import 'votes_screen.dart';
 /// - First load: skeleton cards (shimmer) instead of a bare spinner.
 /// - Infinite scroll: keyset cursor (last_score + last_id) from the previous
 ///   page; stop when has_more is false.
-/// - Pull-to-refresh: refetch page one.
+/// - Pull-to-refresh: refetch page one (pure server rank — a website
+///   reload); posts newer than anything shown are OFFERED via a floating
+///   "New posts" pill (site parity), never auto-inserted.
 /// - Logout: top-right, via api/v1 auth logout → back to the login screen.
 class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key});
@@ -71,6 +73,16 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   bool _loading = false;
   bool _initialLoadDone = false;
   String? _error;
+
+  // New-posts pill (site parity — notifications.js EnclavdFeedPill): a
+  // refresh may OFFER posts newer than anything shown, never auto-insert
+  // them. _seenMaxId is monotonic (the highest post id ever displayed), so
+  // a post is offered at most once — the old delta auto-merge hoisted
+  // buried posts to the top on alternating refreshes, which read as the
+  // feed "jittering" between two orderings.
+  int _seenMaxId = 0;
+  bool _showNewPostsPill = false;
+  int _newPostCount = 0;
 
   // One comment section open at a time: the id of the post whose comments
   // are open, null = all closed. Opening another post's comments closes
@@ -477,6 +489,12 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
         _lastPage = page;
         _loading = false;
         _initialLoadDone = true;
+        // A fresh first page re-baselines what has been seen (a website
+        // reload): the pill is cleared and everything rendered counts as
+        // seen, so buried-but-newer posts are not re-offered.
+        _seenMaxId = feedMaxPostId(page.posts, _seenMaxId);
+        _showNewPostsPill = false;
+        _newPostCount = 0;
       });
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -540,37 +558,39 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
       SoundService.instance.action();
       return;
     }
-    // 1) Delta of posts newer than anything we have — surfaces new posts
-    //    the ranked first page may have buried (the site's "new posts"
-    //    check, posts.php ?after_id).
-    final maxId = _posts.fold<int>(0, (m, p) => p.id > m ? p.id : m);
+    // 1) Delta check FOR THE PILL only: posts newer than anything ever
+    //    shown. Site parity — notifications.js EnclavdFeedPill: new posts
+    //    are OFFERED via a button, never auto-inserted. (The site's pill
+    //    triggers on SSE new_post; the app's on pull-to-refresh.) The old
+    //    code merged the delta into the list here, hoisting buried posts to
+    //    the top on every other refresh — the jitter between two orderings.
     FeedPage? delta;
-    if (maxId > 0) {
-      try {
-        delta =
-            await services.feed.newerThan(maxId, limit: AppConfig.feedPageSize);
-      } catch (_) {
-        delta = null; // best-effort; the full reload below still runs
-      }
+    try {
+      delta = await services.feed
+          .newerThan(_seenMaxId, limit: AppConfig.feedPageSize);
+    } catch (_) {
+      delta = null; // best-effort; the full reload below still runs
     }
-    // 2) Full ranked first page (fresh scores/counts), merged with the
-    //    delta by post id — new posts first, then the ranked list.
+    // 2) The pure ranked first page replaces the list — exactly what a
+    //    website reload renders. No hoisting, no client-side merge: the
+    //    server's (feed_score, id) order is the only order.
     try {
       final page = await services.feed.firstPage(limit: AppConfig.feedPageSize);
       if (!mounted) return;
-      final seen = <int>{};
-      final merged = <Post>[
-        for (final p in [...?delta?.posts, ...page.posts])
-          if (seen.add(p.id)) p,
-      ];
+      final pillPosts = delta == null
+          ? const <Post>[]
+          : pillEligiblePosts(delta.posts, page.posts, _seenMaxId);
       setState(() {
         _posts
           ..clear()
-          ..addAll(merged);
+          ..addAll(page.posts);
         _lastPage = page;
         _loading = false;
         _error = null;
         _initialLoadDone = true;
+        _seenMaxId = feedMaxPostId(page.posts, _seenMaxId);
+        _showNewPostsPill = pillPosts.isNotEmpty;
+        _newPostCount = pillPosts.length;
       });
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -596,6 +616,44 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     }
     // Site's action_sound on an explicit refresh.
     SoundService.instance.action();
+  }
+
+  /// Pill tap: fetch the delta of posts newer than anything ever shown and
+  /// PREPEND them. The ranked list beneath is untouched, so the load-more
+  /// keyset cursor stays valid (the site prepends into the DOM the same
+  /// way). Offered posts are marked seen, so they can never be re-offered.
+  Future<void> _loadNewPosts() async {
+    final services = _services;
+    if (services == null) return;
+    FeedPage? delta;
+    try {
+      delta = await services.feed
+          .newerThan(_seenMaxId, limit: AppConfig.feedPageSize);
+    } catch (_) {
+      delta = null;
+    }
+    if (!mounted) return;
+    if (delta == null) return; // keep the pill; the next refresh retries
+    // Invariant: every current post has id <= _seenMaxId, so the delta
+    // never overlaps the list — prepend is safe without dedup. The guard
+    // keeps it true even if the threshold ever regressed.
+    final fresh = [
+      for (final p in delta.posts)
+        if (p.id > _seenMaxId) p,
+    ];
+    if (fresh.isEmpty) {
+      setState(() {
+        _showNewPostsPill = false;
+        _newPostCount = 0;
+      });
+      return;
+    }
+    setState(() {
+      _posts.insertAll(0, fresh);
+      _seenMaxId = feedMaxPostId(fresh, _seenMaxId);
+      _showNewPostsPill = false;
+      _newPostCount = 0;
+    });
   }
 
   /// Feed nav button: scroll back to the top of the feed, then refresh
@@ -1032,42 +1090,145 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
       return ErrorView(message: _error!, onRetry: _loadFirst);
     }
     final bannerOffset = _showTestBanner ? 1 : 0;
-    return ListView.builder(
-      controller: _scrollController,
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      itemCount: _posts.length + (_loading ? 1 : 0) + bannerOffset,
-      itemBuilder: (context, index) {
-        if (_showTestBanner && index == 0) {
-          return _PersonalityTestBanner(onTakeTest: _openPersonalityTest);
-        }
-        final postIndex = index - bannerOffset;
-        if (postIndex >= _posts.length) {
-          // Small inline shimmer for the next page instead of a spinner.
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Center(child: ShimmerBox(width: 160, height: 22)),
-          );
-        }
-        return PostCard(
-          // Key by post id so ListView.builder never reuses a card's State
-          // (like count/liked flags) for a different post after a refresh —
-          // that reuse made brand-new posts show a stale "1 like".
-          key: ValueKey(_posts[postIndex].id),
-          post: _posts[postIndex],
-          apiBaseUrl: AppConfig.apiBaseUrl,
-          social: _services!.social,
-          onEditPost: _editPost,
-          onDeletePost: _deletePost,
-          // Only ONE comment section open at a time across the feed.
-          commentsOpen: _openCommentsPostId == _posts[postIndex].id,
-          onToggleComments: () => setState(() {
-            _openCommentsPostId = _openCommentsPostId == _posts[postIndex].id
-                ? null
-                : _posts[postIndex].id;
-          }),
-        );
-      },
+    return Stack(
+      children: [
+        ListView.builder(
+          controller: _scrollController,
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          itemCount: _posts.length + (_loading ? 1 : 0) + bannerOffset,
+          itemBuilder: (context, index) {
+            if (_showTestBanner && index == 0) {
+              return _PersonalityTestBanner(onTakeTest: _openPersonalityTest);
+            }
+            final postIndex = index - bannerOffset;
+            if (postIndex >= _posts.length) {
+              // Small inline shimmer for the next page instead of a spinner.
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Center(child: ShimmerBox(width: 160, height: 22)),
+              );
+            }
+            return PostCard(
+              // Key by post id so ListView.builder never reuses a card's State
+              // (like count/liked flags) for a different post after a refresh —
+              // that reuse made brand-new posts show a stale "1 like".
+              key: ValueKey(_posts[postIndex].id),
+              post: _posts[postIndex],
+              apiBaseUrl: AppConfig.apiBaseUrl,
+              social: _services!.social,
+              onEditPost: _editPost,
+              onDeletePost: _deletePost,
+              // Only ONE comment section open at a time across the feed.
+              commentsOpen: _openCommentsPostId == _posts[postIndex].id,
+              onToggleComments: () => setState(() {
+                _openCommentsPostId = _openCommentsPostId == _posts[postIndex].id
+                    ? null
+                    : _posts[postIndex].id;
+              }),
+            );
+          },
+        ),
+        // New-posts pill (site parity — the site's fixed "⬇ New posts"
+        // button): floats above the list and stays put while it scrolls
+        // beneath. Hidden state keeps its entrance animation on show.
+        Positioned(
+          top: 8,
+          left: 0,
+          right: 0,
+          child: IgnorePointer(
+            ignoring: !_showNewPostsPill,
+            child: AnimatedSlide(
+              offset:
+                  _showNewPostsPill ? Offset.zero : const Offset(0, -0.5),
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOut,
+              child: AnimatedOpacity(
+                opacity: _showNewPostsPill ? 1 : 0,
+                duration: const Duration(milliseconds: 250),
+                child: Center(
+                  child: _NewPostsPill(
+                    count: _newPostCount,
+                    onTap: _loadNewPosts,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Highest post id in [posts], or [floor] when [posts] is empty. The feed's
+/// "newer than" threshold, kept monotonic across loads so nothing is ever
+/// re-offered.
+int feedMaxPostId(Iterable<Post> posts, int floor) =>
+    posts.fold<int>(floor, (m, p) => p.id > m ? p.id : m);
+
+/// Which delta posts the new-posts pill should offer (site parity —
+/// notifications.js EnclavdFeedPill): a post is genuinely new only when it
+/// has never been shown (id > [seenMaxId]) and is not already on screen
+/// (absent from [onScreen]). Pure — unit-tested in test/feed_pill_test.dart.
+List<Post> pillEligiblePosts(
+  List<Post> delta,
+  List<Post> onScreen,
+  int seenMaxId,
+) {
+  final onScreenIds = {for (final p in onScreen) p.id};
+  return [
+    for (final p in delta)
+      if (p.id > seenMaxId && !onScreenIds.contains(p.id)) p,
+  ];
+}
+
+/// The floating "⬇ New posts" button (the site's EnclavdFeedPill as a
+/// modern app widget): gradient pill, white bold label with the count, soft
+/// shadow. Entrance animation is handled by the caller's AnimatedSlide +
+/// AnimatedOpacity.
+class _NewPostsPill extends StatelessWidget {
+  const _NewPostsPill({required this.count, required this.onTap});
+
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = count == 1 ? '⬇ 1 new post' : '⬇ $count new posts';
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [
+                Color(0xFF2563EB), // site blue-600
+                Color(0xFF7C3AED), // site purple-600
+              ],
+            ),
+            borderRadius: BorderRadius.circular(999),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.35),
+                blurRadius: 24,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
