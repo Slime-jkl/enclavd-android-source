@@ -9,6 +9,7 @@ import 'package:workmanager/workmanager.dart';
 import 'api/api_client.dart';
 import 'api/articles_service.dart';
 import 'api/auth_service.dart';
+import 'api/diary_service.dart';
 import 'api/domains_service.dart';
 import 'api/feed_service.dart';
 import 'api/invitations_service.dart';
@@ -141,7 +142,7 @@ class AppServices {
       this.posts, this.messages, this.notifications, this.search,
       this.realtime, this.messageAlerts, this.articles, this.domains,
       this.results, this.invitations, this.reports, this.personalityTest,
-      this.siteConfig, this.votes);
+      this.siteConfig, this.votes, this.diary);
 
   final ApiClient apiClient;
   final AuthService auth;
@@ -162,6 +163,7 @@ class AppServices {
   final PersonalityTestService personalityTest;
   final SiteConfigService siteConfig;
   final VotesService votes;
+  final DiaryService diary;
 
   /// The most recently created container — the one the app is actively
   /// using. The notification singleton's fetch closure must resolve
@@ -252,7 +254,8 @@ class AppServices {
         ReportsService(api),
         PersonalityTestService(api),
         SiteConfigService(api),
-        VotesService(api));
+        VotesService(api),
+        DiaryService(api));
     current = services;
     // Background push: resolve the best transport for this build/device
     // (FCM → Unified Push → 15-minute polling) and register this

@@ -109,6 +109,8 @@ void main() {
       expect(find.text('App settings'), findsOneWidget);
       expect(find.text('Quote of the day'), findsOneWidget,
           reason: 'the feature has its own menu entry, not buried in settings');
+      expect(find.text('Diary'), findsOneWidget,
+          reason: 'the diary has its own menu entry next to the quote');
       await scrollDrawerToBottom(tester);
       expect(find.text('Test Results'), findsOneWidget);
       expect(find.text('Invitations'), findsOneWidget);

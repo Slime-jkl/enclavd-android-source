@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../api/auth_service.dart';
 import '../config/app_config.dart';
 import '../screens/account_settings_screen.dart';
+import '../screens/diary_screen.dart';
 import '../screens/invitations_screen.dart';
 import '../screens/legal_screen.dart';
 import '../screens/profile_screen.dart';
@@ -123,6 +124,11 @@ class _UserMenuDrawerState extends State<UserMenuDrawer> {
                   icon: FontAwesomeIcons.quoteLeft,
                   label: 'Quote of the day',
                   onTap: () => _push(const QuoteSettingsScreen()),
+                ),
+                _MenuItem(
+                  icon: FontAwesomeIcons.book,
+                  label: 'Diary',
+                  onTap: () => _push(const DiaryScreen()),
                 ),
                 const _SectionLabel('Community'),
                 _MenuItem(
