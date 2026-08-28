@@ -9,10 +9,6 @@ import '../theme/enclavd_theme.dart';
 import '../widgets/error_view.dart';
 import '../services/analytics_service.dart';
 
-/// The native Invitations screen — a modern port of the site's
-/// invitations.php USER view (no admin invite creation, no see-all
-/// list): the remaining invite count with a "Create Invite" button and
-/// the user's own invitation codes with status, expiry, copy and delete.
 class InvitationsScreen extends StatefulWidget {
   const InvitationsScreen({super.key, this.invitations});
 
@@ -78,7 +74,7 @@ class _InvitationsScreenState extends State<InvitationsScreen> {
       final created = await _invitations.create();
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Invitation created — valid for 30 days'),
+        content: Text('Invitation created - valid for 30 days'),
         duration: Duration(seconds: 3),
       ));
       // Merge the new invite into the list (newest first) + fresh count.
@@ -328,7 +324,6 @@ class _InviteCard extends StatelessWidget {
   }
 }
 
-/// The site's status pill (pending yellow / accepted green / expired red).
 class _StatusChip extends StatelessWidget {
   const _StatusChip({required this.status, required this.color});
 

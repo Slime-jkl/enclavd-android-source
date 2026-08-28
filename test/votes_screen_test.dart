@@ -6,7 +6,6 @@ import 'package:enclavd/api/votes_service.dart';
 import 'package:enclavd/screens/votes_screen.dart';
 import 'package:enclavd/widgets/rank_badge.dart';
 
-/// Fake service with canned payloads (no sockets under flutter test).
 class _FakeVotes extends VotesService {
   _FakeVotes(this.data)
       : super(ApiClient(store: _NoopStore(), apiBaseUrl: 'https://example.com'));
@@ -95,8 +94,7 @@ VotesData _data({
     );
 
 Future<void> _pump(WidgetTester tester, VotesService service) async {
-  // Tall viewport: the redesigned cards stack vertically (doughnut +
-  // progress-bar options) and easily exceed the default 600px test screen.
+  // Tall viewport: the redesigned cards stack vertically and exceed 600px.
   tester.view.physicalSize = const Size(800, 2200);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.resetPhysicalSize);
@@ -104,7 +102,7 @@ Future<void> _pump(WidgetTester tester, VotesService service) async {
   await tester.pumpWidget(MaterialApp(
     home: Scaffold(body: VotesScreen(votes: service)),
   ));
-  // Skeleton frame → fetch future resolves → content frame.
+  // Skeleton frame -> fetch future resolves -> content frame.
   await tester.pump();
   await tester.pump();
 }
@@ -125,8 +123,7 @@ void main() {
     expect(find.text('Old poll'), findsOneWidget);
     // Percentages from the weighted counts (50% each here).
     expect(find.text('50.0%'), findsNWidgets(4));
-    // Voting power line.
-    expect(find.textContaining('×1'), findsWidgets);
+    expect(find.textContaining('x1'), findsWidgets);
     // The active card offers Submit; the completed one is read-only.
     expect(find.text('Submit Vote'), findsOneWidget);
     expect(find.text('Completed'), findsOneWidget);
@@ -148,7 +145,6 @@ void main() {
 
     await _pump(tester, service);
 
-    // Tap the second option ('No'), then submit.
     await tester.tap(find.byKey(const ValueKey('vote-1-option-1')));
     await tester.pump();
     await tester.tap(find.text('Submit Vote'));
@@ -156,10 +152,9 @@ void main() {
     await tester.pump();
 
     expect(service.voteCalls, 1);
-    // Card now shows the chosen option and the Change Vote affordance.
     expect(find.text('Change Vote'), findsOneWidget);
     expect(find.text('Your current vote'), findsOneWidget);
-    // Counts went 1 → 2 for the chosen option: 66.7% / 33.3%.
+    // Counts went 1 -> 2 for the chosen option: 66.7% / 33.3%.
     expect(find.text('66.7%'), findsOneWidget);
     expect(find.text('33.3%'), findsOneWidget);
   });
@@ -199,17 +194,15 @@ void main() {
 
     await _pump(tester, service);
 
-    // Section collapsed by default — no badges until expanded (empty
-    // data means no vote cards, whose creator rows also carry badges).
+    // Section collapsed by default: no badges until expanded (empty data = no vote cards).
     expect(find.byType(RankBadge), findsNothing);
     await tester.tap(find.text('View Rank Voting Powers'));
     await tester.pump();
 
     // One badge per rank power (SysOp + Admin from the canned payload).
     expect(find.byType(RankBadge), findsNWidgets(2));
-    // The ×N weight still shows per row, plus the viewer's own power
-    // highlight row above the list.
-    expect(find.text('×1'), findsNWidgets(3));
+    // The xN weight still shows per row, plus the viewer's own power highlight row.
+    expect(find.text('x1'), findsNWidgets(3));
   });
 
   testWidgets('vote button icon is white, matching the button label',
@@ -223,7 +216,7 @@ void main() {
     expect(iconIn(find.widgetWithText(FilledButton, 'Submit Vote')).color,
         Colors.white);
 
-    // After voting the icon swaps to rotate (Change Vote) — still white.
+    // After voting the icon swaps to rotate (Change Vote), still white.
     await tester.tap(find.byKey(const ValueKey('vote-1-option-1')));
     await tester.pump();
     await tester.tap(find.text('Submit Vote'));

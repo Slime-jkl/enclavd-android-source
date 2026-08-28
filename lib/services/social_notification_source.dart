@@ -9,25 +9,16 @@ import 'social_notifications.dart';
 
 /// Social notification source (likes, comments, mentions, follows) for the
 /// background poller AND the live path's shared candidate generator.
+/// Reads GET /api/v1/notifications?list=1 (read-only; the user-facing
+/// drawer owns marking read) and emits one candidate per UNREAD bundle.
 ///
-/// Reads GET /api/v1/notifications?list=1 (the read-only worker shape —
-/// nothing is ever marked read here; the user-facing drawer owns that)
-/// and emits ONE candidate per UNREAD bundle.
-///
-/// Dedupe semantics (deliberately per-BUNDLE, not per-post): the bundle id
-/// is the newest notification row in the group, so a NEW like on a post you
-/// were already notified about is a NEW bundle id → it re-notifies
-/// ("Alice liked" then "Alice & 1 other liked") — the same event stream as
-/// the badge. Re-fetching the SAME bundle (SSE ping + poll + worker tick)
-/// keeps the same key → silent. The Android notification id is the POST id
-/// for post-attached types, so the OS replaces that post's notification
-/// instead of stacking a new one per actor.
-///
-/// Gated by the same things as the live path:
-///  - the master toggle ('notifications_enabled', Settings), and
-///  - the drawer-open flag: while the in-app notification drawer is open
-///    in the FOREGROUND app, the worker stays quiet (the user is literally
-///    looking at the list). Mirrored to prefs by SocialNotifications.
+/// Dedupe is deliberately per-BUNDLE: a new like on an already-notified
+/// post is a new bundle id, so it re-notifies ("Alice liked" then
+/// "Alice & 1 other liked"); re-fetching the SAME bundle keeps the same
+/// key and stays silent. The Android notification id is the POST id for
+/// post-attached types, so the OS replaces that post's notification
+/// instead of stacking one per actor. Gated by the master toggle and the
+/// drawer-open flag (mirrored to prefs by SocialNotifications).
 class SocialNotificationSource implements NotificationSource {
   /// [fetcher] exists for tests; the default reads via the context's
   /// session-bearing client (GET ?list=1).
@@ -37,14 +28,14 @@ class SocialNotificationSource implements NotificationSource {
 
   static const String drawerOpenPrefsKey = 'notifications_screen_open';
 
-  /// Mirrored by SocialNotifications on every app lifecycle change. The
+  /// Mirrored by SocialNotifications on every lifecycle change: the
   /// worker is quiet only while the drawer is open AND the app is in the
-  /// foreground — minimized must still alert (the user is NOT looking).
+  /// foreground - minimized must still alert.
   static const String appActivePrefsKey = 'notifications_app_active';
 
-  /// Android notification ids are namespaced above the message ids
-  /// (conversation ids) so a like and a message never collide on the same
-  /// notification id — a collision would make one REPLACE the other.
+  /// Notification ids are namespaced above the message ids (conversation
+  /// ids) so a like and a message never collide on the same id - a
+  /// collision would make one REPLACE the other.
   static const int notificationIdOffset = 1000000;
 
   final Future<List<AppNotification>> Function(ApiClient)? _fetcher;
@@ -55,9 +46,9 @@ class SocialNotificationSource implements NotificationSource {
   @override
   Future<List<NotificationCandidate>> check(SourceContext context) async {
     final prefs = context.prefs;
-    // Quiet only while the user is literally LOOKING at the drawer: open
-    // AND foregrounded. Minimized (or the drawer closed) must alert — a
-    // process killed with the drawer open must not silence the worker.
+    // Quiet only while the user is literally LOOKING at the drawer (open
+    // AND foregrounded); a process killed with the drawer open must not
+    // silence the worker.
     final drawerOpen = prefs.getBool(drawerOpenPrefsKey) ?? false;
     final appActive = prefs.getBool(appActivePrefsKey) ?? true;
     if (drawerOpen && appActive) {
@@ -75,18 +66,17 @@ class SocialNotificationSource implements NotificationSource {
       debugPrint('source post: fetched ${items.length} bundles');
       return candidatesFrom(items);
     } catch (e) {
-      // A dead session or transient blip is the app's REST flow's job;
-      // the next tick retries. The worker must never crash.
+      // A dead session or transient blip is the REST flow's job; the
+      // next tick retries. The worker must never crash.
       debugPrint('source post: check failed: $e');
       return const [];
     }
   }
 
-  /// One candidate per UNREAD bundle — a PURE function shared by the live
-  /// path (handleNotificationPing) and the background worker so both agree
-  /// on identity and dedupe keys. The body is the post preview (decoded,
-  /// trimmed) when there is one; the title carries the full "X liked your
-  /// post" message.
+  /// One candidate per UNREAD bundle - a PURE function shared by the live
+  /// path (handleNotificationPing) and the background worker so both
+  /// agree on identity and dedupe keys. The body is the decoded, trimmed
+  /// post preview when there is one.
   static List<NotificationCandidate> candidatesFrom(
       List<AppNotification> items) {
     return [
@@ -105,12 +95,12 @@ class SocialNotificationSource implements NotificationSource {
   static String _previewBody(String raw) {
     final decoded = decodeHtmlEntities(raw).trim();
     if (decoded.isEmpty) return '';
-    return decoded.length > 120 ? '${decoded.substring(0, 120)}…' : decoded;
+    return decoded.length > 120 ? '${decoded.substring(0, 120)}...' : decoded;
   }
 
   /// Mirrors the drawer-open state to prefs so the background worker (a
   /// separate isolate that cannot see the in-memory screen state) stays
-  /// quiet while the user has the notification drawer on screen.
+  /// quiet while the user has the drawer on screen.
   static Future<void> setDrawerOpenPrefs(
           SharedPreferences prefs, bool open) =>
       prefs.setBool(drawerOpenPrefsKey, open);

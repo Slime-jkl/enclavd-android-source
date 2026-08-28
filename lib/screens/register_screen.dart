@@ -14,36 +14,12 @@ import '../widgets/field_icon.dart';
 import 'login_screen.dart';
 import 'verify_email_screen.dart';
 
-/// Register screen — "Request Network Entry" (register.php), redesigned
-/// as a modern app screen with the SAME fields as the website:
-/// username, email, password + confirm (with visibility toggles),
-/// invitation code (only when the site config demands it), date of
-/// birth, gender, country/city (searchable pickers), and the
-/// privacy/terms checkboxes.
-///
-/// Field contract with process_register.php:
-///   username  3–20 chars, [a-zA-Z0-9_]
-///   email     valid format, unique
-///   password  ≥ 6 chars, must match password_confirm
-///   invitation  required only when the site config demands it
-///   birthdate   optional Y-m-d
-///   gender      NONE | MALE | FEMALE (default NONE)
-///   geo_country / geo_region / geo_city   optional ints
-///   privacy_policy + terms  checkboxes (required)
-///
-/// On success: when the site config's requireEmailVerification is on the
-/// user is sent to the verify-email screen ("I have confirmed" → login);
-/// otherwise straight to login. Server validation errors surface in the
-/// error banner (username taken, email registered, bad invitation…).
-///
-/// No autofillHints (Android autofill detaches the IME after the first
-/// keystroke — same keyboard bug as login).
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key, this.auth, this.siteConfig});
 
   static const routeName = '/register';
 
-  /// Test seams — bypass AppServices when provided.
+  /// Test seams: bypass AppServices when provided.
   final AuthService? auth;
   final SiteConfigService? siteConfig;
 
@@ -81,33 +57,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _busy = false;
   String? _error;
 
-  /// Server-side per-field errors (api/v1/register's `fields` map):
-  /// keyed by username/email/password/password_confirm/invitation.
-  /// Shown as errorText under the matching input, cleared on edit.
   Map<String, String> _fieldErrors = {};
 
-  /// Server-side (or client-side) agreement error, shown under the
-  /// privacy/terms checkboxes.
   String? _checkboxError;
 
-  /// Live rate-limit state for the register context (cooldown + captcha),
-  /// refreshed after every failed attempt — same pattern as login.
   RateLimitState? _rl;
   final _captcha = TextEditingController();
   final _captchaFocus = FocusNode();
 
-  /// "Privacy Policy" / "Terms of Service" tap targets in the agreement
-  /// rows — open the website's page in the browser (target=_blank parity).
   final _privacyTap = TapGestureRecognizer();
   final _termsTap = TapGestureRecognizer();
 
-  /// True when the site requires an invitation code to sign up. Loaded from
-  /// the public site config; until then (and on fetch failure) the field
-  /// stays hidden — process_register.php enforces the requirement anyway.
   bool _invitationRequired = false;
 
-  /// Email verification is on → successful signup shows the verify-email
-  /// screen instead of jumping to login.
   bool _requireEmailVerification = false;
 
   // Optional profile fields (mirror register.php's optional section).
@@ -129,7 +91,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _loadConfig();
   }
 
-  /// Opens a website page in the system browser (the site's target=_blank).
   Future<void> _openLegal(String path) async {
     try {
       await launchUrl(
@@ -166,10 +127,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     await _loadRateState();
   }
 
-  /// Live cooldown/captcha state for the register context. Refreshed on
-  /// init and after every failed attempt (the server records the failure,
-  /// which may bump the cooldown or demand a captcha). Failures here are
-  /// ignored — the server still enforces on POST.
   Future<void> _loadRateState() async {
     try {
       final (_, config) = await _services();
@@ -177,12 +134,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
       if (!mounted) return;
       setState(() => _rl = state);
     } catch (_) {
-      // No state → proceed without the rate-limit UI.
+      // No state -> proceed without the rate-limit UI.
     }
   }
 
-  /// Clears a server-side field error once the user starts editing that
-  /// field (a rebuild only when the error was actually present).
   void _clearFieldError(String key) {
     if (!_fieldErrors.containsKey(key)) return;
     setState(() => _fieldErrors = Map.of(_fieldErrors)..remove(key));
@@ -205,8 +160,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // The checkboxes are outside the Form's validators — gate them here
-    // (same messages the server would bounce back with).
+    // The checkboxes sit outside the Form's validators; gate them here.
     final missingAgreement = !_acceptPrivacy
         ? 'You must accept the Privacy Policy'
         : (!_acceptTerms ? 'You must accept the Terms of Service' : null);
@@ -241,10 +195,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
       if (!mounted) return;
       if (result.submitted) {
-        // Registration accepted — email verification decides the next step
-        // (the api/v1 response is authoritative; the config is the fallback).
-        // The email rides along so the verify screen can resend the
-        // confirmation link.
+        // Accepted: email verification decides the next step; the email
+        // rides along so the verify screen can resend the link.
         if (result.requiresEmailVerification || _requireEmailVerification) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute<void>(
@@ -258,10 +210,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         return;
       }
 
-      // Rejection — split server errors into per-field + general. The
-      // agreement errors render under the checkboxes; the rest attach to
-      // their inputs; only general errors (rate limit, network, unknown)
-      // show as the banner.
+      // Rejection: split server errors into per-field + general.
       final fields = Map.of(result.fieldErrors);
       setState(() {
         _busy = false;
@@ -270,7 +219,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         _error = fields.isEmpty ? result.message : null;
       });
       _captcha.clear();
-      // The server recorded the failure — refresh cooldown/captcha.
+      // The server recorded the failure; refresh cooldown/captcha.
       _loadRateState();
     } catch (e) {
       if (!mounted) return;
@@ -328,7 +277,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         if (mounted) setState(() => _countries = countries);
       }
     } catch (_) {
-      // Cosmetic — ids still save fine; the sheet shows empty.
+      // Cosmetic: ids still save fine; the sheet shows empty.
     }
   }
 
@@ -349,7 +298,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           .toList();
       if (mounted) setState(() => _cities = cities);
     } catch (_) {
-      // Cosmetic — the ids still save fine.
+      // Cosmetic: the ids still save fine.
     }
   }
 
@@ -398,9 +347,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
   }
 
-  /// Agreement-row label: "I accept the Privacy Policy" where the policy
-  /// name is a link to the website's page (register.php parity — its
-  /// checkboxes carry <a href="/privacy_policy" target="_blank">).
   Widget _agreementTitle(
     String prefix,
     String linkText,
@@ -539,7 +485,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 if (s.isEmpty) return 'Username is required';
                                 if (!RegExp(r'^[a-zA-Z0-9_]{3,20}$')
                                     .hasMatch(s)) {
-                                  return '3–20 characters, letters, numbers, underscores only';
+                                  return '3-20 characters, letters, numbers, underscores only';
                                 }
                                 return null;
                               },
@@ -805,7 +751,6 @@ class _Banner extends StatelessWidget {
   }
 }
 
-/// Searchable country picker (the site's country dropdown).
 class _GeoPickerSheet extends StatefulWidget {
   const _GeoPickerSheet({required this.countries});
 
@@ -880,7 +825,6 @@ class _GeoPickerSheetState extends State<_GeoPickerSheet> {
   }
 }
 
-/// Searchable city picker (the site's city dropdown).
 class _CityPickerSheet extends StatefulWidget {
   const _CityPickerSheet({required this.cities});
 

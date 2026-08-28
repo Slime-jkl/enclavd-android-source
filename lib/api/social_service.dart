@@ -15,12 +15,9 @@ class LikeResult {
       );
 }
 
-/// A single comment from GET/POST /api/v1/comments.
-/// Field contract (comments.php api_comment_item): id, post_id, user_id,
-/// username, profile_picture_url, personality_type, name_color,
-/// warning_count, has_warnings, created_at (ALREADY relative-formatted by
-/// format_date — 'now', '5m', '3h'...), edited, content, is_owner,
-/// can_moderate.
+/// A single comment from GET/POST /api/v1/comments (comments.php
+/// api_comment_item contract). created_at arrives ALREADY
+/// relative-formatted by format_date - 'now', '5m', '3h'...
 class Comment {
   const Comment({
     required this.id,
@@ -49,9 +46,8 @@ class Comment {
   final String content;
   final bool isOwner;
 
-  /// Raw rank name ('SysOp'…). The comments API only recently started
-  /// sending it; until a deploy lands, derive it from [nameColor] (the
-  /// server's CSS class → rank is a 1:1 mapping).
+  /// Raw rank name ('SysOp'...). The comments API only recently started
+  /// sending it; until that deploy lands, derive it from [nameColor].
   final String rank;
 
   factory Comment.fromJson(Map<String, dynamic> json) => Comment(
@@ -73,9 +69,9 @@ class Comment {
       );
 }
 
-/// Reverse of the server's name_color → rank (the comments API only sent
-/// the CSS class until it shipped the raw rank; unknown classes → Member).
-/// Mirrors rankColorFromCssClass in post_card.dart.
+/// Reverse of the server's name_color -> rank (the comments API only sent
+/// the CSS class until it shipped the raw rank; unknown classes ->
+/// Member). Mirrors rankColorFromCssClass in post_card.dart.
 String _rankFromNameColor(String cssClass) {
   if (cssClass.contains('purple')) return 'SysOp';
   if (cssClass.contains('red')) return 'Admin';
@@ -86,12 +82,8 @@ String _rankFromNameColor(String cssClass) {
   return 'Member';
 }
 
-/// A user who liked a post (GET /api/v1/likes?post_id=N).
-///
-/// Field contract (likes.php GET): id, username, profile_picture_url,
-/// personality_type, rank, personality_badge (HTML — unused here),
-/// liked_at (server-formatted "August 12, 2026 at 10:32 AM"),
-/// rank_styles (HTML — unused here).
+/// A user who liked a post (GET /api/v1/likes?post_id=N). liked_at is
+/// server-formatted ("August 12, 2026 at 10:32 AM").
 class Liker {
   const Liker({
     required this.id,
@@ -132,14 +124,14 @@ class Liker {
     );
   }
 
-  /// `<span ...>INTJ</span>` → `INTJ` (personality_badge HTML).
+  /// `<span ...>INTJ</span>` -> `INTJ` (personality_badge HTML).
   static String? _mbtiFromBadge(String html) {
     if (html.isEmpty) return null;
     final m = RegExp(r'>\s*([A-Z]{4})\s*<').firstMatch(html);
     return m?.group(1);
   }
 
-  /// `<a ...><i ...></i>SysOp</a>` → `SysOp` (rank_styles.badge HTML).
+  /// `<a ...><i ...></i>SysOp</a>` -> `SysOp` (rank_styles.badge HTML).
   static String? _rankFromBadge(String html) {
     if (html.isEmpty) return null;
     final m = RegExp(r'>([^<>]+)</a>').firstMatch(html);
@@ -176,19 +168,12 @@ class CommentPage {
   }
 }
 
-/// SocialService — likes + comments over api/v1 (JSON + CSRF).
-///
-/// Contracts (both verified against the live handlers):
-///   POST /api/v1/likes    {post_id}       → {success, action: liked|unliked,
-///                                            like_count}
-///   GET  /api/v1/comments ?post_id=N      → {success, comments:[...], total}
-///        (optional &limit=N&offset=M       → one page; total stays the
-///         &order=asc)                       FULL count, has_more added)
-///   POST /api/v1/comments {action:create, post_id, content}
-///                                           → {success, comment:{...},
-///                                              comment_count}
-///   POST /api/v1/comments {action:delete, comment_id, post_id}
-///                                           → {success, comment_count}
+/// Likes + comments over api/v1 (JSON + CSRF). Contracts:
+///   POST /api/v1/likes    {post_id}          -> {action: liked|unliked, like_count}
+///   GET  /api/v1/comments ?post_id=N         -> {comments:[...], total}
+///        (optional &limit=N&offset=M&order=asc; total stays the FULL count)
+///   POST /api/v1/comments {action:create, post_id, content} -> {comment, comment_count}
+///   POST /api/v1/comments {action:delete, comment_id, post_id} -> {comment_count}
 class SocialService {
   SocialService(this._api);
 
@@ -204,7 +189,7 @@ class SocialService {
     return LikeResult.fromJson(json);
   }
 
-  /// The users who liked a post, newest first (likes.php GET — public).
+  /// The users who liked a post, newest first (likes.php GET - public).
   Future<List<Liker>> likers(int postId) async {
     final json =
         await _api.getJson('/api/v1/likes', query: {'post_id': '$postId'});
@@ -215,10 +200,10 @@ class SocialService {
     ];
   }
 
-  /// Fetches ONE page of comments for a post. Newest first by default
-  /// (the feed's inline comments); pass [asc] true for forum reading
-  /// order (oldest first — the site's domain thread replies). [limit]
-  /// defaults to [pageSize] (10); pass limit 0 for the legacy full list.
+  /// One page of comments for a post. Newest first by default (the feed's
+  /// inline comments); pass [asc] for forum reading order (the site's
+  /// domain thread replies). [limit] defaults to [pageSize] (10); pass
+  /// limit 0 for the legacy full list.
   Future<CommentPage> listComments(int postId,
       {bool asc = false, int limit = pageSize, int offset = 0}) async {
     final json = await _api.getJson('/api/v1/comments', query: {

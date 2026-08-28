@@ -7,18 +7,12 @@ import '../main.dart';
 import 'feed_screen.dart';
 import 'login_screen.dart';
 
-/// Maintenance screen — the post-login gate while the site is in
-/// maintenance mode and the user's rank is not in the allowed list.
-///
-/// Mirrors the web's header.php maintenance lockout: reason + estimated end
-/// + allowed ranks. "Check again" re-runs the gate (maintenance may have
-/// ended); "Sign out" leaves for the login screen.
 class MaintenanceScreen extends StatefulWidget {
   const MaintenanceScreen({super.key, this.auth, this.siteConfig});
 
   static const routeName = '/maintenance';
 
-  /// Test seams — bypass AppServices when provided.
+  /// Test seams: bypass AppServices when provided.
   final AuthService? auth;
   final SiteConfigService? siteConfig;
 
@@ -53,7 +47,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
       if (!mounted) return;
       setState(() => _config = cfg.maintenance);
     } catch (_) {
-      // Config unreachable — the screen shows its fallback text.
+      // Config unreachable; the screen shows its fallback text.
     }
   }
 
@@ -77,7 +71,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
             .pushNamedAndRemoveUntil(FeedScreen.routeName, (_) => false);
         return;
       }
-      // Still locked out — refresh what's displayed.
+      // Still locked out; refresh what's displayed.
       final cfg = await config.fetch();
       if (!mounted) return;
       setState(() {
@@ -141,7 +135,7 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
                       _InfoRow(
                         icon: FontAwesomeIcons.userShield,
                         label: 'Allowed ranks',
-                        value: allowed.isEmpty ? '—' : allowed.join(', '),
+                        value: allowed.isEmpty ? '-' : allowed.join(', '),
                       ),
                       _InfoRow(
                         icon: FontAwesomeIcons.circleInfo,

@@ -1,8 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Daily-quote home-screen widget: a wide card (4x2). updatePeriodMillis
-     is 0 on purpose — the widget is passive and only re-renders when the
-     app pushes new data (daily background task / foreground refresh), so
-     the system never re-renders stale content on its own. -->
+<!-- updatePeriodMillis is 0: the widget only re-renders when the app pushes new data. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="250dp"
     android:minHeight="110dp"

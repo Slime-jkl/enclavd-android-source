@@ -9,17 +9,6 @@ import '../widgets/shimmer.dart';
 import 'test_results_screen.dart';
 import '../services/analytics_service.dart';
 
-/// The native Personality Assessment — modern port of test_page.php:
-/// intro card (about/instructions), then the 40 questions one at a time
-/// with the site's five options (Strongly Agree → Strongly Disagree),
-/// a progress bar, and a submit that scores server-side with the site's
-/// OWN engine (questions_logic.php). On success the quiz is REPLACED by
-/// the Test Results screen (site parity: /test/submit → /results).
-///
-/// The site shows this only when the account has no personality_type
-/// (header banner); the app's feed banner uses the same rule and pushes
-/// this screen. GET already_taken (a valid test row exists) jumps
-/// straight to results — the site redirects /test_page → /results.
 class TestScreen extends StatefulWidget {
   const TestScreen({super.key, this.test, this.resultsBuilder});
 
@@ -41,7 +30,7 @@ class _TestScreenState extends State<TestScreen> {
   String? _error;
 
   List<PersonalityQuestion> _questions = const [];
-  final Map<int, String> _answers = {}; // question id → option value
+  final Map<int, String> _answers = {}; // question id -> option value
   int _current = 0; // index into _questions
   bool _submitting = false;
 
@@ -64,8 +53,7 @@ class _TestScreenState extends State<TestScreen> {
       final info = await _service!.fetchTest();
       if (!mounted) return;
       if (info.alreadyTaken) {
-        // Site parity: /test_page redirects to /results for completed
-        // tests. Show the results instead of the quiz.
+        // Site parity: completed tests show results instead of the quiz.
         _openResults();
         return;
       }
@@ -117,8 +105,7 @@ class _TestScreenState extends State<TestScreen> {
     } on ApiException catch (e) {
       if (!mounted) return;
       if (e.status == 409) {
-        // Test already completed server-side (e.g. taken on the website
-        // between the banner and the submit). Same outcome: show results.
+        // Completed server-side in the meantime; same outcome: show results.
         _openResults();
         return;
       }
@@ -135,9 +122,6 @@ class _TestScreenState extends State<TestScreen> {
     }
   }
 
-  /// Replaces the quiz with the results screen (site: submit → /results).
-  /// Pops the caller's route future with `true` so e.g. the feed banner
-  /// knows to refresh the account (personality now set).
   void _openResults() {
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
@@ -226,8 +210,6 @@ class _TestScreenState extends State<TestScreen> {
   }
 }
 
-/// Modern intro: hero icon, short copy, a stats row, and an "About"
-/// card — the site's test_page.php copy condensed into icon rows.
 class _IntroView extends StatelessWidget {
   const _IntroView({required this.onStart});
 
@@ -261,7 +243,7 @@ class _IntroView extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         const Text(
-          '40 questions that reveal how you think, decide and connect — '
+          '40 questions that reveal how you think, decide and connect - '
           'and how you fit into the Enclavd community.',
           textAlign: TextAlign.center,
           style: TextStyle(
@@ -418,9 +400,6 @@ class _InfoRow extends StatelessWidget {
   }
 }
 
-/// The site's five options (test_page.php): Strongly Agree (green
-/// fa-check-double) → Agree (fa-check) → Neutral (fa-scale-balanced) →
-/// Disagree (fa-times) → Strongly Disagree (fa-circle-xmark).
 class _Option {
   const _Option(this.value, this.label, this.icon, this.color);
 
@@ -565,7 +544,7 @@ class _QuizView extends StatelessWidget {
                           child: CircularProgressIndicator(
                               strokeWidth: 2, color: Colors.white))
                       : const FaIcon(FontAwesomeIcons.paperPlane, size: 14),
-                  label: Text(submitting ? 'Submitting…' : 'Submit Test'),
+                  label: Text(submitting ? 'Submitting...' : 'Submit Test'),
                 )
               : FilledButton.icon(
                   style: FilledButton.styleFrom(

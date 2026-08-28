@@ -6,7 +6,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:enclavd/api/api_client.dart';
 import 'package:enclavd/services/realtime_service.dart';
 
-/// In-memory cookie store (same seam as the other service tests).
 class MemStore implements SessionStore {
   MemStore([List<SessionCookie>? seed]) : cookies = seed ?? [];
   List<SessionCookie> cookies;
@@ -21,9 +20,8 @@ class MemStore implements SessionStore {
   Future<void> clear() async => cookies = [];
 }
 
-/// A local realtime server: /ws (WebSocket), /feed (issues the rt cookie),
-/// /events (SSE). Genuine sockets — the same verification style as the
-/// api_client_test Harness, exercising the REAL wire path.
+/// A local realtime server: /ws (WebSocket), /feed (rt cookie), /events (SSE).
+/// Genuine sockets, same verification style as the api_client_test Harness.
 class RealtimeHarness {
   RealtimeHarness._(this.server, this.handlers);
 
@@ -99,12 +97,11 @@ class RealtimeHarness {
         }
         req.response.headers.set('content-type', 'text/event-stream');
         if (h.keepSseOpen) {
-          // Write an initial heartbeat so the response is committed —
-          // flush() alone on an empty body never sends the headers in
-          // dart:io, and the client would hang in request.close().
+          // Write an initial heartbeat so the response is committed: flush()
+          // alone on an empty body never sends the headers in dart:io.
           req.response.write(': ping\n\n');
           await req.response.flush();
-          return; // stream stays open — no events, no close
+          return; // stream stays open, no events, no close
         }
         req.response.write('event: message_unread\n'
             'data: {"unread_count":3}\n\n'
@@ -120,7 +117,6 @@ class RealtimeHarness {
     return h;
   }
 
-  /// Pushes a frame to every connected client (server → client path).
   void broadcast(Map<String, dynamic> frame) {
     final text = jsonEncode(frame);
     for (final ws in List.of(wsClients)) {
@@ -152,7 +148,7 @@ Future<RealtimeService> buildService(RealtimeHarness h,
   );
 }
 
-/// Map equality for frames decoded from JSON (Dart Map == is identity).
+// Map equality for frames decoded from JSON (Dart Map == is identity).
 bool hasFrame(List<Map<String, dynamic>> frames, Map<String, dynamic> want) =>
     frames.any((f) =>
         want.keys.every((k) => f[k] == want[k]) && f.length == want.length);
@@ -180,7 +176,7 @@ void main() {
 
   test('missing jar token refreshes it via GET /feed', () async {
     final h = await RealtimeHarness.start();
-    final service = await buildService(h); // empty store — no rt cookie
+    final service = await buildService(h); // empty store, no rt cookie
 
     service.join(42);
     await Future<void>.delayed(const Duration(milliseconds: 300));
@@ -196,7 +192,7 @@ void main() {
   test('a failed token refresh retries instead of giving up', () async {
     final h = await RealtimeHarness.start();
     h.feedFailures = 1; // first /feed answers 500, second succeeds
-    final service = await buildService(h); // empty jar — token fetch needed
+    final service = await buildService(h); // empty jar, token fetch needed
 
     service.join(42);
     await Future<void>.delayed(const Duration(milliseconds: 500));
@@ -269,7 +265,7 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 200));
     final firstConnections = h.wsConnects;
 
-    // Kill every socket — the service must reconnect and re-send the join.
+    // Kill every socket: the service must reconnect and re-send the join.
     for (final ws in List.of(h.wsClients)) {
       await ws.close();
     }
@@ -284,16 +280,15 @@ void main() {
     await h.close();
   });
 
-  test('WS reconnects indefinitely — never gives up while the app is alive',
+  test('WS reconnects indefinitely - never gives up while the app is alive',
       () async {
     final h = await RealtimeHarness.start();
     h.dropOnConnect = true; // every connection dies immediately
     final service = await buildService(h);
 
     service.join(42);
-    // Old behavior: initial connect + 5 attempts, then silence forever
-    // (chat deaf until a screen calls connectWs()). New behavior: retries
-    // forever, backoff grows 20ms → 200ms after the first 5.
+    // Old behavior: 5 attempts then silence forever. New: retries forever,
+    // backoff grows 20ms -> 200ms after the first 5.
     await Future<void>.delayed(const Duration(milliseconds: 1500));
 
     expect(h.wsConnects, greaterThan(RealtimeService.maxReconnectAttempts + 1),
@@ -331,7 +326,7 @@ void main() {
     service.join(42);
     await Future<void>.delayed(const Duration(milliseconds: 200));
 
-    h.respondToPing = false; // server stops answering — half-open zombie
+    h.respondToPing = false; // server stops answering, half-open zombie
     await service.onForeground();
     await Future<void>.delayed(const Duration(milliseconds: 300));
 
@@ -385,7 +380,7 @@ void main() {
     await h.close();
   });
 
-  test('SSE reconnects indefinitely — the badge stream never gives up',
+  test('SSE reconnects indefinitely - the badge stream never gives up',
       () async {
     final h = await RealtimeHarness.start();
     h.sseFailures = 10; // more than the old 5-attempt budget
@@ -399,7 +394,7 @@ void main() {
     await done.future.timeout(const Duration(seconds: 3));
 
     expect(h.sseRequests.length, greaterThan(RealtimeService.maxReconnectAttempts),
-        reason: '10 failures → the 11th attempt connects (no give-up)');
+        reason: '10 failures -> the 11th attempt connects (no give-up)');
 
     service.dispose();
     await h.close();
@@ -411,8 +406,7 @@ void main() {
     final service = await buildService(h);
 
     // Do NOT await the first connect: with the stream kept open it only
-    // returns when the stream ends — that is exactly the live state the
-    // second call must detect.
+    // returns when the stream ends, which is exactly what the second call detects.
     unawaited(service.connectSse());
     await Future<void>.delayed(const Duration(milliseconds: 50));
     await service.connectSse(); // must return immediately (stream active)
@@ -454,7 +448,7 @@ void main() {
     await service.connectSse();
     await Future<void>.delayed(const Duration(milliseconds: 50));
     expect(statuses, containsAll([true, false]),
-        reason: 'open → the harness closes the stream → not connected');
+        reason: 'open -> the harness closes the stream -> not connected');
 
     service.dispose();
     await h.close();
@@ -463,7 +457,7 @@ void main() {
   test('onForeground force-reconnects a live SSE stream (zombie killer)',
       () async {
     final h = await RealtimeHarness.start();
-    h.keepSseOpen = true; // stream stays open — "connected" but silent
+    h.keepSseOpen = true; // stream stays open, "connected" but silent
     final service = await buildService(h);
 
     final statuses = <bool>[];
@@ -473,10 +467,10 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 100));
     expect(service.isSseConnected, isTrue);
 
-    // Resume must tear the stream down and connect fresh — a zombie reads
-    // as connected and gates the fallback polls off forever otherwise.
-    // (Not awaited: with keepSseOpen the fresh stream never ends, so the
-    // connect future only completes when the stream does — by design.)
+    // Resume must tear the stream down and connect fresh: a zombie reads as
+    // connected and gates the fallback polls off forever. (Not awaited: with
+    // keepSseOpen the fresh stream never ends, so the future only completes
+    // when the stream does.)
     unawaited(service.onForeground());
     await Future<void>.delayed(const Duration(milliseconds: 150));
 
@@ -484,7 +478,7 @@ void main() {
         reason: 'a fresh stream after every foreground');
     expect(service.isSseConnected, isTrue);
     expect(statuses, containsAll([true, false, true]),
-        reason: 'open → torn down → reconnected');
+        reason: 'open -> torn down -> reconnected');
 
     service.dispose();
     await h.close();

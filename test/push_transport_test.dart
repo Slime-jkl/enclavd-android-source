@@ -21,8 +21,7 @@ void main() {
 
   test('ensureResolved on a non-Android host keeps the polling fallback',
       () async {
-    // flutter test runs on the host VM (not Android): resolution must
-    // stop before any platform plugin is touched.
+    // flutter test runs on the host VM; resolution must stop before any plugin is touched.
     await PushManager.ensureResolved(
       PushRegistrationService(() async => throw StateError('unused')),
     );
@@ -50,18 +49,16 @@ void main() {
   });
 
   test('syncFromPush completes with no singletons and no session', () async {
-    // Background-isolate shape (app killed): no notification singletons,
-    // no session → the worker-style run must no-op cleanly without
-    // touching any platform channel.
+    // Background-isolate shape (app killed): no singletons, no session;
+    // the worker-style run must no-op without touching platform channels.
     await syncFromPush();
   });
 
   test('UP registerToken replays the persisted endpoint after login',
       () async {
-    // Cold start before login: the distributor delivers the endpoint,
-    // the server-side register is skipped (no session) — but the endpoint
-    // is persisted. After login, ensureResolved → registerToken must
-    // re-post it so the server learns the device.
+    // Cold start before login: the distributor delivers the endpoint and the
+    // server-side register is skipped (no session), but the endpoint is
+    // persisted and re-posted after login.
     SharedPreferences.setMockInitialValues({
       UnifiedPushTransport.endpointPrefsKey: 'https://ntfy.sh/abc123',
     });
@@ -86,8 +83,7 @@ void main() {
 
   test('UP registerToken no-ops when no endpoint was ever delivered',
       () async {
-    // First start with no distributor yet: nothing stored, nothing to
-    // register — must not touch the network.
+    // First start with no distributor: nothing stored, nothing to register, no network.
     final client = _FakeApiClient(
       PrefsSessionStore(await SharedPreferences.getInstance()),
     );
@@ -121,8 +117,6 @@ void main() {
   });
 }
 
-/// ApiClient with the network surgically replaced (mirrors the fake in
-/// push_registration_service_test.dart).
 class _FakeApiClient extends ApiClient {
   _FakeApiClient(SessionStore store, {this.hasSessionValue = true})
       : super(store: store);
@@ -145,7 +139,6 @@ class _FakeApiClient extends ApiClient {
   }
 }
 
-/// Test double: counts re-registrations without any platform plugin.
 class _CountingTransport implements PushTransport {
   _CountingTransport({required this.onRegister});
 

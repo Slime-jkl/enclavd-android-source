@@ -8,21 +8,13 @@ import 'message_notifications.dart';
 import 'notification_source.dart';
 import 'social_notification_source.dart';
 
-/// Social notifications (likes, comments, mentions, follows) — every
-/// realtime `notification` SSE ping (the sidecar's per-user push,
-/// published by create_notification.php) surfaces as a DEVICE notification,
-/// UNLESS the in-app notification drawer is open AND the app is
-/// foregrounded (minimized still notifies — the same rule as messages).
-///
-/// The ping payload only has the unread count, so the service fetches
-/// GET ?list=1 (the same read-only worker shape) and notifies on the
-/// NEWEST unread bundles, deduped by bundle id (one ping per new event;
-/// a new like on an already-notified post is a NEW bundle and re-notifies).
-/// Dedupe identity and the tracker are SHARED with the background worker
-/// (same keys, same persisted set) — the two paths never double-notify.
-///
-/// A master toggle ('notifications_enabled', Settings) gates the whole
-/// feature; the Settings screen controls it.
+/// Social notifications (likes, comments, mentions, follows): every
+/// realtime `notification` SSE ping surfaces as a DEVICE notification,
+/// unless the in-app drawer is open AND the app is foregrounded. The ping
+/// only carries the unread count, so the service fetches GET ?list=1 (the
+/// read-only worker shape) and notifies on the NEWEST unread bundles,
+/// deduped by bundle id. Dedupe is SHARED with the background worker.
+/// Master toggle: 'notifications_enabled' (Settings).
 class SocialNotifications with WidgetsBindingObserver {
   SocialNotifications({
     required this.notifier,
@@ -30,14 +22,13 @@ class SocialNotifications with WidgetsBindingObserver {
     Future<SharedPreferences> Function()? prefsFactory,
   }) : _prefsFactory = prefsFactory ?? SharedPreferences.getInstance;
 
-  /// The app-wide singleton. Set by AppServices.create (first call wins —
-  /// later creates reuse it so the drawer-open count stays consistent).
+  /// App-wide singleton, set by AppServices.create.
   static SocialNotifications? instance;
 
   static const String enabledPrefsKey = 'notifications_enabled';
 
-  /// The SHARED plugin-backed notifier (owned by the messages singleton —
-  /// the plugin initializes exactly once for the whole app). Only
+  /// The SHARED plugin-backed notifier (owned by the messages singleton,
+  /// so the plugin initializes exactly once); only
   /// [LocalNotifier.showSocialNotification] is used from here.
   final LocalNotifier notifier;
   final Future<NotificationsService> Function() notificationsFactory;
@@ -51,16 +42,16 @@ class SocialNotifications with WidgetsBindingObserver {
   bool get drawerOpen => _drawerOpenCount > 0;
   bool get appActive => _appActive;
 
-  /// One-time boot: master-toggle load + lifecycle observer. The plugin
-  /// itself was already initialized by the messages singleton (shared
-  /// notifier) — no permission request here (same OS permission).
+  /// One-time boot: toggle load + lifecycle observer. The plugin itself
+  /// was already initialized by the messages singleton (shared notifier),
+  /// so no permission request here.
   Future<void> init() async {
     WidgetsBinding.instance.addObserver(this);
     try {
       final prefs = await _prefsFactory();
       _enabled = prefs.getBool(enabledPrefsKey) ?? true;
     } catch (_) {
-      // Never break the app — defaults stay on.
+      // Never break the app: defaults stay on.
     }
   }
 
@@ -71,18 +62,15 @@ class SocialNotifications with WidgetsBindingObserver {
     } else if (_drawerOpenCount > 0) {
       _drawerOpenCount--;
     }
-    // Mirror to prefs so the BACKGROUND worker (a separate isolate that
-    // cannot see this in-memory count) also stays quiet while the user
-    // is looking at the drawer.
+    // Mirror to prefs so the background worker (a separate isolate that
+    // cannot see this in-memory count) also stays quiet.
     unawaited(_prefsFactory().then((prefs) =>
         SocialNotificationSource.setDrawerOpenPrefs(
             prefs, _drawerOpenCount > 0)));
   }
 
-  /// App foreground state — minimized counts as "not looking". Mirrored to
-  /// prefs so the BACKGROUND worker (a separate isolate that cannot see
-  /// this in-memory flag) applies the same rule: quiet only while the
-  /// drawer is open AND the user is actually looking at it.
+  /// Minimized counts as "not looking"; mirrored to prefs so the
+  /// background worker applies the same rule.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _appActive = state == AppLifecycleState.resumed;
@@ -90,13 +78,10 @@ class SocialNotifications with WidgetsBindingObserver {
         prefs.setBool(SocialNotificationSource.appActivePrefsKey, _appActive)));
   }
 
-  /// Called on every `notification` realtime ping. Skips when the user is
-  /// looking at the drawer; otherwise fetches the newest unread bundles and
-  /// notifies. Candidate identity + dedupe are SHARED with the background
-  /// worker, so the two paths never double-notify.
-  ///
-  /// debugPrints are DIAGNOSTIC (SN: ...) — every silent exit is named so
-  /// a device-side "no alert" report is one logcat read.
+  /// On every `notification` ping: skip when the drawer is open and the
+  /// app is active; else fetch the newest unread bundles and notify.
+  /// Candidate identity + dedupe are SHARED with the background worker,
+  /// so the two paths never double-notify.
   Future<void> handleNotificationPing() async {
     debugPrint('SN: ping _enabled=$_enabled drawerOpen=$drawerOpen '
         'appActive=$appActive');
@@ -126,14 +111,13 @@ class SocialNotifications with WidgetsBindingObserver {
         await tracker.add(candidate.key); // only after a successful show
       }
     } catch (e) {
-      // The poll / next ping covers it; never surface errors — but log,
-      // so a broken path is diagnosable instead of silently dead.
+      // The poll / next ping covers it; log so a dead path is diagnosable.
       debugPrint('SN: ping failed: $e');
     }
   }
 
-  /// Master toggle (Settings screen). Persists and re-arms the permission
-  /// (the same OS permission as messages — a no-op when already granted).
+  /// Master toggle (Settings screen); persists and re-arms the permission
+  /// (same OS permission as messages - a no-op when already granted).
   Future<void> setEnabled(bool enabled) async {
     _enabled = enabled;
     try {

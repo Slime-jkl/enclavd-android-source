@@ -7,7 +7,6 @@ import 'package:enclavd/screens/login_screen.dart';
 
 import 'api_client_test.dart' show MemorySessionStore;
 
-/// Fake AuthService — canned login/me, no network.
 class _FakeAuth extends AuthService {
   _FakeAuth()
       : super(
@@ -35,7 +34,6 @@ class _FakeAuth extends AuthService {
   Future<CurrentUser?> me() async => meUser;
 }
 
-/// Fake SiteConfigService — canned config + rate state, no network.
 class _FakeConfig extends SiteConfigService {
   _FakeConfig()
       : super(
@@ -173,10 +171,8 @@ void main() {
   testWidgets(
       'rate-limited failure: the live countdown replaces the static '
       'flash copy (no double banner)', (tester) async {
-    // auth.php appends "Please wait N second(s)..." to the failure flash
-    // when the cooldown kicks in — that parsed text is static and used to
-    // render a SECOND red banner beside the ticking countdown, frozen at
-    // the number from the moment of parse.
+    // auth.php appends "Please wait N second(s)..." to the failure flash;
+    // that static text renders as a second, frozen red banner beside the countdown.
     final auth = _FakeAuth()
       ..onLogin = () => const LoginResult(
             LoginOutcome.failure,
@@ -203,8 +199,7 @@ void main() {
     await tester.pump(); // failure banner frame
     await tester.pump(); // rate state lands
 
-    // Exactly ONE red banner — the live countdown — and the frozen
-    // flash copy is gone.
+    // Exactly ONE red banner: the live countdown; the frozen flash copy is gone.
     expect(find.textContaining('second(s)'), findsOneWidget);
     expect(find.textContaining('Invalid e-mail or password'), findsNothing);
   });
@@ -216,7 +211,7 @@ void main() {
             LoginOutcome.failure,
             'Invalid e-mail or password.',
           );
-    final config = _FakeConfig(); // cooldown 0 — no rate banner
+    final config = _FakeConfig(); // cooldown 0, no rate banner
 
     await tester.pumpWidget(MaterialApp(
       home: LoginScreen(auth: auth, siteConfig: config),
@@ -258,7 +253,6 @@ void main() {
 
     expect(find.text('How many sides does a triangle have?'), findsOneWidget);
 
-    // Fill the three fields: email, password, captcha answer.
     await tester.enterText(find.byType(TextFormField).at(0), 'a@b.c');
     await tester.enterText(find.byType(TextFormField).at(1), 'pw');
     await tester.enterText(find.byType(TextFormField).at(2), '3');
@@ -268,7 +262,7 @@ void main() {
     expect(auth.lastCaptchaAnswer, '3');
   });
 
-  testWidgets('captcha required + empty answer → validation blocks submit',
+  testWidgets('captcha required + empty answer -> validation blocks submit',
       (tester) async {
     final auth = _FakeAuth();
     final config = _FakeConfig()
@@ -295,7 +289,7 @@ void main() {
     expect(auth.lastCaptchaAnswer, isNull, reason: 'never submitted');
   });
 
-  testWidgets('post-login gate: banned → ban screen', (tester) async {
+  testWidgets('post-login gate: banned -> ban screen', (tester) async {
     final auth = _FakeAuth()..meUser = _banned;
     final config = _FakeConfig();
 
@@ -316,7 +310,7 @@ void main() {
     expect(find.text('BAN-PLACEHOLDER'), findsOneWidget);
   });
 
-  testWidgets('post-login gate: maintenance on + rank not allowed → '
+  testWidgets('post-login gate: maintenance on + rank not allowed -> '
       'maintenance screen', (tester) async {
     final auth = _FakeAuth()..meUser = _normal;
     final config = _FakeConfig()
@@ -355,7 +349,7 @@ void main() {
     expect(find.text('MAINT-PLACEHOLDER'), findsOneWidget);
   });
 
-  testWidgets('post-login gate: maintenance on + allowed rank → feed',
+  testWidgets('post-login gate: maintenance on + allowed rank -> feed',
       (tester) async {
     const admin = CurrentUser(
       id: 3,

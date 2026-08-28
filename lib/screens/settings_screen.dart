@@ -10,10 +10,6 @@ import '../services/sound_service.dart';
 import '../theme/enclavd_theme.dart';
 import '../services/analytics_service.dart';
 
-/// App settings — the app-side preferences screen (sounds, notification
-/// toggles, keep-alive). The daily-quote feature lives in its own
-/// Quote of the day screen (user menu); account editing lives in
-/// Account settings; the about card lives in the user menu now.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
@@ -58,12 +54,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await _refreshOsBlocked();
   }
 
-  /// Mirrors the REAL OS state next to the toggle: Android 13+ can deny
-  /// notifications at the system level (denied popup, or blocked in
-  /// system settings) and the plugin can never re-prompt — the toggle
-  /// would read ON while nothing ever shows. The warning row makes that
-  /// visible instead of silently dead. Null instance (tests, pre-feed)
-  /// simply means "no information" → not blocked.
   Future<void> _refreshOsBlocked() async {
     final notifications = MessageNotifications.instance;
     var blocked = false;
@@ -86,8 +76,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await MessageNotifications.instance?.setEnabled(enabled);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_notifPrefsKey, enabled);
-    // The re-request may have been denied again — re-check the OS state
-    // so the warning (if any) reflects reality immediately.
+    // The re-request may have been denied again; re-check the OS state.
     await _refreshOsBlocked();
   }
 
@@ -103,16 +92,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await BackgroundKeepAlive.setEnabled(enabled);
   }
 
-  /// Which channel delivers background alerts on THIS device: FCM (Play
-  /// builds with Google Play services), Unified Push (any build with a
-  /// distributor app installed — the F-Droid path), or the 15-minute
-  /// polling fallback when neither is available.
   String get _deliveryModeText {
     final mode = PushManager.instance?.activeLabel;
     if (mode != null && mode != PushManager.fallbackLabel) {
-      return '$mode — instant background alerts';
+      return '$mode - instant background alerts';
     }
-    return '15-minute background checks — install a Unified Push '
+    return '15-minute background checks - install a Unified Push '
         'distributor (ntfy, Conversations, NextPush) for instant alerts';
   }
 
@@ -250,8 +235,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 10),
             // OS-level denial (Android 13+): the toggle can be ON while
-            // the system silently drops everything. Surface it here with
-            // a one-tap deep link into the OS notification settings.
+            // the system silently drops everything.
             if (notifications == true && _osBlocked == true) ...[
               const SizedBox(height: 10),
               Material(
@@ -289,11 +273,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ],
             const SizedBox(height: 10),
-            // Delivery mode is an implementation detail (auto-resolved at
-            // startup: FCM → Unified Push → 15-min poll), so it is a
-            // read-only status row, not a toggle. Placed LAST so the
-            // OS-blocked warning above stays above the fold on small
-            // screens.
+            // Read-only status row: delivery is auto-resolved at startup.
             Material(
               color: EnclavdColors.card,
               shape: RoundedRectangleBorder(

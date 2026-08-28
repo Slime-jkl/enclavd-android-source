@@ -6,21 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:path_provider/path_provider.dart';
 
-/// A disk-backed ImageProvider for remote images.
-///
-/// Why: the feed renders the same avatars and gallery images over and over.
-/// Flutter's in-memory ImageCache helps within a session, but every cold
-/// start re-downloads everything. This provider caches the raw bytes on
-/// disk (app cache dir) so the second launch is instant and offline-ish.
-///
-/// Design notes:
-///  - Raw bytes cached, decoding left to the framework's ImageCache (so
-///    memory is still managed by the standard cache, and cacheWidth can
-///    downscale at decode time).
-///  - TTL + max-age sweep keep the cache bounded (images on the site are
-///    immutable — 1-year cache headers — so staleness is a non-issue; we
-///    still cap the directory size).
-///  - Errors fall through to the caller's errorBuilder (e.g. default avatar).
+/// Disk-backed ImageProvider for remote images (cached across cold starts).
 class CachedNetworkImageProvider
     extends ImageProvider<CachedNetworkImageProvider> {
   CachedNetworkImageProvider(this.url, {this.httpClientFactory});
@@ -64,10 +50,7 @@ class CachedNetworkImageProvider
     }
   }
 
-  /// Fetch the raw bytes for [url] — disk cache first when fresh, else a
-  /// fresh download. Used by save-to-gallery: the cached bytes are the
-  /// FULL-resolution originals (cacheWidth downscales at DECODE time,
-  /// never the stored bytes), so saving never re-downloads a viewed image.
+  /// Raw bytes for [url]: disk cache first, else a fresh download.
   static Future<Uint8List> fetchBytes(String url,
       {HttpClient Function()? httpClientFactory}) {
     return CachedNetworkImageProvider(url,
@@ -91,7 +74,7 @@ class CachedNetworkImageProvider
       final request = await client.getUrl(Uri.parse(url));
       final response = await request.close();
       if (response.statusCode != 200) {
-        throw HttpException('GET $url → ${response.statusCode}');
+        throw HttpException('GET $url -> ${response.statusCode}');
       }
       final bytes = await consolidateHttpClientResponseBytes(response);
       await file.writeAsBytes(bytes, flush: true);
@@ -118,7 +101,7 @@ class CachedNetworkImageProvider
     return '$hash.$ext';
   }
 
-  /// FNV-1a 64-bit hex — stable across runs (unlike String.hashCode).
+  /// FNV-1a 64-bit hex, stable across runs (unlike String.hashCode).
   static String sha1Of(String input) {
     final bytes = utf8.encode(input);
     var hash = 0xcbf29ce484222325;
@@ -137,7 +120,6 @@ class CachedNetworkImageProvider
     return RegExp(r'^[a-z0-9]{2,4}$').hasMatch(ext) ? ext : 'bin';
   }
 
-  /// Bounded cache: delete oldest files beyond the cap.
   Future<void> _sweep(Directory dir) async {
     try {
       final files = await dir.list().toList();

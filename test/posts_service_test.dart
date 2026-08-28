@@ -38,7 +38,7 @@ void main() {
       expect(contentType, 'multipart/form-data');
       expect(csrf, 'tok-post');
       // The site's post_form.php wire format (enctype multipart): one part
-      // per field, raw values (no url-encoding) inside the boundary.
+      // per field, raw values inside the boundary.
       expect(body, contains('name="content"'));
       expect(body, contains('hello #tag'));
       expect(body, contains('name="is_base64_image"'));

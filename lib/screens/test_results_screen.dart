@@ -9,11 +9,6 @@ import '../widgets/error_view.dart';
 import 'test_screen.dart';
 import '../services/analytics_service.dart';
 
-/// The native Test Results screen — a modern port of the site's
-/// results.php: the personality badge, the type description with
-/// strengths/growth areas, and the four trait bars. When the member has
-/// no valid test the site redirects to /test_page; here that becomes an
-/// empty state that pushes the native personality test.
 class TestResultsScreen extends StatefulWidget {
   const TestResultsScreen({super.key, this.results});
 
@@ -43,8 +38,7 @@ class _TestResultsScreenState extends State<TestResultsScreen> {
   }
 
   Future<void> _load() async {
-    // When tests inject the service, skip the AppServices dance entirely
-    // (no prefs/plugins under flutter test).
+    // Tests inject the service; skip the AppServices dance then.
     if (widget.results == null) {
       _services ??= AppServices.current ?? await AppServices.create();
     }
@@ -65,7 +59,7 @@ class _TestResultsScreenState extends State<TestResultsScreen> {
       if (!mounted) return;
       setState(() {
         if (e.status == 404) {
-          _noResults = true; // no valid test — the site redirects here
+          _noResults = true; // no valid test, the site redirects here
         } else {
           _error = e.message;
         }
@@ -81,10 +75,7 @@ class _TestResultsScreenState extends State<TestResultsScreen> {
   }
 
   Future<void> _openTestPage() async {
-    // Native test (site parity: /test_page). The quiz replaces itself
-    // with a fresh results screen on completion; on return here the
-    // route future resolves true and this view refetches so the back
-    // stack shows the new result too.
+    // On completion the quiz replaces itself with fresh results; refetch on return.
     final completed = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => const TestScreen()),
     );
@@ -234,7 +225,6 @@ class _ResultsView extends StatelessWidget {
   }
 }
 
-/// The site's trait card: label + the two percentages + the split bar.
 class _TraitBar extends StatelessWidget {
   const _TraitBar({
     required this.label,
@@ -289,8 +279,7 @@ class _TraitBar extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          // results.php: h-2 rounded split bar — the gray-500 track with
-          // the two colored segments at their exact percentages.
+          // results.php: h-2 rounded split bar, gray-500 track with two segments.
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: SizedBox(
@@ -298,11 +287,8 @@ class _TraitBar extends StatelessWidget {
               child: ColoredBox(
                 color: const Color(0xFF6B7280), // gray-500 track
                 child: Row(
-                  // Without stretch, the empty segment ColoredBoxes get
-                  // LOOSE height constraints and collapse to 0px — the
-                  // colored segments vanish and only the gray track
-                  // shows (the "all gray bars" bug). Stretch pins them
-                  // to the track's full height.
+                  // Stretch pins the segments to the track's height; loose
+                  // constraints collapse them (the "all gray bars" bug).
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Expanded(
@@ -324,8 +310,6 @@ class _TraitBar extends StatelessWidget {
   }
 }
 
-/// Bulleted list with a small icon instead of a bullet — the site's
-/// strengths (green) and growth areas (red) lists.
 class _BulletList extends StatelessWidget {
   const _BulletList({
     required this.icon,
@@ -367,7 +351,6 @@ class _BulletList extends StatelessWidget {
   }
 }
 
-/// The site's secondaryCardColor box.
 class _Card extends StatelessWidget {
   const _Card({required this.child});
 
@@ -388,7 +371,6 @@ class _Card extends StatelessWidget {
   }
 }
 
-/// No valid test — mirrors the site's redirect to /test_page.
 class _NoResultsView extends StatelessWidget {
   const _NoResultsView({required this.onTakeTest});
 

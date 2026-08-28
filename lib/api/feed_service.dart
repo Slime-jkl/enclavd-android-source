@@ -1,12 +1,10 @@
 import 'api_client.dart';
 import '../utils/html_entities.dart';
 
-/// A single post card from GET /api/v1/posts.
-///
-/// Field contract (posts.php $map_post): id, author_id, content,
-/// created_at, feed_score, like_count, comment_count, user_liked,
-/// warning_count, username, profile_picture_url, personality_type,
-/// is_active, rank, image.
+/// A single post card from GET /api/v1/posts (posts.php $map_post
+/// contract: id, author_id, content, created_at, feed_score, like_count,
+/// comment_count, user_liked, warning_count, username,
+/// profile_picture_url, personality_type, is_active, rank, image).
 class Post {
   const Post({
     required this.id,
@@ -47,10 +45,8 @@ class Post {
   factory Post.fromJson(Map<String, dynamic> json) => Post(
         id: (json['id'] as num?)?.toInt() ?? 0,
         authorId: (json['author_id'] as num?)?.toInt() ?? 0,
-        // The backend stores content htmlspecialchars-encoded (apostrophes
-        // are &#039; etc.); decode exactly once so the app shows what the
-        // site's browser shows. The tokenizer (content_spans.dart) then runs
-        // on clean text — a '#' is always a real hashtag.
+        // Content arrives htmlspecialchars-encoded (apostrophes are &#039;
+        // etc.); decode exactly once so the tokenizer runs on clean text.
         content:
             decodeHtmlEntities(json['content'] as String? ?? ''),
         createdAt: json['created_at'] as String? ?? '',
@@ -75,7 +71,7 @@ class Post {
 /// One page of posts + the keyset cursor for the next page.
 ///
 /// The ranked feed pages on (last_score, last_id); a user's profile posts
-/// and a hashtag page page on (last_created_at, last_id) — only one of the
+/// and a hashtag page page on (last_created_at, last_id) - only one of the
 /// two cursors is set. [total] is only populated by the hashtag branch
 /// (every post carrying the tag, for the page header count).
 class FeedPage {
@@ -113,17 +109,11 @@ class FeedPage {
   }
 }
 
-/// FeedService — GET /api/v1/posts with keyset pagination.
-///
-/// Contract (posts.php):
-///   ?limit=N           page size, 1–50 (default 10)
-///   ?last_score&last_id  keyset cursor → next page (from the previous
-///                        response's last_score/last_id)
-///   ?after_id=N        delta: only posts newer than N (new-posts pill)
-///   ?post_id=N         a single post
-///
-/// Response: {success, posts:[...], has_more, last_score, last_id}
-/// Guests → 401. Auth = the session cookies in the jar.
+/// GET /api/v1/posts with keyset pagination (posts.php contract):
+/// ?limit=N (1-50, default 10), ?last_score&last_id (next page),
+/// ?after_id=N (delta), ?post_id=N (single). Response: {success, posts,
+/// has_more, last_score, last_id}. Guests -> 401; auth = the session
+/// cookies in the jar.
 class FeedService {
   FeedService(this._api);
 
@@ -144,8 +134,8 @@ class FeedService {
     );
   }
 
-  /// A single author's posts (profile screen) — newest first, chronological
-  /// (posts.php ?user_id=N), keyset on (last_created_at, last_id).
+  /// A single author's posts (profile screen) - newest first, keyset on
+  /// (last_created_at, last_id).
   Future<FeedPage> userPosts(
     int userId, {
     int limit = 10,
@@ -161,9 +151,9 @@ class FeedService {
     return FeedPage.fromJson(json);
   }
 
-  /// Posts carrying a hashtag (hashtag page, posts.php ?tag=TAG) — newest
-  /// first, chronological, keyset on (last_created_at, last_id). The page
-  /// also carries [FeedPage.total] (every post with the tag, for the header).
+  /// Posts carrying a hashtag (hashtag page) - newest first, keyset as
+  /// userPosts; carries [FeedPage.total] (every post with the tag, for
+  /// the header count).
   Future<FeedPage> tagPosts(
     String tag, {
     int limit = 10,
@@ -190,9 +180,9 @@ class FeedService {
     return Post.fromJson(raw);
   }
 
-  /// Delta of posts newer than [afterId] (posts.php ?after_id=N) — the
-  /// "new posts" check. Still score-ranked among themselves; used by the
-  /// pull-to-refresh to surface posts the ranked first page buried.
+  /// Delta of posts newer than [afterId] (posts.php ?after_id=N) - the
+  /// "new posts" check used by pull-to-refresh; still score-ranked among
+  /// themselves.
   Future<FeedPage> newerThan(int afterId, {int limit = 10}) async {
     final json = await _api.getJson('/api/v1/posts', query: {
       'after_id': '$afterId',

@@ -8,15 +8,12 @@ import '../widgets/cached_image.dart';
 
 /// Saves a remote image into the device gallery's Enclavd folder.
 ///
-/// Bytes come from the disk cache when present (no re-download — the
-/// cache stores the FULL-resolution originals; cacheWidth only downscales
-/// at decode time). gal inserts via MediaStore (Pictures/Enclavd), which
-/// needs no permission on Android 10+; legacy releases surface a
-/// permission error we translate to a Settings hint.
-///
-/// The two platform-touching steps are injectable so the message matrix
-/// is unit-testable without a device (widget tests hang on unhandled
-/// platform channels).
+/// Bytes come from the disk cache when present (no re-download - the cache
+/// stores FULL-resolution originals; cacheWidth only downscales at decode
+/// time). gal inserts via MediaStore (Pictures/Enclavd), which needs no
+/// permission on Android 10+; legacy releases surface a permission error
+/// we translate to a Settings hint. The two platform-touching steps are
+/// injectable so the flow is unit-testable without a device.
 class GallerySaver {
   GallerySaver({
     this.fetchBytes = CachedNetworkImageProvider.fetchBytes,
@@ -40,7 +37,7 @@ class GallerySaver {
       return 'Saved to the Enclavd folder in your gallery';
     } on PlatformException catch (e) {
       return e.code == 'permission_denied'
-          ? 'Storage permission needed — allow it in Settings, then try again'
+          ? 'Storage permission needed - allow it in Settings, then try again'
           : "Couldn't save the image.";
     } on HttpException {
       return "Couldn't download the image.";

@@ -7,21 +7,16 @@ import 'package:flutter/foundation.dart';
 import 'push_registration_service.dart';
 import 'push_transport.dart';
 
-/// FCM transport — the Google Play builds' channel
-/// (AppConfig.enableFcm; F-Droid never constructs this class).
-///
-/// Requires the Firebase project's google-services.json in
-/// android/app/ (processed by the google-services gradle plugin, which the
-/// build applies only when the file exists). Without it — or without
-/// Google Play services on the device — [init] throws and the manager
-/// falls through to Unified Push / polling.
+/// FCM transport - the Google Play builds' channel (AppConfig.enableFcm;
+/// F-Droid never constructs this class). Requires google-services.json in
+/// android/app/ (and Google Play services on the device) or [init] throws
+/// and the manager falls through to Unified Push / polling.
 ///
 /// Payload contract: the server sends DATA-only messages (no notification
-/// block — the app renders its own notifications through
+/// block - the app renders its own notifications through
 /// flutter_local_notifications, so the drawer-reply and tap flows stay
 /// native). The data payload itself is ignored: any FCM message means
 /// "something changed", and [onSync] re-checks both notification sources.
-/// The server only needs the registration token.
 class FcmTransport implements PushTransport {
   FcmTransport({required this.registration, required this.onSync});
 
@@ -40,10 +35,8 @@ class FcmTransport implements PushTransport {
   @override
   String get label => 'FCM push';
 
-  /// Registers the killed-process callback. firebase_messaging maps this
-  /// entrypoint before the engine starts; called from main(). The handler
-  /// itself is a plain top-level function the plugin invokes in a fresh
-  /// headless isolate when a data message arrives while the app is dead.
+  /// Registers the killed-process callback; called from main() before the
+  /// engine starts.
   static void bindBackgroundHandler() {
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   }
@@ -51,11 +44,10 @@ class FcmTransport implements PushTransport {
   @override
   Future<bool> init() async {
     // No-arg initializeApp() uses the NATIVE default options (the
-    // google-services.json processed by the gradle plugin) — which is
-    // exactly what the killed-process path needs: the native
-    // FirebaseInitProvider must be able to init the default app before
-    // any Dart runs. Throws when the file is absent or the device has no
-    // Google Play services.
+    // google-services.json processed by the gradle plugin) - exactly what
+    // the killed-process path needs: the native FirebaseInitProvider must
+    // init the default app before any Dart runs. Throws when the file is
+    // absent or the device has no Google Play services.
     await Firebase.initializeApp();
     final messaging = FirebaseMessaging.instance;
     final token = await messaging.getToken();
@@ -64,9 +56,9 @@ class FcmTransport implements PushTransport {
     }
     _token = token;
     // Foreground messages: the live SSE path is primary; this is the
-    // backup when a socket is down. Shared dedupe makes it harmless.
+    // backup when a socket is down (shared dedupe makes it harmless).
     // (v16 API note: onMessage is a STATIC getter; onTokenRefresh below
-    // is an INSTANCE getter — asymmetric, don't mix them up.)
+    // is an INSTANCE getter - asymmetric, don't mix them up.)
     _messageSub = FirebaseMessaging.onMessage.listen((_) => unawaited(onSync()));
     _tokenSub = messaging.onTokenRefresh.listen((String refreshed) {
       _token = refreshed;
@@ -86,7 +78,7 @@ class FcmTransport implements PushTransport {
   }
 
   /// Tears the transport down (logout path): stop listening and drop the
-  /// token server-side. Best-effort — the server prunes stale tokens too.
+  /// token server-side. Best-effort - the server prunes stale tokens too.
   Future<void> dispose() async {
     await _messageSub?.cancel();
     _messageSub = null;
@@ -102,10 +94,10 @@ class FcmTransport implements PushTransport {
 
 /// firebase_messaging's killed-process entrypoint: a data message woke a
 /// headless isolate (no singletons, no UI). Run the worker-style full
-/// pipeline — fresh session from prefs, fresh plugin, shared dedupe.
-/// The entry print makes logcat diagnosis unambiguous: its presence means
-/// the message WAS delivered and the isolate ran; its absence means the
-/// OS never woke the app (force-stop / OEM battery killer / Doze).
+/// pipeline - fresh session from prefs, fresh plugin, shared dedupe. The
+/// entry print makes logcat diagnosis unambiguous: its presence means the
+/// message WAS delivered and the isolate ran; its absence means the OS
+/// never woke the app.
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   debugPrint('push: FCM bg handler fired: ${message.messageId ?? 'no-id'}');

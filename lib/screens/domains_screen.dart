@@ -10,24 +10,12 @@ import '../utils/domain_icons.dart';
 import '../widgets/shimmer.dart';
 import 'domain_category_screen.dart';
 
-/// The native Domains tab — the site's /domain board as a modern app.
-///
-/// Domains are a STRUCTURED way to navigate content (forum-style, unlike
-/// the ranked feed): root categories each hold subcategories, and every
-/// category leads to its threads. The board lists the root categories as
-/// cards with their children, post counts and latest activity; tapping a
-/// category opens its thread list.
-///
-/// This widget is the FEED SHELL's Domains tab body (no Scaffold/AppBar of
-/// its own — the shell supplies the shared header and bottom nav), built
-/// lazily on first tab visit like the Updates tab.
 class DomainsScreen extends StatefulWidget {
   const DomainsScreen({super.key, required this.domains, this.categoryBuilder});
 
   final DomainsService domains;
 
-  /// Test seam — replaces the pushed category screen so widget tests never
-  /// touch the network.
+  /// Test seam: replaces the pushed category screen in widget tests.
   final Widget Function(DomainCategory category)? categoryBuilder;
 
   @override
@@ -164,9 +152,6 @@ return ErrorView(message: _error!, onRetry: _load);
   }
 }
 
-/// One root category card: the root's header (icon chip + name + count)
-/// with its subcategories as rows below (site board view: root header over
-/// child rows). Tapping the root OR any child opens that category.
 class _CategoryCard extends StatelessWidget {
   const _CategoryCard({required this.root, required this.onOpen});
 
@@ -241,9 +226,8 @@ class _CategoryCard extends StatelessWidget {
                   onTap: () => onOpen(child),
                 )
             else
-              // A root with no subcategories: the header IS the row; the
-              // last-activity line sits under it (the site's "General
-              // Discussion" row with its last-post block).
+              // Childless root: the header is the row, with the activity
+              // line under it.
               _ActivityLine(category: root),
           ],
         ),
@@ -252,8 +236,6 @@ class _CategoryCard extends StatelessWidget {
   }
 }
 
-/// The root's latest-activity line, shown under a childless root's header
-/// (site: "Last: <date> by @author" or "No activity").
 class _ActivityLine extends StatelessWidget {
   const _ActivityLine({required this.category});
 
@@ -291,8 +273,6 @@ class _ActivityLine extends StatelessWidget {
   }
 }
 
-/// A subcategory row inside a root card (site board: child rows with icon,
-/// name, post count and latest activity).
 class _ChildRow extends StatelessWidget {
   const _ChildRow({required this.category, required this.onTap});
 
@@ -372,8 +352,6 @@ class _ChildRow extends StatelessWidget {
   }
 }
 
-/// Rounded icon chip: tinted square with the category's accent color at
-/// ~13% alpha (the drawer's icon-chip pattern), colored icon inside.
 class _IconChip extends StatelessWidget {
   const _IconChip({required this.icon, required this.color});
 
@@ -395,7 +373,6 @@ class _IconChip extends StatelessWidget {
   }
 }
 
-/// The site's post-count block: bold number over a tiny "Posts" label.
 class _PostCount extends StatelessWidget {
   const _PostCount({required this.count});
 
@@ -423,7 +400,6 @@ class _PostCount extends StatelessWidget {
   }
 }
 
-/// The site's list date: date('M j, Y', strtotime(...)) on the DB wall-clock.
 String _formatDate(String dbUtc) {
   final t = parseDbTime(dbUtc);
   if (t == null) return '';
@@ -434,7 +410,6 @@ String _formatDate(String dbUtc) {
   return '${months[t.month - 1]} ${t.day}, ${t.year}';
 }
 
-/// First-load skeleton: a title block + two category card shapes.
 class _BoardHeaderSkeleton extends StatelessWidget {
   const _BoardHeaderSkeleton();
 
@@ -454,7 +429,6 @@ class _BoardHeaderSkeleton extends StatelessWidget {
   }
 }
 
-/// Skeleton of a category card (root header + a couple of child lines).
 class _CategoryCardSkeleton extends StatelessWidget {
   const _CategoryCardSkeleton();
 

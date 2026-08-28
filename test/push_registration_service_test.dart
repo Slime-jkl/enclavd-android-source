@@ -4,8 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:enclavd/api/api_client.dart';
 import 'package:enclavd/services/push/push_registration_service.dart';
 
-/// ApiClient with the network surgically replaced: the registration
-/// service must never touch a real socket in tests.
+/// ApiClient with the network surgically replaced.
 class _FakeApiClient extends ApiClient {
   _FakeApiClient(
     SessionStore store, {

@@ -2,13 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/enclavd_theme.dart';
 
-/// THE canonical personality badge — the feed post-card pill (site's
-/// render_personality_badge): neutral card background, fully-rounded,
-/// the MBTI type in UPPERCASE tinted by its personality group color.
-///
-/// Every personality badge in the app uses this widget — post cards,
-/// the liked-by sheet, search results, the user-menu drawer and the
-/// article author row — so the design can never drift again.
+/// The canonical personality badge: uppercase type in its group color.
 class PersonalityChip extends StatelessWidget {
   const PersonalityChip({super.key, required this.type});
 

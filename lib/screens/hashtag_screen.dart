@@ -12,12 +12,6 @@ import '../widgets/shimmer.dart';
 import 'compose_screen.dart';
 import '../services/analytics_service.dart';
 
-/// Hashtag page — port of the site's feed/tag.php.
-///
-/// Header: `#tag` + "N posts" (textLink, like the site), then every post
-/// carrying that hashtag, newest first, keyset-paginated via
-/// GET /api/v1/posts?tag=… (last_created_at/last_id). PostCards are keyed by
-/// post id (no stale like-state reuse — the phantom-like rule).
 class HashtagScreen extends StatefulWidget {
   const HashtagScreen({super.key, required this.tag});
 
@@ -271,8 +265,7 @@ return ErrorView(message: _error!, onRetry: _loadFirst);
           );
         }
         return PostCard(
-          // Key by post id (prevents stale like-state reuse when the list
-          // refreshes — the phantom-like fix).
+          // Key by post id: prevents stale like-state reuse on refresh.
           key: ValueKey(_posts[index - 1].id),
           post: _posts[index - 1],
           apiBaseUrl: AppConfig.apiBaseUrl,
@@ -285,7 +278,6 @@ return ErrorView(message: _error!, onRetry: _loadFirst);
   }
 }
 
-/// Header shimmer placeholder (the site's tag header skeleton).
 class _TagHeaderSkeleton extends StatelessWidget {
   const _TagHeaderSkeleton();
 

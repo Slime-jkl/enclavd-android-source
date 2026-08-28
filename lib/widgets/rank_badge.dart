@@ -1,11 +1,7 @@
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
 
-/// The site's rank badge (getRankStyles()['badge'] from config/ranks.php):
-/// a tiny pill with the rank's FA icon + name, rank-colored background and
-/// border, dark text. The site renders it at text-xs * scale(0.75); here
-/// ~10px reads cleanly on a phone without the web's transform hack.
-/// Used in the likers sheet and the profile header.
+/// The site's rank badge (getRankStyles()): rank icon + name pill.
 class RankBadge extends StatelessWidget {
   const RankBadge({super.key, required this.rank});
 

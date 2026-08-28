@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:enclavd/api/api_client.dart';
 import 'package:enclavd/api/articles_service.dart';
 
-/// Minimal in-memory session store (no prefs, no binding needed here).
 class _Store implements SessionStore {
   @override
   Future<void> clear() async {}
@@ -103,7 +102,7 @@ void main() {
     test('maps content, tags, likes and related', () {
       final a = Article.fromJson(_article(liked: true, likeCount: 7));
       expect(a.content, contains('&amp;'),
-          reason: 'content stays encoded exactly as stored — render as HTML');
+          reason: 'content stays encoded exactly as stored - render as HTML');
       expect(a.tags, ['beta', 'release']);
       expect(a.likeCount, 7);
       expect(a.liked, isTrue);

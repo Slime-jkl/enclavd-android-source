@@ -1,28 +1,23 @@
 import 'api_client.dart';
 
-/// One selectable mood on the 1-5 scale.
-///
-/// Mirrors config/diary.php DIARY_MOODS — the site's single source of
-/// truth for the mood set. The API always returns mood_emoji/mood_label
-/// on every entry, so this list is only needed where the app builds the
-/// picker and the 30-day strip itself. Keep it in step with the config
-/// (changing the set is a product decision; old entries re-map by their
-/// 1-5 key).
+/// One selectable mood on the 1-5 scale; mirrors config/diary.php
+/// DIARY_MOODS (the site's single source of truth). Old entries re-map by
+/// their 1-5 key, so the set can change without breaking history.
 class DiaryMood {
   const DiaryMood(this.value, this.emoji, this.label, this.hint);
 
-  final int value; // 1 (worst) → 5 (best)
+  final int value; // 1 (worst) -> 5 (best)
   final String emoji;
   final String label;
   final String hint;
 }
 
 const List<DiaryMood> kDiaryMoods = [
-  DiaryMood(1, '😞', 'Rough', 'The day got the better of you.'),
-  DiaryMood(2, '😐', 'Flat', 'Went through the motions.'),
-  DiaryMood(3, '😌', 'Steady', 'Held the line.'),
-  DiaryMood(4, '😤', 'Grinding', 'Locked in and pushing.'),
-  DiaryMood(5, '🔥', 'Unstoppable', 'Everything clicked.'),
+  DiaryMood(1, '\u{1F61E}', 'Rough', 'The day got the better of you.'),
+  DiaryMood(2, '\u{1F610}', 'Flat', 'Went through the motions.'),
+  DiaryMood(3, '\u{1F60C}', 'Steady', 'Held the line.'),
+  DiaryMood(4, '\u{1F624}', 'Grinding', 'Locked in and pushing.'),
+  DiaryMood(5, '\u{1F525}', 'Unstoppable', 'Everything clicked.'),
 ];
 
 /// One locked diary entry (the API's entry shape). One per user per day;
@@ -55,7 +50,7 @@ class DiaryEntry {
   factory DiaryEntry.fromJson(Map<String, dynamic> json) => DiaryEntry(
         date: json['date'] as String? ?? '',
         mood: (json['mood'] as num?)?.toInt() ?? 0,
-        moodEmoji: json['mood_emoji'] as String? ?? '❓',
+        moodEmoji: json['mood_emoji'] as String? ?? '\u{2753}',
         moodLabel: json['mood_label'] as String? ?? 'Unknown',
         win: json['win'] as String? ?? '',
         avoided: json['avoided'] as String? ?? '',
@@ -161,7 +156,7 @@ class DiaryPrestige {
 }
 
 /// A save's outcome: today's (new) entry, fresh stats and the prestige
-/// breakdown. A second save the same day is an idempotent no-op — the
+/// breakdown. A second save the same day is an idempotent no-op - the
 /// entry comes back untouched and the prestige math is all zeros.
 class DiarySaveResult {
   const DiarySaveResult({
@@ -194,18 +189,11 @@ class DiarySaveResult {
   }
 }
 
-/// The Diary feature over api/v1/diary (POST-only — even the read rides
-/// JSON + CSRF, exactly like the site's diary.js).
-///
-/// Contracts (verified against api/v1/diary.php):
-///   POST {action:'get'}  → {success, date, entry|null, locked, stats,
-///                          recent:[...]}
-///   POST {action:'save', mood:1-5, win, avoided?, tomorrow?, thought?}
-///                        → {success, date, entry, locked, stats,
-///                           prestige:{awarded, penalty, missed_days, net}}
-///   400 {error} for validation ("Pick a mood for today.", "Name one
-///   small win. Even a tiny one counts.", length caps 500/1000) — shown
-///   verbatim per the app's user-facing error contract.
+/// The Diary feature over api/v1/diary (POST-only - even the read rides
+/// JSON + CSRF, exactly like the site's diary.js). POST {action:'get'} ->
+/// snapshot; {action:'save', mood:1-5, win, avoided?, tomorrow?,
+/// thought?} -> entry + stats + prestige. 400 {error} validation messages
+/// are shown verbatim per the app's user-facing error contract.
 class DiaryService {
   DiaryService(this._api);
 
@@ -217,8 +205,8 @@ class DiaryService {
     return DiarySnapshot.fromJson(json);
   }
 
-  /// Locks in today's entry. One per user per day; the server treats a
-  /// second save the same day as an idempotent no-op.
+  /// Locks in today's entry; the server treats a second save the same day
+  /// as an idempotent no-op.
   Future<DiarySaveResult> saveToday({
     required int mood,
     required String win,

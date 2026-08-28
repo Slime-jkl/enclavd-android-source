@@ -2,19 +2,17 @@
 ///
 /// The backend stores post text through `htmlspecialchars($s, ENT_QUOTES)`
 /// (see api/v1/posts.php), so apostrophes arrive in JSON as `&#039;`,
-/// ampersands as `&amp;`, etc. The site renders that content as HTML and the
-/// BROWSER decodes the entities; a native Text widget does not, so the app
-/// must decode exactly once (single pass, like the browser's HTML parser —
-/// never twice: `&amp;lt;` must become `&lt;`, not `<`).
+/// ampersands as `&amp;`, etc. The site renders that content as HTML and
+/// the BROWSER decodes the entities; a native Text widget does not, so the
+/// app must decode exactly once, single pass like the browser's HTML
+/// parser - never twice: `&amp;lt;` must become `&lt;`, not `<`.
 library;
 
-/// Decode the HTML entities the backend can produce, in one pass.
-///
-/// Handles the named set emitted by `htmlspecialchars(ENT_QUOTES)` plus the
-/// common punctuation/nbsp forms, and arbitrary numeric entities (decimal and
-/// hex). Unknown named entities are left untouched. Invalid code points
-/// (surrogates, out-of-range) are left as their original text rather than
-/// producing broken strings.
+/// Decodes the entities the backend can produce, in one pass: the named
+/// set emitted by htmlspecialchars(ENT_QUOTES) plus the common
+/// punctuation/nbsp forms and arbitrary numeric entities (decimal and
+/// hex). Unknown named entities are left untouched; invalid code points
+/// (surrogates, out-of-range) stay as their original text.
 String decodeHtmlEntities(String input) {
   if (!input.contains('&')) return input;
 
@@ -30,7 +28,7 @@ String decodeHtmlEntities(String input) {
 
     final semi = input.indexOf(';', amp + 1);
     if (semi == -1) {
-      // No closing ';' — not an entity, keep the raw '&'.
+      // No closing ';': not an entity, keep the raw '&'.
       buffer.write(input.substring(amp));
       break;
     }
@@ -38,7 +36,7 @@ String decodeHtmlEntities(String input) {
     final entity = input.substring(amp + 1, semi);
     final decoded = _decodeOne(entity);
     if (decoded == null) {
-      buffer.write('&'); // unknown/unparseable — keep the leading '&'
+      buffer.write('&'); // unknown/unparseable: keep the leading '&'
       index = amp + 1;
       continue;
     }
@@ -48,8 +46,8 @@ String decodeHtmlEntities(String input) {
   return buffer.toString();
 }
 
-/// Decode one entity body (without the `&`/`;`). Returns null when it is not
-/// a recognized entity (caller then keeps the raw text).
+/// Decode one entity body (without the `&`/`;`); null when unrecognized
+/// (the caller then keeps the raw text).
 String? _decodeOne(String entity) {
   if (entity.startsWith('#x') || entity.startsWith('#X')) {
     final code = int.tryParse(entity.substring(2), radix: 16);
@@ -62,15 +60,16 @@ String? _decodeOne(String entity) {
   return _named[entity];
 }
 
-/// Code point → string, guarding surrogates and out-of-range values.
+/// Code point -> string, guarding surrogates and out-of-range values.
 String? _fromCodePoint(int code) {
   if (code <= 0 || code > 0x10FFFF) return null;
   if (code >= 0xD800 && code <= 0xDFFF) return null;
   return String.fromCharCode(code);
 }
 
-/// The named entities the backend (htmlspecialchars ENT_QUOTES) emits, plus
-/// the handful of HTML punctuation forms that legitimately end up stored.
+/// The named entities the backend (htmlspecialchars ENT_QUOTES) emits,
+/// plus the handful of HTML punctuation forms that legitimately end up
+/// stored.
 const Map<String, String> _named = {
   'amp': '&',
   'lt': '<',

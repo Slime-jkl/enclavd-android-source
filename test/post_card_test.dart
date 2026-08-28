@@ -116,35 +116,35 @@ void main() {
       );
     });
 
-    test('minutes → Xm', () {
+    test('minutes -> Xm', () {
       expect(
         relativeTime(_iso(DateTime.now().subtract(const Duration(minutes: 5)))),
         '5m',
       );
     });
 
-    test('hours → Xh', () {
+    test('hours -> Xh', () {
       expect(
         relativeTime(_iso(DateTime.now().subtract(const Duration(hours: 3)))),
         '3h',
       );
     });
 
-    test('days → Xd', () {
+    test('days -> Xd', () {
       expect(
         relativeTime(_iso(DateTime.now().subtract(const Duration(days: 2)))),
         '2d',
       );
     });
 
-    test('months → Xm (30-day month approximation like PHP diff)', () {
+    test('months -> Xm (30-day month approximation like PHP diff)', () {
       expect(
         relativeTime(_iso(DateTime.now().subtract(const Duration(days: 60)))),
         '2m',
       );
     });
 
-    test('years → Xy', () {
+    test('years -> Xy', () {
       expect(
         relativeTime(_iso(DateTime.now().subtract(const Duration(days: 400)))),
         '1y',
@@ -190,7 +190,7 @@ void main() {
           'dQw4w9WgXcQ');
     });
 
-    test('no youtube link → null', () {
+    test('no youtube link -> null', () {
       expect(extractYouTubeId('just a normal post'), isNull);
       expect(extractYouTubeId('https://example.com/watch?v=dQw4w9WgXcQ'),
           isNull);
@@ -225,7 +225,7 @@ void main() {
           PersonalityColors.forType('ESTP'), const Color(0xFF2563EB)); // blue
     });
 
-    test('case-insensitive + unknown → null', () {
+    test('case-insensitive + unknown -> null', () {
       expect(PersonalityColors.forType('intj'), const Color(0xFFC026D3));
       expect(PersonalityColors.forType(null), isNull);
       expect(PersonalityColors.forType('XXXX'), isNull);

@@ -1,19 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Native app needs the network for api/v1 + media (the Flutter
-         template only adds INTERNET for debug/profile builds; release
-         builds must declare it explicitly). -->
+    <!-- Release needs it explicitly: the Flutter template only adds INTERNET for debug/profile. -->
     <uses-permission android:name="android.permission.INTERNET"/>
-    <!-- Message notifications (Android 13+ runtime permission; the plugin
-         merges this too, but declaring it keeps the intent explicit). -->
+    <!-- Android 13+ runtime permission (the plugin merges it too). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
-    <!-- Gallery access: uploads (compose/avatar pick the system gallery,
-         which enumerates the whole device library) and saving post images
-         to the Enclavd folder (gal → MediaStore). Modern scoped storage:
-         READ_MEDIA_IMAGES for Android 13+, read scoped to ≤32 for older
-         releases; WRITE is only needed to SAVE on Android ≤9 (gal inserts
-         via MediaStore on 10+ with no permission). Runtime-grant flows
-         only matter for legacy devices; the system pickers need none. -->
+    <!-- Gallery access for uploads and saving post images; WRITE only needed on Android <=9. -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
@@ -21,11 +12,7 @@
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="28"/>
-    <!-- Foreground-service keep-alive (RealtimeKeepAliveService): keeps the
-         process perceptible while minimized so the live SSE/WS streams keep
-         their network. FOREGROUND_SERVICE_REMOTE_MESSAGING is required on
-         API 34+ for the remoteMessaging type (chat app — Play-approved;
-         also exempt from the Android 15 dataSync 6h cap). -->
+    <!-- Keep-alive FGS while minimized; REMOTE_MESSAGING type required on API 34+. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING"/>
     <application
@@ -58,10 +45,7 @@
                 <action android:name="es.antonborri.home_widget.action.LAUNCH"/>
             </intent-filter>
         </activity>
-        <!-- Keep-alive while minimized: no engine, no work — it only holds
-             the process in the perceptible state so Doze/standby don't cut
-             the realtime network. Started from MainActivity.onStop, stopped
-             on onStart. -->
+        <!-- Keeps the process perceptible while minimized so Doze doesn't cut realtime streams. -->
         <service
             android:name=".RealtimeKeepAliveService"
             android:exported="false"
@@ -71,15 +55,11 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
-        <!-- flutter_local_notifications: processes notification ACTION taps
-             (the Reply action with text input) and invokes the Dart
-             response callback. Required by the plugin README. -->
+        <!-- Required by the plugin: processes notification action taps. -->
         <receiver
             android:exported="false"
             android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver" />
-        <!-- Daily-quote home-screen widget. exported=true is REQUIRED: the
-             launcher (an external caller) delivers APPWIDGET_UPDATE. The
-             provider renders data pushed from Dart — it never fetches. -->
+        <!-- exported=true is REQUIRED: the launcher is an external caller that delivers APPWIDGET_UPDATE. -->
         <receiver
             android:name=".QuoteWidgetProvider"
             android:exported="true">
@@ -90,11 +70,7 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/enclavd_quote_widget_info" />
         </receiver>
-        <!-- home_widget interactive widgets: 👍/👎 taps on the daily-quote
-             widget deliver a broadcast here, which wakes a headless Dart
-             callback that posts the rating to the API (works even when the
-             app is killed). The plugin's own manifest is empty — this must
-             be declared in the app manifest. -->
+        <!-- Widget taps wake a headless Dart callback; the plugin manifest is empty, so declare it here. -->
         <receiver
             android:name="es.antonborri.home_widget.HomeWidgetBackgroundReceiver"
             android:exported="true">

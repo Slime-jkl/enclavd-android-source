@@ -9,9 +9,6 @@ import '../widgets/error_view.dart';
 import 'ticket_detail_screen.dart';
 import '../services/analytics_service.dart';
 
-/// The native Report an issue screen — a modern port of the site's
-/// reports.php USER view: the report form (issue type + description) and
-/// the viewer's own tickets grouped open/pending then closed/sealed.
 class ReportIssueScreen extends StatefulWidget {
   const ReportIssueScreen({super.key, this.reports});
 
@@ -123,9 +120,7 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
   }
 
   Future<void> _openTicket(ReportTicket ticket) {
-    // Pushed detail (the site's /reports/<id>): pass the injected
-    // service along so tests can drive it, else the real screen
-    // resolves AppServices.current itself.
+    // Pass the injected service along so tests can drive the pushed detail.
     return Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (_) => TicketDetailScreen(
         reports: widget.reports,
@@ -184,7 +179,6 @@ return ErrorView(message: _error!, onRetry: _load);
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
-          // ── Report form (reports.php's form card) ──
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -275,7 +269,6 @@ return ErrorView(message: _error!, onRetry: _load);
             ),
           ),
           const SizedBox(height: 18),
-          // ── Your reports ──
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -418,9 +411,6 @@ class _GroupHeader extends StatelessWidget {
   }
 }
 
-/// One ticket row (reports.php's list item): #id · type · date, a
-/// two-line content clamp, and the status pill. Tapping opens the
-/// ticket detail (the site's /reports/<id>).
 class _TicketRow extends StatelessWidget {
   const _TicketRow({required this.ticket, required this.onTap});
 
@@ -469,7 +459,7 @@ class _TicketRow extends StatelessWidget {
                             fontFamily: 'monospace',
                             fontSize: 11.5,
                             color: EnclavdColors.textSecondary)),
-                    const Text('  ·  ',
+                    const Text('  -  ',
                         style: TextStyle(
                             color: EnclavdColors.textSecondary, fontSize: 11)),
                     Flexible(
@@ -479,7 +469,7 @@ class _TicketRow extends StatelessWidget {
                               fontWeight: FontWeight.w600, fontSize: 13)),
                     ),
                     if (ticket.date.isNotEmpty) ...[
-                      const Text('  ·  ',
+                      const Text('  -  ',
                           style: TextStyle(
                               color: EnclavdColors.textSecondary,
                               fontSize: 11)),

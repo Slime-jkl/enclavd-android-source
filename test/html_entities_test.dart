@@ -40,13 +40,13 @@ void main() {
     });
 
     test('invalid code points are left as the original entity', () {
-      // Lone surrogate — must not produce a broken string.
+      // Lone surrogate: must not produce a broken string.
       expect(decodeHtmlEntities('&#55296;'), '&#55296;');
       // Out of range.
       expect(decodeHtmlEntities('&#1114112;'), '&#1114112;');
     });
 
-    test('single pass only — no double decoding', () {
+    test('single pass only - no double decoding', () {
       // &amp;lt; must become &lt;, never <.
       expect(decodeHtmlEntities('&amp;lt;'), '&lt;');
       // &#039; encoded twice must stay &#039; once.

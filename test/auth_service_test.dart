@@ -9,7 +9,7 @@ import 'api_client_test.dart' show Harness, MemorySessionStore;
 
 void main() {
   group('AuthService.login', () {
-    test('success: 302 to /feed → LoginOutcome.success, session captured',
+    test('success: 302 to /feed -> LoginOutcome.success, session captured',
         () async {
       var loginPageHits = 0;
       final h = await Harness.start((req) async {
@@ -51,7 +51,7 @@ void main() {
     });
 
     test('failure: 302 back to /login (RELATIVE Location, as the server '
-        'sends) → flash message parsed from the page', () async {
+        'sends) -> flash message parsed from the page', () async {
       var loginHits = 0;
       final h = await Harness.start((req) async {
         if (req.uri.path == '/auth' && req.method == 'POST') {
@@ -87,7 +87,7 @@ void main() {
       await h.close();
     });
 
-    test('missing login_token field → friendly failure, no crash', () async {
+    test('missing login_token field -> friendly failure, no crash', () async {
       final h = await Harness.start((req) async {
         Harness.respond(req, body: '<html>no form here</html>');
       });
@@ -133,7 +133,7 @@ void main() {
       expect(result.outcome, LoginOutcome.success);
       expect(body, contains('captcha_answer=4'));
 
-      // Not demanded → no field at all.
+      // Not demanded -> no field at all.
       body = null;
       await service.login(email: 'dev@dev.dev', password: 'pw');
       expect(body, isNot(contains('captcha_answer')));
@@ -143,7 +143,7 @@ void main() {
   });
 
   group('AuthService.register', () {
-    test('success via api/v1/register → submitted + verification flag', () async {
+    test('success via api/v1/register -> submitted + verification flag', () async {
       Map<String, dynamic>? jsonBody;
       final h = await Harness.start((req) async {
         if (req.uri.path == '/feed') {
@@ -194,7 +194,7 @@ void main() {
       await h.close();
     });
 
-    test('422 with fields → per-field errors surface', () async {
+    test('422 with fields -> per-field errors surface', () async {
       final h = await Harness.start((req) async {
         if (req.uri.path == '/feed') {
           Harness.respond(req,
@@ -229,8 +229,8 @@ void main() {
     });
 
     test(
-        'deploy skew: api/v1/register 404 → legacy /process_register 302 '
-        'to RELATIVE "login" → success', () async {
+        'deploy skew: api/v1/register 404 -> legacy /process_register 302 '
+        'to RELATIVE "login" -> success', () async {
       var legacyHits = 0;
       final h = await Harness.start((req) async {
         if (req.uri.path == '/feed') {
@@ -264,7 +264,7 @@ void main() {
     });
 
     test(
-        'legacy failure: 302 back to RELATIVE "register" → validation '
+        'legacy failure: 302 back to RELATIVE "register" -> validation '
         'errors parsed from the flash page', () async {
       final h = await Harness.start((req) async {
         if (req.uri.path == '/feed') {
@@ -459,32 +459,32 @@ void main() {
       return gate;
     }
 
-    test('banned user → ban, no config fetch needed', () async {
+    test('banned user -> ban, no config fetch needed', () async {
       final gate = await resolveGate(banned, SiteConfigService(
           ApiClient(store: MemorySessionStore(), apiBaseUrl: 'http://x')));
       expect(gate, Gate.ban);
     });
 
-    test('maintenance on + rank not in the allowed list → maintenance',
+    test('maintenance on + rank not in the allowed list -> maintenance',
         () async {
       final gate = await run(normal,
           '{"success":true,"config":{"maintenance":{"enabled":true,"allowed_ranks":["SysOp","Admin"],"reason":"R","estTime":"T"}}}');
       expect(gate, Gate.maintenance);
     });
 
-    test('maintenance on + allowed rank → feed', () async {
+    test('maintenance on + allowed rank -> feed', () async {
       final gate = await run(admin,
           '{"success":true,"config":{"maintenance":{"enabled":true,"allowed_ranks":["SysOp","Admin"],"reason":"R","estTime":"T"}}}');
       expect(gate, Gate.feed);
     });
 
-    test('maintenance off → feed', () async {
+    test('maintenance off -> feed', () async {
       final gate = await run(normal,
           '{"success":true,"config":{"maintenance":{"enabled":false,"allowed_ranks":[],"reason":"","estTime":""}}}');
       expect(gate, Gate.feed);
     });
 
-    test('config fetch failure → feed (server still enforces)', () async {
+    test('config fetch failure -> feed (server still enforces)', () async {
       final h = await Harness.start((req) async {
         Harness.respond(req, status: 500, body: '{"error":"boom"}');
       });
@@ -495,7 +495,7 @@ void main() {
   });
 
   group('resolveMediaUrl', () {
-    test('avatars are root-relative → prefixed with base', () {
+    test('avatars are root-relative -> prefixed with base', () {
       expect(
         resolveMediaUrl('https://enclavd.com',
             avatarPath: '/public/avatars/a.jpg'),
@@ -503,14 +503,14 @@ void main() {
       );
     });
 
-    test('gallery images are bare filenames → /public/gallery/', () {
+    test('gallery images are bare filenames -> /public/gallery/', () {
       expect(
         resolveMediaUrl('https://enclavd.com', galleryName: 'abc.jpg'),
         'https://enclavd.com/public/gallery/abc.jpg',
       );
     });
 
-    test('no image → default avatar', () {
+    test('no image -> default avatar', () {
       expect(
         resolveMediaUrl('https://enclavd.com'),
         'https://enclavd.com/assets/default-avatar.png',

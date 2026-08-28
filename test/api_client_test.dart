@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:enclavd/api/api_client.dart';
 
-/// In-memory store for tests (the real one is SharedPreferences-backed).
 class MemorySessionStore implements SessionStore {
   MemorySessionStore([List<SessionCookie>? seed]) : _cookies = seed ?? [];
 
@@ -23,8 +22,7 @@ class MemorySessionStore implements SessionStore {
   List<SessionCookie> get contents => _cookies;
 }
 
-/// Local HTTP server + ApiClient harness. Exercises the REAL socket path:
-/// cookie capture, cookie re-send, redirects, form encoding, JSON parsing.
+/// Local HTTP server + ApiClient harness exercising the REAL socket path.
 class Harness {
   Harness._(this.server, this.client);
 
@@ -32,8 +30,7 @@ class Harness {
   final ApiClient client;
   final List<HttpRequest> requests = [];
 
-  /// Starts a server with a handler closure. The closure receives the
-  /// request and must respond (write + close).
+  /// Starts a server with a handler closure; the handler must write + close.
   static Future<Harness> start(
     Future<void> Function(HttpRequest req) handler, {
     List<SessionCookie> seedCookies = const [],
@@ -172,7 +169,7 @@ void main() {
     await h.close();
   });
 
-  test('getPage follows same-host redirects (GET /feed → /feed/)', () async {
+  test('getPage follows same-host redirects (GET /feed -> /feed/)', () async {
     final h = await Harness.start((req) async {
       if (req.uri.path == '/feed' && !req.uri.path.endsWith('/')) {
         Harness.respond(req, status: 301, headers: {'location': '/feed/'});
@@ -263,7 +260,7 @@ void main() {
       'username': 'a b',
       'email': 'x@y.z',
     });
-    // Form-urlencoded: space → '+' (PHP urldecode handles it), @ → %40.
+    // Form-urlencoded: space -> '+' (PHP urldecode handles it), @ -> %40.
     expect(body, 'username=a+b&email=x%40y.z');
 
     await h.close();
@@ -271,10 +268,8 @@ void main() {
 
   test('JSON and form POSTs send an explicit Content-Length (not chunked)',
       () async {
-    // Regression: dart:io writes chunked (no Content-Length) unless one is
-    // set, and Apache/PHP-FPM does not deliver LARGE chunked bodies to PHP
-    // intact — the endpoint then sees an empty body and answers
-    // "Unknown action" (reproduced Aug 2026 with a 16MB avatar upload).
+    // Regression: dart:io writes chunked unless Content-Length is set, and
+    // Apache/PHP-FPM drops large chunked bodies (16MB avatar upload, Aug 2026).
     int? jsonLen;
     int? formLen;
     final h = await Harness.start((req) async {

@@ -9,17 +9,6 @@ import '../utils/user_facing_errors.dart';
 import '../widgets/error_view.dart';
 import '../widgets/shimmer.dart';
 
-/// The native Diary — a modern port of diary.php.
-///
-/// One private entry per user per day: a mood (1-5), a required small
-/// win and three optional reflections. Once locked, today stays locked —
-/// no edits, no take-backs. Each fresh entry awards prestige points;
-/// every day skipped since the previous entry costs points.
-///
-/// Layout (site parity, native styling): tagline → today's entry (the
-/// wizard when today is still open, the locked hero + summary when it
-/// isn't) → stat cards (streak / best / entries) → the 30-day mood
-/// strip → the recent-entries list.
 class DiaryScreen extends StatefulWidget {
   const DiaryScreen({super.key, this.diary});
 
@@ -49,9 +38,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
   bool _busy = false;
   String? _wizardError;
 
-  // The prestige line from the save that just happened — shown once on
-  // the locked hero, like the site's sessionStorage flash (a fresh load
-  // of an already-locked day never repeats it).
+  // The prestige line from the save, shown once on the locked hero.
   DiaryPrestige? _lastPrestige;
 
   @override
@@ -95,9 +82,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
     }
   }
 
-  // ── Wizard step map (mirrors diary.php's $step_no arithmetic) ─────────
-  // First-ever users get a "Before you start" warning step up front, so
-  // the mood step is #2 for them and #1 for everyone else.
+  // Wizard step map; first-ever users get a warning step up front.
   bool get _hasWarningStep => (_snapshot?.stats.totalEntries ?? 0) == 0;
 
   int get _totalSteps => _hasWarningStep ? 6 : 5;
@@ -153,8 +138,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
       );
       if (!mounted) return;
       setState(() {
-        // The save response carries today's entry + fresh stats; keep
-        // the recent list and prepend the new entry (dedup by date).
+        // Prepend the new entry to the recent list (dedup by date).
         _snapshot = DiarySnapshot(
           date: result.date,
           entry: result.entry,
@@ -215,13 +199,9 @@ class _DiaryScreenState extends State<DiaryScreen> {
           ),
         ),
         const SizedBox(height: 20),
-        // Stats + 30-day strip first (the modern layout, like the site),
-        // then today's entry — the wizard or the locked card — and the
-        // recent-entries list at the bottom. The locked gate is "today
-        // has an entry", NOT the response's `locked` flag: a fresh save
-        // returns locked:false (locked means "a second save is a no-op")
-        // yet must land on the locked card — same rule as the web page's
-        // `$today_entry` check.
+        // Locked gate = "today has an entry", not the response's `locked`
+        // flag: a fresh save returns locked:false yet must land on the
+        // locked card (same rule as the web page's `$today_entry` check).
         _statsRow(snapshot.stats),
         const SizedBox(height: 12),
         _moodStrip(snapshot.stats),
@@ -232,8 +212,6 @@ class _DiaryScreenState extends State<DiaryScreen> {
       ],
     );
   }
-
-  // ── Today's entry: wizard ────────────────────────────────────────────
 
   Widget _wizardCard() {
     return Card(
@@ -285,9 +263,6 @@ class _DiaryScreenState extends State<DiaryScreen> {
     );
   }
 
-  /// Progress bar: site parity (diary.php's .diary-progress-fill is a
-  /// purple→blue gradient, fully rounded). Implemented with a fractionally
-  /// sized gradient so the fill stays rounded at any width.
   Widget _diaryProgress(double value) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(999),
@@ -362,7 +337,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
 
   Widget _warningStep() {
     return _stepQuestion(
-      '⚠️',
+      '\u{26A0}\u{FE0F}',
       'Before you start',
       const Text(
         'Starting a Journal is a commitment with real stakes. Every entry '
@@ -379,7 +354,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
 
   Widget _moodStep() {
     return _stepQuestion(
-      '📓',
+      '\u{1F4D3}',
       null,
       Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -407,7 +382,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
         ],
       ),
       hint: _mood == null
-          ? 'Tap a mood…'
+          ? 'Tap a mood...'
           : kDiaryMoods.firstWhere((m) => m.value == _mood).hint,
     );
   }
@@ -461,14 +436,14 @@ class _DiaryScreenState extends State<DiaryScreen> {
 
   Widget _winStep() {
     return _stepQuestion(
-      '🏆',
+      '\u{1F3C6}',
       'What was a small win you achieved today?',
       TextField(
         controller: _win,
         maxLines: 3,
         maxLength: 500,
         decoration: const InputDecoration(
-          hintText: 'Finished the thing you kept stalling on…',
+          hintText: 'Finished the thing you kept stalling on...',
           counterStyle:
               TextStyle(color: EnclavdColors.textSecondary, fontSize: 11),
         ),
@@ -481,14 +456,14 @@ class _DiaryScreenState extends State<DiaryScreen> {
 
   Widget _avoidedStep() {
     return _stepQuestion(
-      '🚧',
+      '\u{1F6A7}',
       'What are you avoiding?',
       TextField(
         controller: _avoided,
         maxLines: 3,
         maxLength: 1000,
         decoration: const InputDecoration(
-          hintText: 'The thing that keeps slipping to tomorrow…',
+          hintText: 'The thing that keeps slipping to tomorrow...',
           counterStyle:
               TextStyle(color: EnclavdColors.textSecondary, fontSize: 11),
         ),
@@ -501,14 +476,14 @@ class _DiaryScreenState extends State<DiaryScreen> {
 
   Widget _tomorrowStep() {
     return _stepQuestion(
-      '🎯',
+      '\u{1F3AF}',
       'What will you do better tomorrow?',
       TextField(
         controller: _tomorrow,
         maxLines: 3,
         maxLength: 1000,
         decoration: const InputDecoration(
-          hintText: 'A concrete action, not a vibe…',
+          hintText: 'A concrete action, not a vibe...',
           counterStyle:
               TextStyle(color: EnclavdColors.textSecondary, fontSize: 11),
         ),
@@ -520,14 +495,14 @@ class _DiaryScreenState extends State<DiaryScreen> {
 
   Widget _thoughtStep() {
     return _stepQuestion(
-      '💭',
+      '\u{1F4AD}',
       'What\'s one interesting thought you explored today?',
       TextField(
         controller: _thought,
         maxLines: 3,
         maxLength: 1000,
         decoration: const InputDecoration(
-          hintText: 'The idea that kept circling back…',
+          hintText: 'The idea that kept circling back...',
           counterStyle:
               TextStyle(color: EnclavdColors.textSecondary, fontSize: 11),
         ),
@@ -557,7 +532,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
                   child: CircularProgressIndicator(strokeWidth: 2),
                 )
               : const FaIcon(FontAwesomeIcons.lock, size: 14),
-          label: Text(_busy ? 'Locking in…' : label),
+          label: Text(_busy ? 'Locking in...' : label),
         ),
       );
     } else {
@@ -593,19 +568,16 @@ class _DiaryScreenState extends State<DiaryScreen> {
     );
   }
 
-  // ── Today's entry: locked ────────────────────────────────────────────
-
   Widget _lockedCard() {
     final entry = _snapshot!.entry!;
     final prestige = _lastPrestige;
-    // Just the lock, centered (site parity: today's answers already live
-    // in the expanded Recent entries row below).
+    // Just the lock, centered; the answers live in the Recent row below.
     return Card(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
         child: Column(
           children: [
-            const Text('🔒', style: TextStyle(fontSize: 56, height: 1)),
+            const Text('\u{1F512}', style: TextStyle(fontSize: 56, height: 1)),
             const SizedBox(height: 16),
             const Text(
               'Locked in.',
@@ -654,16 +626,14 @@ class _DiaryScreenState extends State<DiaryScreen> {
     );
   }
 
-  // ── Stats + mood strip + recent ──────────────────────────────────────
-
   Widget _statsRow(DiaryStats stats) {
     return Row(
       children: [
-        _statCard('🔥', stats.streak, 'day streak'),
+        _statCard('\u{1F525}', stats.streak, 'day streak'),
         const SizedBox(width: 10),
-        _statCard('🏆', stats.longestStreak, 'best streak'),
+        _statCard('\u{1F3C6}', stats.longestStreak, 'best streak'),
         const SizedBox(width: 10),
-        _statCard('📓', stats.totalEntries, 'entries'),
+        _statCard('\u{1F4D3}', stats.totalEntries, 'entries'),
       ],
     );
   }
@@ -709,7 +679,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Mood · last 30 days',
+              'Mood - last 30 days',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -750,7 +720,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
                   style: const TextStyle(fontSize: 18, height: 1)),
               const SizedBox(height: 4),
               Text(
-                '×$count',
+                'x$count',
                 style: const TextStyle(
                     color: EnclavdColors.textSecondary, fontSize: 11),
               ),
@@ -780,7 +750,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
             ),
             child: const Column(
               children: [
-                Text('🌱', style: TextStyle(fontSize: 32, height: 1)),
+                Text('\u{1F331}', style: TextStyle(fontSize: 32, height: 1)),
                 SizedBox(height: 10),
                 Text(
                   'No entries yet. Today is a good day to start.',
@@ -794,9 +764,8 @@ class _DiaryScreenState extends State<DiaryScreen> {
         else
           for (final entry in snapshot.recent)
             _RecentEntryTile(
-              // One state per date: without the key, the tile at index 0
-              // reuses the previous day's State after a save, so today's
-              // row would stay collapsed instead of opening by default.
+              // Key by date: without it, the tile at index 0 reuses the
+              // previous day's State after a save.
               key: ValueKey(entry.date),
               entry: entry,
               initiallyOpen: entry.date == snapshot.date,
@@ -804,8 +773,6 @@ class _DiaryScreenState extends State<DiaryScreen> {
       ],
     );
   }
-
-  // ── Loading ──────────────────────────────────────────────────────────
 
   Widget _loadingView() {
     return ListView(
@@ -833,8 +800,6 @@ class _DiaryScreenState extends State<DiaryScreen> {
   }
 }
 
-/// One answer row inside a locked/summary card: icon + uppercase label +
-/// wrapped text (site parity with diary.php's .diary-entry-field).
 class _DiaryFieldRow extends StatelessWidget {
   const _DiaryFieldRow({
     required this.icon,
@@ -880,8 +845,6 @@ class _DiaryFieldRow extends StatelessWidget {
   }
 }
 
-/// One recent-entry row: mood emoji + date + win excerpt, expandable to
-/// the full answers (site parity with diary.php's details/summary rows).
 class _RecentEntryTile extends StatefulWidget {
   const _RecentEntryTile({
     super.key,
@@ -972,20 +935,18 @@ class _RecentEntryTileState extends State<_RecentEntryTile> {
   List<({String icon, String label, String text})> _fieldRows(
       DiaryEntry entry) {
     return [
-      (icon: '🏆', label: 'Small win', text: entry.win),
+      (icon: '\u{1F3C6}', label: 'Small win', text: entry.win),
       if (entry.avoided.isNotEmpty)
-        (icon: '🚧', label: 'Avoiding', text: entry.avoided),
+        (icon: '\u{1F6A7}', label: 'Avoiding', text: entry.avoided),
       if (entry.tomorrow.isNotEmpty)
-        (icon: '🎯', label: 'Tomorrow', text: entry.tomorrow),
+        (icon: '\u{1F3AF}', label: 'Tomorrow', text: entry.tomorrow),
       if (entry.thought.isNotEmpty)
-        (icon: '💭', label: 'Thought explored', text: entry.thought),
+        (icon: '\u{1F4AD}', label: 'Thought explored', text: entry.thought),
     ];
   }
 }
 
-/// '2026-08-27' → 'Today' / 'Yesterday' / 'Aug 27, 2026' (parsed into
-/// LOCAL midnight like the site's diary.js, so timezone shifts can't
-/// re-date them; the day diff rounds like the web's Math.round).
+/// ISO date -> 'Today' / 'Yesterday' / 'Aug 27, 2026' (local midnight).
 String formatDiaryDate(String iso) {
   final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(iso);
   if (m == null) return iso;

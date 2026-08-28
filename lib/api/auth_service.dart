@@ -26,7 +26,7 @@ class CurrentUser {
   final bool isAdmin;
   final String dateCreated;
 
-  /// is_active === false → the account is banned; the app shows the ban
+  /// is_active === false: the account is banned and the app shows the ban
   /// screen instead of the feed.
   final bool banned;
   final String blockReason;
@@ -46,7 +46,7 @@ class CurrentUser {
         prestige: (json['prestige'] as num?)?.toInt() ?? 0,
         isAdmin: json['is_admin'] as bool? ?? false,
         dateCreated: json['date_created'] as String? ?? '',
-        // The server sends a real bool; missing/old payloads default to
+        // Server sends a real bool; missing/old payloads default to
         // not-banned so the gate never false-positives on an old deploy.
         banned: json['is_active'] == false,
         blockReason: json['block_reason'] as String? ?? '',
@@ -64,10 +64,8 @@ class LoginResult {
 }
 
 /// Outcome of a registration POST: [submitted] is true when the server
-/// accepted the account, false when it bounced back with [message]
-/// holding the general error and [fieldErrors] mapping each failing
-/// input to its own message (api/v1/register's `fields` map; empty for
-/// legacy-flash errors that carry no per-field structure).
+/// accepted the account; [fieldErrors] maps each failing input to its own
+/// message (api/v1/register's `fields` map).
 class RegisterResult {
   const RegisterResult({
     required this.submitted,
@@ -85,13 +83,11 @@ class RegisterResult {
   final bool requiresEmailVerification;
 }
 
-/// Post-login gate verdict — what to show instead of the feed.
+/// Post-login gate verdict - what to show instead of the feed.
 enum Gate { feed, ban, maintenance }
 
 /// Outcome of a resend-verification-email attempt: [sent] is true when
-/// the server reports a fresh confirmation link was mailed (the
-/// info-green flash), false for every error flash (already verified,
-/// unknown account, send failure…) or a transport failure.
+/// the server reports a fresh confirmation link was mailed.
 class ResendResult {
   const ResendResult({required this.sent, required this.message});
 
@@ -100,13 +96,9 @@ class ResendResult {
 }
 
 /// Decides where a just-authenticated (or session-restored) user goes:
-///   - banned (is_active === false)      → ban screen, the app is denied;
-///   - maintenance on + rank not allowed → maintenance screen;
-///   - otherwise                         → the feed.
-///
-/// A transient config-fetch failure lets the user through — the web server
-/// still enforces both gates on its own pages, so the app never becomes
-/// stricter than the source of truth.
+/// banned -> ban screen; maintenance on + rank not allowed -> maintenance
+/// screen; otherwise the feed. A transient config-fetch failure lets the
+/// user through - the web server still enforces both gates itself.
 Future<Gate> resolveGate(CurrentUser user, SiteConfigService config) async {
   if (user.banned) return Gate.ban;
   try {
@@ -116,38 +108,27 @@ Future<Gate> resolveGate(CurrentUser user, SiteConfigService config) async {
       return Gate.maintenance;
     }
   } catch (_) {
-    // Ignore — fall through to the feed.
+    // Ignore: fall through to the feed.
   }
   return Gate.feed;
 }
 
-/// AuthService: login / register / me / logout against the SAME endpoints
-/// the website uses (api/v1 has no login/register — only logout).
-///
-/// Login flow (verified end-to-end on the dev stack, Aug 2026):
-///  1. GET /login            → parse `login_token` hidden field (the PHP
-///                             session stores it; the form echoes it).
-///  2. POST /auth (form)     → email, password, login_token, remember_me.
-///     Success: 302 → /feed  + Set-Cookie enclavd_sid (DB session) + sid.
-///     Failure: 302 → /login + session flash error rendered on the page.
-///
-/// Register flow:
-///  1. POST /process_register (form) → username, email, password,
-///     password_confirm, privacy_policy, terms (+ invitation if required).
-///     Success: 302 → /login (then email verification, require_email_verification=true).
-///     Failure: 302 → /register + session flash error rendered on the page.
+/// Login / register / me / logout against the SAME endpoints the website
+/// uses (api/v1 has no login/register - only logout). Login: GET /login
+/// for the login_token, POST /auth; success 302s to /feed, failure back
+/// to /login with a session flash.
 class AuthService {
   AuthService(this._api, {required this.apiBaseUrl});
 
   final ApiClient _api;
   final String apiBaseUrl;
 
-  /// The underlying client — used for public GET endpoints that have no
-  /// dedicated service (e.g. the geo country/city pickers).
+  /// Underlying client, for public GET endpoints with no dedicated
+  /// service (e.g. the geo country/city pickers).
   ApiClient get api => _api;
 
-  /// Fetches /login and extracts the login_token. Returns null when the
-  /// token field is missing (page shape changed — fail with a clear error).
+  /// Fetches /login and extracts the login_token; null when the field is
+  /// missing (page shape changed).
   Future<String?> fetchLoginToken() async {
     final resp = await _api.getPage('/login');
     if (resp.status != 200) {
@@ -159,15 +140,9 @@ class AuthService {
     return match?.group(1);
   }
 
-  /// Logs in with email + password. remember_me grants a 30-day session
-  /// instead of the default 7 (server contract, auth.php).
-  ///
-  /// captchaAnswer must be supplied when the rate-limiter state says the
-  /// captcha is required (auth.php verifies it before the credentials).
-  ///
-  /// Outcome detection: the server 302s to /feed on success, back to /login
-  /// on failure (session flash error rendered on that page). We keep the 302
-  /// (postForm does not follow), so `location` IS the verdict.
+  /// Logs in with email + password (remember_me = 30-day session, server
+  /// contract). captchaAnswer must be supplied when the rate-limiter says
+  /// so. The 302 Location IS the verdict: /feed = success.
   Future<LoginResult> login({
     required String email,
     required String password,
@@ -194,21 +169,16 @@ class AuthService {
       // Session cookies (enclavd_sid + sid) were captured from this 302.
       return const LoginResult(LoginOutcome.success, '');
     }
-    // Failure — the flash message renders on the redirect target page
-    // (usually /login). Fetch it with the same jar and parse the banner.
+    // Failure: the flash message renders on the redirect target (usually
+    // /login); fetch it with the same jar and parse the banner.
     final message = await _flashFromRedirect(resp);
     return LoginResult(LoginOutcome.failure, message);
   }
 
-  /// Registers a new account. Returns whether the server accepted the
-  /// submission and — on rejection — the per-field errors.
-  ///
-  /// Primary path: POST /api/v1/register (JSON + CSRF) — the structured
-  /// endpoint added for the apps: 200 {success:true,
-  /// requires_email_verification} or 422 {error, fields:{username:…}}.
-  /// Fallback: the legacy form flow (POST /process_register → 302), used
-  /// only while the api/v1 endpoint is not deployed yet (deploy skew);
-  /// its flash banner is parsed the same way login's is.
+  /// Registers a new account. Primary: POST /api/v1/register (JSON + CSRF;
+  /// 200 {success, requires_email_verification} or 422 {error, fields}).
+  /// Fallback: the legacy form flow (POST /process_register -> 302) while
+  /// the api/v1 endpoint is not deployed yet (deploy skew).
   Future<RegisterResult> register({
     required String username,
     required String email,
@@ -248,7 +218,7 @@ class AuthService {
       );
     }
 
-    // Not deployed yet → the legacy 302 flow (deploy skew protection).
+    // Not deployed yet: the legacy 302 flow (deploy skew protection).
     if (json['error'] == 'Request failed (404)') {
       return _registerLegacy(
         username: username,
@@ -279,9 +249,8 @@ class AuthService {
     );
   }
 
-  /// Legacy registration path (POST /process_register → 302). Success is
-  /// a redirect to /login, failure a redirect back to /register with a
-  /// session flash banner on that page.
+  /// Legacy registration path: POST /process_register; success is a
+  /// redirect to /login, failure back to /register with a flash banner.
   Future<RegisterResult> _registerLegacy({
     required String username,
     required String email,
@@ -322,12 +291,9 @@ class AuthService {
         submitted: false, message: await _flashFromRedirect(resp));
   }
 
-  /// GET /resend_verification?email=… — the site's resend page (the same
-  /// one auth.php's "Resend verification e-mail" link hits). It 302s to
-  /// /login with a session flash: info-green when a fresh confirmation
-  /// link was mailed, info-red for any refusal (already verified, unknown
-  /// account, send failure). getPage follows the redirect (same jar → the
-  /// flash renders on the target page), so the banner class is the verdict.
+  /// GET /resend_verification?email=... - the site's resend page. It 302s
+  /// to /login with a session flash; the banner class is the verdict
+  /// (info-green = a fresh confirmation link was mailed).
   Future<ResendResult> resendVerificationEmail(String email) async {
     final resp = await _api
         .getPage('/resend_verification', query: {'email': email.trim()});
@@ -335,8 +301,8 @@ class AuthService {
     return ResendResult(sent: cls == 'info-green', message: message);
   }
 
-  /// GET /api/v1/me → the logged-in user, or null when the session is dead
-  /// (401). This is the "am I still logged in" probe used at app start.
+  /// GET /api/v1/me; null when the session is dead (401). The "am I still
+  /// logged in" probe used at app start.
   Future<CurrentUser?> me() async {
     try {
       final json = await _api.getJson('/api/v1/me');
@@ -349,32 +315,28 @@ class AuthService {
     }
   }
 
-  /// POST /api/v1/auth {action:'logout'} — the api/v1 session endpoint.
-  /// JSON body + X-CSRF-Token header (api/v1 endpoints read JSON via
-  /// api_input() and gate on api_csrf_guard(); a form body 400s).
+  /// POST /api/v1/auth {action:'logout'}; JSON body + X-CSRF-Token header
+  /// (a form body 400s).
   Future<void> logout() async {
     try {
       await _api.postJson('/api/v1/auth', {'action': 'logout'});
     } on ApiException {
-      // Logout must never hard-fail the UI — clear locally regardless.
+      // Logout must never hard-fail the UI: clear locally regardless.
     }
-    // Clear BOTH the in-memory jar and the persisted store, or a failed
-    // server-side logout would leave the app "logged in" until restart.
+    // Clear BOTH the jar and the store, or a failed server-side logout
+    // would leave the app "logged in" until restart.
     await _api.clearSession();
   }
 
-  /// The legacy auth endpoints redirect with BOTH absolute (/feed) and
-  /// RELATIVE Location headers ("login", "register" — no leading slash,
-  /// per the PHP header('Location: login') calls). Normalize so outcome
-  /// detection and the flash-page fetch work for both shapes.
+  /// The legacy endpoints redirect with both absolute (/feed) and RELATIVE
+  /// Location headers ("login" - no leading slash); normalize both shapes.
   String? _normalizeLocation(String? location) {
     if (location == null || location.isEmpty) return null;
     return location.startsWith('/') ? location : '/$location';
   }
 
-  /// On a failed login/register the server 302s back to the form page with a
-  /// session flash message. Fetch that target (same cookie jar — the PHP
-  /// session holds the flash) and parse the banner text.
+  /// Failed login/register 302s back to the form page with a session
+  /// flash; fetch that target (same cookie jar) and parse the banner.
   Future<String> _flashFromRedirect(RawResponse resp) async {
     final location = _normalizeLocation(resp.location);
     if (location != null) {
@@ -391,15 +353,13 @@ class AuthService {
     return 'Request failed. Please try again.';
   }
 
-  /// Extracts the session-flash paragraph from a rendered page (the legacy
-  /// flows communicate via flash + redirect only). Returns the banner's
-  /// class ('info-red' error / 'info-green' success) and its text — the
-  /// class lets callers (e.g. resend-verification) tell success apart from
-  /// refusal without guessing from the wording.
+  /// Parses the session-flash banner (class + text) from a rendered page.
+  /// The class lets callers (e.g. resend-verification) tell success apart
+  /// from refusal without guessing from the wording.
   (String, String) _flashFromPage(String html) {
     if (html.isEmpty) return ('', 'Request failed. Please try again.');
 
-    // info-red is the error banner, info-green the success one (login.php /
+    // info-red = error banner, info-green = success (login.php /
     // register.php markup).
     for (final cls in ['info-red', 'info-green']) {
       final re = RegExp(
@@ -445,9 +405,9 @@ class AuthService {
   }
 }
 
-/// Resolves feed image URLs per the api/v1 contract:
-///  - profile_picture_url: root-relative ("/public/avatars/...") → prefix base.
-///  - post image: BARE filename ("abc.jpg") → /public/gallery/<name>.
+/// Resolves feed image URLs per the api/v1 contract: root-relative avatar
+/// paths get the base prefix; bare post image filenames go to
+/// /public/gallery/.
 String resolveMediaUrl(String base, {String? avatarPath, String? galleryName}) {
   if (avatarPath != null && avatarPath.isNotEmpty) {
     return avatarPath.startsWith('/') ? '$base$avatarPath' : avatarPath;

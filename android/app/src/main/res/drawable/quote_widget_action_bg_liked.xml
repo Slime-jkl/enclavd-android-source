@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Liked state chip (green 15% — mirrors the web toast's liked tint). -->
+<!-- Green 15%: mirrors the web toast's liked tint. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <solid android:color="#2622C55E" />

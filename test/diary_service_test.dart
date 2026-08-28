@@ -17,7 +17,7 @@ Map<String, dynamic> _entryJson({
     {
       'date': date,
       'mood': mood,
-      'mood_emoji': '😌',
+      'mood_emoji': '\u{1F60C}',
       'mood_label': 'Steady',
       'win': win,
       'avoided': avoided,
@@ -69,7 +69,7 @@ void main() {
       expect(s.stats.moods30d, {1: 3, 2: 0, 3: 4, 4: 2, 5: 3});
       expect(s.recent, hasLength(1));
       expect(s.recent.single.win, 'Finished the migration');
-      expect(s.recent.single.moodEmoji, '😌');
+      expect(s.recent.single.moodEmoji, '\u{1F60C}');
       expect(s.recent.single.moodLabel, 'Steady');
       expect(s.recent.single.avoided, 'Scheduling the follow-up');
       await h.close();

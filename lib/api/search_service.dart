@@ -2,20 +2,20 @@ import 'api_client.dart';
 
 /// Live search over posts, users and comments.
 ///
-/// Contract (api/v1/search.php?format=json — the structured mode added
+/// Contract (api/v1/search.php?format=json - the structured mode added
 /// for the native app; the default html mode still serves the site's
 /// React SearchBox island): {success, total, results:[...]} where every
 /// row carries type (user|post|comment), id, user_id, post_id, username,
-/// avatar (root-relative), rank (RAW config name — the app maps it via
-/// RankColors), personality_type (raw MBTI string — the app renders its
-/// own chip), content (truncated to 100 chars server-side), post_content
-/// (comments), date, stats. Users sort first, then posts, then comments.
+/// avatar (root-relative), rank (RAW config name - the app maps it via
+/// RankColors), personality_type (raw MBTI string), content (truncated
+/// to 100 chars server-side), post_content (comments), date, stats.
+/// Users sort first, then posts, then comments.
 class SearchService {
   SearchService(this._api);
 
   final ApiClient _api;
 
-  /// GET /api/v1/search?q=…&format=json — throws on transport/4xx/5xx
+  /// GET /api/v1/search?q=...&format=json - throws on transport/4xx/5xx
   /// (the caller renders an error state); returns [] for no matches.
   Future<List<SearchResult>> search(String query) async {
     final json = await _api.getJson('/api/v1/search', query: {

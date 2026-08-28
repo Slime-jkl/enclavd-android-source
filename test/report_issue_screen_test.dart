@@ -70,9 +70,8 @@ void main() {
     expect(find.text('Describe the issue'), findsOneWidget);
     expect(find.text('Submit report'), findsOneWidget);
 
-    // The reports list sits below the fold. Drag from the LEFT MARGIN —
-    // a drag starting on the textarea is claimed by the text field, so
-    // the ListView never scrolls.
+    // The reports list sits below the fold. Drag from the LEFT MARGIN: a
+    // drag on the textarea is claimed by the text field, so the list never scrolls.
     await tester.dragFrom(const Offset(8, 400), const Offset(0, -400));
     await tester.pump();
     expect(find.text('Your reports'), findsOneWidget);

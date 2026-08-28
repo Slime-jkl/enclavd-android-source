@@ -7,9 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/app_config.dart';
 
-/// A single session cookie: name, value and the domain it belongs to.
-/// We persist ONLY name/value pairs — flags (HttpOnly/Secure/SameSite) are
-/// server-side protections and meaningless to a native client.
+/// A single session cookie: name and value. Flags (HttpOnly/Secure/
+/// SameSite) are server-side protections, meaningless to a native client.
 class SessionCookie {
   const SessionCookie({required this.name, required this.value});
 
@@ -29,8 +28,7 @@ abstract class SessionStore {
   Future<void> clear();
 }
 
-/// Production store: SharedPreferences-backed, app-private (mirrors the old
-/// WebView wrapper's SharedPreferences session_cookie persistence).
+/// Production store: SharedPreferences-backed, app-private.
 class PrefsSessionStore implements SessionStore {
   static const String _prefsKey = 'enclavd_session_cookies';
 
@@ -54,8 +52,8 @@ class PrefsSessionStore implements SessionStore {
 
   @override
   Future<void> save(List<SessionCookie> cookies) async {
-    // Do not persist empty jars — that would overwrite a valid session with
-    // nothing on a transient read failure.
+    // Never persist an empty jar: a transient read failure would wipe a
+    // valid session.
     if (cookies.isEmpty) return;
     await _prefs.setString(
         _prefsKey, jsonEncode(cookies.map((c) => c.toPrefsJson()).toList()));
@@ -93,12 +91,9 @@ class ApiException implements Exception {
   String toString() => 'ApiException($status): $message';
 }
 
-/// Friendly, non-technical text for ANY caught error — the one way error
-/// messages reach a member's eyes (toasts, inline banners, error states).
-/// ApiExceptions already carry plain-language text (see ApiClient: network
-/// → "No network. Check your connection and try again.", 5xx → "Something
-/// went wrong on our side…"); anything else is a programming surprise and
-/// gets the generic ask — never raw internals.
+/// Friendly, non-technical text for ANY caught error - the only way error
+/// messages reach a member's eyes. ApiExceptions carry plain-language text
+/// already; anything else gets the generic ask, never raw internals.
 String friendlyErrorText(Object e) {
   if (e is ApiException && e.message.isNotEmpty) return e.message;
   return 'Something went wrong. Please try again.';
@@ -106,15 +101,11 @@ String friendlyErrorText(Object e) {
 
 /// All api/v1 + legacy auth flows a native client needs.
 ///
-/// Session contract (learned the hard way on the WebView wrapper):
-///  - The server agent-binds every login to the User-Agent sent at login.
-///  - ANY request with a different UA gets 401 AND destroys the session row.
-///  - Therefore EVERY request here goes out with AppConfig.userAgent.
-///
-/// Cookies: the server uses TWO cookies — `sid` (PHP session: CSRF token,
-/// login_token) and `enclavd_sid` (DB-backed session row). Both must be
-/// sent together. We capture Set-Cookie on every response and re-send the
-/// accumulated jar, persisting it so the session survives app restarts.
+/// The server agent-binds every login to the User-Agent sent at login; ANY
+/// request with a different UA gets 401 AND destroys the session row, so
+/// every request here goes out with AppConfig.userAgent. Two cookies travel
+/// together (`sid` + `enclavd_sid`); Set-Cookie is captured on every
+/// response and the jar persisted so sessions survive app restarts.
 class ApiClient {
   ApiClient({
     required this.store,
@@ -153,18 +144,16 @@ class ApiClient {
 
   bool get hasSession => _jar.any((c) => c.name == 'enclavd_sid');
 
-  /// Drops the in-memory jar AND the persisted store. Used on logout and
-  /// whenever the server says the session is dead (401). The CSRF token dies
-  /// with the PHP session too, so the memoized copy is dropped as well.
+  /// Drops the in-memory jar AND the persisted store (logout / 401). The
+  /// CSRF token dies with the PHP session too, so the memo is dropped.
   Future<void> clearSession() async {
     _jar = const [];
     _csrfToken = null;
     await store.clear();
   }
 
-  /// HTTP GET of an HTML page (e.g. /login to fetch login_token).
-  /// Same-host redirects are followed (browser semantics).
-  /// Returns the response with cookies captured.
+  /// GET of an HTML page (e.g. /login for login_token); follows same-host
+  /// redirects (browser semantics).
   Future<RawResponse> getPage(String path, {Map<String, String>? query}) async {
     var current = path;
     var hop = 0;
@@ -183,13 +172,9 @@ class ApiClient {
     throw const ApiException('Too many redirects');
   }
 
-  /// HTTP POST of an HTML form (login / register legacy flows).
-  ///
-  /// Redirects are NOT followed: the auth flows encode their outcome in the
-  /// 302 Location (→ /feed = success, back to the form = failure + flash).
-  /// Callers read `location` and, on failure, GET the target page to parse
-  /// the session flash message. Set-Cookie from the 302 is captured either
-  /// way, so the session is established before any follow-up request.
+  /// POST of an HTML form (login / register legacy flows). Redirects are
+  /// NOT followed: the auth flows encode their outcome in the 302 Location
+  /// (to /feed = success, back to the form = failure + flash).
   Future<RawResponse> postForm(
     String path,
     Map<String, String> fields, {
@@ -205,19 +190,15 @@ class ApiClient {
         followRedirects: false,
       );
 
-  /// The memoized CSRF token, fetching it on first use (parsed from the
-  /// /feed meta tag). Form POSTs to api/v1 (e.g. post create) include it as
-  /// the X-CSRF-Token header; api_csrf_guard() accepts either the header or
-  /// a csrf_token form field.
+  /// Memoized CSRF token, parsed from the /feed meta tag on first use;
+  /// form POSTs to api/v1 send it as the X-CSRF-Token header.
   Future<String?> fetchCsrfToken() async {
     _csrfToken ??= await _fetchCsrfToken();
     return _csrfToken;
   }
 
-  /// HTTP POST of multipart/form-data — the wire format the site's
-  /// post_form.php uses (`enctype="multipart/form-data"`). Same
-  /// session/CSRF handling as postForm; used by post create so image
-  /// payloads ride the exact same path as the web composer.
+  /// POST of multipart/form-data, the same wire format the site's
+  /// post_form.php uses; used by post create.
   Future<RawResponse> postFormMultipart(
     String path,
     Map<String, String> fields, {
@@ -232,7 +213,7 @@ class ApiClient {
         followRedirects: false,
       );
 
-  /// HTTP GET against the JSON api/v1 (extensionless path).
+  /// GET against the JSON api/v1 (extensionless path).
   Future<Map<String, dynamic>> getJson(
     String path, {
     Map<String, String>? query,
@@ -248,17 +229,10 @@ class ApiClient {
     throw const ApiException('Something went wrong on our side. Please try again.');
   }
 
-  /// HTTP POST of a JSON body against the api/v1 (extensionless path).
-  ///
-  /// api/v1 endpoints read their bodies with api_input() (json_decode) and
-  /// gate every state change behind api_csrf_guard(), which accepts the
-  /// X-CSRF-Token header. We therefore send:
-  ///   Content-Type: application/json
-  ///   X-CSRF-Token: <token from the PHP session's rendered meta>
-  ///
-  /// The CSRF token is memoized per app session (it lives in the PHP session
-  /// behind the `sid` cookie, stable until logout). A 403 invalidates the
-  /// cache and retries once (the server may have rotated it).
+  /// POST of a JSON body. api/v1 gates state changes behind
+  /// api_csrf_guard(), which accepts the X-CSRF-Token header; the token is
+  /// memoized per session (stable until logout), and a 403 refetches and
+  /// retries once.
   Future<Map<String, dynamic>> postJson(
     String path,
     Map<String, dynamic> body,
@@ -268,7 +242,7 @@ class ApiClient {
 
     final resp = await _postJsonOnce(path, body, _csrfToken);
     if (resp.status == 403) {
-      // Token rotated or rejected — refetch and retry exactly once.
+      // Token rotated or rejected: refetch and retry exactly once.
       _csrfToken = null;
       final retry = await _postJsonOnce(path, body, await _fetchCsrfToken());
       if (retry.status < 200 || retry.status >= 300) {
@@ -308,20 +282,17 @@ class ApiClient {
   }
 
   /// Friendly message for a non-2xx response: 4xx bodies carry real
-  /// business messages; 5xx is our side breaking — never surface raw
-  /// server/stack text for those, just the retry ask.
+  /// business messages; 5xx is our side breaking - never surface raw
+  /// server text for those.
   String _messageFor(RawResponse resp) =>
       resp.status >= 500
           ? 'Something went wrong on our side. Please try again.'
           : _errorFrom(resp);
 
-  /// POST a JSON body and return the decoded JSON regardless of HTTP
-  /// status (2xx or 4xx/5xx), so callers can read structured error
-  /// payloads — e.g. the register endpoint's {error, fields} per-field
-  /// map. Same session/CSRF/retry handling as [postJson]; only transport
-  /// failures throw. A non-JSON body (e.g. a 404 HTML page from an
-  /// endpoint the server hasn't deployed yet) comes back as
-  /// {'error': 'Request failed (NNN)'} — callers can detect deploy skew.
+  /// POST returning decoded JSON regardless of status, so callers can read
+  /// structured error payloads (e.g. register's {error, fields} map). Only
+  /// transport failures throw; non-JSON bodies (e.g. an undeployed
+  /// endpoint's 404 HTML) come back as {'error': 'Request failed (NNN)'}.
   Future<Map<String, dynamic>> postJsonRelaxed(
     String path,
     Map<String, dynamic> body,
@@ -329,7 +300,7 @@ class ApiClient {
     _csrfToken ??= await _fetchCsrfToken();
     var resp = await _postJsonOnce(path, body, _csrfToken);
     if (resp.status == 403) {
-      // Token rotated or rejected — refetch and retry exactly once.
+      // Token rotated or rejected: refetch and retry exactly once.
       _csrfToken = null;
       resp = await _postJsonOnce(path, body, await _fetchCsrfToken());
     }
@@ -344,8 +315,8 @@ class ApiClient {
   /// first fetched; a 403 from postJson clears it and refetches once.
   String? _csrfToken;
 
-  /// Fetches the CSRF token from the rendered meta tag. The PHP session
-  /// (sid cookie) holds it; header.php emits it on every page.
+  /// Parses the CSRF token from a page's meta tag (header.php emits it on
+  /// every page).
   Future<String?> _fetchCsrfToken() async {
     final resp = await getPage('/feed');
     if (resp.status != 200) return null;
@@ -356,11 +327,9 @@ class ApiClient {
     return _csrfToken;
   }
 
-  /// Core exchange: builds the request, sends cookies, captures Set-Cookie.
-  ///
-  /// `followRedirects` is true only for plain GETs (page fetches, api/v1
-  /// reads). Form POSTs pass false so the 302 Location header (the auth
-  /// flow's outcome signal) survives to the caller.
+  /// Core exchange: builds the request, sends the jar, captures Set-Cookie.
+  /// Redirects are followed only for GETs; form POSTs pass false so the
+  /// 302 Location header survives to the caller.
   Future<RawResponse> _exchange({
     required String method,
     required String path,
@@ -403,13 +372,11 @@ class ApiClient {
           request.headers.contentType = ContentType(
               'application', 'x-www-form-urlencoded',
               charset: 'utf-8');
-          // Explicit Content-Length: without it dart:io sends the body
-          // chunked, and Apache/PHP-FPM does not deliver large chunked
-          // request bodies to PHP intact — json_decode/api_input() then
-          // sees an empty body and the endpoint answers "Unknown action".
-          // (Reproduced Aug 2026: 16MB JSON via chunked → 400 Unknown
-          // action; same body with Content-Length → 200. The multipart
-          // path below already sets contentLength.)
+          // Explicit Content-Length: without it dart:io sends chunked,
+          // and PHP-FPM does not deliver large chunked bodies intact -
+          // json_decode/api_input() sees an empty body and the endpoint
+          // answers "Unknown action". (Reproduced Aug 2026: 16MB chunked
+          // -> 400; same body with Content-Length -> 200.)
           final encoded = const UrlQueryEncoder().encode(formFields);
           request.contentLength = utf8.encode(encoded).length;
           request.write(encoded);
@@ -422,8 +389,7 @@ class ApiClient {
       }
 
       final response = await request.close().timeout(AppConfig.receiveTimeout);
-      // Parse Set-Cookie headers (multiple may be present) — we only keep
-      // name=value; flags are server-side protections we don't replay.
+      // Capture Set-Cookie (multiple may be present); keep only name=value.
       final setCookies = <SessionCookie>[];
       for (final raw
           in response.headers[HttpHeaders.setCookieHeader] ?? <String>[]) {
@@ -455,9 +421,7 @@ class ApiClient {
         body: body,
       );
     } on SocketException {
-      // Friendly, non-technical: raw messages ("Failed host lookup:
-      // 'enclavd.com'", "Connection timed out") are meaningless to a
-      // member and leak internals. Everything here is offline-ish.
+      // Friendly, non-technical: raw socket messages leak internals.
       throw const ApiException('No network. Check your connection and try again.');
     } on HttpException {
       throw const ApiException('No network. Check your connection and try again.');
@@ -469,14 +433,10 @@ class ApiClient {
   }
 
   /// Same-host redirect target for a response, or null when it should not
-  /// be followed (different host, or the caller wants the 3xx verbatim).
-  ///
-  /// The legacy endpoints redirect with RELATIVE Location headers
-  /// (header('Location: login') — no leading slash); without
-  /// normalization `$base$location` would parse as a different host
-  /// ('https://enclavd.comlogin') and the redirect would never be
-  /// followed. Same fix as AuthService._normalizeLocation, applied to
-  /// getPage's redirect chasing (resend_verification → login relies on it).
+  /// be followed. Legacy endpoints redirect with RELATIVE Locations
+  /// (header('Location: login') - no leading slash); without normalization
+  /// `$base$location` would parse as a different host and never be
+  /// followed.
   String? _redirectTarget(RawResponse resp) {
     final location = resp.location;
     if (location == null) return null;
@@ -532,8 +492,7 @@ class ApiClient {
     );
   }
 
-  /// Encodes form fields as a multipart/form-data body (RFC 2046) with the
-  /// given boundary. Text-only parts — the image itself travels as base64
+  /// RFC 2046 multipart body, text-only parts: the image travels as base64
   /// inside `image_data`, exactly like the site's ied output.
   List<int> _buildMultipartBody(Map<String, String> fields, String boundary) {
     final buf = BytesBuilder();

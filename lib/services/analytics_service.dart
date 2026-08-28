@@ -4,32 +4,22 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 
-/// Analytics client for the app's own self-hosted Plausible instance
-/// (https://enclavd.com:2000 — proxied by the web server, the same origin
-/// the site's header script posts to).
+/// Client for the app's own self-hosted Plausible instance
+/// (https://enclavd.com:2000, the same origin the site's header script
+/// posts to).
 ///
-/// The wire format below is read straight off the site's script.js: a POST
-/// to /api/event with `Content-Type: text/plain` and a JSON body of
-/// {n: name, u: url, d: domain, r: referrer, p: props}. Sending the SAME
-/// shape from the app puts app pageviews into the SAME dashboard as the
-/// website's — screen names arrive as site-style paths (/feed, /profile,
-/// /messages...) so "Top Pages" and time-on-page behave exactly like web
-/// visits. Time on page needs no duration payload: Plausible computes it
-/// server-side from the gap between consecutive pageviews, so the app only
-/// has to fire a pageview when the user lands on a screen.
+/// Wire format read off the site's script.js: POST /api/event with
+/// `Content-Type: text/plain` and a JSON body {n, u, d, r, p} - the SAME
+/// shape the site sends, so app pageviews land in the same dashboard as
+/// web visits. Time on page needs no duration payload: Plausible computes
+/// it server-side from the gap between consecutive pageviews.
 ///
-/// Two requirements Plausible enforces on the API:
-///  1. The User-Agent must LOOK like a browser or the event is silently
-///     dropped (bot filter). The app's own UA (EnclavdNative/1.0) would be
-///     discarded, so analytics requests carry the app's PINNED Chrome/124
-///     string — the exact UA the old WebView wrapper always sent, so the
-///     same phone keeps the same visitor identity across app versions.
-///  2. The request must carry the client's IP at the socket level for
-///     country/visit counting. The app connects straight to enclavd.com,
-///     so the socket IP is the phone's own — no header spoofing needed.
-///
-/// Fire-and-forget by design: every failure is a silent no-op (offline,
-/// server down, test environments). Analytics must never break the UI.
+/// Two API requirements: the User-Agent must LOOK like a browser (bot
+/// filter) - requests carry the PINNED Chrome/124 string the old WebView
+/// wrapper always sent, keeping visitor identity stable; and the socket
+/// IP must be the client's own, which it is (the app connects straight
+/// to enclavd.com). Fire-and-forget by design: every failure is a silent
+/// no-op. Analytics must never break the UI.
 class AnalyticsService {
   AnalyticsService({
     required this.endpoint,
@@ -37,9 +27,9 @@ class AnalyticsService {
     required this.userAgent,
   });
 
-  /// The app-wide instance, set by [AppServices.create]. Null when
-  /// analytics is disabled (debug builds, the dev flavor) — callers use
-  /// `AnalyticsService.instance?.pageview('/path')`, a null-safe no-op.
+  /// App-wide instance set by AppServices.create; null when analytics is
+  /// disabled (debug builds, dev flavor), so callers use the null-safe
+  /// `AnalyticsService.instance?.pageview('/path')`.
   static AnalyticsService? instance;
 
   /// Full events API URL (default: the site's proxied Plausible).
@@ -55,14 +45,12 @@ class AnalyticsService {
   String? _lastPath;
   DateTime _lastSent = DateTime.fromMillisecondsSinceEpoch(0);
 
-  /// Skips a pageview for the SAME path re-fired within this window —
-  /// a screen can be announced from two places (route observer + the
-  /// screen's own initState) and tab re-taps must not double-count.
+  /// Skips a re-fired pageview for the same path within this window
+  /// (double announces, tab re-taps).
   static const Duration debounceWindow = Duration(seconds: 2);
 
   /// Records a pageview for a site-style path (e.g. '/feed', '/profile',
-  /// '/messages'). The path must start with '/' and becomes the "page"
-  /// the user is on.
+  /// '/messages'); must start with '/'.
   void pageview(String path) {
     final now = DateTime.now();
     if (path == _lastPath && now.difference(_lastSent) < debounceWindow) {
@@ -78,10 +66,8 @@ class AnalyticsService {
     }));
   }
 
-  /// Records a custom event (the script's `plausible('name')`): e.g.
-  /// event('Signup') or event('Post created', props: {'has_image': true}).
-  /// Custom properties require the site's Plausible to have the props
-  /// feature enabled (it does for the site's own script usage).
+  /// Records a custom event, like the script's `plausible('name')`, e.g.
+  /// event('Signup'); custom props need the props feature enabled.
   void event(String name, {Map<String, dynamic>? props}) {
     unawaited(_send({
       'n': name,
@@ -106,19 +92,17 @@ class AnalyticsService {
       final response = await request.close();
       await response.drain<void>();
     } catch (_) {
-      // Offline, server down, malformed response — never surface.
+      // Offline, server down, malformed response: never surface.
     } finally {
       client?.close(force: true);
     }
   }
 }
 
-/// Fires a pageview whenever a NAMED route is pushed (the site's script
-/// fires on pushState/popstate — this is the same behavior for the
-/// navigator). Routes without a settings.name (the app's direct
+/// Fires a pageview on named-route pushes and pops (the site's
+/// pushState/popstate equivalent). Routes without a settings.name (direct
 /// MaterialPageRoute pushes) are tracked by the screens' own initState
-/// calls; this observer covers the named routes (/login, /register, /feed,
-/// /ban, /maintenance, /verify_email) plus any future named navigation.
+/// calls.
 class AnalyticsRouteObserver extends NavigatorObserver {
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
@@ -133,7 +117,7 @@ class AnalyticsRouteObserver extends NavigatorObserver {
   @override
   void didPop(Route<dynamic> route, Route<dynamic>? previousRoute) {
     // Returning to the previous screen is a pageview for THAT screen
-    // (the site's popstate → pageview).
+    // (the site's popstate -> pageview).
     _track(previousRoute);
   }
 
@@ -146,5 +130,5 @@ class AnalyticsRouteObserver extends NavigatorObserver {
 }
 
 /// One-line screen tracking helper: `trackScreen('/profile')` in a
-/// screen's initState. Null-safe — no-op when analytics is off.
+/// screen's initState. Null-safe - no-op when analytics is off.
 void trackScreen(String path) => AnalyticsService.instance?.pageview(path);

@@ -4,9 +4,7 @@ import 'package:flutter/material.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/field_icon.dart';
 
-/// Password input with a visibility toggle (eye / eye-slash suffix).
-/// Shared by the login and register screens so the toggle behaves and
-/// looks identical everywhere.
+/// Password input with a visibility toggle, shared by login/register.
 class AuthPasswordField extends StatefulWidget {
   const AuthPasswordField({
     super.key,
@@ -26,9 +24,7 @@ class AuthPasswordField extends StatefulWidget {
   final FocusNode? focusNode;
   final String? Function(String?)? validator;
 
-  /// Server-side error for this field (api/v1 register field errors),
-  /// shown below the input until the user edits it away (the owner
-  /// clears the error from its own state in [onChanged]).
+  /// Server-side field error, cleared when the user edits.
   final String? errorText;
   final TextInputAction? textInputAction;
   final ValueChanged<String>? onFieldSubmitted;

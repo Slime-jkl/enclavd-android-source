@@ -18,20 +18,6 @@ import 'chat_screen.dart';
 import 'compose_screen.dart';
 import '../services/analytics_service.dart';
 
-/// Profile screen — the "top part" of the site's profile page (profile.php)
-/// + that member's posts via GET /api/v1/posts?user_id=N.
-///
-/// Header (ported 1:1 from profile.php's User Info card):
-///   avatar (personality border) + online dot · rank chip · username (rank
-///   color) · online status · warning count · full name · followers /
-///   following stats · follow button (Follow / Follow Back / Following) ·
-///   prestige number + gradient bar · joined date · bio.
-/// Site moderation states (also ported):
-///   blocked → red banner above the card ("This user has been blocked[: ...]")
-///   + line-through username; active warnings → yellow cards under the bio
-///   ("Warning from @admin - reason · Nd left", admin tappable → their
-///   profile). The api/v1 profile GET ships block_reason + warnings[].
-/// Then "Posts": the author's posts, newest first, keyset-paginated.
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key, required this.userId});
 
@@ -286,9 +272,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  /// Opens (or creates) the 1-on-1 conversation with this member and
-  /// pushes the thread — the site's profile "Message" button +
-  /// startConversation().
   Future<void> _openConversation() async {
     final profile = _profile;
     if (profile == null || profile.isOwn || profile.isBlocked) return;
@@ -433,8 +416,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           );
         }
         return PostCard(
-          // Key by post id (see feed_screen: prevents stale like-state
-          // reuse when the list refreshes).
+          // Key by post id: prevents stale like-state reuse on refresh.
           key: ValueKey(_posts[index - 2].id),
           post: _posts[index - 2],
           apiBaseUrl: AppConfig.apiBaseUrl,
@@ -454,7 +436,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-/// The header card — port of profile.php's User Info card.
 class _ProfileHeader extends StatelessWidget {
   const _ProfileHeader({
     required this.profile,
@@ -478,8 +459,7 @@ class _ProfileHeader extends StatelessWidget {
         ? RankColors.forRank('Blocked')
         : RankColors.forRank(profile.rank);
 
-    // Site: the blocked banner sits ABOVE the whole profile card (server
-    // truth on load). Column keeps it attached to the card it describes.
+    // Blocked banner sits above the card (server truth on load).
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -534,8 +514,7 @@ class _ProfileHeader extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Rank badge (site: getRankStyles badge above the
-                    // username — same chip as the likers sheet).
+                    // Rank badge above the username (same chip as the likers sheet).
                     RankBadge(rank: profile.rank),
                     const SizedBox(height: 4),
                     Row(
@@ -579,7 +558,7 @@ class _ProfileHeader extends StatelessWidget {
                               fontSize: 13)),
                     ],
                     const SizedBox(height: 10),
-                    // Follow stats (site: "N Followers • N Following").
+                    // Follow stats (site: "N Followers - N Following").
                     Row(
                       children: [
                         Text('${profile.followerCount}',
@@ -592,7 +571,7 @@ class _ProfileHeader extends StatelessWidget {
                                 color: EnclavdColors.textSecondary,
                                 fontSize: 14)),
                         const SizedBox(width: 12),
-                        const Text('•',
+                        const Text('-',
                             style: TextStyle(
                                 color: EnclavdColors.textSecondary,
                                 fontSize: 14)),
@@ -610,8 +589,7 @@ class _ProfileHeader extends StatelessWidget {
                     ),
                     if (!profile.isOwn) ...[
                       const SizedBox(height: 12),
-                      // Site: Follow + Message in one row (message flips to
-                      // a disabled "Message" for blocked members).
+                      // Follow + Message in one row; message disables when blocked.
                       Row(
                         children: [
                           Expanded(
@@ -671,11 +649,8 @@ class _ProfileHeader extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 6),
-          // Prestige bar (site: prestige-bar.php). The site ALWAYS shows a
-          // pulsing 20%-opacity gradient across the whole track — the fill
-          // alone (prestige/1,000,000) is sub-pixel for normal values and
-          // looked invisible. Track = gray-700/50 + 20% gradient; fill on
-          // top, clamped at 100%.
+          // Track: gray-700/50 + always-visible 20% gradient; fill on top,
+          // clamped at 100%.
           Container(
             height: 10,
             decoration: BoxDecoration(
@@ -749,7 +724,7 @@ class _ProfileHeader extends StatelessWidget {
                   height: 1.3),
             ),
           ],
-            // Warnings (site: profile.php's info-yellow list under the bio).
+            // Warnings (site: info-yellow list under the bio).
             if (profile.warnings.isNotEmpty) ...[
               const SizedBox(height: 12),
               for (final w in profile.warnings) _WarningCard(warning: w),
@@ -762,9 +737,6 @@ class _ProfileHeader extends StatelessWidget {
   }
 }
 
-/// The site's blocked banner (profile.php: border-red-500/50 bg-red-900/40
-/// text-red-200 fa-ban + "This user has been blocked[: <reason>]") — shown
-/// ABOVE the profile card while `blocked` (is_active === 'false').
 class _BlockedBanner extends StatelessWidget {
   const _BlockedBanner({required this.profile});
 
@@ -803,10 +775,6 @@ class _BlockedBanner extends StatelessWidget {
   }
 }
 
-/// One ACTIVE warning — modern card port of the site's info-yellow row
-/// (fa-exclamation-triangle + "Warning from <admin> - <reason>
-/// (<Nd remaining>)"). The admin's username is tappable → their profile
-/// (site parity: the name links to /profile/<admin_id>).
 class _WarningCard extends StatelessWidget {
   const _WarningCard({required this.warning});
 
@@ -868,7 +836,7 @@ class _WarningCard extends StatelessWidget {
                   ),
                 ],
                 const SizedBox(height: 2),
-                // Site: "({N}d remaining)" — ceil(max(0, seconds)/86400).
+                // Site: "({N}d remaining)" (ceil(max(0, seconds)/86400)).
                 Text(
                   '${warning.daysLeft}d left',
                   style: const TextStyle(
@@ -883,8 +851,6 @@ class _WarningCard extends StatelessWidget {
   }
 }
 
-/// Follow / Follow Back / Following toggle — mirrors the site's follow
-/// button (fa-user-plus / fa-user-check, label flips with state).
 class _FollowButton extends StatelessWidget {
   const _FollowButton({
     required this.profile,
@@ -902,11 +868,8 @@ class _FollowButton extends StatelessWidget {
     final label = following
         ? 'Following'
         : (profile.isFollowingYou ? 'Follow Back' : 'Follow');
-    // Site .follow-button (input.css): SOLID, not outlined — blue-900 with
-    // white text when not following, gray-950 with gray-300 text when
-    // following; rounded-lg, h-8, text-sm. A hairline border is added to
-    // the following state so it stays visible on touch (the site gets that
-    // from hover).
+    // Site .follow-button: solid, not outlined; hairline border on the
+    // following state so it stays visible on touch.
     return SizedBox(
       height: 32, // h-8
       child: TextButton.icon(
@@ -942,10 +905,6 @@ class _FollowButton extends StatelessWidget {
   }
 }
 
-/// Message / Send Message — port of profile.php's two-state button next to
-/// Follow: outlined blue (border-blue-500/50, text-blue-400, transparent)
-/// with fa-envelope while active; a disabled gray fa-ban "Send Message"
-/// when the member is blocked.
 class _MessageButton extends StatelessWidget {
   const _MessageButton({
     required this.profile,
@@ -995,7 +954,6 @@ class _MessageButton extends StatelessWidget {
   }
 }
 
-/// Skeleton of the header card while the profile loads.
 class _ProfileHeaderSkeleton extends StatelessWidget {
   const _ProfileHeaderSkeleton();
 
@@ -1038,8 +996,7 @@ class _ProfileHeaderSkeleton extends StatelessWidget {
   }
 }
 
-/// The site's prestige display: number_format(prestige, 0, '.', '.') —
-/// dot thousands separators ("1.234.567"), not commas.
+/// The site's prestige display: dot thousands separators.
 String formatPrestige(int value) {
   final s = value.toString();
   final out = StringBuffer();

@@ -129,9 +129,8 @@ void main() {
   });
 
   group('formatInviteExpiry (site date(M j, Y H:i) port)', () {
-    test('DB UTC wall-clock → local, 24h time', () {
-      // Noon UTC stays on the same day in every timezone; the exact hour
-      // depends on the test runner's zone.
+    test('DB UTC wall-clock -> local, 24h time', () {
+      // Noon UTC is the same day everywhere; the exact hour depends on the runner's zone.
       final t = formatInviteExpiry('2026-09-20 12:00:00');
       expect(t, startsWith('Sep 20, 2026 '));
       expect(t, endsWith(':00'));

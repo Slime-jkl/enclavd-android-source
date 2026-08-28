@@ -1,10 +1,4 @@
 <resources>
-    <!-- flutter_local_notifications resolves this icon BY NAME at runtime
-         (getIdentifier). AGP's release resource optimizer removes unused
-         resources and shortens paths, so the name silently disappears from
-         the APK and every show() dies with a setSmallIcon NPE (seen on
-         device). A <public> entry pins the resource: it is never removed
-         and never renamed — the documented contract for runtime name
-         lookups. Do NOT delete this file. -->
+    <!-- Pinned: notifications resolve this icon by name; resource shrinking would strip it. -->
     <public name="ic_stat_enclavd" type="drawable"/>
 </resources>

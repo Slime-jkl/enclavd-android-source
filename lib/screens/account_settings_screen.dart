@@ -16,10 +16,6 @@ import '../widgets/enclavd_avatar.dart';
 import '../widgets/field_icon.dart';
 import '../services/analytics_service.dart';
 
-/// The native Account settings screen — a modern port of the site's
-/// profile-edit.php GENERAL INFO tab (the Connected Devices tab is
-/// intentionally not included): avatar, email (read-only), full name,
-/// bio, date of birth, gender, country/city and the password change.
 class AccountSettingsScreen extends StatefulWidget {
   const AccountSettingsScreen(
       {super.key, this.profile, this.api, this.avatarPicker});
@@ -27,12 +23,10 @@ class AccountSettingsScreen extends StatefulWidget {
   /// Injected for tests (real screen resolves AppServices.current).
   final ProfileService? profile;
 
-  /// Used for the public geo lookups (countries/cities); defaults to the
-  /// current container's client.
+  /// Used for the public geo lookups (countries/cities).
   final ApiClient? api;
 
-  /// Test seam: how an avatar file is picked. Defaults to the system
-  /// gallery via image_picker.
+  /// Test seam: how an avatar file is picked.
   final Future<XFile?> Function()? avatarPicker;
 
   @override
@@ -124,8 +118,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         _account = account;
         _loading = false;
       });
-      // Best-effort geo name resolution (the site resolves names
-      // client-side too). Failures just leave the ids.
+      // Best-effort geo name resolution; failures just leave the ids.
       _resolveGeoNames(account);
     } catch (e) {
       if (!mounted) return;
@@ -164,7 +157,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         }
       }
     } catch (_) {
-      // Names are cosmetic — ids still save fine.
+      // Names are cosmetic; ids still save fine.
     }
   }
 
@@ -190,12 +183,10 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         }
       });
     } catch (_) {
-      // Cosmetic — the ids still save fine.
+      // Cosmetic; the ids still save fine.
     }
   }
 
-  /// Picks + compresses an avatar (the site accepts ≤800px; the picker
-  /// compresses to the same ballpark the site's GD resize produces).
   Future<void> _pickAvatar() async {
     try {
       final file = await (widget.avatarPicker ??
@@ -214,8 +205,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
             'data:image/jpeg;base64,${base64Encode(bytes)}';
       });
     } catch (_) {
-      // A picker failure (permission denied, unreadable file) must not be
-      // silent — the user tapped Change and nothing visibly happened.
+      // A picker failure must not be silent: the user tapped Change.
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text(
@@ -305,10 +295,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       _saving = true;
       _error = null;
     });
-    // Fields first (the site's single submit), then the avatar if one was
-    // picked. Each step is reported separately so the user knows exactly
-    // what failed — a picture failure must not read as "your whole profile
-    // didn't save" (the fields above it did save).
+    // Fields first, then the avatar; each step reports its own failure.
     try {
       await _profile.updateProfile(
         fullName: _fullNameController.text.trim(),
@@ -358,8 +345,6 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     await _load(); // refresh the prefilled values
   }
 
-  /// The error banner sits at the top of the list but Save lives at the
-  /// bottom — scroll the banner into view so a failure is never invisible.
   void _revealError() {
     if (!_scroll.hasClients) return;
     _scroll.animateTo(0,
@@ -502,7 +487,6 @@ return ErrorView(message: _error!, onRetry: _load);
           _ErrorBanner(text: _error!),
           const SizedBox(height: 12),
         ],
-        // ── Profile picture (the site's avatar row) ──
         Row(
           children: [
             if (_pendingAvatar != null)
@@ -557,7 +541,6 @@ return ErrorView(message: _error!, onRetry: _load);
           ],
         ),
         const SizedBox(height: 18),
-        // ── Email (read-only, cannot be changed here) ──
         _Field(
           label: 'Email',
           child: TextField(
@@ -568,7 +551,6 @@ return ErrorView(message: _error!, onRetry: _load);
           ),
         ),
         const SizedBox(height: 14),
-        // ── Full name ──
         _Field(
           label: 'Full Name',
           child: TextField(
@@ -578,7 +560,6 @@ return ErrorView(message: _error!, onRetry: _load);
           ),
         ),
         const SizedBox(height: 14),
-        // ── Bio ──
         _Field(
           label: 'Bio',
           child: TextField(
@@ -590,7 +571,6 @@ return ErrorView(message: _error!, onRetry: _load);
           ),
         ),
         const SizedBox(height: 6),
-        // ── Date of birth ──
         _Field(
           label: 'Date of Birth',
           child: InkWell(
@@ -624,7 +604,6 @@ return ErrorView(message: _error!, onRetry: _load);
           ),
         ),
         const SizedBox(height: 14),
-        // ── Gender ──
         _Field(
           label: 'Gender',
           child: DropdownButtonFormField<String>(
@@ -643,7 +622,6 @@ return ErrorView(message: _error!, onRetry: _load);
           ),
         ),
         const SizedBox(height: 14),
-        // ── Location: country / city (the site's search dropdowns) ──
         _Field(
           label: 'Country',
           child: InkWell(
@@ -706,7 +684,6 @@ return ErrorView(message: _error!, onRetry: _load);
           ),
         ],
         const SizedBox(height: 20),
-        // ── Save ──
         FilledButton.icon(
           onPressed: _saving ? null : _save,
           icon: _saving
@@ -723,7 +700,6 @@ return ErrorView(message: _error!, onRetry: _load);
           ),
         ),
         const SizedBox(height: 24),
-        // ── Password (the site's secondary card) ──
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -782,7 +758,6 @@ return ErrorView(message: _error!, onRetry: _load);
       );
 }
 
-/// Label above a form field (the site's `block text-sm font-medium`).
 class _Field extends StatelessWidget {
   const _Field({required this.label, required this.child});
 
@@ -875,7 +850,6 @@ class _ErrorBanner extends StatelessWidget {
   }
 }
 
-/// Searchable country picker (the site's country dropdown).
 class _GeoPickerSheet extends StatefulWidget {
   const _GeoPickerSheet({required this.title, required this.countries});
 
@@ -952,7 +926,6 @@ class _GeoPickerSheetState extends State<_GeoPickerSheet> {
   }
 }
 
-/// Searchable city picker (the site's city dropdown).
 class _CityPickerSheet extends StatefulWidget {
   const _CityPickerSheet({required this.cities});
 

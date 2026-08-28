@@ -11,13 +11,7 @@ import 'personality_chip.dart';
 import 'rank_badge.dart';
 import 'shimmer.dart';
 
-/// "Liked by" list — port of the site's showLikers modal (likes.js):
-/// black overlay, "Liked by" header with × close, rows styled like the
-/// app's feed cards: 40px avatar (personality border), rank-colored
-/// username (w600), personality pill, the site's rank badge chip (icon +
-/// rank name, rank bg + border) and the server-formatted
-/// "August 12, 2026 at 10:32 AM" timestamp.
-/// Tapping a row opens that member's profile.
+/// "Liked by" list: the site's showLikers modal as a bottom sheet.
 class LikersSheet extends StatefulWidget {
   const LikersSheet({
     super.key,
@@ -159,9 +153,8 @@ class _LikerRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
-            // 40px avatar — personality border, the app's feed/comments
-            // convention ("like on feed"; the site modal uses the rank
-            // border instead, which would break app consistency).
+            // Personality border: the app's feed convention (the site
+            // modal uses the rank border).
             EnclavdAvatar(
               size: 40,
               url: resolveMediaUrl(apiBaseUrl,
@@ -190,8 +183,7 @@ class _LikerRow extends StatelessWidget {
                         PersonalityChip(type: liker.personalityType!),
                       ],
                       const SizedBox(width: 6),
-                      // Rank badge — the site's getRankStyles() badge chip
-                      // (icon + rank name, rank bg + border, dark text).
+                      // Rank badge: the site's getRankStyles() chip.
                       RankBadge(rank: liker.rank),
                     ],
                   ),

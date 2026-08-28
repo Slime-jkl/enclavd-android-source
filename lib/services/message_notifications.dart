@@ -11,22 +11,10 @@ import 'message_notification_source.dart';
 import 'notification_avatar.dart';
 import 'notification_source.dart';
 
-/// Message notifications — every realtime badge ping (SSE `message_unread`)
-/// surfaces as a device notification with a reply action, UNLESS the user is
-/// actively reading messages (messages screen open AND app foregrounded;
-/// minimized/backgrounded still notifies — that is the point of the ping).
-///
-/// The notification carries the NEWEST unread message (the ping payload only
-/// has a count, so we fetch `?unread=1` — the same read-only worker shape),
-/// keyed by conversation so a conversation's older notification is replaced,
-/// and deduped by message id so one ping per new message.
-///
-/// The Reply action posts via api/v1 {action:'reply'} — the session lives in
-/// SharedPreferences, so even a reply from the drawer while the app is
-/// backgrounded (or the notification's own background isolate) can send it.
-///
-/// A master toggle ('message_notifications_enabled', default ON) gates the
-/// whole feature; the Settings screen controls it.
+/// Message notifications: every realtime badge ping surfaces as a device
+/// notification with a reply action, unless the user is actively reading
+/// messages (screen open AND app foregrounded). Gated by a master toggle
+/// ('message_notifications_enabled', default ON).
 class MessageNotifications with WidgetsBindingObserver {
   MessageNotifications({
     required LocalNotifier notifier,
@@ -36,9 +24,7 @@ class MessageNotifications with WidgetsBindingObserver {
         _messagesFactory = messagesFactory,
         _prefsFactory = prefsFactory ?? SharedPreferences.getInstance;
 
-  /// The app-wide singleton. Set by AppServices.create (first call wins —
-  /// later creates reuse it, so the plugin is initialized exactly once and
-  /// the messages-open count stays consistent across screen instances).
+  /// App-wide singleton, set by AppServices.create.
   static MessageNotifications? instance;
 
   static const String enabledPrefsKey = 'message_notifications_enabled';
@@ -57,7 +43,6 @@ class MessageNotifications with WidgetsBindingObserver {
   bool get appActive => _appActive;
 
   /// One-time boot: plugin init, master-toggle load, permission request.
-  /// Swallows every error — notifications must never break the app.
   Future<void> init() async {
     WidgetsBinding.instance.addObserver(this);
     try {
@@ -66,9 +51,8 @@ class MessageNotifications with WidgetsBindingObserver {
       _enabled = prefs.getBool(enabledPrefsKey) ?? true;
       if (_enabled) await _notifier.requestPermission();
     } catch (e) {
-      // Never break the app, but NEVER be invisible either — a failed
-      // init here (e.g. the plugin's icon validation) means no popup and
-      // silently off notifications; that has to be diagnosable on-device.
+      // Never break the app, but never be invisible: log, or a failed
+      // init (e.g. icon validation) is silently off on device.
       debugPrint('MessageNotifications: init failed: $e');
     }
   }
@@ -80,25 +64,15 @@ class MessageNotifications with WidgetsBindingObserver {
     } else if (_messagesOpenCount > 0) {
       _messagesOpenCount--;
     }
-    // Mirror to prefs so the BACKGROUND worker (a separate isolate that
-    // cannot see this in-memory count) also stays quiet while the user
-    // is reading the thread.
+    // Mirror to prefs so the background worker (a separate isolate that
+    // cannot see this in-memory count) also stays quiet.
     unawaited(_prefsFactory().then((prefs) =>
         MessageNotificationSource.setChatOpenPrefs(
             prefs, _messagesOpenCount > 0)));
   }
 
-  /// App foreground state — minimized counts as "not reading".
-  ///
-  /// Mirrors the quiet window to prefs on EVERY transition, not just on
-  /// screen pop: the in-memory count stays > 0 while the inbox/chat route
-  /// is on the stack, so a minimize from there used to leave
-  /// 'messages_screen_open' true in prefs and the BACKGROUND worker stayed
-  /// silent for messages for the whole backgrounded period ("messages
-  /// work on feed but not minimized"). Minimized = not reading = the
-  /// worker must alert; returning with the thread still open restores the
-  /// quiet window. The in-memory count is untouched — the LIVE path's
-  /// quiet window (messagesOpen && appActive) stays correct either way.
+  /// Minimized counts as not reading; mirror that to prefs so the
+  /// background worker alerts while the app is backgrounded.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _appActive = state == AppLifecycleState.resumed;
@@ -107,15 +81,9 @@ class MessageNotifications with WidgetsBindingObserver {
             prefs, _appActive && _messagesOpenCount > 0)));
   }
 
-  /// Called on every `message_unread` realtime ping (the badge event).
-  /// Skips when the user is actively reading messages; otherwise fetches
-  /// the newest unread message per conversation and notifies. Candidate
-  /// identity and dedupe are SHARED with the background worker (same
-  /// keys, same persisted tracker), so the two paths never double-notify
-  /// and a notification shown by one is never repeated by the other.
-  ///
-  /// The debugPrints are DIAGNOSTIC (0.3.4): every silent exit is named,
-  /// so a device-side "no notification" report becomes one logcat read.
+  /// On every `message_unread` ping: skip while actively reading, else
+  /// fetch the newest unread message per conversation and notify.
+  /// Candidate identity and dedupe are shared with the background worker.
   Future<void> handleUnreadPing() async {
     debugPrint('MN: ping _enabled=$_enabled messagesOpen=$messagesOpen '
         'appActive=$appActive');
@@ -153,15 +121,15 @@ class MessageNotifications with WidgetsBindingObserver {
         await tracker.add(candidate.key); // only after a successful show
       }
     } catch (e) {
-      // The badge poll / next ping covers it; never surface errors — but
-      // log, so a broken path is diagnosable instead of silently dead.
+      // The badge poll / next ping covers it; log so a dead path is
+      // diagnosable instead of silently dead.
       debugPrint('MN: unread ping failed: $e');
     }
   }
 
   /// True when the OS currently permits notifications (Android 13+
-  /// runtime permission; pre-13 always true). Assumed true when the
-  /// check itself fails — the caller only warns on a definite denial.
+  /// runtime permission; pre-13 always true); assumed true if the check
+  /// itself fails.
   Future<bool> osNotificationsEnabled() async {
     try {
       return await _notifier.areNotificationsEnabled();
@@ -170,9 +138,8 @@ class MessageNotifications with WidgetsBindingObserver {
     }
   }
 
-  /// Deep-link to the OS notification settings for this app (the
-  /// Android notification-permission screen). No-op failure is fine —
-  /// the user can reach it manually.
+  /// Deep-link to the OS notification settings for this app; a no-op
+  /// failure is fine, the user can reach it manually.
   Future<void> openOsNotificationSettings() async {
     try {
       await _notifier.openAppNotificationSettings();
@@ -181,9 +148,7 @@ class MessageNotifications with WidgetsBindingObserver {
     }
   }
 
-  /// Foreground notification-action response (the app is alive). The Reply
-  /// action sends the typed text into the conversation the notification
-  /// was about. The background isolate uses [replyFromNotification].
+  /// Foreground reply action: send the typed text into the conversation.
   Future<void> handleResponse(NotificationResponse response) async {
     if (response.actionId != replyActionId) return;
     final text = (response.input ?? '').trim();
@@ -194,12 +159,11 @@ class MessageNotifications with WidgetsBindingObserver {
       final messages = await _messagesFactory();
       await messages.send(conversationId, text);
     } catch (_) {
-      // The sender sees the failure in the thread next time they open it;
-      // never crash the app from a drawer reply.
+      // A drawer reply must never crash the app.
     }
   }
 
-  /// Master toggle (Settings screen). Persists and re-arms the permission.
+  /// Master toggle (Settings screen); persists and re-arms the permission.
   Future<void> setEnabled(bool enabled) async {
     _enabled = enabled;
     try {
@@ -215,10 +179,8 @@ class MessageNotifications with WidgetsBindingObserver {
   }
 }
 
-/// Sends the drawer-reply text into the conversation. Used by the
-/// notification's BACKGROUND isolate (the app may be terminated): it builds
-/// its own session from SharedPreferences — the exact contract the closed-app
-/// worker uses — so a quick reply never needs the main isolate alive.
+/// Background-isolate reply: builds its own session from prefs, so a
+/// quick reply works even when the app is terminated.
 @pragma('vm:entry-point')
 Future<void> replyFromNotification(NotificationResponse response) async {
   if (response.actionId != MessageNotifications.replyActionId) return;
@@ -261,8 +223,8 @@ abstract class LocalNotifier {
     String? avatarPath,
   });
 
-  /// Social alert (likes/comments/mentions) — the plain notifications
-  /// channel, no reply action (you can't reply to a like from the drawer).
+  /// Social alert (likes/comments/mentions): plain channel, no reply
+  /// action (you can't reply to a like from the drawer).
   Future<void> showSocialNotification({
     required int notificationId,
     required String title,
@@ -270,32 +232,23 @@ abstract class LocalNotifier {
   });
 }
 
-/// Channel + drawer-reply action for MESSAGES, ONE source of truth shared
-/// by the live notifier and the background worker isolate (each owns its
-/// own plugin instance) so the two paths never drift.
+/// Channel + reply action for MESSAGES, one source of truth shared by
+/// the live notifier and the background worker isolate.
 const _channelId = 'messages';
 const _channelName = 'Messages';
 const _channelDescription = 'New message notifications';
 const _icon = 'ic_stat_enclavd';
 
-/// Channel for SOCIAL notifications (likes/comments/mentions) — plain,
-/// no actions. Its own channel so users can silence alerts independently
-/// of messages in the OS notification settings.
+/// SOCIAL channel: plain, no actions; silencable independently of
+/// messages in the OS notification settings.
 const _socialChannelId = 'notifications';
 const _socialChannelName = 'Notifications';
 const _socialChannelDescription = 'Likes, comments and mentions';
 
 /// Renders one message notification through the given plugin instance.
-/// Isolate-agnostic — the worker's freshly-initialized plugin included.
-///
-/// MessagingStyle with groupConversation FALSE (1:1): the conversation
-/// title carries the sender's name, so the incoming bubble shows NO sender
-/// label — the name appears exactly once (the user's complaint when it
-/// showed twice: title + bubble label). The sender's real avatar is
-/// downloaded+cached as a local file and used as the bubble icon (a
-/// remote URL cannot be a Person icon); a failed download falls back to
-/// Android's initial-letter placeholder. The user's own drawer replies
-/// render as outgoing messages from the user person — labeled "Me".
+/// groupConversation false (1:1): the title IS the sender, so the bubble
+/// shows no sender label; the avatar is a local file or the initial-letter
+/// fallback.
 Future<void> showMessageNotificationWith(
   FlutterLocalNotificationsPlugin plugin, {
   required int notificationId,
@@ -322,11 +275,9 @@ Future<void> showMessageNotificationWith(
       payload: 'c:$conversationId',
     );
   } catch (e) {
-    // The avatar is COSMETIC — a bad icon file (or a platform quirk with
-    // notification person icons) must never kill the notification: retry
-    // WITHOUT it, Android falls back to the initial-letter placeholder.
-    // Only a failure of BOTH attempts propagates (the caller logs it).
-    debugPrint('MN: show failed ($e) — retrying without the avatar icon');
+    // The avatar is cosmetic: retry without it, Android falls back to
+    // the initial-letter placeholder. Only a double failure propagates.
+    debugPrint('MN: show failed ($e) - retrying without the avatar icon');
     await plugin.show(
       id: notificationId,
       title: senderName,
@@ -340,7 +291,7 @@ Future<void> showMessageNotificationWith(
   }
 }
 
-/// The message notification details (MessagingStyle + drawer reply action).
+/// Message notification details: MessagingStyle + drawer reply action.
 /// [avatarFile] is a LOCAL file path or null; the icon is purely cosmetic.
 AndroidNotificationDetails _messageNotificationDetails(
   String senderName,
@@ -354,13 +305,10 @@ AndroidNotificationDetails _messageNotificationDetails(
     channelDescription: _channelDescription,
     importance: Importance.high,
     priority: Priority.high,
-    // MessagingStyle turns the notification into a real conversation: the
-    // incoming message renders as a bubble from [senderName] (with their
-    // real avatar when one is available), and a drawer reply appends as an
-    // outgoing message from the user's own person — labeled "Me" (the
-    // user's explicit preference over the raw username). groupConversation
-    // false = 1:1: sender names are NOT repeated on every bubble (the
-    // title IS the sender).
+    // MessagingStyle renders the incoming message as a bubble from
+    // [senderName]; a drawer reply appends as an outgoing message from
+    // the user's person, labeled "Me". groupConversation false = 1:1:
+    // sender names are NOT repeated (the title IS the sender).
     styleInformation: MessagingStyleInformation(
       const Person(key: 'me', name: 'Me'),
       conversationTitle: senderName,
@@ -372,13 +320,9 @@ AndroidNotificationDetails _messageNotificationDetails(
           Person(
             key: 'them',
             name: senderName,
-            // BitmapFilePathAndroidIcon (NOT FilePathAndroidBitmap): the
-            // plugin's AndroidIcon implementation for a local file path.
-            // FilePathAndroidBitmap implements AndroidBitmap<String> — a
-            // DIFFERENT interface — and casting it to AndroidIcon<Object>
-            // threw a _TypeError on every show with a downloaded avatar,
-            // killing ALL message notifications (0.4.2 regression; the
-            // throw was outside the retry's try, so nothing caught it).
+            // BitmapFilePathAndroidIcon, NOT FilePathAndroidBitmap (a
+            // different interface - casting it threw a _TypeError that
+            // killed every notification with a downloaded avatar).
             icon: avatarFile == null
                 ? null
                 : BitmapFilePathAndroidIcon(avatarFile),
@@ -386,8 +330,8 @@ AndroidNotificationDetails _messageNotificationDetails(
         ),
       ],
     ),
-    // The drawer's quick reply: a free-form text input rendered inline
-    // on the notification (v22 shape: inputs, not showsUserInput).
+    // The drawer's quick reply: inline text input (v22 shape: inputs,
+    // not showsUserInput).
     actions: <AndroidNotificationAction>[
       const AndroidNotificationAction(
         MessageNotifications.replyActionId,
@@ -401,9 +345,8 @@ AndroidNotificationDetails _messageNotificationDetails(
 }
 
 /// Renders one SOCIAL notification (like/comment/mention alert) through
-/// the given plugin instance. Isolate-agnostic — the worker's
-/// freshly-initialized plugin included. No MessagingStyle and no actions:
-/// an alert is not a conversation and you can't reply to a like.
+/// the given plugin instance. No MessagingStyle and no actions: an alert
+/// is not a conversation.
 Future<void> showSocialNotificationWith(
   FlutterLocalNotificationsPlugin plugin, {
   required int notificationId,
@@ -425,9 +368,8 @@ Future<void> showSocialNotificationWith(
   );
 }
 
-/// The plugin-backed implementation. The foreground callback routes to the
-/// live [MessageNotifications] instance; the background callback is the
-/// self-contained [replyFromNotification].
+/// Plugin-backed implementation; routes callbacks to the live instance
+/// or the self-contained background reply.
 class FlutterLocalNotifier implements LocalNotifier {
   FlutterLocalNotifier({required this.onResponse});
 

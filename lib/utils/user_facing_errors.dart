@@ -7,14 +7,11 @@ import '../api/api_client.dart';
 const String kInternalError =
     'Internal error. If this issue persists, please report it.';
 
-/// Maps any error thrown by a service call to a short, user-facing message:
-///
-/// - Server 4xx → the server's own message (it is specific: "Invalid file
-///   type…", "Current password is incorrect"…).
-/// - Server 5xx or unknown status → [kInternalError] (the backend gave no
-///   actionable detail — report it instead of guessing).
-/// - Network / timeout failures → a connection message.
-/// - Anything else → [fallback], the caller's operation-specific line.
+/// Maps any error thrown by a service call to a short, user-facing
+/// message: server 4xx -> the server's own message (it is specific);
+/// 5xx or unknown status -> [kInternalError]; network/timeout -> a
+/// connection message; anything else -> [fallback], the caller's
+/// operation-specific line.
 String userFacingError(Object error, {required String fallback}) {
   if (error is ApiException) {
     final status = error.status;

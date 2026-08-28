@@ -6,21 +6,16 @@ import '../api/messages_service.dart';
 import 'message_notifications.dart';
 import 'notification_source.dart';
 
-/// Messaging source for the background poller (and the live path's
-/// shared candidate generator).
+/// Messaging source for the background poller (and the live path's shared
+/// candidate generator).
 ///
-/// Reads the newest unread messages (GET ?unread=1 — the read-only worker
+/// Reads the newest unread messages (GET ?unread=1 - the read-only worker
 /// shape; nothing is ever marked read here) and emits ONE candidate per
 /// conversation: the newest message of that conversation. The notification
 /// id is the conversation id, so a conversation's older notification is
-/// replaced instead of stacked.
-///
-/// Gated by the same things as the live path:
-///  - the master toggle ('message_notifications_enabled', Settings), and
-///  - the chat-open flag: while the user is actively reading the thread
-///    (messages screen open in the FOREGROUND app), the worker stays
-///    quiet — no notification for a message the user is literally looking
-///    at. The flag is mirrored to prefs by MessageNotifications.
+/// replaced instead of stacked. Gated by the master toggle
+/// ('message_notifications_enabled') and the chat-open flag (mirrored to
+/// prefs by MessageNotifications).
 class MessageNotificationSource implements NotificationSource {
   /// [fetcher] exists for tests; the default reads via the context's
   /// session-bearing client (GET ?unread=1).
@@ -53,17 +48,17 @@ class MessageNotificationSource implements NotificationSource {
       debugPrint('source message: fetched ${unread.length} unread');
       return candidatesFrom(unread);
     } catch (e) {
-      // A dead session or transient blip is the app's REST flow's job;
-      // the next tick retries. The worker must never crash.
+      // A dead session or transient blip is the REST flow's job; the
+      // next tick retries. The worker must never crash.
       debugPrint('source message: check failed: $e');
       return const [];
     }
   }
 
-  /// The newest unread message per conversation — a PURE function shared
-  /// by the live path (handleUnreadPing) and the background worker so
-  /// both agree on identity and dedupe keys. Input is newest-first (the
-  /// API contract); ids ≤ 0 are rejected (legacy publishers emit 0).
+  /// Newest unread message per conversation - a PURE function shared by
+  /// the live path (handleUnreadPing) and the background worker so both
+  /// agree on identity and dedupe keys. Input is newest-first (the API
+  /// contract); ids <= 0 are rejected (legacy publishers emit 0).
   static List<NotificationCandidate> candidatesFrom(
       List<UnreadMessage> unread) {
     final newestPerConversation = <int, UnreadMessage>{};

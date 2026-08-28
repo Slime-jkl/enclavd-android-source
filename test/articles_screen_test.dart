@@ -11,14 +11,12 @@ import 'package:enclavd/theme/enclavd_theme.dart';
 import 'package:enclavd/widgets/pinned_badge.dart';
 import 'package:enclavd/widgets/shimmer.dart';
 
-/// Fake service with canned list responses (no sockets under flutter test).
 class _FakeArticles extends ArticlesService {
   _FakeArticles({this.feed})
       : super(ApiClient(store: _NoopStore(), apiBaseUrl: 'https://example.com'));
 
   final ArticlesFeed? feed;
 
-  /// When set, list() waits on this — lets tests observe the loading state.
   Completer<void>? gate;
 
   @override
@@ -68,7 +66,7 @@ void main() {
   tearDown(() => SoundService.muted = false);
 
   Future<void> pumpScreen(WidgetTester tester, ArticlesScreen screen) async {
-    // ArticlesScreen is the shell's tab body (no own Scaffold) — wrap it.
+    // ArticlesScreen is the shell's tab body (no own Scaffold); wrap it.
     await tester.pumpWidget(MaterialApp(
       theme: buildEnclavdTheme(),
       home: Scaffold(body: screen),
@@ -154,7 +152,6 @@ void main() {
     await pumpScreen(tester, ArticlesScreen(articles: failing));
     expect(find.text('boom'), findsOneWidget);
 
-    // Retry succeeds: the service flips to a good feed.
     failing.feed = const ArticlesFeed(pinned: [], articles: []);
     await tester.tap(find.text('Try again'));
     await tester.pump();
@@ -185,7 +182,7 @@ void main() {
 
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getInt(ArticlesService.seenIdPrefKey), isNull,
-        reason: 'nothing was seen — the dot stays armed for next launch');
+        reason: 'nothing was seen - the dot stays armed for next launch');
   });
 }
 

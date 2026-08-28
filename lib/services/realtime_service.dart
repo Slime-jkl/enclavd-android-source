@@ -7,13 +7,8 @@ import 'package:flutter/foundation.dart';
 import '../api/api_client.dart';
 import '../config/app_config.dart';
 
-/// One parsed realtime frame (WebSocket or SSE), the app's unified event.
-///
-/// The sidecar (services/realtime) is a DUMB TRANSPORT: PHP publishes after
-/// its DB write, the Go hub fans out to WebSocket rooms (chat) and SSE
-/// streams (badges/notifications). Field names follow the sidecar's wire
-/// protocol (docs/realtime/protocol.md) — camelCase on WS frames,
-/// snake_case in SSE payloads (e.g. message_unread → unread_count).
+/// One parsed realtime frame (WebSocket or SSE); camelCase on WS frames,
+/// snake_case in SSE payloads.
 class RealtimeEvent {
   const RealtimeEvent({required this.type, this.data = const {}});
 
@@ -36,27 +31,9 @@ class RealtimeEvent {
   String toString() => 'RealtimeEvent($type, $data)';
 }
 
-/// RealtimeService — the app's WebSocket + SSE client for the Go sidecar.
-///
-/// Architecture (mirrors the site): WebSocket is the LIVE path for chat
-/// (message/typing/read frames, room join/leave), SSE is the LIVE path for
-/// the header badge (message_unread). REST stays the source of truth and
-/// the fallback: the screens keep their polls, exactly like the site's
-/// "WS primary + 30s poll fallback" design.
-///
-/// Auth: the sidecar accepts `?token=` for non-browser clients. The token
-/// (enclavd_rt, "<uid>.<expiry>.<hmac>") is issued by PHP on every logged-in
-/// page render and lands in the app's cookie jar on the /feed fetches the
-/// ApiClient already makes. [connect] reads it from the jar and refreshes
-/// it via GET /feed when missing or within 5 minutes of expiry.
-///
-/// Reliability: reconnect FOREVER while the app is alive — Android drops
-/// idle sockets in the background, so a hard attempt budget would leave the
-/// chat deaf until a screen happens to reconnect. Backoff grows 3s → 30s
-/// (like SSE); rooms are re-joined on every reconnect. [connectWs] and
-/// [onForeground] (app lifecycle resume) reset the backoff and reconnect
-/// immediately, so bringing the app back feels instant. The REST polls
-/// remain as the fallback whenever the socket is down.
+/// WebSocket (chat) + SSE (badge) client for the Go sidecar. REST stays
+/// the source of truth and the poll fallback. Reconnects forever while the
+/// app is alive (Android drops idle sockets); backoff grows 3s to 30s.
 class RealtimeService {
   RealtimeService(
     this._api, {
@@ -74,14 +51,11 @@ class RealtimeService {
   final HttpClient Function() _httpClientFactory;
   final Duration _reconnectDelay;
 
-  /// How long [onForeground]'s liveness probe waits for a pong before
-  /// declaring the socket dead and reconnecting. 4s on device; tests pass
-  /// a tiny value.
+  /// Pong wait before declaring the socket dead; tests pass a tiny value.
   final Duration _pongTimeout;
 
-  /// Backoff knee: the first 5 failures wait [reconnectDelay] each, then
-  /// the wait grows to [reconnectDelay] × 10 (3s → 30s on prod). NOT a
-  /// hard cap — the WS reconnects indefinitely while the app is alive.
+  /// Backoff knee: after this many failures the wait grows to 10x. Not a
+  /// hard cap; the WS reconnects indefinitely while the app is alive.
   static const int maxReconnectAttempts = 5;
   static const Duration pingInterval = Duration(seconds: 30);
   static const Duration tokenRefreshSkew = Duration(minutes: 5);
@@ -101,10 +75,7 @@ class RealtimeService {
   final _events = StreamController<RealtimeEvent>.broadcast();
   Stream<RealtimeEvent> get events => _events.stream;
 
-  /// SSE connectivity: true while the stream is open, false when it ended
-  /// or errored. The feed re-syncs its badges on the false→true transition
-  /// — a FRESH stream means anything missed while it was down (or a zombie
-  /// was torn down) must be reconciled from REST.
+  /// True while the SSE stream is open, false when it ended or errored.
   final _sseStatus = StreamController<bool>.broadcast();
   Stream<bool> get sseStatus => _sseStatus.stream;
 
@@ -112,40 +83,33 @@ class RealtimeService {
     if (!_sseStatus.isClosed) _sseStatus.add(connected);
   }
 
-  // ── WebSocket state ──────────────────────────────────────────────────
   WebSocket? _ws;
   bool _wsConnecting = false;
   int _wsAttempts = 0;
   Timer? _wsReconnectTimer;
   Timer? _wsPingTimer;
 
-  /// Rooms this client wants to hear. Replayed as join frames on every
-  /// (re)connect so a reconnect never leaves a screen deaf.
+  /// Rooms to re-join on every (re)connect so a reconnect never leaves a
+  /// screen deaf.
   final Set<int> _joined = {};
 
-  // ── SSE state ────────────────────────────────────────────────────────
   bool _sseConnecting = false;
   int _sseAttempts = 0;
   Timer? _sseReconnectTimer;
   HttpClient? _sseClient;
   StreamSubscription<String>? _sseSub; // the active SSE line stream
-  String _sseEventType = ''; // 'event:' → 'data:' pairing across lines
+  String _sseEventType = ''; // 'event:' -> 'data:' pairing across lines
 
   bool _disposed = false;
 
   bool get isWsConnected => _ws != null;
 
-  /// True while the SSE stream is open. The badge poll gates on this —
-  /// while the stream is live the badge is event-driven (site parity:
-  /// `EnclavdRealtime.connected`); the poll only runs as the dead-stream
-  /// fallback.
+  /// True while the SSE stream is open; the badge poll gates on this.
   bool get isSseConnected => _sseClient != null;
 
   bool get isConnecting => _wsConnecting || _sseConnecting;
 
-  /// Opens the WebSocket (idempotent). An explicit call from a screen
-  /// resets the reconnect budget — a fresh attempt after the service gave
-  /// up is always allowed.
+  /// Opens the WebSocket; an explicit call resets the reconnect budget.
   Future<void> connectWs() async {
     if (_disposed) return;
     _wsAttempts = 0;
@@ -158,9 +122,7 @@ class RealtimeService {
     try {
       final token = await _token();
       if (token == null) {
-        // Token fetch failed (cold jar, transient /feed refresh blip) —
-        // schedule a retry like any other failure; never give up silently
-        // or the screen stays deaf for the whole session.
+        // Token fetch failed; retry like any other failure.
         _wsConnecting = false;
         _scheduleWsReconnect();
         return;
@@ -174,12 +136,8 @@ class RealtimeService {
       }
       _ws = ws;
       _wsConnecting = false;
-      // The backoff is NOT reset here — a connection that drops right
-      // after the handshake must keep backing off, or an unstable link
-      // would hammer the server. The backoff resets on an explicit
-      // connectWs() (a screen opening a chat) or onForeground() (app
-      // resume — coming back to the app should reconnect immediately).
-      // Re-join every tracked room (covers the first connect too).
+      // Keep backing off after a post-handshake drop; the reset happens
+      // in connectWs()/onForeground(). Re-join every tracked room.
       for (final conversationId in _joined) {
         _sendWs({'type': 'join', 'conversationId': conversationId});
       }
@@ -210,8 +168,7 @@ class RealtimeService {
         ));
       }
     } catch (_) {
-      // Malformed frame — drop (the sidecar is a dumb transport; REST
-      // reconciliation on the next poll fixes any gap).
+      // Malformed frame - drop; the next poll reconciles any gap.
     }
   }
 
@@ -227,12 +184,9 @@ class RealtimeService {
   void _scheduleWsReconnect() {
     if (_disposed) return;
     _wsReconnectTimer?.cancel();
-    // EventSource-style: the WS reconnects FOREVER while the app is alive.
-    // Android drops idle sockets in the background and the user expects the
-    // chat to come back on its own — a hard budget would leave it deaf until
-    // a screen happens to call connectWs() again. Backoff grows past the
-    // first attempts so a dead network doesn't hammer; connectWs() and
-    // onForeground() reset the backoff.
+    // Reconnect forever while the app is alive; Android drops idle
+    // sockets. Backoff grows so a dead network doesn't hammer;
+    // connectWs()/onForeground() reset it.
     final delay = _wsAttempts < maxReconnectAttempts
         ? _reconnectDelay
         : _reconnectDelay * 10; // prod: 3s -> 30s; tests scale too
@@ -240,15 +194,8 @@ class RealtimeService {
     _wsReconnectTimer = Timer(delay, _connectWs);
   }
 
-  /// App lifecycle resume (foreground). The OS froze timers and likely
-  /// dropped the socket while backgrounded, so:
-  ///   - no socket       → connect now (backoff reset),
-  ///   - open socket     → ping it; if no pong within [_pongTimeout] it is
-  ///                       a zombie (TCP half-open — the OS doesn't tell us)
-  ///                       → close and reconnect NOW instead of waiting up
-  ///                       to 30s for the next ping write to fail,
-  ///   - SSE down        → reconnect it too.
-  /// Idempotent and safe to call from any screen's lifecycle observer.
+  /// Foreground resume: reconnect the socket (probing a zombie half-open
+  /// with a ping) and force a fresh SSE stream.
   Future<void> onForeground() async {
     if (_disposed) return;
     _wsReconnectTimer?.cancel();
@@ -257,8 +204,7 @@ class RealtimeService {
     } else {
       final alive = await _probeWs();
       if (!alive && !_disposed && _ws != null) {
-        // Zombie socket: force the normal close path, then reconnect
-        // immediately (fresh backoff).
+        // Zombie socket: normal close path, then reconnect fresh.
         _wsPingTimer?.cancel();
         try {
           _ws?.close();
@@ -270,21 +216,15 @@ class RealtimeService {
       }
     }
     if (_sseClient == null && !_sseConnecting) await connectSse();
-    // SSE is ONE-WAY — there is no client→server channel to probe a
-    // half-open stream with (unlike the WS ping/pong). A zombie reads as
-    // "connected" (isSseConnected → the badge polls gate off) and
-    // delivers nothing forever — the "stuck until restart" state. The
-    // only guaranteed fix after a background/foreground cycle is to tear
-    // the stream down and connect fresh: one cheap GET, and the feed
-    // reconciles on the sseStatus transition.
-    debugPrint('RT: onForeground — forcing fresh SSE stream');
+    // SSE is one-way: nothing to probe, so a zombie reads as connected
+    // and delivers nothing forever. Tear down and reconnect fresh.
+    debugPrint('RT: onForeground - forcing fresh SSE stream');
     _forceSseReconnect();
     await connectSse();
   }
 
-  /// Sends a ping and waits for the sidecar's pong (the sidecar replies to
-  /// client {type:'ping'} frames with {type:'pong'}). True = the socket is
-  /// genuinely alive end-to-end.
+  /// Pings the socket and waits for the sidecar's pong; true = genuinely
+  /// alive end-to-end.
   Future<bool> _probeWs() async {
     final ws = _ws;
     if (ws == null) return false;
@@ -299,9 +239,7 @@ class RealtimeService {
     return alive;
   }
 
-  /// Joins a conversation room. Recorded immediately so a reconnect
-  /// re-joins it; the frame is sent when the socket is up (a pending
-  /// connection triggers one).
+  /// Joins a conversation room; recorded so reconnects re-join it.
   void join(int conversationId) {
     if (_disposed) return;
     _joined.add(conversationId);
@@ -314,9 +252,7 @@ class RealtimeService {
     _sendWs({'type': 'leave', 'conversationId': conversationId});
   }
 
-  /// Ephemeral typing ping (broadcast to the room minus self; the server
-  /// rate-limits floods). The caller owns the once-per-burst/3s-stop logic
-  /// (site parity, messages.js).
+  /// Ephemeral typing ping; the caller owns the burst/stop logic.
   void sendTyping(int conversationId, bool isTyping) {
     _sendWs({'type': 'typing', 'conversationId': conversationId, 'isTyping': isTyping});
   }
@@ -329,9 +265,7 @@ class RealtimeService {
     } catch (_) {}
   }
 
-  /// Opens the SSE stream (header badge events). Same token + budget
-  /// rules as the WebSocket; a 401 (dead session) stops retrying — the
-  /// REST 401 flow owns that path.
+  /// Opens the SSE stream; a 401 (dead session) stops retrying.
   Future<void> connectSse() async {
     if (_disposed || _sseConnecting) return;
     _sseAttempts = 0;
@@ -344,8 +278,7 @@ class RealtimeService {
     try {
       final token = await _token();
       if (token == null) {
-        // Same as the WS path: a transient /feed refresh failure must not
-        // leave the badge stream dead — retry within the reconnect budget.
+        // Transient /feed failure must not kill the badge stream; retry.
         _sseConnecting = false;
         _scheduleSseReconnect();
         return;
@@ -360,7 +293,7 @@ class RealtimeService {
         client.close();
         debugPrint('RT: sse status ${response.statusCode}');
         if (response.statusCode == HttpStatus.unauthorized) {
-          debugPrint('RT: sse 401 — session dead, stop retrying');
+          debugPrint('RT: sse 401 - session dead, stop retrying');
           return;
         }
         _scheduleSseReconnect();
@@ -370,10 +303,8 @@ class RealtimeService {
       _emitSseStatus(true);
       debugPrint('RT: sse connected');
       _sseEventType = '';
-      // Explicit subscription (NOT `await for`): the force-reconnect path
-      // must be able to CANCEL the in-flight stream — closing only the
-      // HttpClient does not abort the response stream, so a zombie would
-      // keep reading (and re-delivering) forever.
+      // Explicit subscription, not await-for: the force-reconnect path
+      // must be able to cancel the in-flight stream.
       _sseSub = response
           .transform(utf8.decoder)
           .transform(const LineSplitter())
@@ -386,13 +317,13 @@ class RealtimeService {
       _sseConnecting = false;
       _sseClient = null;
       _emitSseStatus(false);
-      debugPrint('RT: sse socket error — reconnect');
+      debugPrint('RT: sse socket error - reconnect');
       _scheduleSseReconnect();
     } on HttpException {
       _sseConnecting = false;
       _sseClient = null;
       _emitSseStatus(false);
-      debugPrint('RT: sse http error — reconnect');
+      debugPrint('RT: sse http error - reconnect');
       _scheduleSseReconnect();
     } catch (_) {
       _sseConnecting = false;
@@ -419,12 +350,11 @@ class RealtimeService {
       }
       _sseEventType = '';
     }
-    // ':' lines are heartbeat comments — ignored.
+    // ':' lines are heartbeat comments; ignored.
   }
 
-  /// The active SSE stream ended or errored. Cleans up only when this
-  /// connection is still the CURRENT one — a stale stream superseded by a
-  /// force-reconnect must never clobber the new connection's state.
+  /// Cleans up only when this stream is still the current one, so a stale
+  /// stream can't clobber the new connection's state.
   void _sseStreamEnded(HttpClient client) {
     _sseSub?.cancel();
     _sseSub = null;
@@ -432,14 +362,12 @@ class RealtimeService {
     if (identical(_sseClient, client)) {
       _sseClient = null;
       _emitSseStatus(false);
-      debugPrint('RT: sse stream ended — reconnect');
+      debugPrint('RT: sse stream ended - reconnect');
       _scheduleSseReconnect();
     }
   }
 
-  /// Tears the current SSE stream down so a fresh one can be opened. The
-  /// force-reconnect path for resume: a half-open zombie cannot be probed
-  /// (SSE is one-way) — it must simply be replaced.
+  /// Tears the current SSE stream down so a fresh one can be opened.
   void _forceSseReconnect() {
     _sseReconnectTimer?.cancel();
     _sseConnecting = false;
@@ -456,13 +384,9 @@ class RealtimeService {
   void _scheduleSseReconnect() {
     if (_disposed) return;
     _sseReconnectTimer?.cancel();
-    // EventSource parity: SSE auto-reconnects FOREVER — no attempt budget.
-    // The site's badge stream must never die silently for the whole session
-    // (Android drops idle sockets; a 5-attempt budget would exhaust in 15s
-    // and leave the badge/notification path on the 30s poll only). Backoff
-    // grows past the first attempts so a dead network doesn't hammer; an
-    // explicit connectSse() (feed foreground resume) resets the backoff.
-    // A 401 still stops retrying — a dead session is the REST 401 flow's job.
+    // EventSource parity: SSE auto-reconnects forever; a dead network
+    // backs off instead of hammering. A 401 still stops retrying - the
+    // REST 401 flow owns that path.
     final delay = _sseAttempts < 5
         ? _reconnectDelay
         : _reconnectDelay * 10; // prod: 3s -> 30s; tests scale too
@@ -471,8 +395,8 @@ class RealtimeService {
     _sseReconnectTimer = Timer(delay, _connectSse);
   }
 
-  /// The realtime token: the enclavd_rt cookie the ApiClient captured from
-  /// a page render, refreshed via GET /feed when missing or expiring.
+  /// The enclavd_rt cookie from the jar, refreshed via GET /feed when
+  /// missing or expiring.
   Future<String?> _token() async {
     final rt = _api.sessionCookies
         .where((c) => c.name == 'enclavd_rt')
@@ -481,9 +405,8 @@ class RealtimeService {
       return rt.first.value;
     }
     try {
-      // Any logged-in page render re-issues the cookie (header.php →
-      // realtime_emit_cookie). /feed is the page the app already fetches
-      // for CSRF, so no new surface.
+      // Any logged-in page render re-issues the cookie; /feed is already
+      // fetched for CSRF, so no new surface.
       final resp = await _api.getPage('/feed');
       if (resp.status != 200) return null;
       final fresh = _api.sessionCookies
@@ -495,8 +418,8 @@ class RealtimeService {
     }
   }
 
-  /// Token format "<uid>.<unixExpiry>.<hmac>" — the expiry is embedded and
-  /// parseable, so the client refreshes before the sidecar starts rejecting.
+  /// Token is "<uid>.<unixExpiry>.<hmac>", so the client can refresh
+  /// before the sidecar starts rejecting.
   bool _tokenExpiring(String token) {
     final parts = token.split('.');
     if (parts.length != 3) return true;
@@ -529,8 +452,7 @@ class RealtimeService {
     );
   }
 
-  /// Closes both transports and stops all timers. Call on logout — the
-  /// token dies with the session, so the streams would 401 shortly anyway.
+  /// Closes both transports and stops all timers; call on logout.
   void dispose() {
     _disposed = true;
     _wsReconnectTimer?.cancel();

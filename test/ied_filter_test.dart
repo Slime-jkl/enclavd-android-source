@@ -21,11 +21,11 @@ void main() {
       expect(m[0], closeTo((0.213 + 0.787 * 1.35) * 1.2, 1e-6));
     });
 
-    test('fade chains opacity → brightness → saturate with bg blend', () {
+    test('fade chains opacity -> brightness -> saturate with bg blend', () {
       final m = IedFilter.presets.firstWhere((f) => f.id == 'fade').matrix();
-      // saturate(.7) R-row: 0.213+0.787*.7; × brightness 1.1 × opacity .85.
+      // saturate(.7) R-row: 0.213+0.787*.7; x brightness 1.1 x opacity .85.
       expect(m[0], closeTo((0.213 + 0.787 * 0.7) * 1.1 * 0.85, 1e-6));
-      // Opacity blends RGB toward the dark card bg → every RGB row carries
+      // Opacity blends RGB toward the dark card bg, so every RGB row carries
       // a non-zero translation (JPEG-safe bake).
       expect(m[4], greaterThan(0));
       expect(m[9], greaterThan(0));
@@ -34,7 +34,7 @@ void main() {
 
     test('hue-rotate converts deg to radians', () {
       final m = filterById('mav').matrix();
-      // hue-rotate(30deg) → cross-channel terms (a non-diagonal row).
+      // hue-rotate(30deg) -> cross-channel terms (a non-diagonal row).
       expect(m[1], isNot(closeTo(0.0, 1e-9)));
     });
 
@@ -50,7 +50,7 @@ void main() {
       expect(after, inInclusiveRange(0, 255));
     });
 
-    test('encode→decode roundtrip preserves the baked filter (lossy ok)', () {
+    test('encode->decode roundtrip preserves the baked filter (lossy ok)', () {
       final image = img.Image(width: 8, height: 8);
       img.fill(image, color: img.ColorRgb8(120, 90, 60));
       // Moon = pure grayscale (no sepia tint), so channels are EQUAL

@@ -55,7 +55,6 @@ void main() {
     expect(find.text('Your account has been banned'), findsOneWidget);
     expect(find.text('Violated community guidelines'), findsOneWidget);
 
-    // Exit signs out and returns to login.
     await tester.tap(find.text('Exit'));
     await tester.pumpAndSettle();
     expect(auth.logoutCalls, 1);

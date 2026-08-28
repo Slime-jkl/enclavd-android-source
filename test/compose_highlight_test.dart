@@ -12,8 +12,7 @@ void main() {
         home: const ComposeScreen(),
       ));
 
-      // Exactly ONE TextField — no transparent input + highlight layer
-      // stack anymore.
+      // Exactly ONE TextField: no transparent input + highlight layer stack anymore.
       expect(find.byType(TextField), findsOneWidget);
 
       await tester.enterText(find.byType(TextField), 'hello world');
@@ -25,7 +24,7 @@ void main() {
       expect(field.controller?.text, 'hello world');
     });
 
-    testWidgets('no focus outline — the theme blue border is suppressed',
+    testWidgets('no focus outline - the theme blue border is suppressed',
         (tester) async {
       await tester.pumpWidget(MaterialApp(
         theme: buildEnclavdTheme(),
@@ -40,8 +39,7 @@ void main() {
       expect(d.focusedBorder, InputBorder.none,
           reason: 'the theme focusedBorder (blue OutlineInputBorder) must '
               'not appear on focus');
-      // The container's own padding positions the text — no extra content
-      // padding that would offset the cursor from the text.
+      // The container's own padding positions the text, not extra content padding.
       expect(d.contentPadding, EdgeInsets.zero);
     });
 

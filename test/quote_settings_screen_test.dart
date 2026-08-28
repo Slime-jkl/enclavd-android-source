@@ -9,9 +9,6 @@ import 'package:enclavd/screens/quote_settings_screen.dart';
 import 'package:enclavd/services/daily_quote_service.dart';
 import 'package:enclavd/theme/enclavd_theme.dart';
 
-/// Records WorkManager arming/cancelling (the master toggle's effect)
-/// without touching platform channels. Name-keyed: the toggle arms/cancels
-/// BOTH the random slot and the UTC-midnight widget rollover.
 class _FakeWorkmanager extends WorkmanagerPlatform {
   final List<String> armed = [];
   final List<String> cancelled = [];
@@ -69,20 +66,18 @@ void main() {
 
     expect(
         find.widgetWithText(SwitchListTile, 'Daily quote'), findsOneWidget,
-        reason: 'the section label also reads "Daily quote" — scope to the '
+        reason: 'the section label also reads "Daily quote" - scope to the '
             'toggle');
     expect(find.widgetWithText(SwitchListTile, 'Show tags'), findsOneWidget);
     expect(find.widgetWithText(SwitchListTile, 'Follow system theme'),
         findsOneWidget);
     expect(find.widgetWithText(SwitchListTile, 'Light variant'),
         findsOneWidget);
-    // No logo toggle — the logo is always on by design.
     expect(find.text('Show logo'), findsNothing);
     expect(find.text('How daily quotes work'), findsOneWidget);
     expect(find.textContaining('always shown on the widget'), findsOneWidget);
 
-    // Defaults: daily quote ON, tags ON, follow-system ON (light variant
-    // greyed out), light OFF.
+    // Defaults: daily quote ON, tags ON, follow-system ON, light OFF.
     expect(
         tester
             .widget<SwitchListTile>(
@@ -117,9 +112,8 @@ void main() {
   testWidgets('master toggle arms and cancels the daily-quote pipeline',
       (tester) async {
     SharedPreferences.setMockInitialValues({});
-    // Construct the Workmanager singleton FIRST (in the Linux test env it
-    // binds the Linux impl), then swap in the recording fake — the impl
-    // reads WorkmanagerPlatform.instance live at call time.
+    // Bind the Workmanager singleton first (Linux test env), then swap in
+    // the recording fake: the impl reads WorkmanagerPlatform.instance live.
     Workmanager();
     final wm = _FakeWorkmanager();
     WorkmanagerPlatform.instance = wm;
@@ -127,7 +121,7 @@ void main() {
     await tester.pumpWidget(wrap(const QuoteSettingsScreen()));
     await tester.pumpAndSettle();
 
-    // Off → cancels BOTH unique names: the random slot and the rollover.
+    // Off -> cancels BOTH unique names: the random slot and the rollover.
     await tester.tap(find.widgetWithText(SwitchListTile, 'Daily quote'));
     await tester.pumpAndSettle();
     expect(wm.cancelled, contains(DailyQuoteService.taskName));
@@ -135,7 +129,7 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getBool(DailyQuoteService.enabledPrefsKey), isFalse);
 
-    // On again → re-arms both.
+    // On again -> re-arms both.
     await tester.tap(find.widgetWithText(SwitchListTile, 'Daily quote'));
     await tester.pumpAndSettle();
     expect(wm.armed, contains(DailyQuoteService.taskName));
@@ -158,8 +152,7 @@ void main() {
 
     await tester.tap(find.widgetWithText(SwitchListTile, 'Show tags'));
     await tester.pumpAndSettle();
-    // The manual Light variant is greyed out while the widget follows the
-    // system theme (the default) — the follow toggle must go off first.
+    // The manual Light variant is greyed out while the widget follows the system theme.
     expect(
         tester
             .widget<SwitchListTile>(

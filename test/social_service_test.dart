@@ -43,14 +43,13 @@ void main() {
       // CSRF fetched exactly once and memoized for the session.
       expect(feedHits, 1);
 
-      // Second call reuses the memoized token.
       await h.client.postJson('/api/v1/likes', {'post_id': 43});
       expect(feedHits, 1);
 
       await h.close();
     });
 
-    test('403 → refetches token and retries once', () async {
+    test('403 -> refetches token and retries once', () async {
       var feedHits = 0;
       var posts = 0;
       final h = await Harness.start((req) async {
@@ -63,7 +62,7 @@ void main() {
         } else if (req.uri.path == '/api/v1/likes') {
           posts++;
           if (posts == 1) {
-            // Stale cached token → 403 (token was rotated server-side).
+            // Stale cached token -> 403 (token was rotated server-side).
             Harness.respond(req,
                 status: 403, body: '{"error":"Invalid CSRF token"}');
           } else {
@@ -198,7 +197,6 @@ void main() {
       expect(c.content, 'hello there');
       expect(c.createdAt, '5m'); // server already relative-formats
       expect(c.isOwner, isTrue);
-      // The request carries the pagination params.
       final q = h.requests.last.uri.queryParameters;
       expect(q['limit'], '10');
       expect(q.containsKey('offset'), isFalse);
@@ -424,7 +422,6 @@ void main() {
   });
 }
 
-/// Seeds a session and records whether clear() ran.
 class MemorySessionStoreSeed implements SessionStore {
   List<SessionCookie> cookies = [
     const SessionCookie(name: 'enclavd_sid', value: 'x'),

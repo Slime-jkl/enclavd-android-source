@@ -16,21 +16,6 @@ import '../widgets/enclavd_image.dart';
 import 'image_editor_screen.dart';
 import '../services/analytics_service.dart';
 
-/// Post composer — port of the site's post_form.php / edit modal.
-///
-/// Create mode: text (2000 max, live "N/2000 characters" counter) + optional
-/// image (fa-image → gallery → the image editor for crop/resize/filters —
-/// ied port — then preview with fa-xmark remove; server requires text OR
-/// image). Submit = fa-paper-plane "Post".
-///
-/// Edit mode: content prefilled, image shown read-only (the api/v1 update
-/// action only replaces content — the gallery row is untouched). Submit =
-/// fa-floppy-disk "Save".
-///
-/// The composer input is a plain multiline field (Instagram/Facebook-style)
-/// — no highlight-while-typing; the container draws the box, and no focus
-/// outline is drawn. #hashtags/links still render blue in the feed cards.
-/// Pops with `true` on success so the caller refreshes.
 class ComposeScreen extends StatefulWidget {
   const ComposeScreen({super.key, this.post});
 
@@ -47,8 +32,6 @@ class _ComposeScreenState extends State<ComposeScreen> {
   late final TextEditingController _controller;
   final _focus = FocusNode();
 
-  /// The attached image: an XFile from the picker OR the editor's baked
-  /// output (in-memory bytes; [bytes] non-null then).
   XFile? _image;
   Uint8List? _imageBytes; // set when _image came from the editor
 
@@ -75,11 +58,8 @@ class _ComposeScreenState extends State<ComposeScreen> {
     final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
     if (picked == null || !mounted) return;
 
-    // The editor bakes a bounded JPEG (≤1200px, q85) — this also guarantees
-    // a small upload payload regardless of what the picker returned (the
-    // Android photo picker ignores maxWidth/imageQuality, which previously
-    // let multi-MB originals through and blew past the server's
-    // post_max_size).
+    // The editor bakes a bounded JPEG, keeping uploads small (the Android
+    // picker ignores maxWidth/imageQuality).
     final edited = await Navigator.of(context).push<Uint8List>(
       MaterialPageRoute(
           builder: (_) => ImageEditorScreen(imagePath: picked.path)),
@@ -193,8 +173,7 @@ class _ComposeScreenState extends State<ComposeScreen> {
                         label: const Text('Add Image'),
                       )
               else if (post?.image != null && post!.image!.isNotEmpty)
-                // Existing post image — shown, not replaceable (update
-                // action only edits content).
+                // Existing post image: shown, not replaceable (updates only edit content).
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: ClipRRect(
@@ -229,7 +208,7 @@ class _ComposeScreenState extends State<ComposeScreen> {
                         color: Colors.white,
                       ),
                 label: Text(_busy
-                    ? (_isEdit ? 'Saving…' : 'Posting…')
+                    ? (_isEdit ? 'Saving...' : 'Posting...')
                     : (_isEdit ? 'Save' : 'Post')),
               ),
             ],
@@ -239,11 +218,6 @@ class _ComposeScreenState extends State<ComposeScreen> {
     );
   }
 
-  /// The composer input — a plain multiline field like Instagram/Facebook:
-  /// visible white text, the Container draws the box, and NO focus outline
-  /// (the theme's blue focusedBorder is suppressed on every state).
-  /// #hashtags/links are NOT highlighted while typing (feed rendering is
-  /// unaffected — that happens in the post cards).
   Widget _composerField() {
     const base = TextStyle(
       color: EnclavdColors.textPrimary,
@@ -265,17 +239,14 @@ class _ComposeScreenState extends State<ComposeScreen> {
             focusNode: _focus,
             minLines: 3,
             maxLines: 8,
-            // Hard 2000-char cap (the site's MAX_CHARS / api limit) — the
-            // counter below mirrors the site's "N/2000 characters".
+            // Hard 2000-char cap (the site's MAX_CHARS / api limit).
             maxLength: 2000,
             textCapitalization: TextCapitalization.sentences,
             style: base,
             cursorColor: EnclavdColors.textPrimary,
             decoration: const InputDecoration(
-              // The container draws the box — the theme's decoration must
-              // not leak in, and CRUCIALLY no focusedBorder: the global
-              // inputDecorationTheme's blue OutlineInputBorder is what
-              // drew the unwanted blue outline on focus.
+              // No focusedBorder: the theme's blue OutlineInputBorder drew
+              // an unwanted outline on focus.
               filled: false,
               isDense: true,
               border: InputBorder.none,
@@ -286,8 +257,7 @@ class _ComposeScreenState extends State<ComposeScreen> {
               counterText: '',
               hintText: 'Write post..', // the site's Quill placeholder
               hintStyle: TextStyle(color: EnclavdColors.textSecondary),
-              // Zero padding — the container's (14,12) padding positions
-              // the text; any extra shifts the text vs. the cursor.
+              // Zero padding: the container's own padding positions the text.
               contentPadding: EdgeInsets.zero,
             ),
           ),
@@ -310,8 +280,6 @@ class _ComposeScreenState extends State<ComposeScreen> {
   }
 }
 
-/// Picked/edited image preview (site: max-h-300 object-contain rounded +
-/// × remove). Shows editor bytes when present, else the picker file.
 class _ImagePreview extends StatelessWidget {
   const _ImagePreview({
     required this.path,

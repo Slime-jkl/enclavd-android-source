@@ -1,12 +1,9 @@
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
 
-/// Category icon mapping — the site's fa-* class names → FontAwesomeIcons.
-///
-/// The domain fetcher assigns fa-* names (with fallbacks for unset icons);
-/// the API ships them verbatim. This maps the ones the site uses plus
-/// sensible defaults; unknown names fall back to fa-folder (the site's
-/// own fallback).
+/// Category icon mapping - the site's fa-* class names -> FontAwesomeIcons.
+/// The API ships the fa-* names verbatim; unknown names fall back to
+/// fa-folder (the site's own fallback).
 FaIconData domainIconFor(String faClass) {
   switch (faClass) {
     case 'fa-music':
@@ -38,7 +35,7 @@ FaIconData domainIconFor(String faClass) {
   }
 }
 
-/// Category accent color — the site's hex strings ('#60a5fa') → Color.
+/// Category accent color - the site's hex strings ('#60a5fa') -> Color.
 /// Invalid/empty values fall back to the site's default blue (#60a5fa).
 Color domainColorFromHex(String hex) {
   var h = hex.trim();

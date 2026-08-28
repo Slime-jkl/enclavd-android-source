@@ -1,8 +1,7 @@
 import 'api_client.dart';
 
-/// A summary article row — the list card data (and the detail's related
-/// items). Contract: api/v1/articles.php GET (web repo — deployed by the
-/// user). `cover` is '' or a root-relative path ('/public/articles/x.jpg');
+/// A summary article row - the list card data (and the detail's related
+/// items). `cover` is '' or a root-relative path ('/public/articles/x.jpg');
 /// `published_date` is a DB UTC wall-clock string; `profile_picture_url`
 /// is root-relative like every other avatar in the API.
 class ArticleSummary {
@@ -58,9 +57,9 @@ class ArticleSummary {
       );
 }
 
-/// The full article — the detail screen's data. `content` is the Quill HTML
-/// exactly as stored (entities intact — the site decodes before echoing, a
-/// WebView decodes at parse time; never decode it into a Text widget).
+/// The full article - the detail screen's data. `content` is the Quill
+/// HTML exactly as stored (entities intact - the site decodes before
+/// echoing; never decode it into a Text widget).
 class Article {
   const Article({
     required this.summary,
@@ -72,7 +71,7 @@ class Article {
   });
 
   final ArticleSummary summary;
-  final String content; // HTML as stored — render as HTML, not plain text
+  final String content; // HTML as stored; render as HTML, not plain text
   final List<String> tags;
   final int likeCount;
   final bool liked;
@@ -103,17 +102,11 @@ class ArticlesFeed {
   final List<ArticleSummary> articles;
 }
 
-/// ArticlesService — the native Updates screen over api/v1.
-///
-/// Contracts (api/v1/articles.php, web repo):
-///   GET  /api/v1/articles          → {success, pinned:[...], articles:[...]}
-///   GET  /api/v1/articles?slug=X   → {success, article:{...}} (404 unknown)
-///   POST /api/v1/articles          → {action:'toggle_like', article_id} —
-///        JSON + CSRF → {success, liked, like_count}
-///
-/// Reads are public (the site's article pages are public); the detail's
-/// `liked` is false for guests. The detail GET mirrors article.php's view
-/// rule (one increment per session per 24h) — reads never spam the counter.
+/// The native Updates screen over api/v1. GET / -> {pinned, articles};
+/// GET ?slug=X -> {article} (404 unknown); POST {action:'toggle_like',
+/// article_id} (JSON + CSRF) -> {liked, like_count}. Reads are public
+/// (the site's article pages are public); the detail GET mirrors
+/// article.php's view rule (one increment per session per 24h).
 class ArticlesService {
   ArticlesService(this._api);
 
@@ -150,16 +143,15 @@ class ArticlesService {
     );
   }
 
-  /// The newest article id — the new-articles badge check. The API answers
-  /// with a cheap MAX(id) (no joins, no list payload), so the launch-time
-  /// check costs one tiny request instead of shipping the whole feed.
+  /// The newest article id (cheap MAX(id), no joins, no list payload) -
+  /// the new-articles badge check at launch.
   Future<int> latestId() async {
     final json = await _api.getJson('/api/v1/articles',
         query: <String, String>{'latest': '1'});
     return (json['latest_id'] as num?)?.toInt() ?? 0;
   }
 
-  /// SharedPreferences key holding the newest article id the user has seen
-  /// (written on launch baseline and whenever the Updates list loads).
+  /// Holds the newest article id the user has seen (written on launch
+  /// baseline and whenever the Updates list loads).
   static const String seenIdPrefKey = 'last_seen_article_id';
 }

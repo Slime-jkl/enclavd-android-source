@@ -1,8 +1,7 @@
 import 'api_client.dart';
 
-/// One question of the personality assessment
-/// (GET /api/v1/personality_test — port of test_page.php's list,
-/// ids 1..40 from psy_test_questions).
+/// One question of the personality assessment (port of test_page.php's
+/// list, ids 1..40 from psy_test_questions).
 class PersonalityQuestion {
   const PersonalityQuestion({required this.id, required this.question});
 
@@ -16,9 +15,9 @@ class PersonalityQuestion {
       );
 }
 
-/// GET /api/v1/personality_test — the questions + whether the viewer can
-/// still take the test (already_taken mirrors test_page.php's redirect to
-/// /results when a valid test row exists).
+/// The questions + whether the viewer can still take the test
+/// (already_taken mirrors test_page.php's redirect to /results when a
+/// valid test row exists).
 class PersonalityTestInfo {
   const PersonalityTestInfo({
     required this.alreadyTaken,
@@ -29,10 +28,9 @@ class PersonalityTestInfo {
   final List<PersonalityQuestion> questions;
 }
 
-/// POST /api/v1/personality_test — the scored result of a submission.
-/// The server runs the site's OWN scoring engine (questions_logic.php,
-/// incl. the random tie-break), so the app's result always matches a
-/// browser-run test on the same answers.
+/// The scored result of a submission. The server runs the site's OWN
+/// scoring engine (questions_logic.php, incl. the random tie-break), so
+/// the app's result always matches a browser-run test on the same answers.
 class TestSubmissionResult {
   const TestSubmissionResult({
     required this.personalityType,
@@ -66,18 +64,12 @@ class TestSubmissionResult {
   }
 }
 
-/// PersonalityTestService — the site's 40-question assessment over api/v1.
-///
-/// Contracts (verified live against the dev stack):
-///   GET  /api/v1/personality_test
-///        → {success, already_taken, questions:[{id, question}]} — 40 rows,
-///        ids 1..40. already_taken=true ⇒ the viewer must be shown results
-///        instead of the test (site: /test_page → /results).
-///   POST /api/v1/personality_test (JSON + CSRF)
-///        {answers:{'question_1':'strongly_agree', ...}} — all 40 required,
-///        values strongly_agree|agree|neutral|disagree|strongly_disagree.
-///        → {success, personality_type, color, expires_on, traits:{...}}
-///        409 {error:'Test already completed'} on retake (site rule).
+/// The site's 40-question assessment over api/v1. GET -> {already_taken,
+/// questions:[{id, question}]} (40 rows, ids 1..40); POST (JSON + CSRF)
+/// {answers:{'question_1':'strongly_agree', ...}} - all 40 required,
+/// values strongly_agree|agree|neutral|disagree|strongly_disagree ->
+/// {personality_type, color, expires_on, traits}. 409
+/// {error:'Test already completed'} on retake (site rule).
 class PersonalityTestService {
   PersonalityTestService(this._api);
 
@@ -98,8 +90,8 @@ class PersonalityTestService {
     );
   }
 
-  /// Scores + persists the answers server-side and returns the result.
-  /// Throws ApiException(409) when a valid test already exists.
+  /// Scores + persists the answers server-side and returns the result;
+  /// throws ApiException(409) when a valid test already exists.
   Future<TestSubmissionResult> submit(Map<int, String> answers) async {
     final json = await _api.postJson('/api/v1/personality_test', {
       'answers': {

@@ -1,6 +1,6 @@
 import 'api_client.dart';
 
-/// One support ticket (api/v1/reports.php — user-facing only).
+/// One support ticket (api/v1/reports.php - user-facing only).
 class ReportTicket {
   const ReportTicket({
     required this.id,
@@ -50,7 +50,7 @@ class ReportPage {
       items.where((t) => t.isClosed).toList(growable: false);
 }
 
-/// Ticket owner identity (the detail header — ticket.php's avatar row).
+/// Ticket owner identity (the detail header - ticket.php's avatar row).
 class TicketOwner {
   const TicketOwner({
     required this.id,
@@ -77,7 +77,7 @@ class TicketOwner {
 }
 
 /// One activity event on a ticket: a reply ('reply') or a status log
-/// ('log') — ticket.php merges both into one oldest-first timeline.
+/// ('log') - ticket.php merges both into one oldest-first timeline.
 class TicketEvent {
   const TicketEvent({
     required this.type,
@@ -159,7 +159,7 @@ class ReportDetail {
       );
 }
 
-/// ReportsService — the viewer's support tickets over api/v1.
+/// ReportsService - the viewer's support tickets over api/v1.
 class ReportsService {
   ReportsService(this._api);
 
@@ -196,7 +196,7 @@ class ReportsService {
     );
   }
 
-  /// Submits a new report (type must be one of the allowed types — the
+  /// Submits a new report (type must be one of the allowed types; the
   /// server falls back to 'Other' for anything else).
   Future<ReportTicket> create({
     required String type,
@@ -226,7 +226,7 @@ class ReportsService {
         owner: json['owner'], events: json['events']);
   }
 
-  /// Adds a reply — the ticket flips to Pending server-side.
+  /// Adds a reply - the ticket flips to Pending server-side.
   Future<void> addReply({
     required int ticketId,
     required String content,

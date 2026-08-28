@@ -1,13 +1,9 @@
 import 'api_client.dart';
 
 /// The viewer's latest personality test results
-/// (GET /api/v1/results — port of results.php).
-///
-/// Field contract: {results:{personality_type, color, expires_on,
-/// traits:{ie_percentage, sn_percentage, tf_percentage, jp_percentage},
-/// info:{title, description, strengths:[...], weaknesses:[...]}}}
-/// A 404 (ApiException status 404) means no valid test — the site
-/// redirects to /test_page in that case.
+/// (GET /api/v1/results - port of results.php). A 404 (ApiException
+/// status 404) means no valid test - the site redirects to /test_page in
+/// that case.
 class TestResults {
   const TestResults({
     required this.personalityType,
@@ -59,7 +55,7 @@ class TestResults {
   }
 }
 
-/// ResultsService — the personality test results over api/v1.
+/// ResultsService - the personality test results over api/v1.
 class ResultsService {
   ResultsService(this._api);
 

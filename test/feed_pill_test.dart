@@ -2,15 +2,9 @@ import 'package:enclavd/api/feed_service.dart';
 import 'package:enclavd/screens/feed_screen.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// The new-posts pill decision (feed_screen.dart pillEligiblePosts +
-/// feedMaxPostId) — the pure core of the pull-to-refresh jitter fix.
-///
-/// Regression: the old refresh merged the ?after_id delta into the list,
-/// hoisting buried posts to the top. Because the threshold was the CURRENT
-/// on-screen max id, a post that dropped back below the fold on the next
-/// refresh was delta-eligible again — the feed flipped between the hoisted
-/// order and the pure rank order on every pull. The pill fixes it by making
-/// the seen threshold MONOTONIC and never inserting delta posts.
+/// The new-posts pill decision (pillEligiblePosts + feedMaxPostId): the seen
+/// threshold is monotonic and delta posts are never inserted (the old refresh
+/// hoisted buried posts to the top on every pull).
 Post post(int id) => Post(
       id: id,
       content: 'post $id',
@@ -52,7 +46,6 @@ void main() {
     });
 
     test('a post already on screen is never offered', () {
-      // Ranked into the top page between refreshes — it IS visible.
       expect(
         pillEligiblePosts([post(90), post(95)], ranked, seen),
         isEmpty,
@@ -67,9 +60,7 @@ void main() {
 
     test('a post at or below the seen threshold is never re-offered '
         '(the oscillation regression)', () {
-      // Post 500 was hoisted and clicked once — seenMaxId is now 500. It
-      // dropped back below the fold, but the monotonic threshold means the
-      // next refresh's delta must NOT offer it again.
+      // Post 500 was hoisted and clicked once; the monotonic threshold must NOT offer it again.
       expect(
         pillEligiblePosts([post(500)], ranked, 500),
         isEmpty,
@@ -82,11 +73,11 @@ void main() {
 
     test('mixed delta: only genuinely new posts are offered', () {
       final delta = [
-        post(90), // on screen — skip
-        post(99), // below seenMaxId — skip (was shown before)
-        post(100), // at threshold — skip
-        post(101), // new, off screen — offer
-        post(500), // new, off screen — offer
+        post(90), // on screen, skip
+        post(99), // below seenMaxId, skip (was shown before)
+        post(100), // at threshold, skip
+        post(101), // new, off screen, offer
+        post(500), // new, off screen, offer
       ];
       final eligible = pillEligiblePosts(delta, ranked, seen);
       expect(eligible.map((p) => p.id), [101, 500]);
@@ -94,8 +85,7 @@ void main() {
 
     test('offer does not mutate the seen threshold (raised on display, '
         'not on offer)', () {
-      // The pill may re-offer an ignored post until the user actually loads
-      // it — the site's pill stays visible until clicked.
+      // The pill may re-offer an ignored post until the user actually loads it (site behavior).
       final eligible = pillEligiblePosts([post(500)], ranked, seen);
       expect(eligible, hasLength(1));
       expect(feedMaxPostId(ranked, seen), seen); // unchanged by the offer

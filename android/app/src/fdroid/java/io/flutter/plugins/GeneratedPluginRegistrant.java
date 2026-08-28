@@ -6,19 +6,7 @@ import io.flutter.Log;
 
 import io.flutter.embedding.engine.FlutterEngine;
 
-/**
- * F-Droid variant registrant — the generated registrant (src/main/java)
- * minus firebase_core and firebase_messaging.
- *
- * The fdroid flavor excludes the firebase plugins from its dependency
- * graph (build.gradle.kts), so the GENERATED registrant would not compile
- * there. This copy registers every other plugin and deliberately skips
- * the two firebase ones (FCM is Play-bound; AppConfig.enableFcm is
- * compile-time false on fdroid, so nothing ever calls them).
- *
- * KEEP IN SYNC with the generated registrant (run `flutter pub get` and
- * diff) when plugins are added or removed.
- */
+/** F-Droid variant of the generated registrant (firebase excluded from this flavor). Keep in sync when plugins change. */
 @Keep
 public final class GeneratedPluginRegistrant {
   private static final String TAG = "GeneratedPluginRegistrant";

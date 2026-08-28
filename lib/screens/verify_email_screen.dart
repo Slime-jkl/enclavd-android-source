@@ -9,26 +9,15 @@ import '../main.dart';
 import '../theme/enclavd_theme.dart';
 import 'login_screen.dart';
 
-/// Post-registration screen shown when the site requires email
-/// verification (site_config requireEmailVerification): tells the user to
-/// confirm their email and hands them to login once they have.
-///
-/// Offers a "Resend email" button with a client-side cooldown: it starts
-/// DISABLED showing a 60-second countdown and gains 60 more seconds on
-/// every attempt (60 → 120 → 180 → …). The resend hits the site's
-/// resend_verification page (GET ?email=…), whose session flash reports
-/// whether a fresh confirmation link was mailed.
 class VerifyEmailScreen extends StatefulWidget {
   const VerifyEmailScreen({super.key, this.email = '', this.auth});
 
   static const routeName = '/verify_email';
 
-  /// The address the confirmation link was sent to — what the resend
-  /// button targets. Empty (named-route pushes without args) hides the
-  /// button entirely.
+  /// The address the resend button targets; empty hides the button.
   final String email;
 
-  /// Test seam — bypasses AppServices when provided.
+  /// Test seam: bypasses AppServices when provided.
   final AuthService? auth;
 
   @override
@@ -36,17 +25,13 @@ class VerifyEmailScreen extends StatefulWidget {
 }
 
 class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
-  /// Seconds left before the resend button re-enables. Starts at 60 and
-  /// gains 60 more per attempt (user spec).
   int _cooldown = 60;
 
-  /// Completed resend attempts — the cooldown is 60 × (attempts + 1).
   int _attempts = 0;
 
   Timer? _timer;
   bool _resending = false;
 
-  /// Outcome of the last resend attempt (server flash or transport error).
   String? _status;
   bool _statusIsError = false;
 
@@ -72,8 +57,6 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
     });
   }
 
-  /// One resend attempt: hit the server, report the outcome, then add
-  /// another 60s to the cooldown (each try costs a minute).
   Future<void> _resend() async {
     setState(() {
       _resending = true;

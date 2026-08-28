@@ -1,36 +1,9 @@
-// Live fan-out proof for the realtime path (console-only orchestration).
-//
-// Connects the REAL RealtimeService to the dev sidecar as the dev account,
-// joins conversation 2, and waits for a live 'message' frame. The frame is
-// published by an external actor (simulating the other participant) via:
-//
-//   docker exec Enclavd_Dev_PHP php -r '
-//     $body = json_encode([
-//       "type" => "message",
-//       "conversation_id" => 2,
-//       "sender_id" => 3,            // the OTHER member — our client gets it
-//       "payload" => [
-//         "conversationId" => 2,
-//         "senderId" => 3,
-//         "messageId" => 999001,
-//         "message" => "live fan-out proof",
-//         "timestamp" => date("c"),
-//       ],
-//     ]);
-//     $ch = curl_init("http://Enclavd_Dev_Realtime:8090/publish");
-//     curl_setopt_array($ch, [
-//       CURLOPT_POST => true,
-//       CURLOPT_POSTFIELDS => $body,
-//       CURLOPT_HTTPHEADER => [
-//         "Content-Type: application/json",
-//         "X-Publish-Secret: " . getenv("REALTIME_SECRET"),
-//       ],
-//       CURLOPT_RETURNTRANSFER => true,
-//     ]);
-//     echo curl_exec($ch);
-//   '
-//
-// Usage: dart run tool/verify_realtime.dart   (dev stack + login required)
+// Live fan-out proof for the realtime path.
+// Connects the real RealtimeService to the dev sidecar as the dev account,
+// joins conversation 2, and waits for a live 'message' frame. Publish the
+// frame from a second process (docker exec Enclavd_Dev_PHP php -r '<json>'
+// to http://Enclavd_Dev_Realtime:8090/publish with the REALTIME_SECRET).
+// Usage: dart run tool/verify_realtime.dart (dev stack + login required)
 // Exit 0 = the sidecar fan-out reached the app's WebSocket client.
 
 import 'dart:async';
@@ -100,7 +73,7 @@ Future<void> main() async {
   });
 
   realtime.join(conversationId);
-  stdout.writeln('listening on conversation $conversationId — '
+  stdout.writeln('listening on conversation $conversationId - '
       'publish the inbound frame now (max 20s)');
 
   try {

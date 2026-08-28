@@ -1,15 +1,13 @@
 import 'api_client.dart';
 
-/// One community poll — api/v1/votes.php vote row.
-///
-/// Contract: id, title, description, options (string list), colors (hex
-/// '#rrggbb' list), counts (WEIGHTED per option — SUM of each voter's rank
-/// voting_power, the site's card math, not raw user counts), total_votes,
-/// end_date (DB UTC wall-clock 'YYYY-MM-DD HH:MM:SS'), status
-/// ('active'|'completed'|'cancelled'), created_at, creator_id,
-/// creator_username, creator_avatar (root-relative), creator_rank,
-/// my_option (int|null — the viewer's own choice), my_vote_changed_at
-/// (DB string|null — set when the vote was created or last changed).
+/// One community poll - api/v1/votes.php vote row. Contract: id, title,
+/// description, options (string list), colors (hex '#rrggbb' list),
+/// counts (WEIGHTED per option - SUM of each voter's rank voting_power,
+/// the site's card math, not raw user counts), total_votes, end_date (DB
+/// UTC wall-clock), status ('active'|'completed'|'cancelled'),
+/// created_at, creator_id, creator_username, creator_avatar
+/// (root-relative), creator_rank, my_option (int|null - the viewer's own
+/// choice), my_vote_changed_at (DB string|null).
 class Vote {
   const Vote({
     required this.id,
@@ -120,8 +118,8 @@ class RankPower {
       );
 }
 
-/// The full votes payload: both sections, the viewer's voting power and the
-/// rank table for the "How Voting Works" info.
+/// The full votes payload: both sections, the viewer's voting power and
+/// the rank table for the "How Voting Works" info.
 class VotesData {
   const VotesData({
     required this.active,
@@ -159,7 +157,7 @@ class VotesData {
 }
 
 /// Outcome of a vote submit/change: the accepted option + fresh weighted
-/// counts (the card updates in place, single round trip — server truth).
+/// counts (the card updates in place, single round trip - server truth).
 class VoteResult {
   const VoteResult({required this.myVote, required this.counts});
 
@@ -179,9 +177,9 @@ class VotesService {
     return VotesData.fromJson(json);
   }
 
-  /// Submit (or change) a vote on [featureId]. The server enforces the
-  /// feature being active and the option being in range; 409/400 errors
-  /// surface as ApiException business messages.
+  /// Submit (or change) a vote on [featureId]; the server enforces the
+  /// feature being active and the option being in range, surfacing 409/400
+  /// as ApiException business messages.
   Future<VoteResult> vote(int featureId, int option) async {
     final json = await _api.postJson('/api/v1/votes', {
       'action': 'vote',

@@ -10,28 +10,20 @@ import 'message_notifications.dart';
 import 'notification_source.dart';
 import 'social_notification_source.dart';
 
-/// Background notification polling via WorkManager — the ONLY native
-/// cover for the states the live SSE/WS path cannot reach: app swiped
-/// away or process killed (Android freezes/kills the sockets; no Dart
-/// code runs until the next launch). WorkManager is a system service,
-/// so the task survives both.
-///
-/// The worker is intentionally source-agnostic. Adding a future
-/// notification type (post likes/comments via
-/// /api/v1/notifications?list=1, mentions, ...) is ONE line in
-/// [backgroundSources] — the dedupe, session handling and notification
-/// plumbing are shared.
-///
-/// Honest limits (Android platform reality, same as the WebView
-/// wrapper's worker): the minimum periodic interval is 15 minutes and
-/// WorkManager makes NO timing guarantees — Doze/App-Standby delay
-/// execution. This is the fallback channel, not the live one.
+/// Background notification polling via WorkManager - the ONLY native cover
+/// for the states the live SSE/WS path cannot reach: app swiped away or
+/// process killed (no Dart code runs until the next launch; WorkManager
+/// is a system service). The worker is intentionally source-agnostic:
+/// adding a notification type is one line in [backgroundSources]. Honest
+/// limits: 15-minute minimum interval and no timing guarantees (Doze /
+/// App-Standby delay execution) - this is the fallback channel, not the
+/// live one.
 const String backgroundTaskName = 'enclavd-notifications-poll';
 
 const Duration pollInterval = Duration(minutes: 15); // Android's hard minimum
 
-/// Registry of everything the background poller checks. Plug in new
-/// notification domains here — one line each.
+/// Registry of everything the background poller checks; new notification
+/// domains plug in here - one line each.
 List<NotificationSource> backgroundSources() => [
       MessageNotificationSource(),
       SocialNotificationSource(),
@@ -50,16 +42,15 @@ Future<void> registerBackgroundNotifications() async {
   );
 }
 
-/// The headless entry point WorkManager wakes (its own Flutter engine,
-/// no UI, possibly long after the app was killed). Top-level +
-/// @pragma so the AOT snapshot keeps it. Every failure returns true —
-/// WorkManager treats false as a failed run; a transient blip must not
-/// burn the backoff chain, the next tick retries.
+/// Headless entry point WorkManager wakes (its own Flutter engine, no UI,
+/// possibly long after the app was killed). Top-level + @pragma so the
+/// AOT snapshot keeps it. Every failure returns true - WorkManager treats
+/// false as a failed run; a transient blip must not burn the backoff
+/// chain, the next tick retries.
 ///
-/// Branches on the task name: the daily-quote one-shot (random-time slot,
-/// see DailyQuoteService) and the widget rollover one-shot (UTC-midnight
-/// widget refresh) get their own handlers; everything else falls through
-/// to the periodic source poller.
+/// Branches on the task name: the daily-quote one-shot (random-time slot)
+/// and the widget rollover one-shot (UTC-midnight refresh) get their own
+/// handlers; everything else falls through to the periodic source poller.
 @pragma('vm:entry-point')
 void notificationDispatcher() {
   Workmanager().executeTask((taskName, inputData) async {
@@ -79,15 +70,14 @@ void notificationDispatcher() {
 }
 
 /// The worker run itself, separated from the dispatcher so tests can
-/// exercise it without the platform plugin. debugPrints are DIAGNOSTIC
-/// (0.3.4) — the worker is otherwise a black box on-device.
+/// exercise it without the platform plugin.
 Future<void> runBackgroundSources(List<NotificationSource> sources) async {
   final prefs = await SharedPreferences.getInstance();
   final api = ApiClient(store: PrefsSessionStore(prefs));
   await api.restoreSession();
   if (api.sessionCookies.isEmpty) {
     debugPrint('worker: no session, skipping');
-    return; // logged out — the worker has nothing to poll until login
+    return; // logged out: the worker has nothing to poll until login
   }
 
   // This isolate has no plugin state: initialize a fresh instance (the
@@ -132,8 +122,8 @@ Future<void> runBackgroundSources(List<NotificationSource> sources) async {
     } catch (e) {
       // ONE broken candidate must never kill the rest of the run (a
       // throwing message show used to abort the whole loop, silently
-      // dropping the social candidates behind it — 0.4.2 regression).
-      // The candidate stays unmarked, so the next tick retries it.
+      // dropping the social candidates behind it). It stays unmarked, so
+      // the next tick retries it.
       debugPrint('worker: candidate ${candidate.key} failed: $e');
     }
   }

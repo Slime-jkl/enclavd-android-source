@@ -16,20 +16,6 @@ import '../widgets/pinned_badge.dart';
 import '../widgets/shimmer.dart';
 import 'article_detail_screen.dart';
 
-/// The native Updates tab — the site's /articles (articles.php) as a
-/// modern app: pinned articles in their own section (site: the pinned grid
-/// first), then the regular list. Site parity:
-///  - cards carry the cover, title, author avatar + username, published
-///    date ("M j, Y") and the view count (fa-eye, comma-formatted);
-///  - pinned cards get the red fire "PINNED" chip;
-///  - tap → the native ArticleDetailScreen (the site's /article/<slug>).
-/// Modern-app look: rounded card rows with gaps instead of full-width
-/// dividers, shimmer skeletons on first load, pull-to-refresh.
-///
-/// This widget is the FEED SHELL's Updates tab body (no Scaffold/AppBar of
-/// its own — the shell supplies the shared header and bottom nav); it is
-/// built lazily on first tab visit so its load advances the new-articles
-/// baseline exactly when the user sees the tab.
 class ArticlesScreen extends StatefulWidget {
   const ArticlesScreen({
     super.key,
@@ -39,8 +25,7 @@ class ArticlesScreen extends StatefulWidget {
 
   final ArticlesService articles;
 
-  /// Test seam — replaces the pushed detail screen (the real one mounts a
-  /// WebView, a platform view that does not exist under `flutter test`).
+  /// Test seam: replaces the pushed detail screen under flutter test.
   final Widget Function(String slug)? detailBuilder;
 
   @override
@@ -76,8 +61,7 @@ class _ArticlesScreenState extends State<ArticlesScreen> {
         _loading = false;
         _loaded = true;
       });
-      // The user has now seen the newest articles — advance the badge
-      // baseline so the Updates dot clears until something new appears.
+      // The user has seen the newest articles; advance the badge baseline.
       unawaited(_storeSeenId(feed));
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -88,8 +72,6 @@ class _ArticlesScreenState extends State<ArticlesScreen> {
     }
   }
 
-  /// Persists the newest article id from the loaded feed (the launch-check
-  /// baseline in the feed screen compares against this).
   Future<void> _storeSeenId(ArticlesFeed feed) async {
     var maxId = 0;
     for (final a in feed.pinned) {
@@ -114,8 +96,7 @@ class _ArticlesScreenState extends State<ArticlesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // The feed shell hosts this as its Updates tab body — the shared
-    // header and bottom nav come from the shell, so no Scaffold here.
+    // Hosted by the feed shell as its Updates tab body, so no Scaffold.
     return _buildBody();
   }
 
@@ -172,8 +153,6 @@ return ErrorView(message: _error!, onRetry: _load);
   }
 }
 
-/// Uppercase section label between the Pinned and Latest groups (the same
-/// label style as the user menu drawer's sections).
 class _SectionLabel extends StatelessWidget {
   const _SectionLabel(this.label);
 
@@ -196,8 +175,6 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-/// Modern card row: rounded card, cover image, title, author + date + views
-/// meta line; pinned cards carry the red fire chip on the cover.
 class _ArticleCard extends StatelessWidget {
   const _ArticleCard({required this.article, required this.onTap});
 
@@ -222,9 +199,8 @@ class _ArticleCard extends StatelessWidget {
               if (cover != null)
                 Stack(
                   children: [
-                    // A tight full-width box: EnclavdImage must NOT get
-                    // width: double.infinity itself (its cacheWidth math
-                    // .ceil()s the width — Infinity crashes).
+                    // EnclavdImage must not get width: double.infinity
+                    // itself (cacheWidth math would .ceil() Infinity).
                     SizedBox(
                       width: double.infinity,
                       height: 170,
@@ -279,7 +255,7 @@ class _ArticleCard extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 6),
-                        const Text('•',
+                        const Text('-',
                             style: TextStyle(
                                 fontSize: 11,
                                 color: EnclavdColors.textSecondary)),
@@ -289,7 +265,7 @@ class _ArticleCard extends StatelessWidget {
                                 fontSize: 12,
                                 color: EnclavdColors.textSecondary)),
                         const SizedBox(width: 6),
-                        const Text('•',
+                        const Text('-',
                             style: TextStyle(
                                 fontSize: 11,
                                 color: EnclavdColors.textSecondary)),
@@ -314,7 +290,6 @@ class _ArticleCard extends StatelessWidget {
   }
 }
 
-/// First-load skeleton — the site's card-skeleton-layer ported to a card.
 class _ArticleCardSkeleton extends StatelessWidget {
   const _ArticleCardSkeleton();
 
@@ -356,7 +331,6 @@ class _ArticleCardSkeleton extends StatelessWidget {
   }
 }
 
-/// The site's list date: date('M j, Y', strtotime(...)) on the DB wall-clock.
 String _formatDate(String dbUtc) {
   final t = parseDbTime(dbUtc);
   if (t == null) return '';
@@ -367,7 +341,6 @@ String _formatDate(String dbUtc) {
   return '${months[t.month - 1]} ${t.day}, ${t.year}';
 }
 
-/// The site's view counts: number_format() → thousands with commas.
 String _formatViews(int n) {
   final s = n.toString();
   final buf = StringBuffer();

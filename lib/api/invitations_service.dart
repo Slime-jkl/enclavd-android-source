@@ -1,7 +1,7 @@
 import 'api_client.dart';
 import 'messages_service.dart' show parseDbTime;
 
-/// One invitation (api/v1/invitations.php — user-facing only).
+/// One invitation (api/v1/invitations.php - user-facing only).
 class Invitation {
   const Invitation({
     required this.id,
@@ -41,8 +41,8 @@ class InvitationCreated {
   final Invitation item;
 }
 
-/// InvitationsService — list/create/delete over api/v1 (the site's
-/// invitations.php quick-create/delete, without the admin branches).
+/// List/create/delete over api/v1 (the site's invitations.php
+/// quick-create/delete, without the admin branches).
 class InvitationsService {
   InvitationsService(this._api);
 
@@ -77,8 +77,8 @@ class InvitationsService {
     );
   }
 
-  /// Deletes an invitation (own, non-accepted only — 403 otherwise).
-  /// Returns the updated invite count.
+  /// Deletes an invitation (own, non-accepted only - 403 otherwise);
+  /// returns the updated invite count.
   Future<int> delete(int invitationId) async {
     final json = await _api
         .postJson('/api/v1/invitations', {'action': 'delete', 'invitation_id': invitationId});
@@ -86,8 +86,8 @@ class InvitationsService {
   }
 }
 
-/// The site's `date('M j, Y H:i', strtotime($valid_until))` — DB UTC
-/// wall-clock → local 'Sep 20, 2026 15:37'. '' on unparseable.
+/// The site's `date('M j, Y H:i', strtotime($valid_until))` - DB UTC
+/// wall-clock -> local 'Sep 20, 2026 15:37'. '' on unparseable.
 String formatInviteExpiry(String dbDateTime) {
   final t = parseDbTime(dbDateTime)?.toLocal();
   if (t == null) return '';

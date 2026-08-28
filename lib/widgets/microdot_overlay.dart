@@ -4,11 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../main.dart' show AppServices;
 
-/// The user id resolves from the live service container. The app root
-/// builds BEFORE the splash creates the container, and login re-creates
-/// it, so this widget watches for container changes and probes
-/// /api/v1/me on each new one. Best-effort: any failure just leaves the
-/// watermark off (no crash, no retry spam - probes only on change).
+/// User-id watermark; watches the service container and probes /api/v1/me.
 class MicrodotOverlay extends StatefulWidget {
   const MicrodotOverlay({super.key, this.resolveUserId});
 
@@ -70,26 +66,19 @@ class _MicrodotOverlayState extends State<MicrodotOverlay> {
   }
 }
 
-/// Paints the tiled diagonal watermark. Public so tests can assert the
-/// label and presence without pixel inspection.
+/// Paints the tiled diagonal watermark (public for tests).
 class MicrodotPainter extends CustomPainter {
   MicrodotPainter(this.label);
 
   final String label;
 
-  /// Site tile: 200x120, text centered, rotated -20° around the tile
+  /// Site tile: 200x120, text centered, rotated -20 degrees around the tile
   /// centre (microdot.php: `rotate(-20 100 60)`).
   static const double tileWidth = 200;
   static const double tileHeight = 120;
 
-  /// Jitter amplitude (px). Big enough to break the periodic grid, small
-  /// enough that neighbouring tiles (200x120) can never collide.
   static const double _jitterRange = 12;
 
-  /// Deterministic pseudo-random offset for tile (tx, ty), so the tiling
-  /// reads as faint noise instead of a regular texture (the eye catches
-  /// periodic patterns far more easily than scattered ones). Pure
-  /// function of the tile indices - stable across repaints, no shimmer.
   static Offset _tileJitter(int tx, int ty) {
     var h = (tx * 0x9E3779B1 ^ ty * 0x85EBCA77) & 0x7FFFFFFF;
     h = ((h ^ (h >> 13)) * 0x5BD1E995) & 0x7FFFFFFF;
@@ -107,7 +96,7 @@ class MicrodotPainter extends CustomPainter {
         style: const TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.bold,
-          color: Color(0x03808080), // 0.012 alpha - site uses 0.02; see class doc
+          color: Color(0x03808080), // 0.012 alpha; the site uses 0.02
         ),
       ),
       textDirection: TextDirection.ltr,

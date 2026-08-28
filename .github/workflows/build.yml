@@ -1,7 +1,7 @@
 name: Build native app (Flutter)
 
 on:
-  # Manual trigger only (workflow_dispatch); runs from main — native-dev was
+  # Manual trigger only (workflow_dispatch); runs from main - native-dev was
   # merged into main, so the branch no longer needs its own build.
   workflow_dispatch:
     inputs:
@@ -23,7 +23,7 @@ on:
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   # Pinned Flutter SDK for the ios job. The F-Droid-extracted literal pin
-  # lives in the android job (see there) — keep exactly ONE literal pin in
+  # lives in the android job (see there) - keep exactly ONE literal pin in
   # this file or the F-Droid build fails.
   FLUTTER_VERSION: '3.47.1'
 
@@ -31,9 +31,9 @@ jobs:
   android:
     runs-on: ubuntu-latest
     env:
-      # secrets is NOT available inside `if:` expressions — expose the
+      # secrets is NOT available inside `if:` expressions - expose the
       # presence of the signing key through env, then gate the decode
-      # step on it (empty/absent secret → 'false', no error).
+      # step on it (empty/absent secret -> 'false', no error).
       HAS_SIGNING_KEY: ${{ secrets.SIGNING_KEY != '' }}
       # Signing vars passed NATIVELY (like main's playstore.yml step env),
       # NOT echoed into GITHUB_ENV: bash would interpret $ / backticks /
@@ -55,7 +55,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ── F-Droid reference-binary env alignment ──────────────────────────
+      # F-Droid reference-binary env alignment
       # The pipe (fdroidserver buildserver-trixie image) rebuilds the same
       # commit and byte-compares against the binary we publish. tool/
       # fdroid_build.sh already makes the pipe build at the SAME absolute
@@ -79,7 +79,7 @@ jobs:
         with:
           # F-Droid pins the Flutter SDK from this exact line (the fdroiddata
           # metadata seds .github/workflows/build.yml). Keep it the ONLY
-          # literal pin in this file — the ios job uses the workflow env.
+          # literal pin in this file - the ios job uses the workflow env.
           flutter-version: '3.47.1'
           channel: 'stable'
           cache: true
@@ -112,8 +112,8 @@ jobs:
       # SIGNING_KEY (base64 keystore) + KEY_STORE_PASSWORD / ALIAS /
       # KEY_PASSWORD secrets, decoded to android/app/release-keystore.jks
       # and consumed via IS_GITHUB_ACTION / SIGNING_KEY_FILE. Signs EVERY
-      # release build — play, fdroid and dev APKs plus the play AAB.
-      # Secrets absent → release builds stay unsigned (the wrapper's
+      # release build - play, fdroid and dev APKs plus the play AAB.
+      # Secrets absent -> release builds stay unsigned (the wrapper's
       # fdroid-style fallback) and the pipeline never breaks.
       - name: Decode Keystore File
         if: env.HAS_SIGNING_KEY == 'true'
@@ -123,7 +123,7 @@ jobs:
 
       - name: Build APK
         run: |
-          # ── Global build-step feature switches (AppConfig) ──────────────
+          # Global build-step feature switches (AppConfig)
           # Every flavor is defined here; the app reads them at compile time
           # via String.fromEnvironment / bool.fromEnvironment. Add a switch:
           # add the --dart-define line in the right flavor block, then use
@@ -135,7 +135,7 @@ jobs:
             DEFINES="$DEFINES --dart-define=ENCLAVD_FEATURE_NOTIFICATIONS=true --dart-define=ENCLAVD_FEATURE_CHAT=true --dart-define=ENCLAVD_FEATURE_SEARCH=true"
           fi
           if [ "${{ matrix.flavor }}" = "fdroid" ]; then
-            # F-Droid build: NO Google Play services — no FCM (the app
+            # F-Droid build: NO Google Play services - no FCM (the app
             # skips FCM at compile time via AppConfig.enableFcm).
             # Notifications run on Unified Push when a distributor app
             # (ntfy, Conversations, NextPush) is installed, else the
@@ -143,7 +143,7 @@ jobs:
             DEFINES="$DEFINES --dart-define=ENCLAVD_FEATURE_NOTIFICATIONS=true --dart-define=ENCLAVD_FEATURE_CHAT=true --dart-define=ENCLAVD_FEATURE_SEARCH=true"
             # F-Droid requires per-ABI APKs (their request, Oct 2026). The
             # pipe (tool/fdroid_build.sh) builds with --split-per-abi, so the
-            # reference binary MUST too — same flags, same bytes. Outputs:
+            # reference binary MUST too - same flags, same bytes. Outputs:
             # app-<abi>-fdroid-release.apk (version codes base*10 + abi via
             # build.gradle.kts; Flutter's own *1000 scheme disabled by
             # force-version-code-ignoring-abi in gradle.properties).
@@ -162,7 +162,7 @@ jobs:
             BUILD_FLAGS="$BUILD_FLAGS --no-pub"
           fi
           if [ "${{ matrix.flavor }}" = "dev" ]; then
-            # Dev build: same production API as every flavor — the app ALWAYS
+            # Dev build: same production API as every flavor - the app ALWAYS
             # talks to enclavd.com (a phone can't reach a local dev box).
             # Debug builds give hot reload + full logging; nothing else differs.
             DEFINES="$DEFINES --dart-define=ENCLAVD_FEATURE_NOTIFICATIONS=true"
@@ -170,23 +170,23 @@ jobs:
 
           if [ "${{ github.event.inputs.build_type }}" = "debug" ]; then
             # Debug only via workflow_dispatch (JIT: good for hot-reload
-            # iteration, feels laggy on-device — never the push default).
+            # iteration, feels laggy on-device - never the push default).
             flutter build apk --flavor "${{ matrix.flavor }}" --debug $DEFINES
           elif [ "${{ matrix.flavor }}" = "fdroid" ]; then
             # F-Droid reference binaries: the pipe has ONE build block per
             # ABI (fdroiddata templates/build-flutter.yml), each invoking
             # tool/fdroid_build.sh with a --target-platform pin. Byte
             # reproducibility requires IDENTICAL build inputs, so build each
-            # ABI in its own invocation with the same flag — never one
-            # all-ABIs invocation (different gradle/flutter inputs → different
-            # bytes → verify_apks fails).
+            # ABI in its own invocation with the same flag - never one
+            # all-ABIs invocation (different gradle/flutter inputs -> different
+            # bytes -> verify_apks fails).
             for ABI in android-arm android-arm64 android-x64; do
               flutter build apk --flavor fdroid --release $BUILD_FLAGS --target-platform="$ABI" $DEFINES
             done
           else
             # Release by default: the push-built APK is what gets installed
             # on phones. AOT-compiled, no IME/typing jank. --flavor selects
-            # the gradle product flavor (native dependency set — fdroid
+            # the gradle product flavor (native dependency set - fdroid
             # excludes the firebase plugins); the dart-defines drive the
             # app's compile-time config.
             flutter build apk --flavor "${{ matrix.flavor }}" --release $BUILD_FLAGS $DEFINES
@@ -196,7 +196,7 @@ jobs:
 
       # AGP writes a "Dependency metadata" entry (block ID 0x504b4453) into
       # the APK signing block for Play; the F-Droid pipe's binary check flags
-      # it as an extra signing block. Strip it here — v2/v3 signatures do NOT
+      # it as an extra signing block. Strip it here - v2/v3 signatures do NOT
       # cover the signing block, so the signature stays valid (the next step
       # verifies it), and zip entries are untouched, so the byte comparison
       # with the pipe's build is unaffected (the pipe strips identically via
@@ -204,7 +204,7 @@ jobs:
       - name: Strip AGP dependency metadata (F-Droid pipe)
         if: matrix.flavor == 'fdroid'
         run: |
-          # Split-per-abi build → one APK per ABI; strip the signing-block
+          # Split-per-abi build -> one APK per ABI; strip the signing-block
           # entry from each (the pipe strips identically via tool/fdroid_build.sh).
           for APK in build/app/outputs/flutter-apk/app-*-fdroid-release.apk; do
             python3 tool/strip_dep_metadata.py "$APK"
@@ -221,12 +221,12 @@ jobs:
           FAILED=0
           for APK in build/app/outputs/flutter-apk/app-*-fdroid-release.apk; do
             echo "checking $APK"
-            # Scan EVERY dex file (play-core landed in classes4.dex last time —
+            # Scan EVERY dex file (play-core landed in classes4.dex last time -
             # a classes.dex-only grep would have missed it) for google code.
             # firebase/gms = real google code; play/core refs are the engine's
             # dead references (PlayStoreDeferredComponentManager), which the
             # StripPlayStoreDeferredManager instrumentation empties on the
-            # fdroid variant — so play refs must be ZERO here too. If either
+            # fdroid variant - so play refs must be ZERO here too. If either
             # shows up, the fdroid APK is not Google-free.
             HITS=$(for f in $(unzip -l "$APK" | grep -oE 'classes[0-9]*\.dex'); do unzip -p "$APK" "$f"; done | grep -cE "Lcom/google/firebase|Lcom/google/android/gms|Lcom/google/android/play" || true)
             MANIFEST=$(unzip -p "$APK" AndroidManifest.xml | grep -c "firebase" || true)
@@ -242,12 +242,12 @@ jobs:
           echo "fdroid APKs are GMS-free: OK"
 
       # Release gate: the fdroid APK we publish MUST be signed (release
-      # key). F-Droid's own build is unsigned on purpose — their infra has
+      # key). F-Droid's own build is unsigned on purpose - their infra has
       # no secrets, so IS_GITHUB_ACTION is never set there and they sign
       # with THEIR key; the reproducible-build comparison strips signatures
       # from both APKs before diffing, so our signature never affects the
       # byte match. But if OUR artifact ever came out unsigned or debug-keyed,
-      # it could not be released — fail loudly instead of shipping it.
+      # it could not be released - fail loudly instead of shipping it.
       - name: Verify fdroid APK is signed (release key)
         if: matrix.flavor == 'fdroid' && github.event.inputs.build_type != 'debug'
         run: |

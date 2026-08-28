@@ -75,7 +75,7 @@ void main() {
     expect(find.textContaining('SysOp, Admin, Moderator'), findsOneWidget);
   });
 
-  testWidgets('Check again → feed when maintenance is lifted', (tester) async {
+  testWidgets('Check again -> feed when maintenance is lifted', (tester) async {
     final config = _FakeConfig(
       const SiteConfig(
         isInvitationRequired: false,
@@ -105,7 +105,7 @@ void main() {
     ));
     await tester.pump();
 
-    // Maintenance ends — the next fetch reports it disabled.
+    // Maintenance ends; the next fetch reports it disabled.
     config._config = const SiteConfig(
       isInvitationRequired: false,
       maintenance: MaintenanceConfig(

@@ -19,22 +19,6 @@ import '../widgets/shimmer.dart';
 import 'profile_screen.dart';
 import '../services/analytics_service.dart';
 
-/// The native article screen — the site's /article/<slug> (article.php) as
-/// a modern app. Site parity:
-///  - cover hero with the view-count chip (fa-eye, comma-formatted) and the
-///    title over a bottom fade; pinned articles carry the red fire chip;
-///  - author row: personality-ring avatar, rank-colored username, RankBadge,
-///    "Published on …" (the site's jS F Y h:i A), the heart like button
-///    (optimistic toggle — the site's toggleLike());
-///  - tag chips (fa-hashtag pills, the site's article-tags-likes section);
-///  - the BODY renders the stored Quill HTML in a WebView styled with the
-///    site's .article-content rules (the app's own fonts/colors), with
-///    "Continue Reading" cards appended — their /article/<slug> links open
-///    native detail screens instead of the site.
-///
-/// Body links: other /article/… paths → native detail; every other http(s)
-/// link → the system browser (the app's post-body convention); everything
-/// else stays put. JavaScript is disabled — the body is static HTML.
 class ArticleDetailScreen extends StatefulWidget {
   const ArticleDetailScreen({
     super.key,
@@ -46,9 +30,7 @@ class ArticleDetailScreen extends StatefulWidget {
   final ArticlesService articles;
   final String slug;
 
-  /// Test seam — replaces the WebView body (a platform view, absent under
-  /// `flutter test`) with a plain widget. Receives the built document HTML
-  /// and the base URL, so tests can assert what the document contains.
+  /// Test seam: replaces the WebView body under flutter test.
   final Widget Function(String html, String baseUrl)? bodyBuilder;
 
   @override
@@ -156,9 +138,7 @@ return ErrorView(message: _error!, onRetry: _load);
       related: article.related,
       baseUrl: AppConfig.apiBaseUrl,
     );
-    // The WHOLE page scrolls as one (user spec): hero, author row, tags
-    // and the article body — the WebView below is sized to its measured
-    // content height, so nothing scrolls internally.
+    // The whole page scrolls as one; the WebView is sized to its content.
     return ListView(
       padding: EdgeInsets.zero,
       children: [
@@ -192,9 +172,6 @@ return ErrorView(message: _error!, onRetry: _load);
   }
 }
 
-/// Cover hero (or a title header when the article has no cover): the site's
-/// h-[500px] cover with the articleCoverFade, the view-count chip and the
-/// title over the fade; pinned articles get the red fire chip.
 class _ArticleHero extends StatelessWidget {
   const _ArticleHero({required this.article});
 
@@ -238,11 +215,7 @@ class _ArticleHero extends StatelessWidget {
             fit: BoxFit.cover,
             errorAsset: 'assets/images/no-image.jpg',
           ),
-          // The cover fades into the PAGE color — a true fade confined to
-          // the bottom half (user spec): image 0-50% solid, 50-75% the
-          // page color reaches 50% opacity, 75%-bottom reaches 100%, so
-          // the image's bottom edge melts into the page and the title
-          // always sits on the (dark) page background.
+          // The cover fades into the page color so the title always sits on it.
           Positioned(
             left: 0,
             right: 0,
@@ -321,10 +294,6 @@ class _ArticleHero extends StatelessWidget {
   }
 }
 
-/// Author row: personality-ring avatar, then the identity block — rank
-/// ABOVE the username, the personality pill next to the (tappable)
-/// username, ONLY the published date below (user spec) — and the heart
-/// like button with its count on the right.
 class _AuthorRow extends StatelessWidget {
   const _AuthorRow({
     required this.article,
@@ -357,12 +326,10 @@ class _AuthorRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Rank badge above the username (site's rank + personality
-                // identity block, re-ordered per user spec).
+                // Rank badge above the username.
                 RankBadge(rank: a.rank),
                 const SizedBox(height: 5),
-                // Username + personality pill; tapping the identity block
-                // opens the author's profile (the site links the author).
+                // Tapping the identity block opens the author's profile.
                 InkWell(
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
@@ -406,7 +373,7 @@ class _AuthorRow extends StatelessWidget {
               ],
             ),
           ),
-          // The site's article heart: outline → filled on like.
+          // The site's article heart: outline -> filled on like.
           InkWell(
             onTap: onLike,
             borderRadius: BorderRadius.circular(12),
@@ -445,7 +412,6 @@ class _AuthorRow extends StatelessWidget {
   }
 }
 
-/// Tag chips — the site's fa-hashtag pills (secondaryCardColor).
 class _TagChips extends StatelessWidget {
   const _TagChips({required this.tags});
 
@@ -486,19 +452,6 @@ class _TagChips extends StatelessWidget {
   }
 }
 
-/// The article body: the built document in a WebView sized to its CONTENT
-/// (auto-height) so the whole article page scrolls as one — the surrounding
-/// ListView never fights an internal scrollable. Links to other articles
-/// open native detail screens; every other http(s) link opens the system
-/// browser.
-///
-/// Height flow: the document's injected script posts `scrollHeight` to the
-/// 'EnclavdBridge' JS channel on load, on every image/font load and on a
-/// few delayed re-measures (fonts/images change the height after first
-/// paint); onPageFinished also polls it via runJavaScriptReturningResult
-/// as a belt-and-braces first measurement. JavaScript is enabled only for
-/// this measurement — the content is admin-authored, same trust as the
-/// site rendering it.
 class _ArticleBodyWebView extends StatefulWidget {
   const _ArticleBodyWebView({
     required this.html,
@@ -517,9 +470,6 @@ class _ArticleBodyWebView extends StatefulWidget {
 }
 
 class _ArticleBodyWebViewState extends State<_ArticleBodyWebView> {
-  /// Measured document height. While 0 (page still loading / first
-  /// measurement pending) a bounded spinner box shows, so the surrounding
-  /// list never jumps twice.
   int _height = 0;
 
   late final WebViewController _controller = WebViewController()
@@ -539,8 +489,6 @@ class _ArticleBodyWebViewState extends State<_ArticleBodyWebView> {
     setState(() => _height = h);
   }
 
-  /// Belt-and-braces first measurement (the document script usually beats
-  /// this; runJavaScriptReturningResult may wrap numbers in quotes).
   void _measure() {
     _controller
         .runJavaScriptReturningResult('document.documentElement.scrollHeight')
@@ -573,11 +521,7 @@ class _ArticleBodyWebViewState extends State<_ArticleBodyWebView> {
 
   @override
   Widget build(BuildContext context) {
-    // The WebView is ALWAYS mounted (at the placeholder height while the
-    // first measurement is pending) with the spinner OVERLAID — a
-    // conditional mount here deadlocks: the measurement can only arrive
-    // from the loaded document, and the document only loads once the
-    // platform view is attached, which requires the widget to be built.
+    // Always mounted: a conditional mount deadlocks the measurement.
     final height = _height > 0 ? _height.toDouble() : 220.0;
     return SizedBox(
       height: height,
@@ -599,7 +543,6 @@ class _ArticleBodyWebViewState extends State<_ArticleBodyWebView> {
   }
 }
 
-/// Detail loading skeleton: cover block + title lines + author row.
 class _DetailSkeleton extends StatelessWidget {
   const _DetailSkeleton();
 
@@ -640,8 +583,7 @@ class _DetailSkeleton extends StatelessWidget {
   }
 }
 
-/// The site's detail date: date('jS F Y h:i A') on the DB wall-clock
-/// ("Published on 4th June 2026 04:12 PM").
+/// The site's detail date: jS F Y h:i A on the DB wall-clock.
 String formatDateFull(String dbUtc) {
   final t = parseDbTime(dbUtc);
   if (t == null) return '';
@@ -665,7 +607,7 @@ String formatDateFull(String dbUtc) {
   return '$d$suffix ${months[t.month - 1]} ${t.year} $h12:$mm $ampm';
 }
 
-/// The site's number_format(): thousands with commas (views, like counts).
+/// The site's number_format(): thousands with commas.
 String formatViews(int n) {
   final s = n.toString();
   final buf = StringBuffer();

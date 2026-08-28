@@ -16,14 +16,6 @@ import '../widgets/shimmer.dart';
 import 'domain_thread_screen.dart';
 import '../services/analytics_service.dart';
 
-/// Thread list for one domain category (site: /domain category view).
-///
-/// Shows the category header (icon + name + description, breadcrumb-style
-/// "Domains / Category") over its threads — posts ordered by newest
-/// activity, INCLUDING subcategory posts (site: get_domain_ids_with_children).
-/// Thread rows are the site's thread_row port: avatar, excerpt-as-title,
-/// author + date, then comment/like counts + last activity. Infinite
-/// scroll via offset pagination; tap → the forum thread view.
 class DomainCategoryScreen extends StatefulWidget {
   const DomainCategoryScreen({
     super.key,
@@ -35,7 +27,7 @@ class DomainCategoryScreen extends StatefulWidget {
   final DomainsService domains;
   final DomainCategory category;
 
-  /// Test seam — replaces the pushed thread screen.
+  /// Test seam: replaces the pushed thread screen.
   final Widget Function(DomainThread thread)? threadBuilder;
 
   @override
@@ -96,9 +88,8 @@ class _DomainCategoryScreenState extends State<DomainCategoryScreen> {
         _threads
           ..clear()
           ..addAll(page.threads);
-        // The API's category row is the source of truth for the header
-        // (fresh icon/color/description); keep the navigated name as a
-        // fallback when the row is empty.
+        // The API's category row is the header source of truth; the
+        // navigated name is the fallback when the row is empty.
         if (page.category.id != 0) _category = page.category;
         _hasMore = page.hasMore;
         _offset = page.threads.length;
@@ -234,7 +225,6 @@ return ErrorView(message: _error!, onRetry: _loadFirst);
   }
 }
 
-/// Category header block (site: breadcrumb + icon + name + description).
 class _CategoryHeader extends StatelessWidget {
   const _CategoryHeader({required this.category});
 
@@ -290,9 +280,6 @@ class _CategoryHeader extends StatelessWidget {
   }
 }
 
-/// One thread row — the site's thread_row port: avatar (personality
-/// border), excerpt-as-title (first ~120 chars of the decoded content),
-/// author + posted date, then comment/like counts + last activity.
 class _ThreadRow extends StatelessWidget {
   const _ThreadRow({super.key, required this.thread, required this.onTap});
 
@@ -341,7 +328,7 @@ class _ThreadRow extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      // Meta: author (rank color) + rank badge · relative
+                      // Meta: author (rank color) + rank badge - relative
                       // date (forum-identity like the thread view).
                       Row(
                         children: [
@@ -363,7 +350,7 @@ class _ThreadRow extends StatelessWidget {
                           RankBadge(rank: post.rank),
                           const SizedBox(width: 6),
                           Text(
-                            '· ${relativeTime(post.createdAt)}',
+                            '- ${relativeTime(post.createdAt)}',
                             style: const TextStyle(
                                 fontSize: 12,
                                 color: EnclavdColors.textSecondary),
@@ -415,9 +402,6 @@ class _ThreadRow extends StatelessWidget {
     );
   }
 
-  /// Last activity = the newest reply time, else the post time (the site's
-  /// $lastActivity = last_reply_at ?? created_at), as a short relative
-  /// string like "2h" / "3d" (relativeTime's compact form).
   String? get _lastActivity {
     final raw = thread.lastReplyAt ?? thread.post.createdAt;
     final t = parseDbTime(raw);
@@ -433,15 +417,12 @@ class _ThreadRow extends StatelessWidget {
   }
 }
 
-/// The site's excerpt rule (thread_row.php): first 120 chars of the
-/// decoded content, ellipsis when truncated. '(no content)' for empty.
 String _excerpt(String content) {
   final trimmed = content.trim();
   if (trimmed.isEmpty) return '(no content)';
-  return trimmed.length > 120 ? '${trimmed.substring(0, 120)}…' : trimmed;
+  return trimmed.length > 120 ? '${trimmed.substring(0, 120)}...' : trimmed;
 }
 
-/// Category header skeleton (icon block + two text lines).
 class _CategoryHeaderSkeleton extends StatelessWidget {
   const _CategoryHeaderSkeleton();
 
@@ -470,7 +451,6 @@ class _CategoryHeaderSkeleton extends StatelessWidget {
   }
 }
 
-/// Skeleton of a thread row (avatar + excerpt lines + stats).
 class _ThreadRowSkeleton extends StatelessWidget {
   const _ThreadRowSkeleton();
 

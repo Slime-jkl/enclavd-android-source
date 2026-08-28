@@ -19,25 +19,6 @@ import 'personality_chip.dart';
 import 'rank_badge.dart';
 import 'shimmer.dart';
 
-/// The user menu as a modern app drawer (NOT site-accurate — the site's
-/// dropdown is a flat Tailwind list; this is a native-style drawer).
-/// Triggered by the avatar in the header.
-///
-/// While the session probe ([AuthService.me]) is in flight the WHOLE menu
-/// shows a shimmer skeleton; once loaded it renders a grouped layout:
-/// identity header (personality-tinted gradient, rank-colored username,
-/// rank badge + personality chip) then plain single-color icon menu items under
-/// uppercase section labels (Account / Community / Support), sign out
-/// separated at the bottom.
-///
-/// Items (functionality parity with the site menu, minus Profile and
-/// Control Panel which were removed at the user's request): the current
-/// user's avatar/username → their profile; Account settings (the app's
-/// edit-profile); App settings; Quote of the day (the feature's own
-/// settings); Test Results; Invitations; Legal; Report an issue; Sign
-/// out. Everything is a native screen — the only website link left is
-/// the about card's changelog button at the bottom (moved here from the
-/// app settings screen).
 class UserMenuDrawer extends StatefulWidget {
   const UserMenuDrawer({
     super.key,
@@ -47,8 +28,7 @@ class UserMenuDrawer extends StatefulWidget {
 
   final AuthService auth;
 
-  /// Wired by the owning screen: logs out via api/v1 and returns to the
-  /// login screen (the site's /logout).
+  /// Wired by the owning screen: logs out via api/v1 and returns to login.
   final VoidCallback onSignOut;
 
   @override
@@ -69,8 +49,6 @@ class _UserMenuDrawerState extends State<UserMenuDrawer> {
     Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => screen));
   }
 
-  /// Opens a site page in the system browser (the about card's changelog
-  /// link — the only remaining website link in the menu).
   Future<void> _openSite(String path) async {
     try {
       await launchUrl(
@@ -93,9 +71,7 @@ class _UserMenuDrawerState extends State<UserMenuDrawer> {
         child: FutureBuilder<CurrentUser?>(
           future: _me,
           builder: (context, snapshot) {
-            // Loading = the menu's own skeleton (header block + menu
-            // rows) under the shared Shimmer, so the drawer never shows
-            // a bare layout or a static placeholder.
+            // Loading = the menu's own skeleton under the shared Shimmer.
             if (snapshot.connectionState != ConnectionState.done) {
               return const _MenuSkeleton();
             }
@@ -209,8 +185,6 @@ class _UserMenuDrawerState extends State<UserMenuDrawer> {
   }
 }
 
-/// Uppercase section label between menu groups (the modern-drawer look:
-/// spacing + labels instead of the site's full-width dividers).
 class _SectionLabel extends StatelessWidget {
   const _SectionLabel(this.label);
 
@@ -244,8 +218,7 @@ class _UserHeader extends StatelessWidget {
     // Local copy so the null check promotes (public fields don't).
     final u = user;
     if (u == null) {
-      // Session probe finished without a user (dead/absent session) —
-      // keep the menu usable with a neutral identity header.
+      // No session: keep the menu usable with a neutral identity header.
       return Padding(
         padding: const EdgeInsets.all(20),
         child: Row(
@@ -293,8 +266,7 @@ class _UserHeader extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          // A subtle personality-tinted gradient — the header reads as an
-          // identity card, not a list row.
+          // Personality-tinted gradient so the header reads as an identity card.
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -348,9 +320,6 @@ class _UserHeader extends StatelessWidget {
   }
 }
 
-/// Menu row with a plain single-color icon (no tinted chip) — the
-/// professional drawer look, matching the settings screen's bare-icon
-/// rows. Trailing chevron only when the row is tappable.
 class _MenuItem extends StatelessWidget {
   const _MenuItem({
     required this.icon,
@@ -380,9 +349,6 @@ class _MenuItem extends StatelessWidget {
   }
 }
 
-/// The drawer's loading state: a skeleton of the real layout (identity
-/// header + section labels + menu rows) under the shared [Shimmer], so
-/// the menu visibly loads instead of flashing a bare list.
 class _MenuSkeleton extends StatelessWidget {
   const _MenuSkeleton();
 

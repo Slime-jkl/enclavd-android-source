@@ -77,8 +77,8 @@ Future<void> _pump(
   _FakeProfile fake, {
   Future<XFile?> Function()? avatarPicker,
 }) async {
-  // Real ApiClient: the geo name lookups hit the test HTTP 400 wall and
-  // fail silently (cosmetic), so the form must still render.
+  // Real ApiClient: geo lookups hit the test HTTP 400 wall and fail
+  // silently (cosmetic); the form must still render.
   await tester.pumpWidget(MaterialApp(
     theme: buildEnclavdTheme(),
     home: AccountSettingsScreen(
@@ -91,7 +91,6 @@ Future<void> _pump(
   await tester.pump(const Duration(milliseconds: 50));
 }
 
-/// Scrolls to the bottom (Save Changes) and taps it.
 Future<void> _tapSave(WidgetTester tester) async {
   await tester.drag(find.byType(ListView), const Offset(0, -1600));
   await tester.pump();
@@ -113,7 +112,7 @@ void main() {
     expect(find.text('Dev One'), findsOneWidget, reason: 'full name');
     expect(find.text('hello world'), findsOneWidget, reason: 'bio');
 
-    // Birthdate / gender / buttons sit below the fold — scroll down.
+    // Birthdate / gender / buttons sit below the fold; scroll down.
     await tester.drag(find.byType(ListView), const Offset(0, -500));
     await tester.pump();
     expect(find.text('1995-01-18'), findsOneWidget, reason: 'birthdate');
@@ -135,8 +134,8 @@ void main() {
     await _pump(tester, fake);
     await _tapSave(tester);
 
-    // The banner is at the top of the list; the save button at the bottom —
-    // the scroll-to-error animation brings it into view.
+    // The banner is at the top, the save button at the bottom; the
+    // scroll-to-error animation brings it into view.
     expect(find.textContaining('Invalid file type'), findsOneWidget,
         reason: '4xx server message is shown as-is');
   });
@@ -186,7 +185,7 @@ void main() {
           mimeType: 'image/jpeg'),
     );
 
-    // Pick an avatar — the button flips to "Replace" while pending.
+    // Pick an avatar: the button flips to "Replace" while pending.
     await tester.tap(find.text('Change'));
     await tester.pump();
     expect(find.text('Replace'), findsOneWidget, reason: 'preview pending');

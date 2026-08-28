@@ -36,19 +36,17 @@ void main() {
     ));
     await tester.pump();
 
-    // Starts disabled with the 60-second cooldown shown on the button.
     final cooling = find.widgetWithText(OutlinedButton, 'Resend email (1:00)');
     expect(cooling, findsOneWidget);
     expect(tester.widget<OutlinedButton>(cooling).onPressed, isNull);
 
-    // After the 60s elapse the button becomes clickable.
     await tester.pump(const Duration(seconds: 60));
     final enabled = find.widgetWithText(OutlinedButton, 'Resend email');
     expect(enabled, findsOneWidget);
     expect(tester.widget<OutlinedButton>(enabled).onPressed, isNotNull);
 
-    // One try: sends to the right address, reports the outcome, and costs
-    // another 60 seconds (60 → 120).
+    // One try: sends to the right address, reports the outcome, costs
+    // another 60 seconds (60 -> 120).
     await tester.tap(enabled);
     await tester.pump();
     expect(auth.lastEmail, 'new@dev.dev');

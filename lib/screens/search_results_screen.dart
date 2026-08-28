@@ -13,16 +13,6 @@ import 'post_detail_screen.dart';
 import 'profile_screen.dart';
 import '../services/analytics_service.dart';
 
-/// Search results — the screen the notification drawer's search bar
-/// lands on. Fetches api/v1/search?q=…&format=json (posts, users,
-/// comments in one structured payload) and renders them grouped by type
-/// (Members / Posts / Comments).
-///
-/// Loading: a shimmer skeleton of the exact row layout (the drawer
-/// precedent — never a bare spinner). Results respect the site's visual
-/// identity natively: avatar with personality border, username in RANK
-/// color, rank badge + personality chip, content preview and stats.
-/// Taps: users → ProfileScreen, posts/comments → PostDetailScreen.
 class SearchResultsScreen extends StatefulWidget {
   const SearchResultsScreen({
     super.key,
@@ -67,8 +57,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
       ));
       return;
     }
-    // Posts AND comments deep-link to the post (the site's search rows
-    // point comments at /feed/post/<post_id> too).
+    // Posts and comments deep-link to the post (site parity).
     Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (_) => PostDetailScreen(postId: r.type == 'comment'
           ? r.postId
@@ -90,9 +79,7 @@ return ErrorView(message: _error!, onRetry: _load);
     }
     final results = _results;
     if (results == null) {
-      // Shimmer the page until the results arrive — same skeleton family
-      // as the rest of the app (avatar circle + lines per row, section
-      // label bars between groups).
+      // Shimmer the page until the results arrive.
       return ListView(
         physics: const NeverScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(vertical: 8),
@@ -120,8 +107,7 @@ return ErrorView(message: _error!, onRetry: _load);
         ),
       );
     }
-    // Group by type (the API already orders user → post → comment; keep
-    // the sections stable even if the order ever changes).
+    // Group by type, keeping the sections stable.
     final users = results.where((r) => r.type == 'user').toList();
     final posts = results.where((r) => r.type == 'post').toList();
     final comments = results.where((r) => r.type == 'comment').toList();
@@ -150,8 +136,6 @@ return ErrorView(message: _error!, onRetry: _load);
   }
 }
 
-/// Uppercase section label (Members / Posts / Comments) — same language
-/// as the user menu drawer's grouped sections.
 class _SectionHeader extends StatelessWidget {
   const _SectionHeader(this.label);
 
@@ -174,10 +158,6 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-/// One search result row: avatar (personality border), username in the
-/// RANK color, rank badge + personality chip, then the type-specific
-/// preview (bio/posts count, post text + like/comment stats, comment
-/// text + the parent post line).
 class _ResultRow extends StatelessWidget {
   const _ResultRow({required this.result, required this.onTap});
 
@@ -243,7 +223,6 @@ class _ResultRow extends StatelessWidget {
   }
 }
 
-/// Type-specific preview under the identity row.
 class _Subtitle extends StatelessWidget {
   const _Subtitle({required this.result});
 
@@ -314,8 +293,6 @@ class _Subtitle extends StatelessWidget {
   }
 }
 
-/// Loading skeleton: avatar circle + two lines, shaped like the real
-/// rows so the page visibly loads (never a bare spinner).
 class _SearchRowSkeleton extends StatelessWidget {
   const _SearchRowSkeleton();
 

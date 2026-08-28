@@ -8,8 +8,6 @@ import 'package:enclavd/services/social_notifications.dart';
 import 'package:enclavd/services/sound_service.dart';
 import 'package:enclavd/theme/enclavd_theme.dart';
 
-/// Minimal notifier fake for the settings screen (the OS permission state
-/// is what the warning row reads; nothing else is exercised here).
 class _SettingsFakeNotifier implements LocalNotifier {
   bool osEnabled = true;
   int openSettingsCalls = 0;
@@ -57,18 +55,15 @@ void main() {
   setUp(() {
     SoundService.muted = true;
     MessageNotifications.instance = null;
-    // The settings screen reads the keep-alive toggle over the native
-    // channel on load. Unhandled platform channels HANG in widget tests
-    // (no platform side to reply), so every test gets a default handler;
-    // the dedicated keep-alive test overrides it with a stateful one.
+    // Unhandled platform channels HANG in widget tests (no platform side to
+    // reply), so every test gets a default handler; the keep-alive test
+    // overrides it with a stateful one.
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
       const MethodChannel('enclavd/keepalive'),
       (call) async => call.method == 'isEnabled' ? true : null,
     );
-    // Same for home_widget: the daily-quote widget display prefs are read
-    // on load (and written on toggle). A null response = defaults, which
-    // is exactly what the screen needs in tests.
+    // Same for home_widget: a null response = defaults, which is what the screen needs.
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
       const MethodChannel('home_widget'),
@@ -87,8 +82,6 @@ void main() {
   testWidgets('sound toggle flips SoundService.muted and persists',
       (tester) async {
     SharedPreferences.setMockInitialValues({});
-    // Tall viewport so the lazy ListView builds ALL toggles (the screen
-    // now has 4 — the daily-quote options moved to their own screen).
     tester.view.physicalSize = const Size(800, 2200);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -103,12 +96,10 @@ void main() {
         reason: 'sounds + message notifications + notification alerts '
             '+ live updates while minimized');
 
-    // Turn sounds off.
     await tester.tap(find.widgetWithText(SwitchListTile, 'Sound effects'));
     await tester.pumpAndSettle();
     expect(SoundService.muted, isTrue);
 
-    // Persisted: a fresh screen load honors the stored value.
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getBool('sounds_enabled'), isFalse);
 
@@ -137,14 +128,12 @@ void main() {
         isTrue,
         reason: 'notifications default ON');
 
-    // Turn them off.
     await tester
         .tap(find.widgetWithText(SwitchListTile, 'Message notifications'));
     await tester.pumpAndSettle();
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getBool(MessageNotifications.enabledPrefsKey), isFalse);
 
-    // Fresh screen load restores the off state.
     await tester.pumpWidget(MaterialApp(
       theme: buildEnclavdTheme(),
       home: const SettingsScreen(),
@@ -176,14 +165,12 @@ void main() {
         isTrue,
         reason: 'alerts default ON');
 
-    // Turn them off.
     await tester
         .tap(find.widgetWithText(SwitchListTile, 'Notification alerts'));
     await tester.pumpAndSettle();
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getBool(SocialNotifications.enabledPrefsKey), isFalse);
 
-    // Fresh screen load restores the off state.
     await tester.pumpWidget(MaterialApp(
       theme: buildEnclavdTheme(),
       home: const SettingsScreen(),
@@ -223,8 +210,7 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    // The keep-alive tile is the last toggle — scroll it into view first
-    // (the lazy ListView doesn't build items below the fold).
+    // The keep-alive tile is the last toggle; scroll it into view first (lazy ListView).
     await tester.scrollUntilVisible(
         find.text('Live updates while minimized'), 200);
 
@@ -245,7 +231,6 @@ void main() {
     expect(setCalls.length, 1, reason: 'one flip -> one native call');
     expect(setCalls.single.arguments, {'enabled': false});
 
-    // The toggle state is native-owned: a fresh screen load reads it back.
     calls.clear();
     await tester.pumpWidget(MaterialApp(
       theme: buildEnclavdTheme(),
@@ -274,14 +259,13 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    // The warning row is the last ListView item — with four toggles above
-    // it, scroll it into view before asserting.
+    // The warning row is the last item; scroll it into view before asserting.
     await tester.scrollUntilVisible(
         find.text('Notifications are blocked on this phone'), 200);
 
     expect(find.text('Notifications are blocked on this phone'),
         findsOneWidget,
-        reason: 'toggle ON but the OS denies → the warning must be visible');
+        reason: 'toggle ON but the OS denies -> the warning must be visible');
     expect(find.text('Open settings'), findsOneWidget);
 
     await tester.ensureVisible(find.text('Open settings'));
@@ -321,6 +305,6 @@ void main() {
 
     expect(find.text('Notifications are blocked on this phone'),
         findsNothing,
-        reason: 'opt-out is intentional — no nagging');
+        reason: 'opt-out is intentional - no nagging');
   });
 }

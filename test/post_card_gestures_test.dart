@@ -34,8 +34,6 @@ Post _post({
       'is_owner': false,
     });
 
-/// SocialService that answers from memory — widget tests run in a
-/// fake-async zone where real sockets (the Harness) never complete.
 class _FakeSocial extends SocialService {
   _FakeSocial() : super(_noopClient());
 
@@ -103,7 +101,7 @@ void main() {
   }
 
   group('like gestures (site parity)', () {
-    testWidgets('tap on an UNLIKED heart does not like — shows the hint',
+    testWidgets('tap on an UNLIKED heart does not like - shows the hint',
         (tester) async {
       final social = await pumpPost(tester, _post());
 
@@ -203,7 +201,7 @@ void main() {
     });
 
     testWidgets(
-        '"Liked by N" sits INLINE opposite the buttons — same row, right '
+        '"Liked by N" sits INLINE opposite the buttons - same row, right '
         'side (site justify-between)', (tester) async {
       await pumpPost(tester, _post(likeCount: 3));
 
@@ -214,7 +212,7 @@ void main() {
           reason: 'same vertical line as the like/comment buttons (inline, '
               'not a row below them)');
       expect(likedByCenter.dx > heartCenter.dx + 100, isTrue,
-          reason: 'on the OPPOSITE end of the row — buttons stay '
+          reason: 'on the OPPOSITE end of the row - buttons stay '
               'left-aligned, Liked by goes right');
     });
 
@@ -225,10 +223,8 @@ void main() {
     });
   });
 
-// The post image's expand hint (fa-expand overlay) — uniquely size 13.
-// (Can't compare FontAwesomeIcons.expand directly: the const icon is
-// FaIconData while FaIcon.icon resolves to IconData, so == is always
-// false — the analyzer flags it as an unrelated-type comparison.)
+// The expand hint is uniquely size 13 (FaIconData can't be compared to the
+// resolved IconData; the analyzer flags the ==).
 Finder expandHint() => find.byWidgetPredicate(
     (w) => w is FaIcon && w.size == 13 && w.color == Colors.white);
 
@@ -260,8 +256,7 @@ Finder expandHint() => find.byWidgetPredicate(
   group('youtube embeds', () {
     testWidgets('posts with a YouTube link show the embed card',
         (tester) async {
-      // A 16:9 embed needs a phone-sized surface — the default 800x600
-      // test viewport overflows the card.
+      // A 16:9 embed needs a phone-sized surface; the default viewport overflows.
       tester.view.physicalSize = const Size(1080, 2340);
       tester.view.devicePixelRatio = 3.0;
       addTearDown(tester.view.reset);

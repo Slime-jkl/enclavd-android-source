@@ -34,7 +34,7 @@ void main() {
     expect(html, contains('href="/article/a&amp;b"'),
         reason: 'slugs are escaped for the href attribute');
     expect(html, contains('Title &lt;script&gt;alert(1)&lt;/script&gt;'),
-        reason: 'titles are escaped — never raw HTML');
+        reason: 'titles are escaped - never raw HTML');
     expect(html, contains('src="/public/articles/c.jpg"'));
     expect(html, contains('Continue Reading'));
     expect(html, contains("url('assets/fonts/Montserrat/"),

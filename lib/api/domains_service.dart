@@ -1,14 +1,12 @@
 import 'api_client.dart';
-import 'feed_service.dart'; // Post.fromJson — threads share the feed shape
+import 'feed_service.dart'; // Post.fromJson: threads share the feed shape
 
-/// A domain category row — the board's navigation node.
-///
-/// Contract (api/v1/domains.php GET): id, name, slug, parent,
-/// display_order, description, icon (fa-* class name), color (hex),
-/// post_count, last_post_at (DB UTC wall-clock), last_post_author,
-/// last_post_user_id. The board renders a NESTED tree; the API ships
-/// flat rows and the app builds the nesting (mirror of the site's
-/// build_domain_tree_nested).
+/// A domain category row - the board's navigation node. Contract
+/// (api/v1/domains.php GET): id, name, slug, parent, display_order,
+/// description, icon (fa-* class name), color (hex), post_count,
+/// last_post_at (DB UTC wall-clock), last_post_author, last_post_user_id.
+/// The board renders a NESTED tree; the API ships flat rows and the app
+/// builds the nesting (mirror of the site's build_domain_tree_nested).
 class DomainCategory {
   const DomainCategory({
     required this.id,
@@ -59,10 +57,10 @@ class DomainCategory {
       );
 
   /// Nested-tree builder (the site's build_domain_tree_nested): flat rows
-  /// from the API → roots with children[], orphans promoted to roots.
-  /// Two passes: index all rows first, then assemble (a single pass that
+  /// from the API -> roots with children[], orphans promoted to roots.
+  /// Two passes: index all rows first, then assemble - a single pass that
   /// copies the parent on each child append would leave the already-added
-  /// root pointing at the stale pre-children copy — the PHP original uses
+  /// root pointing at the stale pre-children copy (the PHP original uses
   /// by-reference mutation, which Dart has no equivalent of).
   static List<DomainCategory> buildTree(List<DomainCategory> flat) {
     final indexed = <int, DomainCategory>{for (final c in flat) c.id: c};
@@ -108,7 +106,7 @@ class DomainCategory {
   }
 }
 
-/// One thread row in a category's list — a post plus its domain context.
+/// One thread row in a category's list - a post plus its domain context.
 /// The post fields are EXACTLY the feed's map_post shape, so Post.fromJson
 /// parses them; the API adds domain_slug/domain_name/last_reply_at.
 class DomainThread {
@@ -171,12 +169,12 @@ class DomainThreadPage {
   }
 }
 
-/// A single thread (OP + its category trail) — the thread screen's header.
+/// A single thread (OP + its category trail) - the thread screen's header.
 class DomainThreadDetail {
   const DomainThreadDetail({required this.post, required this.breadcrumb});
 
   final Post post;
-  final List<DomainCategory> breadcrumb; // root → leaf
+  final List<DomainCategory> breadcrumb; // root -> leaf
 
   factory DomainThreadDetail.fromJson(Map<String, dynamic> json) {
     final rawPost = json['post'];
@@ -194,17 +192,11 @@ class DomainThreadDetail {
   }
 }
 
-/// DomainsService — the native Domains tab over api/v1/domains.php.
-///
-/// Contracts (api/v1/domains.php, web repo — deployed by the user):
-///   GET /api/v1/domains            → {success, domains:[flat rows]}
-///   GET /api/v1/domains?category_id=N&limit&offset
-///                                   → {success, category, threads:[...],
-///                                      total, has_more}
-///   GET /api/v1/domains?post_id=N   → {success, post, breadcrumb:[...]}
-///                                      (404 when not a domain post)
-/// Reads are public like the site's /domain pages; user_liked/is_owner
-/// are computed server-side for the logged-in viewer.
+/// The native Domains tab over api/v1/domains.php (deployed by the user).
+/// GET / -> {domains: flat rows}; ?category_id=N&limit&offset ->
+/// {category, threads, total, has_more}; ?post_id=N -> {post,
+/// breadcrumb} (404 when not a domain post). Reads are public like the
+/// site's /domain pages; user_liked/is_owner are computed server-side.
 class DomainsService {
   DomainsService(this._api);
 

@@ -3,41 +3,30 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/api_client.dart';
 
-/// The pluggable core of background notifications.
-///
-/// A [NotificationSource] knows how to check ONE notification domain
-/// (messaging today; post likes/comments/mentions tomorrow) and produce
-/// candidate notifications. The worker runner, the dedupe and the
-/// notification plumbing are all generic — adding a new notification
-/// type is: implement [NotificationSource], add one line to
-/// `backgroundSources()` in notification_worker.dart, done.
-///
-/// Every source is read-only (GET only). Marking things read stays the
-/// user-facing app's job (opening the thread), exactly like the live
-/// path — the worker must never mutate server state with a CSRF-less
-/// background session.
+/// Pluggable core of background notifications: one [NotificationSource]
+/// per notification domain; the runner, dedupe and plumbing are generic
+/// (implement a source + one line in `backgroundSources()`). Every source
+/// is read-only (GET only) - marking things read stays the user-facing
+/// app's job, as the worker's session has no CSRF.
 abstract class NotificationSource {
-  /// Short namespace for this source. Every dedupe key starts with it
+  /// Short namespace for this source; every dedupe key starts with it
   /// ('message', later 'post', ...) so sources never collide.
   String get id;
 
   /// Check for new things to notify about. Must swallow its own errors
-  /// (a dead session or transient failure → return []) — a broken source
-  /// must never crash the worker or block the others. The next tick
+  /// (dead session or transient failure -> return []) - a broken source
+  /// must never crash the worker or block the others; the next tick
   /// retries.
   Future<List<NotificationCandidate>> check(SourceContext context);
 }
 
-/// Which renderer a candidate needs. The worker runner branches on this —
-/// message candidates get the conversation channel + drawer-reply action,
-/// social candidates the plain notifications channel (no reply — you can't
-/// reply to a like from the drawer).
+/// Which renderer a candidate needs: message = conversation channel +
+/// drawer-reply action; social = plain notifications channel (no reply).
 enum CandidateKind { message, social }
 
-/// What a source hands the runner: everything needed to show one
-/// notification. The dedupe identity is [key], NOT the notification id —
-/// a conversation's notification id stays fixed so Android replaces the
-/// older notification instead of stacking.
+/// Everything needed to show one notification. The dedupe identity is
+/// [key], NOT the notification id - a conversation's id stays fixed so
+/// Android replaces the older notification instead of stacking.
 class NotificationCandidate {
   const NotificationCandidate({
     required this.key,
@@ -52,7 +41,7 @@ class NotificationCandidate {
   /// Dedupe identity, e.g. 'message:5:102' or 'post:post-like:12:88'.
   final String key;
 
-  /// Android notification id — stable per grouping (per conversation),
+  /// Android notification id - stable per grouping (per conversation),
   /// so a new item replaces the previous notification of that group.
   final int notificationId;
 
@@ -66,13 +55,12 @@ class NotificationCandidate {
   final CandidateKind kind;
 
   /// Root-relative sender avatar for message bubbles (MessagingStyle
-  /// person icons must be local files — resolved+cached at show time).
+  /// person icons must be local files - resolved+cached at show time).
   final String? avatarPath;
 }
 
-/// The context every source gets: a session-bearing client (built fresh
-/// per worker run; the live path passes its own) and prefs (toggles,
-/// dedupe, UI state mirrored for the worker).
+/// What every source gets: a session-bearing client (built fresh per
+/// worker run; the live path passes its own) and prefs.
 class SourceContext {
   SourceContext({required this.api, required this.prefs});
 
@@ -81,15 +69,10 @@ class SourceContext {
 }
 
 /// Cross-path dedupe, persisted to prefs: a bounded FIFO set of seen
-/// keys. BOTH the live path (SSE ping → handleUnreadPing) and the
-/// background worker (15-min WorkManager) write here, so a message never
-/// double-notifies even when both fire — and a notification shown by one
-/// path is never repeated by the other.
-///
-/// Tradeoff, accepted: the list is read-modify-written from two isolates
-/// (main + worker). A lost write in a race can only cause a duplicate
-/// notification, never a missed one (the live path's own dedupe covers
-/// the in-process case; ids only ever advance).
+/// keys. BOTH the live path (SSE ping) and the background worker
+/// (15-min WorkManager) write here, so a message never double-notifies
+/// when both fire. A lost write in a race can only cause a duplicate,
+/// never a missed one.
 class NotifiedTracker {
   NotifiedTracker(this._prefs);
 
@@ -113,10 +96,9 @@ class NotifiedTracker {
 }
 
 /// Filters a source run down to genuinely-new candidates (not in the
-/// shared dedupe). Does NOT mark anything — the caller marks a candidate
+/// shared dedupe). Does NOT mark anything - the caller marks a candidate
 /// only after it was actually shown, so a failed show is retried next
-/// tick instead of being swallowed. Defensive per source: a broken
-/// source must never kill the worker or block the others.
+/// tick instead of being swallowed.
 Future<List<NotificationCandidate>> freshCandidates(
   List<NotificationSource> sources,
   SourceContext context, {

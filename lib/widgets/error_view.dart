@@ -3,17 +3,11 @@ import 'package:flutter/material.dart';
 
 import '../theme/enclavd_theme.dart';
 
-/// THE canonical full-page error state — centered icon, friendly,
-/// non-technical message and a "Try again" button. Every screen's load
-/// failure renders through this widget so the layout can never drift
-/// (feed, profile, messages, notifications, articles, domains, search,
-/// threads, settings, tickets…). Screens inside a RefreshIndicator keep
-/// working: the view is always scrollable.
+/// The canonical full-page error state (icon, message, retry).
 class ErrorView extends StatelessWidget {
   const ErrorView({super.key, required this.message, required this.onRetry});
 
-  /// Already user-friendly text (the API layer maps network and server
-  /// failures to plain language before they reach here).
+  /// Already user-friendly text from the API layer.
   final String message;
 
   final VoidCallback onRetry;

@@ -9,8 +9,6 @@ import 'package:enclavd/screens/chat_screen.dart';
 import 'package:enclavd/services/realtime_service.dart';
 import 'package:enclavd/theme/enclavd_theme.dart';
 
-/// Memory-backed MessagesService — widget tests run inside the fake-async
-/// zone where real sockets never complete, so answers come from memory.
 class FakeMessages extends MessagesService {
   FakeMessages() : super(_noopClient());
 
@@ -49,9 +47,6 @@ class FakeMessages extends MessagesService {
   Future<int> unreadCount() async => unreadAnswer;
 }
 
-/// Memory-backed RealtimeService: records join/leave/typing frames and lets
-/// tests inject server frames via [emit] (the events stream override keeps
-/// production code untouched).
 class FakeRealtime extends RealtimeService {
   FakeRealtime() : super(_noopClient(), baseUrl: 'https://example.com');
 
@@ -165,9 +160,7 @@ void main() {
     expect(seenReceipt.icon!.codePoint,
         FontAwesomeIcons.checkDouble.codePoint);
 
-    // Opening the thread marked the inbound message read.
     expect(fake.lastMarkedRead, 7);
-    // And joined the conversation's live room.
     expect(realtime.joined, contains(7));
 
     await tester.pumpWidget(const SizedBox()); // dispose the poll timer
@@ -208,12 +201,9 @@ void main() {
 
     expect(fake.sentTexts, ['hello bob']);
     expect(find.text('hello bob'), findsOneWidget);
-    // Regression: the merge must NOT collapse the thread to just the new
-    // bubble (the ..clear()..addAll(_merge()) cascade read the cleared
-    // list and dropped history — the vanish/reappear glitch).
+    // Regression: the merge must NOT collapse the thread to just the new bubble (vanish/reappear glitch).
     expect(find.text('hi'), findsOneWidget,
         reason: 'history must survive sending');
-    // Input cleared immediately (site behavior).
     expect(
         tester.widget<TextField>(find.byType(TextField)).controller!.text, '');
 
@@ -240,7 +230,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('Alice'), findsOneWidget);
-    expect(find.text('• online'), findsOneWidget);
+    expect(find.text('- online'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox());
   });
@@ -265,11 +255,9 @@ void main() {
       await tester.pump();
 
       expect(find.text('live ping'), findsOneWidget);
-      // Regression: a WS-arriving message must merge into the thread, not
-      // replace it (the cascade cleared the list before merging).
+      // Regression: a WS-arriving message must merge into the thread, not replace it.
       expect(find.text('hi'), findsOneWidget,
           reason: 'history must survive a live inbound message');
-      // The new inbound message was marked read server-side.
       expect(fake.lastMarkedRead, 7);
 
       await tester.pumpWidget(const SizedBox());
@@ -300,8 +288,7 @@ void main() {
       final (realtime, _) = await pumpChat(tester, fake);
       await tester.pump();
 
-      // The old send_message.php fanned out messageId 0 — accepting it
-      // would collapse the dedupe and swallow later messages.
+      // Old send_message.php fanned out messageId 0; accepting it would collapse the dedupe.
       realtime.emit(const RealtimeEvent(
         type: 'message',
         data: {'conversationId': 7, 'senderId': 42, 'messageId': 0, 'message': 'ghost'},
@@ -309,8 +296,7 @@ void main() {
       await tester.pump();
 
       expect(find.text('ghost'), findsNothing);
-      // mark-read already ran once on load (inbound id 1); the id-0 frame
-      // must not add another.
+      // mark-read already ran on load (inbound id 1); the id-0 frame must not add another.
       expect(fake.markReadCalls, 1, reason: 'no mark-read for id 0');
 
       await tester.pumpWidget(const SizedBox());
@@ -347,7 +333,6 @@ void main() {
       final (realtime, _) = await pumpChat(tester, fake);
       await tester.pump();
 
-      // Inbound typing → indicator appears; stop frame → disappears.
       realtime.emit(const RealtimeEvent(
           type: 'typing', data: {'conversationId': 7, 'isTyping': true}));
       await tester.pump();

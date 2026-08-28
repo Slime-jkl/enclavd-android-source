@@ -9,21 +9,6 @@ import 'package:image/image.dart' as img;
 import '../theme/enclavd_theme.dart';
 import '../utils/ied_filter.dart';
 
-/// Post-image editor — a mobile-first port of the site's ied (image
-/// editor) from post_form.php.
-///
-///   Crop:    pan (drag) / zoom (pinch) the image under a centered crop
-///            frame; ratio presets Free / 1:1 / 4:3 / 16:9 / 3:4 / 9:16 —
-///            the site's "Drag image to pan · Scroll to zoom · Change ratio
-///            to crop".
-///   Filters: the site's 14 presets (IED_FILTERS). Preview is a live
-///            ColorFilter.matrix; the baked output uses the identical
-///            matrix per-pixel, so what you see is what uploads.
-///   Output:  the cropped region, filter baked, resized to ≤1200px (the
-///            site's MAX) and JPEG q85 — bounded payloads that fit any
-///            post_max_size, and the same visual the site ships.
-///
-/// Pops with the edited image bytes (JPEG) on Apply, null on cancel.
 class ImageEditorScreen extends StatefulWidget {
   const ImageEditorScreen({super.key, required this.imagePath});
 
@@ -42,14 +27,11 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
   img.Image? _source;
   String? _error;
 
-  /// Tiny JPEG of the source (≤160px) — the ONE shared byte source for
-  /// every filter thumbnail (same bytes → one decode, 14 filtered views).
   Uint8List? _thumbBytes;
 
   final _transform = TransformationController();
   Size? _viewport; // latest preview size (set by the LayoutBuilder)
 
-  /// The initial contain-fit transform has been applied (once per image).
   bool _transformReady = false;
 
   bool _tabCrop = true;
@@ -69,8 +51,7 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
   @override
   void initState() {
     super.initState();
-    // Crop is confined to the image: every pan/zoom lands through this
-    // clamp, so the crop frame can never leave the image's bounds.
+    // Every pan/zoom lands through this clamp.
     _transform.addListener(_clampTransform);
     _decode();
   }
@@ -102,8 +83,6 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
     }
   }
 
-  /// The smallest scale at which the image still COVERS the crop frame —
-  /// zooming out past this would put empty space inside the crop.
   double _requiredMinScale(Size viewport) {
     final src = _source!;
     final fit = math.min(viewport.width / src.width, viewport.height / src.height);
@@ -113,9 +92,6 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
     return math.max(frame.width / iw, frame.height / ih);
   }
 
-  /// Re-fits the image inside the crop frame: keeps the current zoom when
-  /// it is still valid, otherwise zooms to just-cover, and centers the
-  /// image on the frame. Called on ratio changes and once after decode.
   void _refit() {
     final src = _source;
     final vp = _viewport;
@@ -140,9 +116,6 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
     _refit();
   }
 
-  /// The crop frame never leaves the image: the image must cover the
-  /// frame (zoom floor), and panning is bounded so the frame stays inside
-  /// the image at the current zoom.
   void _clampTransform() {
     final src = _source;
     final vp = _viewport;
@@ -168,8 +141,6 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
       ..scaleByDouble(clamped.scale, clamped.scale, 1, 1);
   }
 
-  /// The crop frame in VIEWPORT coordinates: the full viewport for Free,
-  /// otherwise the largest centered rect at the selected ratio.
   Rect _frameRect(Size size) {
     if (_ratio <= 0) return Offset.zero & size;
     var w = size.width;
@@ -182,8 +153,6 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
         center: size.center(Offset.zero), width: w, height: h);
   }
 
-  /// Maps the crop frame into SOURCE-image coordinates using the current
-  /// pan/zoom transform (contain-fit child geometry).
   Rect _imageCropRect(Size viewport) {
     final src = _source!;
     final imgW = src.width.toDouble();
@@ -296,8 +265,7 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
     }
     return Column(
       children: [
-        // Card-backed preview so letterboxed areas never look "transparent"
-        // against the page background.
+        // Card-backed preview so letterboxed areas never look transparent.
         Expanded(
           child: Container(
             color: EnclavdColors.card,
@@ -324,8 +292,7 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
       builder: (context, constraints) {
         final size = Size(constraints.maxWidth, constraints.maxHeight);
         _viewport = size;
-        // First layout after decode: place the image so the crop frame is
-        // exactly covered and centered (the clamp enforces it from there).
+        // First layout after decode: fit so the crop frame is exactly covered.
         if (!_transformReady && _source != null) {
           _transformReady = true;
           _refit();
@@ -444,9 +411,6 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
     );
   }
 
-  /// A ratio preset as a CARD whose glyph shows the ACTUAL shape of the
-  /// ratio (a square for 1:1, a wide bar for 16:9, a tall bar for 9:16…)
-  /// instead of a bare text label — the user sees what they are picking.
   Widget _ratioCard((String, double) item,
       {required bool selected, required VoidCallback onTap}) {
     final (label, ratio) = item;
@@ -516,9 +480,6 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
     );
   }
 
-  /// A filter as a THUMBNAIL button: a small crop of the actual image with
-  /// the filter applied, so the user sees the real effect before picking
-  /// (the same ColorFilter.matrix the preview and the baked output use).
   Widget _filterCard(IedFilter filter,
       {required Uint8List? thumbs,
       required bool selected,
@@ -577,8 +538,6 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
   }
 }
 
-/// Darkens everything outside the crop frame and draws its border — the
-/// site's fixed crop-window overlay.
 class _CropFramePainter extends CustomPainter {
   const _CropFramePainter({required this.frame, required this.frameColor});
 
@@ -607,20 +566,7 @@ class _CropFramePainter extends CustomPainter {
       oldDelegate.frame != frame;
 }
 
-/// Clamps a crop pan/zoom transform so the crop frame NEVER leaves the
-/// image (pure math, unit-tested):
-///
-/// - Zoom floor: the image must still COVER the frame — zooming out past
-///   `max(frame.w/iw, frame.h/ih)` would put empty space inside the crop,
-///   so the scale is pulled back up to exactly-cover.
-/// - Pan bounds: with the image at `scale`, its rect in viewport coords is
-///   `[ox*s+tx, (ox+iw)*s+tx] × [oy*s+ty, (oy+ih)*s+ty]`; the translation
-///   is clamped so that rect contains the frame.
-///
-/// The image is rendered contain-fit (centered) inside a viewport-sized
-/// child, so `ox/oy` = letterbox offsets and `iw/ih` = image size at
-/// scale 1. `tx/ty`/`scale` come from the transformation matrix
-/// (scale-about-origin then translate, the InteractiveViewer convention).
+/// Clamps a crop pan/zoom so the crop frame never leaves the image.
 ({double scale, double tx, double ty}) clampCropTransform({
   required double imgW,
   required double imgH,
@@ -643,8 +589,8 @@ class _CropFramePainter extends CustomPainter {
   final s = scale.clamp(minScale, maxScale);
 
   // Pan bounds: the frame stays inside the image at this zoom.
-  //   image.left  = ox*s + tx ≤ frame.left  → tx ≤ frame.left  - ox*s
-  //   image.right = (ox+iw)*s + tx ≥ frame.right → tx ≥ frame.right - (ox+iw)*s
+  //   image.left  = ox*s + tx <= frame.left  -> tx <= frame.left  - ox*s
+  //   image.right = (ox+iw)*s + tx >= frame.right -> tx >= frame.right - (ox+iw)*s
   final txLower = frame.right - (ox + iw) * s;
   final txUpper = frame.left - ox * s;
   final tyLower = frame.bottom - (oy + ih) * s;
@@ -656,12 +602,9 @@ class _CropFramePainter extends CustomPainter {
   );
 }
 
-/// Draws a small rounded-rect OUTLINE in the exact proportions of a crop
-/// ratio (contain-fit into the box) — the glyph on the ratio cards.
 class _RatioGlyphPainter extends CustomPainter {
   const _RatioGlyphPainter({required this.ratio, required this.color});
 
-  /// width / height of the ratio (e.g. 16/9, 3/4).
   final double ratio;
   final Color color;
 

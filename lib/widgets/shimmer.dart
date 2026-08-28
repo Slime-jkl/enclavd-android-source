@@ -2,13 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/enclavd_theme.dart';
 
-/// A pulsing placeholder block, styled like the site's card skeletons
-/// (gray-850 fill with a soft highlight sweep). Used while posts, images
-/// and avatars load so the feed never shows empty space or jank.
-///
-/// Performance: one AnimationController per Shimmer, driven by an
-/// AnimatedBuilder that only repaints the child subtree — cheap enough to
-/// have several on screen at once (feed skeleton cards).
+/// Pulsing placeholder block, styled like the site's card skeletons.
 class Shimmer extends StatefulWidget {
   const Shimmer({
     super.key,
@@ -90,8 +84,7 @@ class ShimmerBox extends StatelessWidget {
   }
 }
 
-/// Full skeleton of a post card — mirrors the site's card-skeleton-layer
-/// (avatar row, three content lines, image block, action bar).
+/// Full skeleton of a post card.
 class PostCardSkeleton extends StatelessWidget {
   const PostCardSkeleton({super.key});
 

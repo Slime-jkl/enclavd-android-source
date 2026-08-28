@@ -132,7 +132,7 @@ void main() {
     await service.handleNotificationPing();
     expect(notifier.shown, 2);
 
-    // A NEW bundle on the same post is a new event → notifies again.
+    // A NEW bundle on the same post is a new event -> notifies again.
     fake.answer = [_bundle(12), _bundle(13), _bundle(15)];
     await service.handleNotificationPing();
     expect(notifier.shown, 3);

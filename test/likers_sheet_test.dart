@@ -7,8 +7,6 @@ import 'package:enclavd/theme/enclavd_theme.dart';
 import 'package:enclavd/widgets/enclavd_avatar.dart';
 import 'package:enclavd/widgets/likers_sheet.dart';
 
-/// SocialService answering from memory (widget tests run in a fake-async
-/// zone where real sockets never complete).
 class _FakeSocial extends SocialService {
   _FakeSocial() : super(_noopClient());
 
@@ -72,7 +70,7 @@ void main() {
       'rank badge, personality-bordered circular avatar', (tester) async {
     await pumpSheet(tester);
 
-    // Username carries its rank color (SysOp → purple-400).
+    // Username carries its rank color (SysOp -> purple-400).
     final username = tester.widget<Text>(
         find.text('Slimejkl').first);
     expect(username.style?.color, RankColors.forRank('SysOp'));
@@ -80,13 +78,11 @@ void main() {
     // Personality pill for accounts that have one.
     expect(find.text('INTJ'), findsOneWidget);
 
-    // Rank badge chips (icon + rank name) for every liker.
     expect(find.text('SysOp'), findsOneWidget);
     expect(find.text('Founding Member'), findsOneWidget);
     expect(find.text('vaporycoder'), findsOneWidget);
 
-    // Avatar: the bulletproof circle pattern — a ClipOval inside the
-    // ring container, ring colored by personality.
+    // Avatar: ClipOval inside the ring container, ring colored by personality.
     final avatars = tester.widgetList<EnclavdAvatar>(find.byType(EnclavdAvatar));
     expect(avatars.length, 2);
     final first = avatars.first;

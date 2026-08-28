@@ -1,11 +1,10 @@
 import 'api_client.dart';
 
 /// A conversation in the inbox (GET /api/v1/messages?conversations=1).
-///
-/// Field contract (port of handlers/messages/get_conversations.php): id,
-/// updated_at, participant_id/participants/participant_avatar/
-/// participant_personality (the OTHER member(s) — 1-on-1 in practice),
-/// last_active, last_message (latest preview, '' when none), unread_count.
+/// Fields: id, updated_at, participant_id/participants/
+/// participant_avatar/participant_personality (the OTHER member(s) -
+/// 1-on-1 in practice), last_active, last_message ('' when none),
+/// unread_count.
 class Conversation {
   const Conversation({
     required this.id,
@@ -31,9 +30,8 @@ class Conversation {
 
   bool get hasUnread => unreadCount > 0;
 
-  /// The site's presence heuristic (messages.js): anyone whose last_active
-  /// is within 5 minutes counts as online. No realtime dependency —
-  /// last_active is bumped on every page load by config/init.php.
+  /// The site's presence heuristic (messages.js): last_active within 5
+  /// minutes = online; bumped on every page load by config/init.php.
   bool get isOnline {
     final t = parseDbTime(lastActive);
     if (t == null) return false;
@@ -55,11 +53,8 @@ class Conversation {
 }
 
 /// One message in a thread (GET /api/v1/messages?conversation_id=N).
-///
-/// Field contract (api/v1/messages.php): id, conversation_id, sender_id,
-/// sender_name, message (PLAIN text — messages are stored raw like
-/// comments, no HTML encoding), is_read (1/0 ONLY for the viewer's own
-/// messages, null for inbound), created_at (DB UTC wall-clock).
+/// message is PLAIN text (stored raw like comments, no HTML encoding);
+/// is_read is 1/0 ONLY for the viewer's own messages, null for inbound.
 class ChatMessage {
   const ChatMessage({
     required this.id,
@@ -104,19 +99,9 @@ class ChatMessage {
   }
 }
 
-/// MessagesService — the inbox + threads over api/v1 (JSON + CSRF).
-///
-/// Contracts (verified live against the dev stack, Aug 2026):
-///   GET  /api/v1/messages ?conversations=1    → {success, conversations}
-///   GET  /api/v1/messages ?conversation_id=N  → {success, messages} —
-///        oldest first, read-only (marking read is the caller's POST).
-///   GET  /api/v1/messages ?unread_count=1     → {success, unread_count}
-///   POST /api/v1/messages {action:'reply', conversation_id, message}
-///                                            → {success, message_id}
-///   POST /api/v1/messages {action:'start', user_id}
-///                                            → {success, conversation_id}
-///   POST /api/v1/messages {action:'mark_read', conversation_id}
-///                                            → {success}
+/// Inbox + threads over api/v1 (JSON + CSRF). GET /api/v1/messages with
+/// ?conversations=1, ?conversation_id=N (oldest first, read-only),
+/// ?unread_count=1 or ?unread=1; POST {action: reply|start|mark_read}.
 class MessagesService {
   MessagesService(this._api);
 
@@ -134,7 +119,7 @@ class MessagesService {
     ];
   }
 
-  /// Full history of a conversation, oldest first. Read-only — call
+  /// Full history of a conversation, oldest first. Read-only - call
   /// [markRead] when the thread is opened so the sender's receipts flip.
   Future<List<ChatMessage>> messages(int conversationId) async {
     final json = await _api.getJson('/api/v1/messages', query: {
@@ -147,7 +132,7 @@ class MessagesService {
     ];
   }
 
-  /// Sends a reply in an existing conversation (the site's send_message —
+  /// Sends a reply in an existing conversation (the site's send_message;
   /// replying also marks inbound messages read server-side).
   Future<int> send(int conversationId, String text) async {
     final json = await _api.postJson('/api/v1/messages', {
@@ -185,7 +170,7 @@ class MessagesService {
   }
 
   /// The newest unread messages (the worker shape: GET ?unread=1),
-  /// newest first, LIMIT 10. Read-only — nothing is marked read.
+  /// newest first, LIMIT 10. Read-only - nothing is marked read.
   Future<List<UnreadMessage>> unreadMessages() async {
     final json = await _api.getJson('/api/v1/messages', query: {
       'unread': '1',
@@ -198,9 +183,9 @@ class MessagesService {
   }
 }
 
-/// One unread message (GET /api/v1/messages?unread=1 worker shape) — the
-/// payload the notification system renders: who sent it, what they said and
-/// which conversation a drawer reply should target.
+/// One unread message (GET /api/v1/messages?unread=1 worker shape) - the
+/// payload the notification system renders: who sent it, what they said
+/// and which conversation a drawer reply should target.
 class UnreadMessage {
   const UnreadMessage({
     required this.messageId,
@@ -231,11 +216,11 @@ class UnreadMessage {
       );
 }
 
-/// EnclavdTime.parse port (assets/js/time.js): the DB stores every
-/// timestamp as a UTC wall-clock string ('YYYY-MM-DD HH:MM:SS') with no
-/// zone marker; bare strings must be read as UTC or every value shifts by
-/// the device's UTC offset. Strings that carry a zone (date('c')) fall
-/// through to the native parser. Returns null on unparseable input.
+/// EnclavdTime.parse port (assets/js/time.js): the DB stores timestamps as
+/// UTC wall-clock strings ('YYYY-MM-DD HH:MM:SS') with no zone marker;
+/// bare strings must be read as UTC or every value shifts by the device's
+/// UTC offset. Strings that carry a zone (date('c')) fall through to the
+/// native parser. Returns null on unparseable input.
 DateTime? parseDbTime(String input) {
   if (input.isEmpty) return null;
   final s = input.trim();
@@ -245,7 +230,7 @@ DateTime? parseDbTime(String input) {
   return DateTime.tryParse(s)?.toUtc();
 }
 
-/// EnclavdTime.absolute port — a localized absolute timestamp in the
+/// EnclavdTime.absolute port - a localized absolute timestamp in the
 /// viewer's own timezone ('Aug 17, 2026, 8:56 PM'). '' on unparseable.
 String formatMessageTime(String dbDateTime) {
   final t = parseDbTime(dbDateTime)?.toLocal();

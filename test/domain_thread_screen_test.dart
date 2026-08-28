@@ -25,7 +25,6 @@ class _NoopStore implements SessionStore {
   Future<void> save(List<SessionCookie> cookies) async {}
 }
 
-/// Fake domains service serving the OP + breadcrumb.
 class _FakeDomains extends DomainsService {
   _FakeDomains(this._detail)
       : super(ApiClient(store: _NoopStore(), apiBaseUrl: 'https://example.com'));
@@ -36,14 +35,12 @@ class _FakeDomains extends DomainsService {
   Future<DomainThreadDetail> thread(int postId) async => _detail;
 }
 
-/// Fake social service with canned replies + a captured send.
 class _FakeSocial extends SocialService {
   _FakeSocial({this.replies = const [], this.hasMore = false})
       : super(ApiClient(store: _NoopStore(), apiBaseUrl: 'https://example.com'));
 
   final List<Comment> replies;
 
-  /// Whether the server reports another page after the first one.
   final bool hasMore;
   final List<int> ascQueries = [];
   final List<int> offsets = [];
@@ -55,7 +52,6 @@ class _FakeSocial extends SocialService {
     ascQueries.add(postId);
     offsets.add(offset);
     expect(asc, isTrue, reason: 'forum replies must be oldest-first');
-    // Fake serves the full list for page 0; later pages come back empty.
     final pageComments = offset == 0 ? replies : const <Comment>[];
     return CommentPage(
       comments: pageComments,
@@ -80,8 +76,7 @@ class _FakeSocial extends SocialService {
       content: content,
       isOwner: true,
     );
-    // The OP declares comment_count 2; the server returns the REAL total
-    // after insert (2 + 1). replies.length + 1 would undercount here.
+    // OP declared 2 comments; the server returns the real total after insert (2 + 1).
     return (c, 3);
   }
 
@@ -163,16 +158,12 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    // OP content renders as the PostCard.
     expect(find.text('The OP of the thread'), findsOneWidget);
-    // Replies header + both replies, oldest first.
     expect(find.text('2 Replies'), findsOneWidget);
     expect(find.text('First reply'), findsOneWidget);
     expect(find.text('Second reply'), findsOneWidget);
-    // Reply number gutters #1 #2.
     expect(find.text('#1'), findsOneWidget);
     expect(find.text('#2'), findsOneWidget);
-    // The composer bar is present.
     expect(find.byType(TextField), findsOneWidget);
     expect(social.ascQueries, [218]);
   });
@@ -194,7 +185,7 @@ void main() {
 
     expect(social.sent, ['My new reply']);
     expect(find.text('My new reply'), findsOneWidget);
-    // 2 replies on the post → the header bumps to 3.
+    // 2 replies on the post -> the header bumps to 3.
     expect(find.text('3 Replies'), findsOneWidget);
   });
 
@@ -244,13 +235,11 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    // Collapsed: the preview (word-boundary cut ≤ 200) + Read more.
+    // Collapsed: preview (word-boundary cut <= 200) + Read more.
     expect(find.text('Read more'), findsOneWidget);
     expect(find.text(long), findsNothing);
 
-    // The 200-char preview wraps below the 600px test viewport — bring
-    // the toggle on screen before tapping (bounded pumps: a settled
-    // scroll animation is enough, no infinite-animation traps).
+    // The long preview wraps below the viewport; scroll the toggle on screen first.
     await tester.ensureVisible(find.text('Read more'));
     await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.text('Read more'));
@@ -271,10 +260,9 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    // Both collapsed; both carry a Read more toggle.
     expect(find.text('Read more'), findsNWidgets(2));
 
-    // Expand the first — the second stays collapsed.
+    // Expand the first; the second stays collapsed.
     await tester.ensureVisible(find.text('Read more').first);
     await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.text('Read more').first);
@@ -283,7 +271,6 @@ void main() {
     expect(find.text(long1), findsOneWidget);
     expect(find.text(long2), findsNothing);
 
-    // Expanding the second collapses the first: one open at a time.
     await tester.ensureVisible(find.text('Read more'));
     await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.text('Read more'));
@@ -326,12 +313,10 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    // The OP is NOT a feed PostCard — it's the forum card.
+    // The OP is NOT a feed PostCard; it's the forum card.
     expect(find.byType(PostCard), findsNothing);
-    // Author rank badge (SysOp fixture) + reply rank badge (Member).
     expect(find.text('SysOp'), findsOneWidget);
     expect(find.text('Member'), findsOneWidget);
-    // Bigger forum avatars: 46px OP vs 40px reply.
     EnclavdAvatar avatarOf(String urlPart) => tester.widget<EnclavdAvatar>(
         find.byWidgetPredicate(
             (w) => w is EnclavdAvatar && w.url.contains(urlPart)));
@@ -352,19 +337,16 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    // Reply affordance (quote icon + label) only on others' replies.
     expect(find.text('Reply'), findsOneWidget);
     expect(find.text('Delete'), findsNothing);
 
     await tester.tap(find.text('Reply'));
     await tester.pump(const Duration(milliseconds: 50));
 
-    // Quote banner above the composer names the target and shows the text
-    // (the card + the banner → two occurrences).
+    // Quote banner names the target above the composer (card + banner = two occurrences).
     expect(find.text('Replying to @Someone'), findsOneWidget);
     expect(find.text('First reply'), findsNWidgets(2));
 
-    // Input starts clean; sending carries the plain-text quote prefix.
     final field = tester.widget<TextField>(find.byType(TextField));
     expect(field.controller?.text, isEmpty);
 
@@ -373,7 +355,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(social.sent, ['@Someone wrote: "First reply"\n\nAgreed!']);
-    // The quote banner clears after the send.
     expect(find.text('Replying to @Someone'), findsNothing);
   });
 
@@ -396,7 +377,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('Replying to @Someone'), findsNothing);
 
-    // A plain (unquoted) reply sends without a prefix.
     await tester.enterText(find.byType(TextField), 'Just this');
     await tester.tap(find.byTooltip('Send reply'));
     await tester.pump(const Duration(milliseconds: 50));
@@ -460,7 +440,6 @@ class _GatedDomains extends DomainsService {
   }
 }
 
-/// FaIcon converts its FaIconData to a plain IconData for storage — finders
-/// must compare code points, never the FaIconData consts (11.x quirk).
+/// FaIcon stores FaIconData as plain IconData; finders must compare code points (11.x quirk).
 Finder findFa(FaIconData icon) => find.byWidgetPredicate((w) =>
     w is FaIcon && w.icon != null && w.icon!.codePoint == icon.codePoint);

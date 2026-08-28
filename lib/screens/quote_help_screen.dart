@@ -3,9 +3,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import '../theme/enclavd_theme.dart';
 
-/// How daily quotes work — TLDR. Short, direct, no filler: one quote a
-/// day, rate it with 👍/👎, the pick learns your taste. Each feature gets
-/// a single compact card.
+/// How daily quotes work: one quote a day, rate it, the pick learns.
 class QuoteHelpScreen extends StatelessWidget {
   const QuoteHelpScreen({super.key});
 
@@ -21,7 +19,7 @@ class QuoteHelpScreen extends StatelessWidget {
               icon: FontAwesomeIcons.quoteLeft,
               title: 'One quote a day',
               body:
-                  'A new quote every morning — on the widget, the '
+                  'A new quote every morning - on the widget, the '
                   'notification, and the website. No repeats until you\u2019ve '
                   'seen them all.',
             ),
@@ -30,7 +28,7 @@ class QuoteHelpScreen extends StatelessWidget {
               icon: FontAwesomeIcons.thumbsUp,
               title: 'Rate it',
               body:
-                  'Tap 👍 or 👎. One vote per quote. The buttons disappear '
+                  'Tap \u{1F44D} or \u{1F44E}. One vote per quote. The buttons disappear '
                   'after you vote, so you always know it counted.',
             ),
             SizedBox(height: 8),
@@ -48,7 +46,7 @@ class QuoteHelpScreen extends StatelessWidget {
               title: 'The widget',
               body:
                   'Add it from your launcher. Tap the card to open these '
-                  'settings. Resize it — the quote grows with it.',
+                  'settings. Resize it - the quote grows with it.',
             ),
             SizedBox(height: 8),
             _Tldr(
@@ -73,7 +71,6 @@ class QuoteHelpScreen extends StatelessWidget {
   }
 }
 
-/// One TLDR card: icon + heading + one or two short lines.
 class _Tldr extends StatelessWidget {
   const _Tldr({
     required this.icon,

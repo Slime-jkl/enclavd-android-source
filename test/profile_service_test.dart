@@ -39,14 +39,14 @@ void main() {
                     'reason': 'Spam links',
                     'admin_id': 1,
                     'admin_username': 'Developer',
-                    'seconds_left': 129600, // 1.5 days → 2d left
+                    'seconds_left': 129600, // 1.5 days -> 2d left
                   },
                   {
                     'id': 40,
                     'reason': '',
                     'admin_id': 1,
                     'admin_username': 'Developer',
-                    'seconds_left': 0, // expiring now → 0d left
+                    'seconds_left': 0, // expiring now -> 0d left
                   },
                 ],
                 'follower_count': 2,

@@ -5,8 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../config/app_config.dart';
 import '../theme/enclavd_theme.dart';
 
-/// Legal — the website footer's legal documentation, opened in the
-/// browser (the site opens them in a new tab, target="_blank").
+/// The website footer's legal documentation, opened in the browser.
 class LegalScreen extends StatelessWidget {
   const LegalScreen({super.key});
 

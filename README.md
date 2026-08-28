@@ -16,13 +16,13 @@ Stop broadcasting into the void. Enclavd is a private social network built on co
 <b>Free to Join:</b> Enclavd is free to download and use, with no barriers to finding your community.
 
 <b>WHO ENCLAVD IS FOR</b>
-• You're tired of social media feeds built around outrage and engagement bait.
+- You're tired of social media feeds built around outrage and engagement bait.
 
-• You want a private social network instead of a public profile anyone can scrape.
+- You want a private social network instead of a public profile anyone can scrape.
 
-• You're looking for real conversations and genuine compatibility, not more followers.
+- You're looking for real conversations and genuine compatibility, not more followers.
 
-• You'd rather join through a trusted invite than scroll past strangers and bots.
+- You'd rather join through a trusted invite than scroll past strangers and bots.
 Enclavd is a social network for people who want depth over reach.
 
 
@@ -49,7 +49,7 @@ Download Enclavd and stop existing for the feed.
 
 Every flavor-level switch is a compile-time dart-define read by
 `lib/config/app_config.dart`. The GitHub workflow applies them per flavor.
-**The app always talks to https://enclavd.com — there is no localhost build**
+**The app always talks to https://enclavd.com - there is no localhost build**
 (a phone can't reach a dev box; local-only verification runs against the dev
 stack via `tool/verify_live.dart` on the dev machine itself).
 
@@ -83,8 +83,8 @@ codesign yet).
 lib/
   main.dart                 app entry + service container
   config/app_config.dart    build-time flavor/feature switches
-  api/                      api_client · auth_service · feed_service
-  screens/                  splash · login · register · feed
+  api/                      api_client - auth_service - feed_service
+  screens/                  splash - login - register - feed
   theme/                    Enclavd design system
   widgets/                  post card (feed)
 test/                       unit tests (pure Dart, headless)

@@ -2,18 +2,13 @@ import '../api/articles_service.dart';
 
 /// Builds the article body document rendered in the detail screen's WebView.
 ///
-/// The site (article.php) decodes the stored content with
-/// htmlspecialchars_decode() and echoes it raw inside `.article-content` —
-/// this is the same document, self-contained: the content HTML is injected
-/// as-is and the CSS is a mobile-adapted port of the site's
-/// `.article-content` rules (headings, lists, blockquote, pre/code, images,
-/// Quill alignment classes) on the app's card background.
-///
-/// The "Continue Reading" section (the site's related-articles grid) is
-/// appended as tappable cards; their /article/<slug> links are intercepted
-/// by the WebView's navigation delegate and pushed as native detail screens.
-///
-/// Relative media URLs resolve against [baseUrl] (loadHtmlString baseUrl).
+/// Same document as the site's article.php: the stored content is injected
+/// as-is (the site decodes with htmlspecialchars_decode() and echoes it
+/// raw) and the CSS is a mobile-adapted port of the site's
+/// `.article-content` rules on the app's card background. The "Continue
+/// Reading" cards are appended as tappable /article/<slug> links the
+/// WebView's navigation delegate pushes as native detail screens. Relative
+/// media URLs resolve against [baseUrl].
 String buildArticleHtml({
   required String contentHtml,
   required List<ArticleSummary> related,

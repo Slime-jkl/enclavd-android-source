@@ -1,13 +1,10 @@
 import 'api_client.dart';
 
 /// One notification bundle from GET /api/v1/notifications?list=1.
-///
-/// Field contract (api/v1/notifications.php, port of the legacy
-/// get_notifications.php): post likes/comments group per (type, post) with
-/// the newest actor + distinct actor count ("Alice & 3 others liked your
-/// post"); every other type stands alone. `read` is the bundle's min_read;
-/// `other` carries extras (the new rank for user-management); post-attached
-/// types carry the post's text + gallery image preview.
+/// Post likes/comments group per (type, post) with the newest actor +
+/// distinct actor count ("Alice & 3 others liked your post"); every other
+/// type stands alone. `read` is the bundle's min_read; `other` carries
+/// extras; post-attached types carry the post's text + image preview.
 class AppNotification {
   const AppNotification({
     required this.id,
@@ -36,7 +33,7 @@ class AppNotification {
   final bool read;
   final String createdAt; // DB UTC wall-clock 'YYYY-MM-DD HH:MM:SS'
   final String other;
-  final String postPreviewContent; // htmlspecialchars-encoded — decode once
+  final String postPreviewContent; // htmlspecialchars-encoded; decode once
   final String postPreviewImage; // BARE gallery filename
 
   /// Post-attached types deep-link to the post; the rest stand alone.
@@ -45,10 +42,9 @@ class AppNotification {
       contentType == 'post-comment' ||
       contentType == 'comment-mention';
 
-  /// The Android notification id a bundle maps to: the POST id for
-  /// post-attached types (a new like on the same post REPLACES the older
-  /// notification — "Alice liked" → "Alice & 1 other liked"), the bundle
-  /// id for standalone types.
+  /// Maps to the Android notification id: the POST id for post-attached
+  /// types (a new like on the same post REPLACES the older notification),
+  /// the bundle id for standalone types.
   int get groupId => isPostAttached && contentId > 0 ? contentId : id;
 
   /// Absolute avatar URL (server sends root-relative paths).
@@ -56,9 +52,8 @@ class AppNotification {
       ? '$base$fromUserAvatar'
       : fromUserAvatar;
 
-  /// Absolute gallery image URL. Preview images are BARE filenames — the
-  /// site renders them under /public/gallery/. Null when the post has no
-  /// image.
+  /// Absolute gallery image URL. Preview images are BARE filenames -
+  /// rendered under /public/gallery/. Null when the post has no image.
   String? previewImageUrl(String base) =>
       postPreviewImage.isEmpty ? null : '$base/public/gallery/$postPreviewImage';
 
@@ -85,18 +80,11 @@ class AppNotification {
   }
 }
 
-/// NotificationsService — the notification drawer over api/v1.
-///
-/// Contracts (api/v1/notifications.php):
-///   GET  /api/v1/notifications ?list=1 → {success, notifications:[...],
-///        csrf_token} — newest 5 bundles, read = min_read.
-///   GET  /api/v1/notifications         → {unread_count:N} (guests: 0)
-///   POST /api/v1/notifications {action:'mark_all_read'} → {success,
-///        unread_count:0} — JSON + CSRF (ApiClient.postJson handles the
-///        token dance internally).
-///
-/// The list endpoint is READ-ONLY and CSRF-free on GET; marking read is a
-/// POST the user-facing app makes (the worker never marks anything).
+/// The notification drawer over api/v1: GET ?list=1 -> {notifications
+/// (newest 5, read = min_read), csrf_token}; GET -> {unread_count}
+/// (guests: 0); POST {action:'mark_all_read'} (JSON + CSRF). The list
+/// endpoint is READ-ONLY - the user-facing app marks read, never the
+/// worker.
 class NotificationsService {
   NotificationsService(this._api);
 

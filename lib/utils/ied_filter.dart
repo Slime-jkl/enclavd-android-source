@@ -2,8 +2,8 @@ import 'dart:math' as math;
 
 import 'package:image/image.dart' as img;
 
-/// Port of the site's image-editor filters (post_form.php IED_FILTERS) —
-/// CSS filter strings compiled to 4×5 color matrices (row-major, the
+/// Port of the site's image-editor filters (post_form.php IED_FILTERS):
+/// CSS filter strings compiled to 4x5 color matrices (row-major, the
 /// Flutter ColorFilter.matrix layout). The SAME matrix drives the live
 /// preview (ColorFilter.matrix on the widget) and the baked output
 /// (per-pixel loop via package:image), so what you see is what uploads.
@@ -38,8 +38,8 @@ class IedFilter {
         'mav', 'Maverick', 'hue-rotate(30deg) saturate(1.2) brightness(.95)'),
   ];
 
-  /// Bakes the matrix into an image (mutates it). Used at Apply time —
-  /// identical math to the ColorFilter.matrix preview.
+  /// Bakes the matrix into an image (mutates it); identical math to the
+  /// ColorFilter.matrix preview.
   static void applyToImage(img.Image image, List<double> m) {
     for (final p in image) {
       final r = p.r.toDouble();
@@ -57,9 +57,7 @@ class IedFilter {
   static int _clamp(double v) => v.round().clamp(0, 255);
 }
 
-// ── CSS filter → matrix ──────────────────────────────────────────────────
-
-/// 'contrast(1.2) saturate(1.35)' → combined matrix (ops applied in order).
+/// 'contrast(1.2) saturate(1.35)' -> combined matrix (ops applied in order).
 List<double> _compile(String css) {
   var m = _identity;
   final re = RegExp(r'(\w+)\(([^)]*)\)');
@@ -111,8 +109,8 @@ List<double> _saturate(double s) => [
       0, 0, 0, 1, 0, //
     ];
 
-/// Sepia at `amount` (0..1), blended with identity — matches CSS
-/// sepia(.35) which is a partial effect.
+/// Sepia at `amount` (0..1), blended with identity - matches CSS
+/// sepia(.35), which is a partial effect.
 List<double> _sepia(double amount) {
   const full = [
     0.393, 0.769, 0.189, //
@@ -150,9 +148,9 @@ List<double> _hueRotate(double rad) {
   ];
 }
 
-/// CSS opacity(a) over the site's dark card background: RGB blends toward
-/// gray-900 (#111827) by (1-a). (JPEG has no alpha channel, so this bakes
-/// the visual result instead of encoding transparency.)
+/// CSS opacity(a) baked over the site's dark card background (gray-900
+/// #111827): JPEG has no alpha channel, so blend instead of encoding
+/// transparency.
 List<double> _opacity(double a) => [
       a, 0, 0, 0, 17 * (1 - a), //
       0, a, 0, 0, 24 * (1 - a), //
@@ -160,7 +158,7 @@ List<double> _opacity(double a) => [
       0, 0, 0, 1, 0, //
     ];
 
-/// b = a × b (matrices applied right-to-left like CSS filter chains).
+/// b = a x b (matrices applied right-to-left like CSS filter chains).
 List<double> _multiply(List<double> a, List<double> b) {
   final out = List<double>.filled(20, 0);
   for (var row = 0; row < 4; row++) {

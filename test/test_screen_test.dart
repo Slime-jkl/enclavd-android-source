@@ -4,8 +4,6 @@ import 'package:enclavd/api/api_client.dart';
 import 'package:enclavd/api/personality_test_service.dart';
 import 'package:enclavd/screens/test_screen.dart';
 
-/// PersonalityTestService that answers from memory — widget tests run in a
-/// fake-async zone where real sockets never complete.
 class _FakeTestService extends PersonalityTestService {
   _FakeTestService()
       : super(ApiClient(
@@ -62,7 +60,7 @@ Widget _app(_FakeTestService service) => MaterialApp(
     );
 
 void main() {
-  testWidgets('intro → quiz → submit replaces with results', (tester) async {
+  testWidgets('intro -> quiz -> submit replaces with results', (tester) async {
     final service = _FakeTestService();
     await tester.pumpWidget(_app(service));
     await tester.pumpAndSettle();
@@ -71,8 +69,7 @@ void main() {
     expect(find.text('About this test'), findsOneWidget);
     expect(find.textContaining('40 questions'), findsOneWidget);
 
-    // The redesigned intro is taller than the test viewport — scroll to
-    // the action before tapping.
+    // The redesigned intro is taller than the viewport; scroll to the action first.
     await tester.scrollUntilVisible(find.text('Start Test'), 200);
     await tester.pumpAndSettle();
     expect(find.text('Start Test'), findsOneWidget);
@@ -80,7 +77,7 @@ void main() {
     await tester.tap(find.text('Start Test'));
     await tester.pumpAndSettle();
 
-    // Question 1 of 2 — Next is disabled until an option is selected.
+    // Question 1 of 2: Next is disabled until an option is selected.
     expect(find.text('Question 1 of 2'), findsOneWidget);
     expect(find.text('Question text 1'), findsOneWidget);
     final nextBtn = find.widgetWithText(FilledButton, 'Next Question');
@@ -100,7 +97,6 @@ void main() {
     await tester.tap(find.text('Submit Test'));
     await tester.pumpAndSettle();
 
-    // Submitted both answers; the quiz was replaced by the results view.
     expect(service.submitted, {1: 'strongly_agree', 2: 'neutral'});
     expect(find.text('RESULTS_VIEW'), findsOneWidget);
     expect(find.text('Question 1 of 2'), findsNothing);
@@ -129,7 +125,6 @@ void main() {
     expect(find.text('Try again'), findsOneWidget);
     expect(find.text('About this test'), findsNothing);
 
-    // Retry succeeds → intro appears.
     fail = false;
     await tester.tap(find.text('Try again'));
     await tester.pumpAndSettle();

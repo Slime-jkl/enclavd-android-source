@@ -8,15 +8,11 @@ import '../config/app_config.dart';
 
 /// Resolves a sender's avatar to a LOCAL cached file so Android can render
 /// it as the MessagingStyle bubble icon (notification persons cannot load
-/// remote images — the icon must be a file or drawable).
-///
-/// Downloads on cache miss and reuses for 24h (a user can change their
-/// picture; a day-old file is fresh enough for a notification). Returns
-/// null on ANY failure — the notification still shows, Android just falls
-/// back to the initial-letter placeholder. Never throws.
-///
-/// Shared by the live path and the background worker (both can hit
-/// dart:io + dart:ui; the worker isolate has a full engine).
+/// remote images - the icon must be a file or drawable). Downloads on
+/// cache miss, reuses for 24h (a day-old file is fresh enough for a
+/// notification), returns null on ANY failure - the notification still
+/// shows with the initial-letter placeholder. Never throws. Shared by the
+/// live path and the background worker.
 Future<String?> resolveNotificationAvatar(
   String avatarPath, {
   String? baseUrl,
@@ -28,7 +24,7 @@ Future<String?> resolveNotificationAvatar(
     await dir.create(recursive: true);
 
     // Sanitize the path into a stable filename (avatars are unique per
-    // user in practice — the path IS the cache key).
+    // user in practice - the path IS the cache key).
     final safe = avatarPath.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
     final file = File('${dir.path}/$safe');
 
@@ -37,7 +33,7 @@ Future<String?> resolveNotificationAvatar(
       if (age < const Duration(hours: 24)) {
         // Re-validate the CACHED file, not just the fresh download: a
         // partially-written file (process killed mid-write) decodes fine
-        // by length but breaks plugin.show's bitmap decode — which would
+        // by length but breaks plugin.show's bitmap decode - which would
         // kill EVERY message notification for the rest of the TTL.
         // Invalid cached files are deleted and re-downloaded below.
         try {
@@ -69,7 +65,7 @@ Future<String?> resolveNotificationAvatar(
           await consolidateHttpClientResponseBytes(response)
               .timeout(const Duration(seconds: 10));
       if (bytes.isEmpty || bytes.length > 512 * 1024) return null;
-      // Validate the bytes actually decode — an invalid image handed to
+      // Validate the bytes actually decode - an invalid image handed to
       // plugin.show would break the whole notification.
       final codec = await ui.instantiateImageCodec(bytes)
           .timeout(const Duration(seconds: 5));
@@ -80,6 +76,6 @@ Future<String?> resolveNotificationAvatar(
       client.close();
     }
   } catch (_) {
-    return null; // avatar is cosmetic — never break the notification
+    return null; // avatar is cosmetic: never break the notification
   }
 }

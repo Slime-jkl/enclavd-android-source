@@ -59,7 +59,7 @@ void main() {
     });
 
     test('a NEW bundle on the same post re-notifies (new key)', () {
-      // Same post, new actor → the server emits a NEW bundle (new max id).
+      // Same post, new actor -> the server emits a NEW bundle (new max id).
       final first = SocialNotificationSource.candidatesFrom([_bundle(id: 12)]);
       final second =
           SocialNotificationSource.candidatesFrom([_bundle(id: 15)]);
@@ -72,8 +72,8 @@ void main() {
     test('body is the decoded preview, trimmed to 120 chars', () {
       final long = _bundle(id: 12).copyWithPreview('x' * 300);
       final candidates = SocialNotificationSource.candidatesFrom([long]);
-      expect(candidates.single.body, hasLength(121)); // 120 + ellipsis
-      expect(candidates.single.body, endsWith('…'));
+      expect(candidates.single.body, hasLength(123)); // 120 + "..."
+      expect(candidates.single.body, endsWith('...'));
 
       final plain = _bundle(id: 13).copyWithPreview('plain');
       expect(SocialNotificationSource.candidatesFrom([plain]).single.body,
@@ -87,7 +87,7 @@ void main() {
   });
 
   group('check() gating (worker context)', () {
-    test('master toggle off → quiet', () async {
+    test('master toggle off -> quiet', () async {
       SharedPreferences.setMockInitialValues(
           {SocialNotifications.enabledPrefsKey: false});
       final prefs = await SharedPreferences.getInstance();
@@ -97,7 +97,7 @@ void main() {
       expect(await source.check(ctx), isEmpty);
     });
 
-    test('drawer open → quiet', () async {
+    test('drawer open -> quiet', () async {
       SharedPreferences.setMockInitialValues(
           {SocialNotificationSource.drawerOpenPrefsKey: true});
       final prefs = await SharedPreferences.getInstance();
@@ -108,7 +108,7 @@ void main() {
           reason: 'open AND app active (default) = the user is looking');
     });
 
-    test('drawer open but app MINIMIZED → NOT quiet (must still alert)',
+    test('drawer open but app MINIMIZED -> NOT quiet (must still alert)',
         () async {
       SharedPreferences.setMockInitialValues({
         SocialNotificationSource.drawerOpenPrefsKey: true,
@@ -123,7 +123,7 @@ void main() {
           reason: 'minimized with the drawer open must still notify');
     });
 
-    test('fetcher failure → quiet, never throws', () async {
+    test('fetcher failure -> quiet, never throws', () async {
       final prefs = await SharedPreferences.getInstance();
       final source = SocialNotificationSource(
           fetcher: (_) async => throw Exception('dead session'));

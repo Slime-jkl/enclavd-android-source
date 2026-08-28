@@ -19,8 +19,6 @@ class _FakeAuth extends AuthService {
         apiBaseUrl: 'https://example.com',
       );
 
-  /// When set, me() waits on this before resolving — lets tests observe
-  /// the loading (shimmer) state of the drawer.
   Completer<void>? gate;
 
   @override
@@ -68,8 +66,7 @@ void main() {
   });
 
   group('UserMenuDrawer', () {
-    // Bounded pumps, not pumpAndSettle: the avatar's shimmer and the
-    // settings spinner are infinite animations, so settle never returns.
+    // Bounded pumps: shimmer and spinner are infinite animations; settle never returns.
     Future<void> pumpDrawer(WidgetTester tester,
         {VoidCallback? onSignOut}) async {
       await tester.pumpWidget(MaterialApp(
@@ -87,9 +84,7 @@ void main() {
       await tester.pump(); // FutureBuilder applies the me() result
     }
 
-    // The grouped layout (sections + sign-out divider) is taller than the
-    // 600px test viewport — scroll the drawer's own list to reach the
-    // bottom rows, as a real user would.
+    // The grouped layout is taller than the 600px viewport; scroll the drawer's list.
     Future<void> scrollDrawerToBottom(WidgetTester tester) async {
       await tester.drag(find.byType(ListView), const Offset(0, -250));
       await tester.pump();
@@ -117,8 +112,7 @@ void main() {
       expect(find.text('Legal'), findsOneWidget);
       expect(find.text('Report an issue'), findsOneWidget);
       expect(find.text('Sign out'), findsOneWidget);
-      // The about card (moved from the app settings screen) sits after
-      // the menu items — drag a little more to reveal it.
+      // The about card sits after the menu items; drag a little more.
       await tester.drag(find.byType(ListView), const Offset(0, -200));
       await tester.pump();
       expect(find.text('ABOUT'), findsOneWidget,
@@ -159,17 +153,13 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400)); // slide in
 
-      // Loading: the menu's skeleton (shimmer rows) is on screen, the
-      // real content is not yet.
+      // Loading: skeleton shimmer rows on screen, real content not yet.
       expect(find.byType(ShimmerBox), findsWidgets,
           reason: 'skeleton rows shimmer while me() is pending');
       expect(find.text('Slimejkl'), findsNothing,
           reason: 'no real content until the probe resolves');
 
-      // Resolve: the skeleton gives way to the loaded menu. (A lone
-      // ShimmerBox may remain — the avatar's own image shimmer, which
-      // never loads in tests. The skeleton had 10+; the loaded state is
-      // proven by the real content appearing.)
+      // Resolve: the skeleton gives way to the loaded menu (a lone avatar shimmer may remain).
       auth.gate!.complete();
       await tester.pump();
       await tester.pump();

@@ -9,7 +9,6 @@ import 'package:enclavd/services/sound_service.dart';
 import 'package:enclavd/theme/enclavd_theme.dart';
 import 'package:enclavd/widgets/rank_badge.dart';
 
-/// Fake service: canned article, scripted like toggles.
 class _FakeArticles extends ArticlesService {
   _FakeArticles({this.article, this.likeResults = const []})
       : super(ApiClient(store: _NoopStore(), apiBaseUrl: 'https://example.com'));
@@ -94,9 +93,8 @@ void main() {
   setUp(() => SoundService.muted = true);
   tearDown(() => SoundService.muted = false);
 
-  /// Pumps the detail screen; [onBody] receives the built document HTML the
-  /// bodyBuilder stub gets (the WebView is a platform view, absent under
-  /// flutter test — the stub replaces it).
+  /// Pumps the detail screen; [onBody] receives the built document HTML
+  /// (the WebView is absent under flutter test; the stub replaces it).
   Future<void> pumpDetail(
     WidgetTester tester,
     _FakeArticles service, {
@@ -133,7 +131,6 @@ void main() {
     expect(find.textContaining('Published on'), findsOneWidget);
     expect(find.text('beta'), findsOneWidget);
     expect(find.text('release'), findsOneWidget);
-    // The body document carries the content and the related card.
     expect(html, contains('We are excited'));
     expect(html, contains('Continue Reading'));
     expect(html, contains('/article/older-post'));
@@ -149,8 +146,7 @@ void main() {
     await pumpDetail(tester, _FakeArticles(article: _article()));
 
     await tester.tap(find.text('Developer'));
-    // Bounded pumps, not pumpAndSettle: the profile shows shimmer/spinner
-    // (infinite animations), so settle never returns.
+    // Bounded pumps: shimmer/spinner never settles.
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400)); // route push
     expect(find.byType(ProfileScreen), findsOneWidget);
@@ -197,14 +193,13 @@ void main() {
   });
 
   testWidgets('404 shows the error view with retry', (tester) async {
-    final service = _FakeArticles(); // article null → ApiException
+    final service = _FakeArticles(); // article null -> ApiException
     await pumpDetail(tester, service);
     expect(find.text('Article not found'), findsOneWidget);
     expect(find.text('Try again'), findsOneWidget);
   });
 }
 
-/// FaIcon converts its FaIconData to a plain IconData for storage — finders
-/// must compare code points, never the FaIconData consts (11.x quirk).
+/// FaIcon stores FaIconData as plain IconData; finders must compare code points (11.x quirk).
 Finder findFa(FaIconData icon) => find.byWidgetPredicate((w) =>
     w is FaIcon && w.icon != null && w.icon!.codePoint == icon.codePoint);

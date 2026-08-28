@@ -13,7 +13,7 @@ class SiteConfig {
   final bool isInvitationRequired;
 
   /// New accounts must confirm their email before they can log in
-  /// (site_config.php require_email_verification). The register flow
+  /// (site_config.php require_email_verification); the register flow
   /// shows the verify-email screen after signup when this is true.
   final bool requireEmailVerification;
 
@@ -43,7 +43,7 @@ class SiteConfig {
       );
 }
 
-/// One navigation entry (site_config.php $nav_links) — the site's global
+/// One navigation entry (site_config.php $nav_links) - the site's global
 /// nav rules. 'public' entries are shown to logged-out visitors; logged-in
 /// users see every entry (the same rule header.php applies).
 class NavLink {
@@ -136,7 +136,7 @@ class RateLimitConfig {
 }
 
 /// Live rate-limit state for one context (login|register), from
-/// GET /api/v1/auth?action=rate_state&context=…
+/// GET /api/v1/auth?action=rate_state&context=...
 class RateLimitState {
   const RateLimitState({
     required this.blocked,

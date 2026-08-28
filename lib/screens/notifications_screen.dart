@@ -16,26 +16,6 @@ import 'post_detail_screen.dart';
 import 'profile_screen.dart';
 import '../services/analytics_service.dart';
 
-/// The in-app notification drawer — the site's bell dropdown (header.php +
-/// components/notifications.js) as a native screen.
-///
-/// Site parity:
-///  - opening the drawer marks EVERYTHING read (toggleNotifications →
-///    markAllAsRead([])) and the badge clears;
-///  - rows: avatar, message, post preview (50-char clamp, 2 lines), the
-///    site's relative time; unread rows get the blue tint;
-///  - taps: follow → the user's profile, post-attached types → the native
-///    PostDetailScreen for that post (the site's /feed/post/<id>), which
-///    fetches api/v1/posts ?post_id=N and renders the full post card;
-///    user-management → no-op (site '#').
-///
-/// Modern app styling (0.7.0): card-style rows (rounded containers +
-/// spacing instead of full-width dividers) with a type icon chip on the
-/// avatar corner, preview card and a small unread dot.
-///
-/// Real-time: the drawer subscribes to the SAME realtime stream as the
-/// feed — a `notification` SSE ping while the drawer is open refreshes the
-/// list instantly (new arrivals render highlighted until the next open).
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({
     super.key,
@@ -59,13 +39,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   void initState() {
     super.initState();
     trackScreen('/notifications');
-    // The drawer is on screen — the live path must not ALSO pop a system
-    // notification for something the user is literally looking at.
+    // The drawer is open, so the live path must not also pop a notification.
     SocialNotifications.instance?.setDrawerOpen(true);
     _load();
-    // Live refresh: the same SSE ping that lights the bell refreshes the
-    // open drawer (site's dropdown only refreshes on open; this is the
-    // app's "real time notifications" win).
+    // The same SSE ping that lights the bell refreshes the open drawer.
     _realtimeSub = widget.realtime.events.listen((event) {
       if (event.type == 'notification') _load(silent: true);
     });
@@ -78,9 +55,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     super.dispose();
   }
 
-  /// Fetch the list; opening the drawer also marks everything read (site
-  /// parity — toggleNotifications calls markAllAsRead BEFORE loading).
-  /// [silent] keeps the current list on screen while refreshing.
   Future<void> _load({bool silent = false}) async {
     if (!silent) setState(() => _error = null);
     try {
@@ -90,8 +64,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         _items = items;
         _error = null;
       });
-      // Mark-read is fire-and-forget from the drawer's perspective: the
-      // badge clears either way and the server state catches up.
+      // Mark-read is fire-and-forget; the server state catches up.
       unawaited(widget.notifications.markAllRead());
     } catch (e) {
       if (!mounted || silent) return;
@@ -108,8 +81,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       case 'post-like':
       case 'post-comment':
       case 'comment-mention':
-        // Native post-by-id screen (api/v1/posts ?post_id=N) — the site's
-        // /feed/post/<id> permalink rendered as a full post card.
+        // The site's /feed/post/<id> permalink as a native screen.
         Navigator.of(context).push(MaterialPageRoute<void>(
           builder: (_) => PostDetailScreen(postId: n.contentId),
         ));
@@ -174,9 +146,6 @@ return ErrorView(message: _error!, onRetry: _load);
   }
 }
 
-/// Modern card row: rounded container with a type icon chip, personality
-/// border avatar, message, preview card and relative time; unread rows
-/// get the blue tint + a small dot (site's unread bg, app's card shape).
 class _NotificationRow extends StatelessWidget {
   const _NotificationRow({required this.notification, required this.onTap});
 
@@ -219,15 +188,12 @@ class _NotificationRow extends StatelessWidget {
                       size: 40,
                       url: n.avatarUrl(AppConfig.apiBaseUrl),
                     ),
-                    // Type chip on the avatar corner — the modern "what
-                    // kind of event" affordance.
+                    // Type chip on the avatar corner.
                     Positioned(
                       right: -4,
                       bottom: -4,
-                      // alignment is REQUIRED: without it the container
-                      // passes tight 18x18 constraints to the FaIcon, whose
-                      // glyph paints at the top-left corner — off center,
-                      // under the border, out of the circle.
+                      // alignment REQUIRED: tight constraints otherwise
+                      // paint the glyph off-center.
                       child: Container(
                         width: 18,
                         height: 18,
@@ -292,8 +258,7 @@ class _NotificationRow extends StatelessWidget {
                         ),
                       if (unread) ...[
                         const SizedBox(height: 6),
-                        // Small unread dot — the modern read-state marker
-                        // on top of the site's tinted row.
+                        // Small unread dot on top of the tinted row.
                         Container(
                           width: 6,
                           height: 6,
@@ -314,16 +279,12 @@ class _NotificationRow extends StatelessWidget {
     );
   }
 
-  /// The site clamps the preview to 50 chars with an ellipsis (and the
-  /// content arrives htmlspecialchars-encoded — decode exactly once).
   String _preview(AppNotification n) {
     final decoded = decodeHtmlEntities(n.postPreviewContent).trim();
     if (decoded.isEmpty) return '';
-    return decoded.length > 50 ? '${decoded.substring(0, 50)}…' : decoded;
+    return decoded.length > 50 ? '${decoded.substring(0, 50)}...' : decoded;
   }
 
-  /// Relative time like the site's EnclavdTime.relative — DB strings are
-  /// UTC wall-clock and MUST parse as UTC (parseDbTime).
   String _relative(String dbUtc) {
     final t = parseDbTime(dbUtc);
     if (t == null) return '';

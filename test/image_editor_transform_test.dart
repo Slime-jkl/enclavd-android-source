@@ -4,10 +4,8 @@ import 'dart:ui';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:enclavd/screens/image_editor_screen.dart';
 
-/// The crop frame must always stay INSIDE the image. This mirrors the
-/// provider's rendering: the image is contain-fit (centered) inside a
-/// viewport-sized child; under scale s + translation (tx, ty) its rect in
-/// viewport coords is [ox*s+tx, (ox+iw)*s+tx] × [oy*s+ty, (oy+ih)*s+ty].
+/// The crop frame must always stay INSIDE the image (mirrors the provider's
+/// contain-fit rendering).
 void expectFrameInImage({
   required double imgW,
   required double imgH,
@@ -42,11 +40,10 @@ void expectFrameInImage({
 void main() {
   const viewport = Size(400, 400);
 
-  group('clampCropTransform — zoom floor (image must cover the frame)', () {
+  group('clampCropTransform - zoom floor (image must cover the frame)', () {
     test('wide image in a square free-crop viewport starts zoomed to cover',
         () {
       // 1600x900 (16:9) contain-fit into 400x400: iw=400, ih=225, oy=87.5.
-      // Free frame = viewport; min scale = max(400/400, 400/225) ≈ 1.78.
       final r = clampCropTransform(
         imgW: 1600,
         imgH: 900,
@@ -58,9 +55,9 @@ void main() {
       );
       expect(r.scale, closeTo(16 / 9, 1e-9)); // 400 / 225
       expect(r.tx, closeTo(0, 1e-6),
-          reason: 'image already spans the full width — tx stays valid');
+          reason: 'image already spans the full width - tx stays valid');
       expect(r.ty, closeTo(-87.5 * r.scale, 1e-6),
-          reason: 'letterbox offset scaled up — the image must slide up to '
+          reason: 'letterbox offset scaled up - the image must slide up to '
               'cover the viewport height');
       expectFrameInImage(
           imgW: 1600,
@@ -85,7 +82,7 @@ void main() {
       );
       expect(r.scale, closeTo(16 / 9, 1e-9)); // 400 / 225
       expect(r.tx, closeTo(-87.5 * r.scale, 1e-6),
-          reason: 'no horizontal slack — pinned to exactly cover');
+          reason: 'no horizontal slack - pinned to exactly cover');
       expect(r.ty, closeTo(0, 1e-6));
       expectFrameInImage(
           imgW: 900,
@@ -120,10 +117,10 @@ void main() {
     });
   });
 
-  group('clampCropTransform — pan confined to the image', () {
+  group('clampCropTransform - pan confined to the image', () {
     test('portrait image zoomed in: horizontal pan clamps both sides', () {
       // At scale 2 the image x-extent is [175+tx, 625+tx]; to keep the
-      // viewport frame inside: tx ∈ [-225, -175].
+      // viewport frame inside, tx must be in [-225, -175].
       final left = clampCropTransform(
         imgW: 900,
         imgH: 1600,
@@ -160,7 +157,7 @@ void main() {
       final frame = Rect.fromCenter(
           center: viewport.center(Offset.zero),
           width: 400,
-          height: 225); // 16:9 frame, y ∈ [87.5, 312.5]
+          height: 225); // 16:9 frame, y  in  [87.5, 312.5]
 
       // At exactly-cover scale there is no slack at all.
       final locked = clampCropTransform(

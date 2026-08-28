@@ -71,9 +71,8 @@ void main() {
     });
 
     test('decoded apostrophes do not create fake hashtags', () {
-      // The site guards with (?<!&)# against &#039; entities; the app
-      // decodes entities BEFORE tokenizing, so an apostrophe is just an
-      // apostrophe — never a hashtag.
+      // The site guards with (?<!&)# against &#039; entities; the app decodes
+      // entities BEFORE tokenizing, so an apostrophe is never a hashtag.
       final tokens = tokenizePostContent("I'm #real");
       expect(tokens.map((t) => '${t.kind}:${t.text}'), [
         'plain:I\'m ',
@@ -167,7 +166,7 @@ void main() {
     });
 
     test('mention inside a word is NOT a mention (site lookbehind)', () {
-      // (?<![\w@]) — email@x and @@user must stay plain.
+      // (?<![\w@]): email@x and @@user must stay plain.
       final tokens = tokenizeCommentContent('email@x.com and @@bob');
       expect(tokens.where((t) => t.isMention), isEmpty);
     });

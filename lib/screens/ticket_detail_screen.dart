@@ -11,11 +11,6 @@ import '../widgets/error_view.dart';
 import '../widgets/enclavd_avatar.dart';
 import '../widgets/rank_badge.dart';
 
-/// The native ticket detail screen — a modern port of the site's
-/// /reports/<id> page (ticket.php) with the USER-facing parts only:
-/// the owner header, type + status with the mark-as-solved action, the
-/// description, and the merged activity timeline of replies and status
-/// logs, plus the reply box (hidden when the ticket is sealed).
 class TicketDetailScreen extends StatefulWidget {
   const TicketDetailScreen({
     super.key,
@@ -159,7 +154,6 @@ return ErrorView(message: _error!, onRetry: _load);
           _ErrorBanner(text: _actionError!),
           const SizedBox(height: 12),
         ],
-        // ── Owner header (ticket.php's avatar + identity row) ──
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -219,7 +213,6 @@ return ErrorView(message: _error!, onRetry: _load);
           ),
         ),
         const SizedBox(height: 12),
-        // ── Type + status + solve action ──
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -275,7 +268,6 @@ return ErrorView(message: _error!, onRetry: _load);
           ),
         ),
         const SizedBox(height: 12),
-        // ── Activity timeline (replies + logs, oldest first) ──
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -316,7 +308,6 @@ return ErrorView(message: _error!, onRetry: _load);
                     _ReplyBubble(event: event),
                   const SizedBox(height: 10),
                 ],
-              // ── Reply box (hidden when sealed) ──
               if (detail.sealed)
                 const Row(
                   children: [
@@ -378,7 +369,6 @@ return ErrorView(message: _error!, onRetry: _load);
       path.startsWith('/') ? '${AppConfig.apiBaseUrl}$path' : path;
 }
 
-/// The type chip (ticket.php's fa-tag pill).
 class _TypeChip extends StatelessWidget {
   const _TypeChip({required this.type});
 
@@ -407,7 +397,6 @@ class _TypeChip extends StatelessWidget {
   }
 }
 
-/// The status pill with ticket.php's exact colors per status.
 class _StatusPill extends StatelessWidget {
   const _StatusPill({required this.status});
 
@@ -442,7 +431,6 @@ class _StatusPill extends StatelessWidget {
   }
 }
 
-/// One reply in the timeline (ticket.php's avatar + bubble row).
 class _ReplyBubble extends StatelessWidget {
   const _ReplyBubble({required this.event});
 
@@ -503,7 +491,6 @@ class _ReplyBubble extends StatelessWidget {
   }
 }
 
-/// One status log in the timeline (ticket.php's fa-history chip).
 class _LogChip extends StatelessWidget {
   const _LogChip({required this.event});
 

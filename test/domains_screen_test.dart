@@ -9,14 +9,12 @@ import 'package:enclavd/services/sound_service.dart';
 import 'package:enclavd/theme/enclavd_theme.dart';
 import 'package:enclavd/widgets/shimmer.dart';
 
-/// Fake service with canned board responses (no sockets under flutter test).
 class _FakeDomains extends DomainsService {
   _FakeDomains({this.flat})
       : super(ApiClient(store: _NoopStore(), apiBaseUrl: 'https://example.com'));
 
   final List<DomainCategory>? flat;
 
-  /// When set, board() waits on this — lets tests observe the loading state.
   Completer<void>? gate;
 
   @override
@@ -67,7 +65,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() {
-    // audioplayers has no platform channel under flutter test — the like
+    // audioplayers has no platform channel under flutter test; the like
     // sound would throw an unhandled MissingPluginException.
     SoundService.muted = true;
   });
@@ -127,14 +125,11 @@ void main() {
 
     expect(find.text('Domains of Discussion'), findsOneWidget);
     expect(find.text('Entertainment'), findsOneWidget);
-    // Children rows render inside the root card.
     expect(find.text('Movies & TV'), findsOneWidget);
     expect(find.text('Music'), findsOneWidget);
-    // Activity line on the child with activity: "Last: Aug 11, 2026 by
-    // @Cinephile".
+    // Activity line on the child: "Last: Aug 11, 2026 by @Cinephile".
     expect(find.textContaining('Last:'), findsOneWidget);
     expect(find.textContaining('@Cinephile'), findsOneWidget);
-    // Post counts.
     expect(find.text('5'), findsOneWidget);
   });
 

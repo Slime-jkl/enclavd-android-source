@@ -3,11 +3,11 @@ import 'dart:math' as math;
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
 
-import '../api/messages_service.dart'; // formatMessageTime (DB UTC → local)
+import '../api/messages_service.dart'; // formatMessageTime (DB UTC -> local)
 import '../api/votes_service.dart';
 import '../config/app_config.dart';
 import '../theme/enclavd_theme.dart';
-import '../utils/domain_icons.dart'; // domainColorFromHex (site hex → Color)
+import '../utils/domain_icons.dart'; // domainColorFromHex (site hex -> Color)
 import '../utils/user_facing_errors.dart';
 import '../widgets/enclavd_avatar.dart';
 import '../widgets/error_view.dart';
@@ -15,24 +15,6 @@ import '../widgets/rank_badge.dart';
 import '../widgets/shimmer.dart';
 import 'profile_screen.dart';
 
-/// The native Votes tab — the site's /vote (vote.php) as a modern app:
-/// active community polls (vote / change vote in place) then the completed
-/// ones, read-only with final results. Site parity:
-///  - counts are WEIGHTED (rank voting power), the site's card math;
-///  - one vote per poll, changeable until the period ends;
-///  - "Your current vote" highlight on the chosen option, theme accent;
-///  - doughnut chart per poll (the site's Chart.js canvas, native painter),
-///    "No votes yet" when nobody has voted;
-///  - creator row (avatar + username → profile, rank badge);
-///  - "How Voting Works" info card with the expandable rank-powers table.
-/// Modern-app look (user rule: native UI, not a website copy): cards stack
-/// VERTICALLY — the doughnut sits centered as the poll's summary, options
-/// run full-width with their own progress bars, generous paddings, rounded
-/// corners, pull-to-refresh, shimmer first load.
-///
-/// This widget is the FEED SHELL's Votes tab body (no Scaffold/AppBar of
-/// its own — the shell supplies the shared header and bottom nav); it is
-/// built lazily on first tab visit.
 class VotesScreen extends StatefulWidget {
   const VotesScreen({super.key, required this.votes});
 
@@ -47,13 +29,10 @@ class _VotesScreenState extends State<VotesScreen> {
   bool _loading = true;
   String? _error;
 
-  /// Pending per-poll selection (feature_id → option index) before submit.
   final Map<int, int> _selection = {};
   int? _submittingId;
   bool _ranksOpen = false;
 
-  /// The accent shared by every selected/my-vote affordance — the app's
-  /// link blue (the old site-purple read as off-theme on the dark cards).
   static const _accent = EnclavdColors.link;
 
   @override
@@ -117,7 +96,6 @@ class _VotesScreenState extends State<VotesScreen> {
     }
   }
 
-  /// Replaces the updated poll in whichever section it lives in.
   void _applyVote(Vote updated) {
     final data = _data;
     if (data == null) return;
@@ -217,8 +195,6 @@ class _VotesScreenState extends State<VotesScreen> {
       );
 }
 
-/// "How Voting Works" info card (vote.php section) with the expandable
-/// rank-voting-power table.
 class _HowVotingWorks extends StatelessWidget {
   const _HowVotingWorks({
     required this.votingPower,
@@ -264,8 +240,7 @@ class _HowVotingWorks extends StatelessWidget {
                 fontSize: 13, color: EnclavdColors.textSecondary, height: 1.5),
           ),
           const SizedBox(height: 12),
-          // Highlight row: the viewer's own weight (the site's "Voting
-          // Power: N×" line), modern stat-chip style.
+          // The viewer's own weight, stat-chip style.
           Container(
             width: double.infinity,
             padding:
@@ -288,7 +263,7 @@ class _HowVotingWorks extends StatelessWidget {
                 ),
                 const Spacer(),
                 Text(
-                  '×$votingPower',
+                  'x$votingPower',
                   style: const TextStyle(
                       fontSize: 13.5,
                       fontWeight: FontWeight.w800,
@@ -328,12 +303,11 @@ class _HowVotingWorks extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Row(
                   children: [
-                    // Global rank badge (icon + rank name), not a bare
-                    // colored label — the app's rank identity everywhere.
+                    // Rank badge (icon + rank name), the app's rank identity.
                     RankBadge(rank: power.rank),
                     const Spacer(),
                     Text(
-                      '×${power.votingPower}',
+                      'x${power.votingPower}',
                       style: const TextStyle(
                           fontSize: 13, fontWeight: FontWeight.w700),
                     ),
@@ -359,8 +333,7 @@ class _SectionHeader extends StatelessWidget {
       padding: const EdgeInsets.only(top: 18, bottom: 12),
       child: Row(
         children: [
-          // Bare section icon — no tinted chip behind it (the chip
-          // read as clutter next to the title).
+          // Bare icon: a tinted chip read as clutter next to the title.
           FaIcon(icon, size: 15, color: EnclavdColors.link),
           const SizedBox(width: 10),
           Text(
@@ -406,10 +379,6 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-/// One poll card — stacked vertically for mobile: title + status, the
-/// doughnut as the poll's summary (total votes in the center), the end
-/// chip, description, full-width option rows with progress bars, the vote
-/// action, then the creator footer.
 class _VoteCard extends StatelessWidget {
   const _VoteCard({
     required this.vote,
@@ -441,8 +410,7 @@ class _VoteCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Title row + status pill (completed only — active polls carry
-          // their end chip under the doughnut).
+          // Status pill only on completed polls; active ones carry the end chip.
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -465,7 +433,7 @@ class _VoteCard extends StatelessWidget {
           // Poll summary: the doughnut (or "No votes yet" placeholder).
           Center(child: _Donut(vote: vote)),
           const SizedBox(height: 10),
-          // End/ended chip — the card's clock line.
+          // End/ended chip, the card's clock line.
           Center(child: _EndChip(vote: vote)),
           const SizedBox(height: 14),
           if (vote.description.isNotEmpty) ...[
@@ -526,9 +494,6 @@ class _VoteCard extends StatelessWidget {
     );
   }
 
-  /// One full-width option: radio/check, text, percentage + weighted count,
-  /// and the option-colored progress bar under them (modern poll pattern —
-  /// the site's cramped %-text rows scaled to a phone).
   Widget _optionRow(int i, int? myVote) {
     const accent = _VotesScreenState._accent;
     final isSelected = selected == i; // pending selection
@@ -558,8 +523,7 @@ class _VoteCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                // Radio-style indicator (site's form-radio) → check once
-                // this is the viewer's current vote.
+                // Radio-style indicator -> check once it's the viewer's vote.
                 if (isMine)
                   const FaIcon(FontAwesomeIcons.circleCheck,
                       size: 16, color: _VotesScreenState._accent)
@@ -616,8 +580,7 @@ class _VoteCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            // Progress bar — the option's weighted share, filled with the
-            // option's own color.
+            // Progress bar: the option's weighted share in its own color.
             ClipRRect(
               borderRadius: BorderRadius.circular(2.5),
               child: SizedBox(
@@ -657,8 +620,6 @@ class _VoteCard extends StatelessWidget {
     );
   }
 
-  /// 'Your current vote' + the last-change time when the server had one
-  /// (the web card's purple line; fresh votes show no time until reload).
   String _myVoteLabel() {
     final changed = vote.myVoteChangedAt;
     final time = formatMessageTime(changed ?? '');
@@ -690,13 +651,12 @@ class _VoteCard extends StatelessWidget {
               color: Colors.white, // matches the button's label
             ),
       label: Text(submitting
-          ? 'Submitting…'
+          ? 'Submitting...'
           : (myVote != null ? 'Change Vote' : 'Submit Vote')),
     );
   }
 }
 
-/// Status pill for completed polls ('Completed' green / 'Cancelled' red).
 class _StatusPill extends StatelessWidget {
   const _StatusPill({required this.vote});
 
@@ -725,8 +685,6 @@ class _StatusPill extends StatelessWidget {
   }
 }
 
-/// The card's clock line: "Ends: …" for active polls, "Ended: …" for
-/// completed ones (site's end-label chip, centered under the doughnut).
 class _EndChip extends StatelessWidget {
   const _EndChip({required this.vote});
 
@@ -758,10 +716,6 @@ class _EndChip extends StatelessWidget {
   }
 }
 
-/// Native doughnut — the site's Chart.js canvas for one poll, here the
-/// card's centered summary. Weighted counts per option, option colors,
-/// small gaps between segments (the site's spacing:3); the center shows
-/// the total vote count.
 class _Donut extends StatelessWidget {
   const _Donut({required this.vote});
 

@@ -43,7 +43,7 @@ void main() {
       );
 
       expect(await saver.saveImage('https://example.com/x.jpg'),
-          'Storage permission needed — allow it in Settings, then try again');
+          'Storage permission needed - allow it in Settings, then try again');
     });
 
     test('any other platform error gives a generic message', () async {
@@ -57,7 +57,7 @@ void main() {
           "Couldn't save the image.");
     });
 
-    test('unexpected errors never escape — generic message returned',
+    test('unexpected errors never escape - generic message returned',
         () async {
       final saver = GallerySaver(
         fetchBytes: (_) async => throw StateError('boom'),

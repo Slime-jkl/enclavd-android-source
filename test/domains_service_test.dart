@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:enclavd/api/api_client.dart';
 import 'package:enclavd/api/domains_service.dart';
 
-/// Minimal in-memory session store (no prefs, no binding needed here).
 class _Store implements SessionStore {
   @override
   Future<void> clear() async {}
@@ -127,7 +126,7 @@ void main() {
             id: 5, name: 'Movies & TV', parent: 3, slug: 'movies-tv')),
         DomainCategory.fromJson(_category(
             id: 6, name: 'Music', parent: 3, slug: 'music')),
-        // Orphan: parent id does not exist → treated as a root.
+        // Orphan: parent id does not exist -> treated as a root.
         DomainCategory.fromJson(_category(
             id: 99, name: 'Orphan', parent: 404, slug: 'orphan')),
       ];
@@ -145,7 +144,7 @@ void main() {
     test('parses the post + domain context', () {
       final t = DomainThread.fromJson(_thread());
       expect(t.post.id, 218);
-      // Content arrives htmlspecialchars-encoded — Post decodes once.
+      // Content arrives htmlspecialchars-encoded; Post decodes once.
       expect(t.post.content, "Hello **world** & friends");
       expect(t.post.username, 'Developer');
       expect(t.post.rank, 'SysOp');

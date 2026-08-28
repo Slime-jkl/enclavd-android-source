@@ -11,12 +11,6 @@ import '../widgets/shimmer.dart';
 import 'compose_screen.dart';
 import '../services/analytics_service.dart';
 
-/// Post detail — a single post by id (api/v1/posts ?post_id=N) rendered
-/// with the regular interactive PostCard (likes, comments, edit/delete).
-///
-/// The notification drawer's post taps land here instead of the browser's
-/// /feed/post/<id>; the same screen is the natural host for future
-/// search/permalink entry points — anything that has a post id.
 class PostDetailScreen extends StatefulWidget {
   const PostDetailScreen({super.key, required this.postId});
 
@@ -77,8 +71,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     }
   }
 
-  /// Edit flow: the composer is prefilled (ComposeScreen(post: …)) and pops
-  /// true when saved — refetch so the card shows the updated content.
   Future<void> _editPost(Post post) async {
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => ComposeScreen(post: post)),
@@ -86,8 +78,6 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     if (saved == true && mounted) _load();
   }
 
-  /// Delete flow: same confirm + api/v1 delete as the feed; the post is
-  /// gone afterwards, so the screen pops back to wherever it was opened.
   Future<void> _deletePost(Post post) async {
     final services = _services;
     if (services == null) return;

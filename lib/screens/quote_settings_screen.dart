@@ -9,11 +9,6 @@ import '../services/daily_quote_widget.dart';
 import '../theme/enclavd_theme.dart';
 import 'quote_help_screen.dart';
 
-/// Quote of the day — the feature's own settings screen (reachable from
-/// the user menu's dedicated "Quote of the day" entry and from the widget
-/// / notification deep link). Holds the master toggle for the daily-quote
-/// pipeline and the widget's display options; the generic App settings
-/// screen no longer mixes these in.
 class QuoteSettingsScreen extends StatefulWidget {
   const QuoteSettingsScreen({super.key});
 
@@ -40,8 +35,7 @@ class _QuoteSettingsScreenState extends State<QuoteSettingsScreen> {
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     final dailyQuote = prefs.getBool(_dailyQuotePrefsKey) ?? true;
-    // Widget display prefs live in home_widget's storage — the same source
-    // the native provider renders from. Read through the service so a
+    // Widget prefs live in home_widget storage; read via the service so a
     // plugin hiccup degrades to defaults instead of throwing.
     final showTags = await DailyQuoteWidget.showTags();
     final light = await DailyQuoteWidget.lightMode();
@@ -55,27 +49,19 @@ class _QuoteSettingsScreenState extends State<QuoteSettingsScreen> {
     });
   }
 
-  /// Daily quote: on = arm the random-time run (a pending slot is kept)
-  /// and catch the widget up right away; off = cancel the run so nothing
-  /// fires until re-enabled.
   Future<void> _toggleDailyQuote(bool enabled) async {
     setState(() => _dailyQuoteEnabled = enabled);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_dailyQuotePrefsKey, enabled);
     if (enabled) {
       await DailyQuoteService.scheduleNextRun();
-      // The widget may be stale from before the feature was off (or the
-      // freshness stamp may be blocking) — drop the stamp and refresh
-      // immediately so re-enabling gives instant feedback.
+      // Drop the freshness stamp and refresh so re-enabling gives instant feedback.
       unawaited(DailyQuoteService.refreshWidgetNow());
     } else {
       await DailyQuoteService.cancel();
     }
   }
 
-  /// Widget display prefs: each toggle persists to the widget storage and
-  /// re-renders the pinned widget immediately. (The logo has no toggle —
-  /// it is always on by design.)
   Future<void> _toggleWidgetShowTags(bool enabled) async {
     setState(() => _widgetShowTags = enabled);
     await DailyQuoteWidget.setDisplayPrefs(showTags: enabled);
@@ -134,8 +120,7 @@ class _QuoteSettingsScreenState extends State<QuoteSettingsScreen> {
             _toggleRow(
               loading: _widgetLight == null,
               value: _widgetLight ?? false,
-              // Manual light/dark is only meaningful when the card is NOT
-              // following the system theme — greyed out otherwise.
+              // Light/dark only matters when not following the system theme.
               enabled: _widgetFollowSystem == false,
               onChanged: _toggleWidgetLight,
               icon: FontAwesomeIcons.sun,
@@ -167,8 +152,7 @@ class _QuoteSettingsScreenState extends State<QuoteSettingsScreen> {
               ),
             ),
             const SizedBox(height: 10),
-            // The logo has no toggle — it is always on (the white-house
-            // watermark). A quiet note keeps that from reading as a bug.
+            // The logo has no toggle; a quiet note keeps that from reading as a bug.
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 4),
               child: Text(
@@ -183,10 +167,6 @@ class _QuoteSettingsScreenState extends State<QuoteSettingsScreen> {
     );
   }
 
-  /// One settings row with the loading-skeleton fallback (the screen shows
-  /// real values once the prefs land; never a bare static placeholder).
-  /// [enabled] false = the row is dimmed and not tappable (the manual
-  /// Light variant while the widget follows the system theme).
   Widget _toggleRow({
     required bool loading,
     required bool value,

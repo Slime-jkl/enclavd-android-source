@@ -18,7 +18,6 @@ class _NoopStore implements SessionStore {
   Future<void> save(List<SessionCookie> cookies) async {}
 }
 
-/// Fake service with canned thread pages.
 class _FakeDomains extends DomainsService {
   _FakeDomains({this.pages})
       : super(ApiClient(store: _NoopStore(), apiBaseUrl: 'https://example.com'));
@@ -124,10 +123,8 @@ void main() {
     ));
     await tester.pump(const Duration(milliseconds: 50));
 
-    // AppBar title + header block.
     expect(find.text('Entertainment'), findsWidgets);
     expect(find.text('Movies, music, gaming and more'), findsOneWidget);
-    // Thread rows: excerpt + author + stats.
     expect(find.text('A thread about the new update'), findsWidgets);
     expect(find.text('Developer'), findsWidgets);
     expect(find.text('3'), findsOneWidget); // comments on 218

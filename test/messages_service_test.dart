@@ -76,28 +76,28 @@ void main() {
       expect(c.hasUnread, isFalse);
     });
 
-    test('online heuristic: last_active within 5 minutes → online', () {
+    test('online heuristic: last_active within 5 minutes -> online', () {
       final recent = DateTime.now().toUtc().subtract(const Duration(minutes: 2));
       final c = Conversation.fromJson(
           conversationJson(lastActive: db(recent)));
       expect(c.isOnline, isTrue);
     });
 
-    test('stale last_active (6 min) → offline', () {
+    test('stale last_active (6 min) -> offline', () {
       final stale = DateTime.now().toUtc().subtract(const Duration(minutes: 6));
       final c =
           Conversation.fromJson(conversationJson(lastActive: db(stale)));
       expect(c.isOnline, isFalse);
     });
 
-    test('missing last_active → offline', () {
+    test('missing last_active -> offline', () {
       final c = Conversation.fromJson(conversationJson(lastActive: ''));
       expect(c.isOnline, isFalse);
     });
   });
 
   group('ChatMessage.fromJson', () {
-    test('own message: is_read 0 → false, 1 → true', () {
+    test('own message: is_read 0 -> false, 1 -> true', () {
       expect(ChatMessage.fromJson(messageJson(isRead: false)).isRead, isFalse);
       expect(ChatMessage.fromJson(messageJson(isRead: true)).isRead, isTrue);
     });
@@ -271,7 +271,7 @@ void main() {
       expect(t.isUtc, isTrue);
     });
 
-    test('unparseable input → null / empty time', () {
+    test('unparseable input -> null / empty time', () {
       expect(parseDbTime(''), isNull);
       expect(parseDbTime('nonsense'), isNull);
       expect(formatMessageTime(''), '');

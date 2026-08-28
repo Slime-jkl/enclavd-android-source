@@ -34,15 +34,6 @@ import 'search_results_screen.dart';
 import 'test_screen.dart';
 import 'votes_screen.dart';
 
-/// Feed screen — the ranked feed via GET /api/v1/posts.
-///
-/// - First load: skeleton cards (shimmer) instead of a bare spinner.
-/// - Infinite scroll: keyset cursor (last_score + last_id) from the previous
-///   page; stop when has_more is false.
-/// - Pull-to-refresh: refetch page one (pure server rank — a website
-///   reload); posts newer than anything shown are OFFERED via a floating
-///   "New posts" pill (site parity), never auto-inserted.
-/// - Logout: top-right, via api/v1 auth logout → back to the login screen.
 class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key});
 
@@ -57,12 +48,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   CurrentUser? _me;
   bool _banGateHandled = false;
 
-  // Maintenance mode (site_config.php 'maintenance'): the web shows a
-  // banner to allowed ranks while non-allowed ranks hit the full-page
-  // lockout. The app mirrors that split on the SAME gate — banner when
-  // the rank is allowed, MaintenanceScreen when it isn't — and the
-  // mid-session re-check (feed load or app resume) picks up a toggle
-  // made while the app was open, exactly like the ban gate above.
+  // Maintenance mode: banner for allowed ranks, lockout screen otherwise.
   MaintenanceConfig? _maintenance;
   bool _maintenanceGateHandled = false;
 
@@ -74,19 +60,12 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   bool _initialLoadDone = false;
   String? _error;
 
-  // New-posts pill (site parity — notifications.js EnclavdFeedPill): a
-  // refresh may OFFER posts newer than anything shown, never auto-insert
-  // them. _seenMaxId is monotonic (the highest post id ever displayed), so
-  // a post is offered at most once — the old delta auto-merge hoisted
-  // buried posts to the top on alternating refreshes, which read as the
-  // feed "jittering" between two orderings.
+  // New-posts pill: a refresh offers newer posts, never auto-inserts them.
   int _seenMaxId = 0;
   bool _showNewPostsPill = false;
   int _newPostCount = 0;
 
-  // One comment section open at a time: the id of the post whose comments
-  // are open, null = all closed. Opening another post's comments closes
-  // this one (the site collapses the previous section on a new open).
+  // One comment section open at a time; opening another closes this one.
   int? _openCommentsPostId;
 
   // Unread messages badge (site header: paper-plane icon + red count).
@@ -98,8 +77,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   StreamSubscription<RealtimeEvent>? _realtimeSub;
   StreamSubscription<bool>? _sseStatusSub;
 
-  // Header search (site header.php: the search button left of the bell —
-  // expands into an inline search field, Enter → SearchResultsScreen).
+  // Header search: expands into an inline field, Enter -> results screen.
   bool _searching = false;
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
@@ -109,41 +87,26 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   // + resume; cleared when the Updates tab is opened).
   bool _hasNewArticles = false;
 
-  // The shell hosts the site's nav pages in place — feed, articles and
-  // domains — under the SAME header + bottom nav (the site's header
-  // persists across pages). The articles/domains bodies build lazily on
-  // first tab visit so their loads only happen when the user SEES the tab.
+  // Nav pages switch in place under one header + bottom nav; bodies build
+  // lazily on first tab visit.
   int _navIndex = 0;
   bool _articlesTabBuilt = false;
   bool _domainsTabBuilt = false;
   bool _votesTabBuilt = false;
 
-  // Server-driven bottom nav (GET /api/v1/site_config → nav): the site's
-  // global nav rules decide which pages exist, their order and labels.
-  // Empty until the fetch lands; the getters below fall back to the
-  // shipped defaults, so the menu is never missing over a network blip.
+  // Server-driven bottom nav; defaults until the fetch lands.
   List<NavLink> _nav = const [];
 
-  /// Fallback tabs when the server config can't be fetched — the exact
-  /// set the app shipped with (labels match the old hardcoded bar).
   static const _defaultNav = [
     NavLink(url: '', text: 'Feed', public: true),
     NavLink(url: 'articles', text: 'Updates', public: true),
     NavLink(url: 'domain', text: 'Domains', public: false),
   ];
 
-  /// Pages the native app can actually render; server nav entries for any
-  /// other url are skipped (the web may list pages the app has no screen
-  /// for, e.g. faq, leaderboard — they simply don't become tabs).
   static const _knownNavUrls = {'', 'articles', 'domain', 'vote'};
 
-  /// Server nav when loaded, else the shipped defaults.
   List<NavLink> get _effectiveNav => _nav.isNotEmpty ? _nav : _defaultNav;
 
-  /// The tabs to render right now — the site's global nav rules applied:
-  /// known pages only, deduped, shown when public OR the session is live
-  /// (the same rule header.php applies: guests see public pages, logged-in
-  /// users see everything).
   List<NavLink> get _tabs {
     final loggedIn = _services?.apiClient.hasSession ?? true;
     final seen = <String>{};
@@ -173,18 +136,11 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     _loadNotifUnread();
     _loadNav();
     _checkNewArticles();
-    // The site's header badges are SSE-driven with a 30s poll fallback —
-    // the app runs the same pairing: SSE events update them instantly,
-    // the poll covers a dead stream. Site parity on the gating too:
-    // while the SSE stream is live the poll does NOT run (the site's
-    // `if (EnclavdRealtime.connected) return;`) — event-driven only.
+    // SSE updates badges instantly; the 30s poll covers a dead stream.
     _unreadTimer =
         Timer.periodic(const Duration(seconds: 30), (_) {
       if (_services?.realtime.isSseConnected ?? false) {
-        // DIAGNOSTIC: with a live stream the poll must NOT run (site
-        // parity). If this prints forever while NO events arrive, the
-        // stream is a zombie gating the fallback — the tell for that
-        // state in logcat.
+        // DIAGNOSTIC: poll must not run while the stream is live (zombie tell).
         debugPrint('FS: poll skipped (sse connected)');
         return;
       }
@@ -192,21 +148,18 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
       _loadNotifUnread();
     });
     final realtime = _services!.realtime;
-    // A fresh SSE stream means anything missed while the old one was down
-    // (or was a zombie) must be reconciled from REST — the site does the
-    // same on EventSource reconnect (visibilitychange → re-poll).
+    // Fresh stream: anything missed while the old one was down gets
+    // reconciled from REST.
     _sseStatusSub = realtime.sseStatus.listen((connected) {
       if (!connected) return;
-      debugPrint('FS: sse reconnected — reconciling badges');
+      debugPrint('FS: sse reconnected - reconciling badges');
       _loadUnread();
       _loadNotifUnread();
     });
     _realtimeSub = realtime.events.listen((event) {
       debugPrint('FS: event ${event.type} unread=${event.unreadCount}');
       if (event.type == 'message_unread') {
-        // Badge ping = a new message somewhere: surface it as a device
-        // notification with a drawer reply (skipped while the messages
-        // screen is open and the app is foregrounded).
+        // Badge ping = a new message: surface it as a device notification.
         MessageNotifications.instance?.handleUnreadPing();
         if (event.unreadCount != null &&
             mounted &&
@@ -214,9 +167,8 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
           setState(() => _unreadMessages = event.unreadCount!);
         }
       } else if (event.type == 'notification') {
-        // Badge ping = a like/comment/mention somewhere: surface it as a
-        // device notification AND refresh the open drawer (the drawer's
-        // own listener handles the latter; this path is for the badge).
+        // Badge ping = a like/comment/mention: surface it as a device
+        // notification (the drawer's own listener refreshes the drawer).
         SocialNotifications.instance?.handleNotificationPing();
         if (event.unreadCount != null &&
             mounted &&
@@ -240,10 +192,6 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     super.dispose();
   }
 
-  /// Header search: the magnifier (left of the bell) expands into an
-  /// inline search field. Closing happens via the field's own X (white,
-  /// inside the bar) or by tapping anywhere outside it — both clear the
-  /// query and collapse back to the logo.
   void _openSearch() {
     setState(() => _searching = true);
   }
@@ -257,8 +205,6 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     });
   }
 
-  /// Enter in the header search field → the results screen (api/v1/search
-  /// with shimmer while loading).
   void _submitSearch(String raw) {
     final query = raw.trim();
     if (query.isEmpty) return;
@@ -270,32 +216,20 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     ));
   }
 
-  /// Site parity (visibilitychange): returning to the app reconciles —
-  /// Android drops idle SSE sockets, so resume reconnects the stream (the
-  /// service's own retry also covers it, but this makes it instant) and
-  /// refreshes the badge + notification state right away.
+  /// Android drops idle SSE sockets, so resume reconnects and re-syncs badges.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) return;
-    // Foreground: probe the WS (ping/pong — zombie sockets reconnect NOW
-    // instead of waiting out the backoff), force a FRESH SSE stream (a
-    // half-open zombie reads as connected and gates the polls off forever
-    // — restart-only until this), re-sync BOTH badges from REST.
-    debugPrint('FS: resumed — reconnecting realtime, re-syncing badges');
+    // Foreground: probe the WS, force a fresh SSE stream, re-sync badges.
+    debugPrint('FS: resumed - reconnecting realtime, re-syncing badges');
     _services?.realtime.onForeground();
     _loadUnread();
     _loadNotifUnread();
     _checkNewArticles();
-    // Mid-session ban gate: a ban issued while the app was backgrounded
-    // lands here (web parity — check_blocked_user on every load).
+    // Mid-session ban gate (web parity).
     _loadMe();
   }
 
-  /// The header avatar + drawer header need the current user (api/v1/me).
-  /// Also the mid-session ban gate: the web shows check_blocked_user() on
-  /// every page load, so the app must too — if the account is banned while
-  /// the app is open, the ban screen replaces the whole stack on the next
-  /// me() (feed load or app resume), not only at login.
   Future<void> _loadMe() async {
     try {
       final me = await _services!.auth.me();
@@ -307,11 +241,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
             .pushNamedAndRemoveUntil(BanScreen.routeName, (_) => false);
         return;
       }
-      // Mid-session maintenance gate (web parity — header.php locks out
-      // non-allowed ranks on every page load): enabled + rank not in the
-      // allowed list → maintenance screen; enabled + allowed → banner.
-      // A config fetch failure keeps the current banner state — the web
-      // server still enforces its own pages either way.
+      // Mid-session maintenance gate (web parity).
       if (me != null) {
         try {
           final cfg = await _services!.siteConfig.fetch();
@@ -339,10 +269,6 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     }
   }
 
-  /// The bottom nav is server-driven: site_config.php $nav_links decides
-  /// which pages exist, their order and labels. A fetch failure falls back
-  /// to the shipped defaults — the app never loses its menu over a
-  /// network blip (the same fetch also feeds the login/register gates).
   Future<void> _loadNav() async {
     final services = _services;
     if (services == null) return;
@@ -355,12 +281,6 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     }
   }
 
-  /// Site header parity: while accounts.personality_type is empty the
-  /// header shows the yellow "incomplete profile" banner; the app shows
-  /// it at the top of the feed instead. Pushes the native test — when it
-  /// completes (the quiz replaces itself with the results screen and this
-  /// route future resolves true) the account is refreshed so the banner
-  /// disappears.
   bool get _showTestBanner {
     final me = _me;
     return me != null &&
@@ -376,7 +296,6 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     if (completed == true && mounted) _loadMe();
   }
 
-  /// Header badge count (single COUNT query — cheap enough to poll).
   Future<void> _loadUnread() async {
     final services = _services;
     if (services == null) return;
@@ -385,20 +304,14 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
       if (mounted && count != _unreadMessages) {
         setState(() => _unreadMessages = count);
       }
-      // Every poll also evaluates the notification path. The SSE stream is
-      // the instant trigger; the poll is the guaranteed fallback (a dead
-      // socket must not mean "no device notification ever"). The service
-      // dedupes by newest message id, so this never double-notifies when
-      // SSE is alive.
+      // Every poll also evaluates the notification path (SSE is the
+      // instant trigger; the poll is the guaranteed fallback).
       MessageNotifications.instance?.handleUnreadPing();
     } catch (_) {
       // Non-fatal: the badge keeps its last known value.
     }
   }
 
-  /// Header NOTIFICATIONS badge count + live-path check, mirroring
-  /// [_loadUnread] exactly (SSE is the instant trigger, this poll is the
-  /// dead-stream fallback; the shared dedupe prevents double-notifies).
   Future<void> _loadNotifUnread() async {
     final services = _services;
     if (services == null) return;
@@ -413,8 +326,6 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     }
   }
 
-  /// Opens the inbox (site: paper-plane header link). Refresh the badge
-  /// on return — the thread marked things read while we were away.
   Future<void> _openMessages() async {
     final services = _services;
     if (services == null) return;
@@ -431,11 +342,6 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     if (mounted) _loadUnread();
   }
 
-  /// New-articles check (site-inspired "what's new" affordance): compare the
-  /// newest article id against the id stored at the last visit. First run
-  /// stores the baseline silently (no dot); afterwards a moved id lights the
-  /// red dot on the Updates tab until the user opens the list. Failures are
-  /// non-fatal — the dot simply stays as it was.
   Future<void> _checkNewArticles() async {
     final services = _services;
     if (services == null) return;
@@ -456,8 +362,6 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     }
   }
 
-  /// Opens the notification drawer (site: bell header link). The drawer
-  /// marks everything read on open; refresh the badge on return.
   Future<void> _openNotifications() async {
     final services = _services;
     if (services == null) return;
@@ -489,9 +393,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
         _lastPage = page;
         _loading = false;
         _initialLoadDone = true;
-        // A fresh first page re-baselines what has been seen (a website
-        // reload): the pill is cleared and everything rendered counts as
-        // seen, so buried-but-newer posts are not re-offered.
+        // A fresh first page re-baselines what counts as seen.
         _seenMaxId = feedMaxPostId(page.posts, _seenMaxId);
         _showNewPostsPill = false;
         _newPostCount = 0;
@@ -558,12 +460,8 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
       SoundService.instance.action();
       return;
     }
-    // 1) Delta check FOR THE PILL only: posts newer than anything ever
-    //    shown. Site parity — notifications.js EnclavdFeedPill: new posts
-    //    are OFFERED via a button, never auto-inserted. (The site's pill
-    //    triggers on SSE new_post; the app's on pull-to-refresh.) The old
-    //    code merged the delta into the list here, hoisting buried posts to
-    //    the top on every other refresh — the jitter between two orderings.
+    // Delta check for the pill only: newer posts are offered, never
+    // auto-inserted.
     FeedPage? delta;
     try {
       delta = await services.feed
@@ -571,9 +469,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     } catch (_) {
       delta = null; // best-effort; the full reload below still runs
     }
-    // 2) The pure ranked first page replaces the list — exactly what a
-    //    website reload renders. No hoisting, no client-side merge: the
-    //    server's (feed_score, id) order is the only order.
+    // The ranked first page replaces the list, exactly like a website reload.
     try {
       final page = await services.feed.firstPage(limit: AppConfig.feedPageSize);
       if (!mounted) return;
@@ -618,10 +514,6 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     SoundService.instance.action();
   }
 
-  /// Pill tap: fetch the delta of posts newer than anything ever shown and
-  /// PREPEND them. The ranked list beneath is untouched, so the load-more
-  /// keyset cursor stays valid (the site prepends into the DOM the same
-  /// way). Offered posts are marked seen, so they can never be re-offered.
   Future<void> _loadNewPosts() async {
     final services = _services;
     if (services == null) return;
@@ -634,9 +526,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     }
     if (!mounted) return;
     if (delta == null) return; // keep the pill; the next refresh retries
-    // Invariant: every current post has id <= _seenMaxId, so the delta
-    // never overlaps the list — prepend is safe without dedup. The guard
-    // keeps it true even if the threshold ever regressed.
+    // Every current post has id <= _seenMaxId, so the delta never overlaps.
     final fresh = [
       for (final p in delta.posts)
         if (p.id > _seenMaxId) p,
@@ -656,10 +546,6 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     });
   }
 
-  /// Feed nav button: scroll back to the top of the feed, then refresh
-  /// (the site's header logo tap behaves the same way — home + re-poll).
-  /// Unawaited — a tap must never block the nav bar; the scroll is
-  /// best-effort when the list has no position yet.
   void _jumpToTopAndRefresh() {
     if (_scrollController.hasClients && _scrollController.offset > 0) {
       _scrollController.animateTo(
@@ -676,8 +562,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
       MaterialPageRoute(builder: (_) => const ComposeScreen()),
     );
     if (created == true && mounted) {
-      // The new post is score-ranked with the author boost — a first-page
-      // refetch surfaces it (mirrors the site prepending the rendered card).
+      // The new post is score-ranked, so a first-page refetch surfaces it.
       _loadFirst();
     }
   }
@@ -732,7 +617,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _logout() async {
-    // The realtime token dies with the session — close the streams first.
+    // The realtime token dies with the session; close the streams first.
     _services?.realtime.dispose();
     final services = await AppServices.create();
     await services.auth.logout();
@@ -744,15 +629,12 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final me = _me;
-    // The tabs rendered right now, derived from the server nav rules
-    // (order, labels, public||logged-in filter) or the shipped defaults.
+    // Derived from the server nav rules or the shipped defaults.
     final tabs = _tabs;
     return Scaffold(
       key: _scaffoldKey,
       appBar: AppBar(
-        // Site header (header.php): the wordmark, with the user menu
-        // trigger (avatar) LEADING — the right side is purely the
-        // notification icons (bell + messages).
+        // Site header: user menu leading, notification icons on the right.
         titleSpacing: 16,
         leading: Padding(
           padding: const EdgeInsets.only(left: 8),
@@ -802,13 +684,11 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                       fontSize: 15, color: EnclavdColors.textPrimary),
                   cursorColor: EnclavdColors.link,
                   decoration: InputDecoration(
-                    hintText: 'Search posts, people, comments…',
+                    hintText: 'Search posts, people, comments...',
                     hintStyle: const TextStyle(
                         color: EnclavdColors.textSecondary, fontSize: 15),
                     isDense: true,
-                    // The bar look: subtle fill + rounded corners, with the
-                    // close X INSIDE the field (white) instead of a red
-                    // button in the header actions.
+                    // Bar look: subtle fill, close X inside the field.
                     filled: true,
                     fillColor: Colors.white.withValues(alpha: 0.08),
                     contentPadding: const EdgeInsets.symmetric(
@@ -829,10 +709,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                   height: 22, key: const ValueKey('header-logo')),
         ),
         actions: [
-          // Site header: the search button (left of the bell) — expands
-          // into the inline field above; Enter lands on the results
-          // screen. While the field is engaged it takes the button's
-          // space (the close X lives inside the bar itself).
+          // Search button expands into the inline field above.
           if (!_searching)
             IconButton(
               icon: const FaIcon(FontAwesomeIcons.magnifyingGlass,
@@ -840,8 +717,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
               tooltip: 'Search',
               onPressed: _openSearch,
             ),
-          // Site header: the bell notifications link (red unread badge,
-          // 99+ capped) sits left of the paper-plane.
+          // Bell notifications link (red unread badge, 99+ capped).
           if (AppConfig.enableNotifications) ...[
             Stack(
               clipBehavior: Clip.none,
@@ -878,8 +754,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
               ],
             ),
           ],
-          // Site header: the paper-plane messages link (red unread badge,
-          // 99+ capped) sits before the user menu trigger.
+          // Paper-plane messages link (red unread badge, 99+ capped).
           if (AppConfig.enableChat) ...[
             Stack(
               clipBehavior: Clip.none,
@@ -922,15 +797,11 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
       endDrawer: _services == null
           ? null
           : UserMenuDrawer(auth: _services!.auth, onSignOut: _logout),
-      // Both main tabs live in the shell: the feed and the articles list
-      // switch in place, keeping their scroll positions; the header, the
-      // user-menu drawer and the bottom nav stay common. Children align
-      // with the server-driven tab order.
+      // Tabs switch in place, keeping scroll positions; header, drawer and
+      // bottom nav stay common.
       body: Column(
         children: [
-          // Maintenance banner for allowed ranks (the web's info-yellow
-          // box under the header) — non-allowed ranks never reach this
-          // screen; the gate sends them to MaintenanceScreen instead.
+          // Maintenance banner for allowed ranks.
           if (_maintenance != null)
             _MaintenanceBanner(config: _maintenance!),
           Expanded(
@@ -960,8 +831,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
           ),
         ],
       ),
-      // The composer FAB is feed-only (the site's New Post button lives on
-      // the feed page).
+      // The composer FAB is feed-only.
       floatingActionButton:
           _navIndex < tabs.length && tabs[_navIndex].url == ''
               ? FloatingActionButton(
@@ -972,9 +842,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                   child: const FaIcon(FontAwesomeIcons.pen, size: 20),
                 )
               : null,
-      // Main navigation driven by the site's global nav rules
-      // (site_config.php $nav_links): order, labels and the
-      // public/logged-in visibility filter come from the server.
+      // Bottom nav driven by the server's nav rules.
       bottomNavigationBar: NavigationBar(
         backgroundColor: EnclavdColors.background,
         surfaceTintColor: Colors.transparent,
@@ -987,30 +855,22 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
           setState(() {
             _navIndex = index;
             if (url == 'articles') {
-              // Updates = the native articles tab (the site's /articles).
-              // First visit builds the body — its load advances the
-              // seen-id baseline — and the red dot clears here: the user
-              // has arrived.
+              // First visit builds the body; the red dot clears here.
               _articlesTabBuilt = true;
               _hasNewArticles = false;
             } else if (url == 'domain') {
-              // Domains = the native forum tab (the site's /domain). Built
-              // lazily on first visit like the Updates tab.
+              // Built lazily on first visit, like the Updates tab.
               _domainsTabBuilt = true;
             } else if (url == 'vote') {
-              // Votes = the native community-voting tab (the site's /vote).
-              // Built lazily on first visit like the other tabs.
+              // Built lazily on first visit, like the other tabs.
               _votesTabBuilt = true;
             }
           });
           if (url == '') {
-            // Feed tab = the app's home: jump to the top + refresh (the
-            // site's header logo does the same — home + re-poll).
+            // Feed tab = home: jump to the top + refresh.
             _jumpToTopAndRefresh();
           }
-          // App analytics: the tab switch IS a pageview of the site-style
-          // page the user is on (the site's own paths, so the app merges
-          // into the same Plausible dashboard).
+          // Tab switch = a pageview using the site's own paths.
           trackScreen(url == '' ? '/feed' : '/$url');
         },
         destinations: [
@@ -1025,9 +885,6 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     );
   }
 
-  /// Native icon for a nav entry, keyed by its site url (the web's Font
-  /// Awesome classes are web-only; the app picks its own icons per page).
-  /// The Updates icon keeps its unread red dot.
   Widget _tabIcon(NavLink tab, {required bool selected}) {
     switch (tab.url) {
       case 'articles':
@@ -1036,8 +893,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
         return FaIcon(FontAwesomeIcons.globe,
             color: selected ? EnclavdColors.link : EnclavdColors.textSecondary);
       case 'vote':
-        // Community Voting — the FA6 vote-yea glyph, app-defined (the
-        // site's nav config carries no icon for the Vote page).
+        // FA6 vote-yea glyph; the site's nav config carries no vote icon.
         return FaIcon(FontAwesomeIcons.checkToSlot,
             color: selected ? EnclavdColors.link : EnclavdColors.textSecondary);
       default: // '' = home, plus any future known page
@@ -1046,8 +902,6 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     }
   }
 
-  /// The Updates tab icon; a red dot (site's unread-marker color) sits on
-  /// the top-right corner while new articles exist since the last visit.
   Widget _updatesIcon({required bool selected}) {
     final icon = FaIcon(
       FontAwesomeIcons.newspaper,
@@ -1075,7 +929,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
 
   Widget _buildBody() {
     if (!_initialLoadDone && _loading) {
-      // Skeleton cards while the first page loads — never a bare spinner.
+      // Skeleton cards while the first page loads, never a bare spinner.
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -1110,9 +964,8 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
               );
             }
             return PostCard(
-              // Key by post id so ListView.builder never reuses a card's State
-              // (like count/liked flags) for a different post after a refresh —
-              // that reuse made brand-new posts show a stale "1 like".
+              // Key by post id so a refresh never reuses a card's State
+              // for a different post.
               key: ValueKey(_posts[postIndex].id),
               post: _posts[postIndex],
               apiBaseUrl: AppConfig.apiBaseUrl,
@@ -1129,9 +982,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
             );
           },
         ),
-        // New-posts pill (site parity — the site's fixed "⬇ New posts"
-        // button): floats above the list and stays put while it scrolls
-        // beneath. Hidden state keeps its entrance animation on show.
+        // Pill floats above the list; hidden state keeps its entrance animation.
         Positioned(
           top: 8,
           left: 0,
@@ -1161,16 +1012,11 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   }
 }
 
-/// Highest post id in [posts], or [floor] when [posts] is empty. The feed's
-/// "newer than" threshold, kept monotonic across loads so nothing is ever
-/// re-offered.
+/// Highest post id seen, kept monotonic so nothing is re-offered.
 int feedMaxPostId(Iterable<Post> posts, int floor) =>
     posts.fold<int>(floor, (m, p) => p.id > m ? p.id : m);
 
-/// Which delta posts the new-posts pill should offer (site parity —
-/// notifications.js EnclavdFeedPill): a post is genuinely new only when it
-/// has never been shown (id > [seenMaxId]) and is not already on screen
-/// (absent from [onScreen]). Pure — unit-tested in test/feed_pill_test.dart.
+/// Delta posts genuinely new: never shown (id > [seenMaxId]) and not on screen.
 List<Post> pillEligiblePosts(
   List<Post> delta,
   List<Post> onScreen,
@@ -1183,10 +1029,6 @@ List<Post> pillEligiblePosts(
   ];
 }
 
-/// The floating "⬇ New posts" button (the site's EnclavdFeedPill as a
-/// modern app widget): gradient pill, white bold label with the count, soft
-/// shadow. Entrance animation is handled by the caller's AnimatedSlide +
-/// AnimatedOpacity.
 class _NewPostsPill extends StatelessWidget {
   const _NewPostsPill({required this.count, required this.onTap});
 
@@ -1195,7 +1037,7 @@ class _NewPostsPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = count == 1 ? '⬇ 1 new post' : '⬇ $count new posts';
+    final label = count == 1 ? '\u{2B07} 1 new post' : '\u{2B07} $count new posts';
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -1233,10 +1075,6 @@ class _NewPostsPill extends StatelessWidget {
   }
 }
 
-/// The personality-test nudge shown at the top of the feed while
-/// accounts.personality_type is empty. Modern card (site parity only in
-/// intent — the header's yellow info box is intentionally NOT copied):
-/// centered icon, short copy, and a full-width primary action.
 class _PersonalityTestBanner extends StatelessWidget {
   const _PersonalityTestBanner({required this.onTakeTest});
 
@@ -1304,10 +1142,6 @@ class _PersonalityTestBanner extends StatelessWidget {
   }
 }
 
-/// Maintenance banner for allowed ranks — web parity with header.php's
-/// info-yellow box (non-allowed ranks never see this screen; the gate
-/// sends them to MaintenanceScreen). Compact native strip: wrench icon,
-/// status line, then the reason + estimated end when provided.
 class _MaintenanceBanner extends StatelessWidget {
   const _MaintenanceBanner({required this.config});
 
@@ -1351,7 +1185,7 @@ class _MaintenanceBanner extends StatelessWidget {
                     [
                       if (config.reason.isNotEmpty) 'Reason: ${config.reason}',
                       if (config.estTime.isNotEmpty) 'Ends: ${config.estTime}',
-                    ].join('  ·  '),
+                    ].join('  -  '),
                     style: const TextStyle(
                         fontSize: 11, color: EnclavdColors.textSecondary),
                   ),

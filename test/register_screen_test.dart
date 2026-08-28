@@ -93,10 +93,8 @@ Future<void> _fillRequiredFields(WidgetTester tester) async {
   await tester.enterText(find.byType(TextFormField).at(3), 'secret1');
 }
 
-/// Ticks both agreement checkboxes (the client-side submit gate demands
-/// them — the server would bounce the same way). Scrolls with a
-/// left-margin drag first (a center drag would be claimed by the text
-/// fields) so the tiles sit at a settled, stable position.
+/// Ticks both agreement checkboxes (the client-side submit gate) and
+/// scrolls with a left-margin drag so the tiles sit at a settled position.
 Future<void> _checkAgreements(WidgetTester tester) async {
   await tester.dragFrom(const Offset(8, 500), const Offset(0, -500));
   await tester.pumpAndSettle();
@@ -155,7 +153,6 @@ void main() {
     ));
     await tester.pump();
 
-    // Both password fields start obscured.
     EditableText pwText(int index) => tester.widget<EditableText>(
         find.descendant(
             of: find.byType(TextFormField).at(index),
@@ -163,7 +160,6 @@ void main() {
     expect(pwText(2).obscureText, isTrue);
     expect(pwText(3).obscureText, isTrue);
 
-    // Toggle the first one — its text becomes visible.
     await tester.tap(find.byTooltip('Show password').first);
     await tester.pump();
     expect(pwText(2).obscureText, isFalse);
@@ -171,7 +167,7 @@ void main() {
   });
 
   testWidgets(
-      'email verification on → verify-email screen after register, '
+      'email verification on -> verify-email screen after register, '
       '"I have confirmed" goes to login', (tester) async {
     await tester.pumpWidget(MaterialApp(
       routes: {
@@ -197,7 +193,7 @@ void main() {
     expect(find.text('LOGIN-PLACEHOLDER'), findsOneWidget);
   });
 
-  testWidgets('email verification off → straight to login after register',
+  testWidgets('email verification off -> straight to login after register',
       (tester) async {
     await tester.pumpWidget(MaterialApp(
       routes: {
@@ -256,11 +252,9 @@ void main() {
     await _checkAgreements(tester);
     await _scrollToAndTapRegister(tester);
 
-    // Field-level error — exactly once (the banner stays hidden when the
-    // error belongs to a field).
+    // Field-level error: exactly once (the banner stays hidden).
     expect(find.text('Email already registered'), findsOneWidget);
 
-    // Editing the field clears its server error.
     await tester.enterText(
         find.byType(TextFormField).at(1), 'changed@dev.dev');
     await tester.pump();
@@ -317,8 +311,7 @@ void main() {
   });
 }
 
-// Route-name stand-in for the login target (the real LoginScreen needs
-// more scaffolding than a test wants).
+// Route-name stand-in for the login target (LoginScreen needs too much scaffolding).
 class LoginPlaceholder {
   static const routeName = '/login';
 }

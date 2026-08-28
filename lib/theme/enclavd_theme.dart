@@ -1,17 +1,9 @@
 import 'package:flutter/material.dart';
 
-/// Enclavd design system — ported 1:1 from the website's Tailwind tokens
-/// (public_html/input.css + config/ranks.php + components/personality_badge.php).
-///
-/// Tailwind → Flutter mappings used throughout:
-///   gray-950  #030712   (page background)
-///   gray-900  #111827   (cards, headers)
-///   gray-850  ~#1a2333  (secondary cards)
-///   gray-800  #1f2937   (borders)
-///   gray-700  #374151   (dividers)
-///   gray-400  #9ca3af   (secondary text)
-///   blue-400  #60a5fa   (links)
-///   blue-900  #1e3a8a   (primary button)
+/// Enclavd design system, ported 1:1 from the website's Tailwind tokens
+/// (public_html/input.css + config/ranks.php +
+/// components/personality_badge.php). The inline comments on each color
+/// name the source class.
 class EnclavdColors {
   EnclavdColors._();
 
@@ -29,7 +21,7 @@ class EnclavdColors {
   static const warning = Color(0xFFFACC15); // yellow-400
 }
 
-/// Rank → name color (config/ranks.php `name_color`).
+/// Rank -> name color (config/ranks.php `name_color`).
 class RankColors {
   RankColors._();
 
@@ -46,7 +38,7 @@ class RankColors {
   static Color forRank(String rank) => colors[rank] ?? colors['Member']!;
 }
 
-/// Personality type → accent color (components/personality_badge.php).
+/// Personality type -> accent color (components/personality_badge.php).
 /// Groups: NT=fuchsia, NF=amber, SJ=red, SP=blue.
 class PersonalityColors {
   PersonalityColors._();
@@ -81,7 +73,7 @@ ThemeData buildEnclavdTheme() {
     fontFamily: 'Montserrat',
     colorScheme: const ColorScheme.dark(
       primary: EnclavdColors.primaryButton,
-      // White text on every primary (blue) button — FilledButton and the
+      // White text on every primary (blue) button: FilledButton and the
       // like derive their foreground from onPrimary, and the dark-scheme
       // default is black (Save Changes / password dialog Save rendered
       // black-on-blue).

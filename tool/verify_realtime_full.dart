@@ -1,21 +1,9 @@
 // Live full-loop proof for the app's realtime client (console-only).
-//
-// Exercises the EXACT code the phone runs — ApiClient + RealtimeService —
-// against the dev stack through Apache, then verifies every live path the
-// user reported broken:
-//
-//   1. WS connect + join           (chat receive)
-//   2. message frame over WS       (chat receive — real publish via PHP)
-//   3. typing frame over WS        (typing indicator — relayed by the hub
-//                                   from a second client acting as the other
-//                                   participant, user 3)
-//   4. SSE connect + message_unread(header badge — user-targeted publish)
-//
-// Usage: flutter test tool/verify_realtime_full.dart   (dev stack up)
-// Exit 0 = every live path reaches the app client. Prints one line per stage.
-//
-// Accounts: dev@dev.dev / Enclavd2026! (user 1) is the app client;
-// conversation 2 is 1-on-1 with user 3 (df4fwr3).
+// Exercises the exact code the phone runs (ApiClient + RealtimeService)
+// against the dev stack through Apache: WS join, message frame, typing
+// frame, SSE message_unread.
+// Usage: flutter test tool/verify_realtime_full.dart (dev stack up)
+// Accounts: dev@dev.dev (user 1); conversation 2 is 1-on-1 with user 3.
 
 import 'dart:async';
 import 'dart:convert';
@@ -116,7 +104,7 @@ Future<void> main() async {
     }
   });
 
-  // ── WS ────────────────────────────────────────────────────────────────
+  // WS
   realtime.connectWs();
   realtime.join(conversationId);
   final wsUp = Completer<void>();
@@ -133,7 +121,7 @@ Future<void> main() async {
   }
   await sub.cancel();
 
-  // ── 1. message frame (PHP publish, excluding the sender) ─────────────
+  // 1. message frame (PHP publish, excluding the sender)
   await _publish({
     'type': 'message',
     'conversation_id': conversationId,
@@ -153,7 +141,7 @@ Future<void> main() async {
     failures.add('message frame never reached the app WS client');
   }
 
-  // ── 2. typing frame (hub relay from a second client = user 3) ────────
+  // 2. typing frame (hub relay from a second client = user 3)
   final token3 = await _php(r'''
 require '/var/www/html/config/realtime.php';
 echo realtime_token(3);
@@ -182,7 +170,7 @@ echo realtime_token(3);
   }));
   await ws3.close();
 
-  // ── 3. SSE message_unread (badge, targeted at the app user) ──────────
+  // 3. SSE message_unread (badge, targeted at the app user)
   realtime.connectSse();
   await Future<void>.delayed(const Duration(seconds: 2)); // stream opens
   await _publish({

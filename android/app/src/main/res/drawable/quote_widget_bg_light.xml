@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Light-variant card behind the daily-quote widget (white surface with a
-     hairline border so it reads as a card on any wallpaper). -->
+<!-- White surface; hairline border so it reads as a card on any wallpaper. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="rectangle">
     <solid android:color="#FFFFFF" />

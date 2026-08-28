@@ -260,13 +260,13 @@ void main() {
     final service = buildService(notifier, fake);
 
     // Simulate the background worker having already shown this message
-    // (same prefs, same key — the two paths share one tracker).
+    // (same prefs key; the two paths share one tracker).
     final prefs = await SharedPreferences.getInstance();
     await NotifiedTracker(prefs).add('message:5:100');
 
     await service.handleUnreadPing();
 
-    expect(notifier.shown, 0, reason: 'worker covered it — never double');
+    expect(notifier.shown, 0, reason: 'worker covered it - never double');
   });
 
   test('the master toggle suppresses everything and persists', () async {

@@ -5,18 +5,7 @@ import 'package:flutter/material.dart';
 import 'cached_image.dart';
 import 'shimmer.dart';
 
-/// Network image with the app's loading discipline:
-///  - shows a shimmer placeholder until the image bytes are FULLY fetched
-///    and the first frame is decoded (never a partial/blank flash);
-///  - fades the real image in once it's ready;
-///  - decodes at display size (cacheWidth) instead of full resolution —
-///    avatars are served full-size, so without this a 35px avatar decodes a
-///    500px image into memory on every card (the feed's scroll-jank cause);
-///  - falls back to an asset on error, mirroring the site's onerror
-///    handlers (avatar → default-avatar.png, post image → no-image.jpg).
-///
-/// Backed by CachedNetworkImageProvider (disk cache), so repeat views and
-/// cold starts don't re-download the same bytes.
+/// Network image with shimmer placeholder, display-size decode, asset fallback.
 class EnclavdImage extends StatelessWidget {
   const EnclavdImage(
     this.url, {
@@ -38,17 +27,13 @@ class EnclavdImage extends StatelessWidget {
   final BorderRadius? borderRadius;
   final double? placeholderHeight;
 
-  /// Shape of the loading shimmer — avatars pass [BoxShape.circle] so the
-  /// placeholder is a circle too (a rounded-square shimmer inside a
-  /// circular avatar reads as "squared image in a circle").
+  /// Shimmer shape; avatars pass [BoxShape.circle].
   final BoxShape placeholderShape;
 
   @override
   Widget build(BuildContext context) {
-    // Decode at display size × device pixel ratio, clamped to a sane
-    // maximum — the single biggest memory/jank win for image-heavy feeds.
-    // ResizeImage wraps the provider so decoding happens at display size
-    // (the raw cached bytes stay full-res on disk; memory gets the small one).
+    // Decode at display size x dpr, clamped: the biggest memory/jank win
+    // for image-heavy feeds.
     final dpr = MediaQuery.devicePixelRatioOf(context);
     final targetWidth = (width ?? MediaQuery.sizeOf(context).width);
     final cacheWidth = (targetWidth * dpr).ceil().clamp(8, 2048);
@@ -62,8 +47,8 @@ class EnclavdImage extends StatelessWidget {
       width: width,
       height: height,
       fit: fit,
-      // frameBuilder fires once the frame is actually decoded — render the
-      // shimmer until then, fade in after.
+      // frameBuilder fires once the frame is decoded; shimmer until then,
+      // then fade in.
       frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
         if (wasSynchronouslyLoaded) return child;
         return AnimatedOpacity(
@@ -90,8 +75,7 @@ class EnclavdImage extends StatelessWidget {
   }
 
   Widget _fallback(BuildContext context) {
-    // Same as the site's onerror: swap in a local asset (default avatar for
-    // avatars, no-image.jpg for post images) instead of a bare icon.
+    // Site onerror parity: swap in a local asset instead of a bare icon.
     return Image.asset(
       errorAsset,
       width: width,

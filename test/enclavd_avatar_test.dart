@@ -3,18 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:enclavd/widgets/enclavd_avatar.dart';
 
-/// Geometry regression guard for the "oval avatar" report: the AppBar
-/// leading forces its full 48×56 slot onto children with TIGHT constraints,
-/// and BoxConstraints.enforce clamps a Container's width/height UP to the
-/// parent's tight size — a bare Container avatar renders as a 48×56
-/// ELLIPSE (ring AND image), the reported bug. The Align wrapper hands the
-/// avatar loose constraints so its own size×size always wins.
-///
-/// Assertions (in the AppBar leading, the worst-case parent):
-///  - the avatar's ring box is exactly size×size (32×32), never stretched;
-///  - the clip and image boxes are exactly size−4 × size−4 (28×28 — the
-///    border's 2px padding deflates the child), SQUARE, never an oval;
-///  - the image uses cover fit.
+/// Geometry regression guard for the oval avatar report: the AppBar leading
+/// forces tight constraints, so the avatar is wrapped in Align to keep its
+/// size x size box.
 void main() {
   testWidgets('avatar stays square even inside the tight AppBar leading',
       (tester) async {
@@ -41,7 +32,7 @@ void main() {
     ));
     await tester.pump(const Duration(milliseconds: 50));
 
-    // The ring box (the Container inside the Align) — must be size×size.
+    // The ring box (Container inside the Align) must be size x size.
     final ringFinder = find.descendant(
         of: find.byType(EnclavdAvatar),
         matching: find.byWidgetPredicate((w) =>
@@ -52,17 +43,17 @@ void main() {
             (w.decoration! as BoxDecoration).border != null));
     expect(ringFinder, findsOneWidget);
     expect(tester.getSize(ringFinder), const Size(size, size),
-        reason: 'the ring box must be exactly size×size — a tight parent '
+        reason: 'the ring box must be exactly sizexsize - a tight parent '
             '(AppBar leading) must not stretch it into an ellipse');
 
-    // The clip — square, and smaller than the ring by the border width.
+    // The clip: square, smaller than the ring by the border width.
     final clipFinder = find.descendant(
         of: find.byType(EnclavdAvatar), matching: find.byType(ClipOval));
     expect(clipFinder, findsOneWidget);
     expect(tester.getSize(clipFinder), const Size(inner, inner),
-        reason: 'ClipOval must be square — a non-square clip IS the oval bug');
+        reason: 'ClipOval must be square - a non-square clip IS the oval bug');
 
-    // The SizedBox pinning the image — square.
+    // The SizedBox pinning the image: square.
     final boxFinder = find.descendant(
         of: find.byType(ClipOval), matching: find.byType(SizedBox));
     expect(boxFinder, findsOneWidget);

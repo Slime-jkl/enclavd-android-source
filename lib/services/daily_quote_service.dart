@@ -159,23 +159,23 @@ class DailyQuoteService {
       final prefs = await SharedPreferences.getInstance();
       if (!isEnabled(prefs)) return;
       if (!await _hasWidgetInstance()) {
-        debugPrint('quote widget: rollover — no widget pinned, skipping');
+        debugPrint('quote widget: rollover - no widget pinned, skipping');
         return;
       }
       final api = ApiClient(store: PrefsSessionStore(prefs));
       await api.restoreSession();
       if (!api.hasSession) {
-        debugPrint('quote widget: rollover — no session, skipping');
+        debugPrint('quote widget: rollover - no session, skipping');
         return;
       }
       final today = await _fetchToday(api);
       if (today == null) {
-        debugPrint('quote widget: rollover — fetch failed');
+        debugPrint('quote widget: rollover - fetch failed');
         return;
       }
       if (prefs.getString(widgetDatePrefsKey) == today.date) {
         debugPrint(
-            'quote widget: rollover — already fresh for ${today.date}');
+            'quote widget: rollover - already fresh for ${today.date}');
         return;
       }
       await pushTodayToWidget(api: api, prefs: prefs, today: today);
@@ -216,8 +216,8 @@ class DailyQuoteService {
         try {
           await plugin.show(
             id: _notificationId,
-            title: '💬 Quote of the day',
-            body: '“${today.quote.text}”\n— ${today.quote.author}',
+            title: '\u{1F4AC} Quote of the day',
+            body: '"${today.quote.text}"\n- ${today.quote.author}',
             notificationDetails: NotificationDetails(
               android: AndroidNotificationDetails(
                 _channelId,
@@ -230,7 +230,7 @@ class DailyQuoteService {
                 // way to see the rest. BigTextStyle makes the notification
                 // expandable so the FULL quote + author is always there.
                 styleInformation: BigTextStyleInformation(
-                  '“${today.quote.text}”\n— ${today.quote.author}',
+                  '"${today.quote.text}"\n- ${today.quote.author}',
                 ),
               ),
             ),
@@ -302,7 +302,7 @@ class DailyQuoteService {
     } catch (e) {
       // 400 'already rated' (double tap) or 'no current quote' (stale
       // widget); re-sync to today's state.
-      debugPrint('quote widget: rate failed ($e) — resyncing');
+      debugPrint('quote widget: rate failed ($e) - resyncing');
       final today = await _fetchToday(api);
       if (today != null) {
         await pushTodayToWidget(api: api, prefs: prefs, today: today);

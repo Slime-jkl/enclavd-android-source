@@ -12,10 +12,10 @@ Stop broadcasting into the void. Enclavd is a private social network built on co
 <br />
 <b>WHO ENCLAVD IS FOR</b>
 <br />
-• You're tired of social media feeds built around outrage and engagement bait.
-• You want a private social network instead of a public profile anyone can scrape.
-• You're looking for real conversations and genuine compatibility, not more followers.
-• You'd rather join through a trusted invite than scroll past strangers and bots.
+- You're tired of social media feeds built around outrage and engagement bait.
+- You want a private social network instead of a public profile anyone can scrape.
+- You're looking for real conversations and genuine compatibility, not more followers.
+- You'd rather join through a trusted invite than scroll past strangers and bots.
 <br />
 Enclavd is a social network for people who want depth over reach.
 <br />

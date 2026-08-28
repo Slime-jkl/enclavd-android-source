@@ -14,18 +14,12 @@ import '../social_notifications.dart';
 import 'unified_push_transport.dart';
 
 /// A background push transport: something that can wake the app's process
-/// (or a headless isolate of it) when the server has new data — instead of
-/// waiting up to 15 minutes for the WorkManager poll.
-///
-/// A transport's only job is to turn an incoming push into a call to
-/// [syncFromPush]. It never fetches or renders anything itself: the
-/// existing two-path notification pipeline is reused verbatim (live
-/// SSE/WS handlers in the main isolate, worker-style full run in
-/// background isolates), including the cross-path NotifiedTracker dedupe —
-/// so a push can never duplicate something the live path or the 15-minute
-/// poll already showed.
+/// when the server has new data, instead of waiting up to 15 minutes for
+/// the WorkManager poll. Its only job is to turn an incoming push into a
+/// [syncFromPush] call; the existing two-path notification pipeline (with
+/// its cross-path NotifiedTracker dedupe) is reused verbatim.
 abstract class PushTransport {
-  /// Short transport id ('fcm' | 'unifiedpush') — sent to the server as
+  /// Short transport id ('fcm' | 'unifiedpush'), sent to the server as
   /// the registration transport.
   String get id;
 
@@ -33,30 +27,22 @@ abstract class PushTransport {
   String get label;
 
   /// Bring the transport up: bind handlers, obtain a token/endpoint and
-  /// register it with the server. Returns true when the transport is
-  /// ACTIVE on this build/device. Throws when it is unusable (missing
-  /// google-services.json, no Google Play services, no Unified Push
-  /// distributor) — the manager catches and falls through.
+  /// register it with the server. True when the transport is ACTIVE on
+  /// this build/device; throws when unusable (the manager falls through).
   Future<bool> init();
 
   /// (Re)send the current token/endpoint to the server. Called on every
-  /// app start and after a fresh login — the session may not have existed
+  /// app start and after a fresh login - the session may not have existed
   /// when [init] ran.
   Future<void> registerToken();
 }
 
 /// Resolves and owns the best push transport for the current build and
 /// device, and turns every incoming push into a notification sync.
-///
-/// Resolution order (runtime, per build):
-///   play/dev: FCM → Unified Push → 15-minute polling fallback
-///   fdroid:   Unified Push → 15-minute polling fallback — FCM is never
-///             even attempted (that build must not touch Google Play
-///             services).
-///
-/// The 15-minute WorkManager poll is ALWAYS registered independently (it
-/// is the safety net); the transports only make delivery faster when the
-/// app is killed. The shared dedupe makes the overlap harmless.
+/// Order: play/dev = FCM -> Unified Push -> polling; fdroid = Unified
+/// Push -> polling (that build never touches Google Play services). The
+/// 15-minute poll is always registered as the safety net; the shared
+/// dedupe makes the overlap harmless.
 class PushManager {
   PushManager._();
 
@@ -69,25 +55,21 @@ class PushManager {
 
   static const String fallbackLabel = '15-minute background checks';
 
-  /// Prefs flag the native side reads (FlutterSharedPreferences, key
-  /// prefixed "flutter.") to skip the keep-alive foreground service when a
-  /// push transport is active — background delivery is the push service's
-  /// job then, and the persistent "Live updates active" notice is noise.
-  /// Written by [ensureResolved]; defaults false (fallback machinery on).
+  /// Native side reads this (prefixed "flutter.") to skip the keep-alive
+  /// foreground service when a push transport is active. Defaults false
+  /// (fallback machinery on).
   static const String pushActivePrefsKey = 'push_transport_active';
 
-  /// Binds handlers that must exist BEFORE the engine starts — FCM's
-  /// killed-process callback (firebase_messaging requires the registration
-  /// early). No-op on F-Droid builds (they never touch FCM) and when the
-  /// whole notification feature is compiled out.
+  /// Binds FCM's killed-process callback before the engine starts; no-op
+  /// on F-Droid builds and when notifications are compiled out.
   static void bindBackgroundHandlers() {
     if (!AppConfig.enableNotifications || !AppConfig.enableFcm) return;
     FcmTransport.bindBackgroundHandler();
   }
 
-  /// Resolves the transport once (idempotent), or — when already resolved
-  /// (e.g. a post-login re-create of AppServices) — re-pushes the active
-  /// token so the freshly-established session registers it this time.
+  /// Resolves the transport once (idempotent); when already resolved
+  /// (post-login re-create), re-pushes the active token so the fresh
+  /// session registers it.
   static Future<void> ensureResolved(
     PushRegistrationService registration,
   ) async {
@@ -105,7 +87,7 @@ class PushManager {
         final fcm = FcmTransport(registration: registration, onSync: syncFromPush);
         if (await fcm.init()) manager._active = fcm;
       } catch (e) {
-        debugPrint('push: FCM unavailable — $e');
+        debugPrint('push: FCM unavailable - $e');
       }
     }
     if (manager._active == null) {
@@ -114,17 +96,14 @@ class PushManager {
             UnifiedPushTransport(registration: registration, onSync: syncFromPush);
         if (await up.init()) manager._active = up;
       } catch (e) {
-        debugPrint('push: Unified Push unavailable — $e');
+        debugPrint('push: Unified Push unavailable - $e');
       }
     }
     debugPrint('push: delivery = ${manager.activeLabel}');
 
-    // ── Conditional fallback policy ────────────────────────────────────
-    // A push transport active → the fallback tiers are unnecessary: tell
-    // the native side to skip the keep-alive FGS (MainActivity reads this
-    // flag on onStop) and cancel the 15-minute WorkManager poller (FCM/UP
-    // already trigger a sync on every event). No transport → fallback
-    // machinery stays exactly as before.
+    // Push transport active -> skip the keep-alive FGS (MainActivity
+    // reads this flag on onStop) and cancel the 15-min poller (each push
+    // already triggers a sync). No transport -> fallback stays as before.
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(pushActivePrefsKey, manager._active != null);
     if (manager._active != null) {
@@ -149,16 +128,9 @@ class PushManager {
 }
 
 /// A push arrived (FCM data message or Unified Push message): check for
-/// new candidates NOW instead of waiting for the 15-minute poll.
-///
-/// Isolate-aware:
-///  - Main isolate (app alive): the singletons exist — route through the
-///    LIVE handlers (identical to an SSE ping), so suppression (chat
-///    open), master toggles and tap handling all apply, and notifications
-///    show through the app's shared notifier.
-///  - Background isolate (app was killed): no singletons — run the
-///    worker-style full pipeline (fresh session from prefs, fresh plugin
-///    instance, same NotifiedTracker dedupe).
+/// new candidates NOW instead of waiting for the 15-minute poll. Main
+/// isolate -> live handlers (suppression, toggles, tap handling all
+/// apply); background isolate -> worker-style full pipeline, same dedupe.
 Future<void> syncFromPush() async {
   final live = MessageNotifications.instance;
   if (live != null) {

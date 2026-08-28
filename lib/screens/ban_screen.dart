@@ -5,18 +5,12 @@ import '../api/auth_service.dart';
 import '../main.dart';
 import 'login_screen.dart';
 
-/// Ban screen — the post-login gate for banned accounts (is_active=false).
-///
-/// Mirrors the web's check_blocked_user() "Your Account Has Been Barred"
-/// page: the ban reason from accounts.block_reason, a contact line, and an
-/// Exit action that signs the user out. Access to the app is denied —
-/// there is no way past this screen except an admin un-banning the account.
 class BanScreen extends StatefulWidget {
   const BanScreen({super.key, this.auth});
 
   static const routeName = '/ban';
 
-  /// Test seam — bypasses AppServices when provided.
+  /// Test seam: bypasses AppServices when provided.
   final AuthService? auth;
 
   @override

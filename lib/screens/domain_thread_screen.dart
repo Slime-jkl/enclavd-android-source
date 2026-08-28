@@ -26,21 +26,6 @@ import 'compose_screen.dart';
 import 'hashtag_screen.dart';
 import 'profile_screen.dart';
 
-/// Forum thread view (site: /domain thread view) — a MODERN mobile forum,
-/// not the feed's post cards:
-///  - the OP is its own forum card: 46px avatar with the personality
-///    border, rank badge + personality chip under the name, full content,
-///    the aspect-aware image and a plain like/comment action row;
-///  - every reply is a separate card with a 40px avatar and its rank
-///    badge — no post-card styling, no #number gutter;
-///  - replying to a comment raises a QUOTE: the original text is quoted
-///    in the composer and rides along with the sent reply as readable
-///    plain text (the server stores comments as plain text);
-///  - replies load oldest-first (forum reading order) with a pinned
-///    composer at the bottom.
-///
-/// Data comes from api/v1/domains.php?post_id=N (OP + breadcrumb) and
-/// api/v1/comments?post_id=N&order=asc (replies).
 class DomainThreadScreen extends StatefulWidget {
   const DomainThreadScreen({
     super.key,
@@ -54,11 +39,9 @@ class DomainThreadScreen extends StatefulWidget {
   final DomainsService domains;
   final int postId;
 
-  /// The category the thread was opened from (AppBar subtitle / breadcrumb
-  /// leaf; the API's own trail is authoritative once loaded).
+  /// The category the thread was opened from (breadcrumb leaf).
   final String? breadcrumbName;
 
-  /// Injected for tests (real screen resolves AppServices.current).
   final SocialService? social;
   final PostsService? posts;
 
@@ -79,13 +62,8 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
   bool _repliesHasMore = false;
   bool _repliesLoadingMore = false;
 
-  /// The one expanded long reply (by id); null = all collapsed. Only ONE
-  /// read-more can be open at a time — opening another closes this one.
   int? _expandedReplyId;
 
-  /// The comment currently being quoted in the composer (null = plain
-  /// reply). The quote banner sits above the input; the sent content
-  /// carries a plain-text quote prefix.
   Comment? _quoting;
 
   final _replyController = TextEditingController();
@@ -113,8 +91,7 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
   PostsService get _posts => widget.posts ?? _services!.posts;
 
   Future<void> _load() async {
-    // When tests inject both services, skip the AppServices dance entirely
-    // (no prefs/plugins under flutter test).
+    // Tests inject both services; skip the AppServices dance then.
     if (widget.social == null || widget.posts == null) {
       _services ??= AppServices.current ?? await AppServices.create();
     }
@@ -176,7 +153,6 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
     }
   }
 
-  /// Appends the next page of older replies below the loaded ones.
   Future<void> _loadMoreReplies() async {
     if (_repliesLoadingMore || !_repliesHasMore) return;
     setState(() => _repliesLoadingMore = true);
@@ -199,9 +175,6 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
     }
   }
 
-  /// Reply flow: quoting the target comment — a quote banner appears above
-  /// the composer (the original text rides along with the sent reply), the
-  /// input starts clean and focused.
   void _quoteReply(Comment reply) {
     setState(() => _quoting = reply);
     _replyController.clear();
@@ -210,17 +183,12 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
 
   void _dismissQuote() => setState(() => _quoting = null);
 
-  /// Plain-text quote prefix for the wire. `@` tokens INSIDE the quoted
-  /// text are stripped: the server rejects mentions of users who haven't
-  /// commented on this thread (422), and a quoted comment may mention
-  /// outsiders. The leading @target is valid by construction — the quoted
-  /// user commented on this thread.
   String _quotePrefix(Comment q) {
     final stripped = q.content.replaceAllMapped(
         RegExp(r'@([A-Za-z0-9_]+)'), (m) => m.group(1)!);
     final collapsed = stripped.replaceAll(RegExp(r'\s+'), ' ').trim();
     final clamped = collapsed.length > 160
-        ? '${collapsed.substring(0, 160)}…'
+        ? '${collapsed.substring(0, 160)}...'
         : collapsed;
     return '@${q.username} wrote: "$clamped"\n\n';
   }
@@ -269,8 +237,6 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
     }
   }
 
-  /// A copy of the post with a fresh comment count (the OP card renders
-  /// `post.commentCount`; the forum replies live outside the card).
   static Post _withCommentCount(Post post, int count) => Post(
         id: post.id,
         authorId: post.authorId,
@@ -296,8 +262,6 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
-  /// Edit flow: the composer is prefilled (ComposeScreen(post: …)) and pops
-  /// true when saved — refetch so the OP shows the updated content.
   Future<void> _editPost(Post post) async {
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(builder: (_) => ComposeScreen(post: post)),
@@ -305,8 +269,6 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
     if (saved == true && mounted) _load();
   }
 
-  /// Delete flow: same confirm + api/v1 delete as the feed; the thread is
-  /// gone afterwards, so the screen pops back to the category list.
   Future<void> _deletePost(Post post) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -343,8 +305,7 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
   }
 
   String get _title {
-    // Breadcrumb: Domains / Category / Thread #id — the leaf category
-    // name is the AppBar title (the site's breadcrumb trail).
+    // The leaf category name is the AppBar title (the site's breadcrumb trail).
     if (_breadcrumb.isNotEmpty) {
       return _breadcrumb.last.name;
     }
@@ -374,8 +335,7 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
         ],
       ),
       body: SafeArea(child: _buildBody()),
-      // Reply composer pinned above the keyboard (site: the thread's
-      // #reply-form; the app keeps it always visible like the chat input).
+      // Reply composer pinned above the keyboard (site: #reply-form).
       bottomNavigationBar: _post == null
           ? null
           : _ReplyComposer(
@@ -442,7 +402,7 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 20),
             child: Center(
-              child: Text('No replies yet — start the discussion.',
+              child: Text('No replies yet - start the discussion.',
                   style: TextStyle(
                       fontSize: 13, color: EnclavdColors.textSecondary)),
             ),
@@ -476,7 +436,7 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
                   : const FaIcon(FontAwesomeIcons.anglesDown,
                       size: 13, color: EnclavdColors.link),
               label: Text(
-                  _repliesLoadingMore ? 'Loading…' : 'Load more replies'),
+                  _repliesLoadingMore ? 'Loading...' : 'Load more replies'),
               style: TextButton.styleFrom(
                 foregroundColor: EnclavdColors.link,
                 textStyle:
@@ -490,10 +450,6 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
   }
 }
 
-/// The thread OP as a FORUM card — deliberately NOT a feed PostCard:
-/// a larger avatar (46px, personality border) with the rank badge +
-/// personality chip under the name, full content (hashtags/URLs live),
-/// the aspect-aware image and a plain like/comment action row.
 class _ForumPostCard extends StatefulWidget {
   const _ForumPostCard({
     super.key,
@@ -508,7 +464,6 @@ class _ForumPostCard extends StatefulWidget {
   final String apiBaseUrl;
   final SocialService social;
 
-  /// Wired by the thread screen: own threads get the ⋮ Edit/Delete menu.
   final void Function(Post post)? onEditPost;
   final void Function(Post post)? onDeletePost;
 
@@ -521,8 +476,7 @@ class _ForumPostCardState extends State<_ForumPostCard> {
   late bool _liked;
   bool _likeBusy = false;
 
-  // Content spans are cached per CONTENT (not State lifetime) — an edit
-  // must invalidate them (the PostCard stale-span pitfall).
+  // Cached per CONTENT, not State lifetime: an edit must invalidate them.
   final List<TapGestureRecognizer> _recognizers = [];
   List<InlineSpan>? _cachedSpans;
   String? _cachedContent;
@@ -585,13 +539,10 @@ class _ForumPostCardState extends State<_ForumPostCard> {
     try {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (_) {
-      // Defensive — never let a link open break the card.
+      // Never let a link open break the card.
     }
   }
 
-  /// Plain like toggle (forum usability — the feed's drag-to-like contract
-  /// stays on the feed cards): optimistic flip, sound on like, rollback +
-  /// toast on failure.
   Future<void> _toggleLike() async {
     if (_likeBusy) return;
     setState(() {
@@ -638,7 +589,7 @@ class _ForumPostCardState extends State<_ForumPostCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Author header: big avatar + name/rank/time, ⋮ for own posts.
+          // Author header: big avatar + name/rank/time, ... for own posts.
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -762,7 +713,7 @@ class _ForumPostCardState extends State<_ForumPostCard> {
             ],
           ),
           const SizedBox(height: 12),
-          // Full OP content — forums don't clamp the opening post.
+          // Forums don't clamp the OP's content.
           Text.rich(
             TextSpan(children: _spans()),
             style: const TextStyle(
@@ -834,7 +785,6 @@ class _ForumPostCardState extends State<_ForumPostCard> {
   }
 }
 
-/// "Replies (N)" section header (site: domain_comment_list's count header).
 class _RepliesHeader extends StatelessWidget {
   const _RepliesHeader({required this.count});
 
@@ -864,12 +814,6 @@ class _RepliesHeader extends StatelessWidget {
   }
 }
 
-/// One forum reply as its OWN card — not a feed comment row: a 40px
-/// avatar (personality border) with the rank badge in the header, content
-/// with @mention/URL links, Reply (→ quote) for others' replies / Delete
-/// for own, and the reply # number. Long replies collapse at 200 chars
-/// with a read-more toggle; expansion is CONTROLLED by the thread screen
-/// (only one open at a time).
 class _ForumReplyCard extends StatefulWidget {
   const _ForumReplyCard({
     super.key,
@@ -887,13 +831,10 @@ class _ForumReplyCard extends StatefulWidget {
   final String apiBaseUrl;
   final void Function(Comment) onDelete;
 
-  /// Quotes the target reply in the composer.
   final void Function(Comment) onReply;
 
-  /// Whether this row's full text is shown (owned by the thread screen).
   final bool expanded;
 
-  /// Flips this row's expansion (the screen enforces one-at-a-time).
   final VoidCallback onToggle;
 
   @override
@@ -903,9 +844,8 @@ class _ForumReplyCard extends StatefulWidget {
 class _ForumReplyCardState extends State<_ForumReplyCard> {
   final List<TapGestureRecognizer> _recognizers = [];
   List<InlineSpan>? _cachedSpans;
-  String? _cachedFor; // 'full' | 'short' — which slice the cache holds
+  String? _cachedFor; // 'full' | 'short' slice the cache holds
 
-  /// Long replies start collapsed to this many chars (word-boundary cut).
   static const int _readMoreLimit = 200;
   bool get _expanded => widget.expanded;
 
@@ -944,7 +884,7 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
       recognizers: _recognizers,
     );
     if (text.length < reply.content.length) {
-      spans.add(const TextSpan(text: '…'));
+      spans.add(const TextSpan(text: '...'));
     }
     _cachedSpans = spans;
     _cachedFor = key;
@@ -961,7 +901,7 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
         builder: (_) => ProfileScreen(userId: profile.id),
       ));
     } catch (_) {
-      // Unknown username — site parity (plain text), no error UI.
+      // Unknown username: plain text, no error UI.
     }
   }
 
@@ -971,7 +911,7 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
     try {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (_) {
-      // Defensive — never let a link open break the replies.
+      // Never let a link open break the replies.
     }
   }
 
@@ -1137,10 +1077,6 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
   }
 }
 
-/// Bottom reply composer (site: the thread's #reply-form, always visible
-/// like the chat input bar). Replies cap at 1000 chars like comments.
-/// When [quote] is set, a quote banner sits above the input — the sent
-/// content carries the quote prefix (built by the thread screen).
 class _ReplyComposer extends StatelessWidget {
   const _ReplyComposer({
     required this.controller,
@@ -1156,15 +1092,13 @@ class _ReplyComposer extends StatelessWidget {
   final bool sending;
   final VoidCallback onSend;
 
-  /// The comment being quoted (null = plain reply).
   final Comment? quote;
   final VoidCallback? onDismissQuote;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      // The shell's bottom nav is not present here (pushed route) — this
-      // bar must clear the PHONE's nav bar (gesture-nav phones).
+      // Pushed route: this bar must clear the phone's nav bar.
       padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
       decoration: const BoxDecoration(
         color: EnclavdColors.card,
@@ -1180,8 +1114,7 @@ class _ReplyComposer extends StatelessWidget {
               const SizedBox(height: 6),
             ],
             Row(
-              // The button rides the input's center line — multi-line growth
-              // keeps it aligned with the field, never below it.
+              // Stays aligned with the input's center as it grows.
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Expanded(
@@ -1196,9 +1129,9 @@ class _ReplyComposer extends StatelessWidget {
                     style: const TextStyle(
                         fontSize: 14, color: EnclavdColors.textPrimary),
                     cursorColor: EnclavdColors.link,
-                    // The 1000-char cap stays enforced silently — no counter.
+                    // 1000-char cap enforced silently, no counter.
                     decoration: const InputDecoration(
-                      hintText: 'Reply…',
+                      hintText: 'Reply...',
                       hintStyle: TextStyle(
                           color: EnclavdColors.textSecondary, fontSize: 14),
                       filled: true,
@@ -1245,8 +1178,6 @@ class _ReplyComposer extends StatelessWidget {
   }
 }
 
-/// The quote preview above the composer: who's being replied to + a
-/// clamped copy of their comment, with an ✕ to drop the quote.
 class _QuoteBanner extends StatelessWidget {
   const _QuoteBanner({required this.quote, required this.onDismiss});
 

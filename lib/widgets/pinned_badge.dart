@@ -1,9 +1,7 @@
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
 
-/// The site's pinned-article badge (articles.php): a red-700 chip with a
-/// fire icon + "PINNED", shadowed so it reads over any cover image.
-/// Used on the Updates list cards and the article detail hero.
+/// The site's pinned-article badge: red chip, fire icon + "PINNED".
 class PinnedBadge extends StatelessWidget {
   const PinnedBadge({super.key});
 

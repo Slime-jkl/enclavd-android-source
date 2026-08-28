@@ -12,7 +12,7 @@ import '../api/auth_service.dart';
 import '../api/feed_service.dart';
 import '../api/social_service.dart';
 import '../api/api_client.dart';
-import '../main.dart'; // AppServices.current (mention → profile resolution)
+import '../main.dart'; // AppServices.current (mention -> profile resolution)
 import '../screens/hashtag_screen.dart';
 import '../screens/profile_screen.dart';
 import '../services/gallery_saver.dart';
@@ -26,18 +26,6 @@ import 'likers_sheet.dart';
 import 'personality_chip.dart';
 import 'shimmer.dart';
 
-/// Post card — visual port of feed/components/post_card.php, now with
-/// interactive like + comments.
-///
-/// Layout (top→bottom):
-///   avatar (35px, personality-colored border) · username (rank color)
-///   · personality badge · warning count ⚠ · relative time (right)
-///   content (pre-line, clamped, "Show more")
-///   image (when present; /public/gallery/<name>)
-///   action row: like ♥ (tappable, optimistic) · comment count (tappable →
-///     comments) left-aligned, "Liked by N" (tappable → likers) opposite
-///     (site's justify-between layout)
-///   comments section (lazy-loaded on first open, composer at the bottom)
 class PostCard extends StatefulWidget {
   const PostCard({
     super.key,
@@ -55,22 +43,14 @@ class PostCard extends StatefulWidget {
   final String apiBaseUrl;
   final SocialService social;
 
-  /// Wired by the owning screen (feed / profile). When both are non-null and
-  /// the post is the viewer's own, a ⋮ menu with Edit/Delete shows — the
-  /// port of the site's post_menu.php.
+  /// Shows an Edit/Delete menu on the viewer's own posts.
   final void Function(Post post)? onEditPost;
   final void Function(Post post)? onDeletePost;
 
-  /// Forum-thread mode: the card's own inline comments section is
-  /// suppressed (the thread screen renders the replies itself, oldest
-  /// first, below the OP). Tapping the comment count is a no-op here.
+  /// Forum-thread mode: the card's inline comments section is suppressed.
   final bool hideInlineComments;
 
-  /// Controlled comment-section state: when both are non-null the card's
-  /// section open/close is decided by the OWNING list (the feed keeps
-  /// only ONE post's comments open at a time) — taps are reported via
-  /// [onToggleComments] and the card renders `commentsOpen` as-is. The
-  /// card still owns the comment DATA (list/loading/error) either way.
+  /// Controlled mode: the owning list decides which section is open.
   final bool? commentsOpen;
   final VoidCallback? onToggleComments;
 
@@ -83,21 +63,16 @@ class _PostCardState extends State<PostCard> {
   late bool _liked;
   late int _commentCount;
 
-  /// Section open state, either from the owning list (controlled mode) or
-  /// this card's own internal toggle.
   bool get _commentsOpen => widget.commentsOpen ?? _internalCommentsOpen;
   bool _internalCommentsOpen = false;
   bool _commentsLoading = false;
   List<Comment> _comments = const [];
   String? _commentsError;
 
-  // Pagination: comments load one page (10) at a time, with a "Load
-  // more" row appending the next page until [hasMore] goes false.
   bool _commentsHasMore = false;
   bool _commentsLoadingMore = false;
 
-  // Owned by the card so the reply flow (icon on a comment row) can
-  // insert "@username " and pull focus to the composer.
+  // Owned here so reply taps can insert "@username " and focus the composer.
   final _commentController = TextEditingController();
   final _commentFocus = FocusNode();
   bool _commentSending = false;
@@ -105,12 +80,10 @@ class _PostCardState extends State<PostCard> {
   // True while a like toggle is in flight (blocks double-taps).
   bool _likeBusy = false;
 
-  // Heart-burst overlay (double-tap); the site's showHeartAnimation: a
-  // 64px heart scales 1→4 and fades out over 0.5s at the card's center.
+  // Heart-burst overlay on double-tap.
   bool _burst = false;
 
-  // Drag-to-like tray (site's pointerdown drag): visible while the heart
-  // is being held, darkens the card and shows the drop hint.
+  // Drag-to-like tray while the heart is held.
   bool _dragActive = false;
 
   @override
@@ -128,9 +101,6 @@ class _PostCardState extends State<PostCard> {
     super.dispose();
   }
 
-  /// Optimistic toggle: flip UI instantly, reconcile with the server's
-  /// authoritative count, roll back on failure. Plays the site's like sound
-  /// only when the post becomes LIKED (never on unlike — likes.js parity).
   Future<void> _toggleLike() async {
     if (_likeBusy) return;
     setState(() {
@@ -161,18 +131,12 @@ class _PostCardState extends State<PostCard> {
     }
   }
 
-  /// Like-ONLY entry for the double-tap / drag gestures — mirrors the site's
-  /// dblclick handler (`if (!isLiked)`): already-liked posts are a no-op,
-  /// these gestures can never unlike.
   void _likeFromGesture() {
     if (_liked || _likeBusy) return;
     _toggleLike();
     _showBurst();
   }
 
-  /// Site click parity (likes.js): a tap on an ALREADY-liked heart unlikes;
-  /// a tap on an unliked heart does NOT like — it shows the hint tooltip
-  /// ("Drag the heart onto the post to like it").
   void _onHeartTap() {
     if (_likeBusy) return;
     if (_liked) {
@@ -182,8 +146,6 @@ class _PostCardState extends State<PostCard> {
     }
   }
 
-  /// Long-press on the heart starts the drag → the tray appears (site's
-  /// pointerdown drag). No-op when already liked (drag is only for liking).
   void _beginDrag() {
     if (_liked || _likeBusy) return;
     setState(() => _dragActive = true);
@@ -200,8 +162,6 @@ class _PostCardState extends State<PostCard> {
     });
   }
 
-  /// "Liked by" sheet (site's showLikers modal) — the like count is
-  /// tappable, exactly like the site's count → likers list.
   void _openLikers() {
     showModalBottomSheet<void>(
       context: context,
@@ -219,14 +179,11 @@ class _PostCardState extends State<PostCard> {
   }
 
   Future<void> _openComments() async {
-    // Forum-thread mode: the replies live below the OP (oldest first) —
-    // the card's inline section is suppressed entirely.
+    // Forum-thread mode: the card's inline section is suppressed.
     if (widget.hideInlineComments) return;
     final toggle = widget.onToggleComments;
     if (toggle != null) {
-      // Controlled mode: the owning list decides which section is open
-      // (only one at a time). The card still owns the comment DATA and
-      // loads on the first open.
+      // Controlled mode: the owning list decides which section is open.
       final opening = !(widget.commentsOpen ?? false);
       toggle();
       if (opening) {
@@ -270,9 +227,6 @@ class _PostCardState extends State<PostCard> {
     }
   }
 
-  /// Appends the next page (offset = current length) below the existing
-  /// rows. The "Load more" row stays until the server says there is no
-  /// next page.
   Future<void> _loadMoreComments() async {
     if (_commentsLoadingMore || !_commentsHasMore) return;
     setState(() => _commentsLoadingMore = true);
@@ -295,9 +249,6 @@ class _PostCardState extends State<PostCard> {
     }
   }
 
-  /// Reply flow: "@username " lands in the composer and the field is
-  /// focused so the mention is immediately followed by typing. Appending
-  /// (not replacing) keeps whatever the user already typed.
   void _replyToComment(Comment comment) {
     final current = _commentController.text.trim();
     final mention = '@${comment.username} ';
@@ -314,8 +265,7 @@ class _PostCardState extends State<PostCard> {
     if (content.isEmpty || _commentSending) return;
     setState(() {
       _commentSending = true;
-      // Optimistic: the count bumps the instant the user sends — the
-      // server's authoritative total corrects it on success.
+      // Optimistic: bump now, server total corrects on success.
       _commentCount += 1;
     });
     try {
@@ -342,7 +292,7 @@ class _PostCardState extends State<PostCard> {
   Future<void> _deleteComment(Comment comment) async {
     setState(() {
       _comments = _comments.where((c) => c.id != comment.id).toList();
-      _commentCount -= 1; // optimistic — server total corrects on success
+      _commentCount -= 1; // optimistic; server total corrects on success
     });
     try {
       final newCount =
@@ -372,8 +322,7 @@ class _PostCardState extends State<PostCard> {
     return Card(
       clipBehavior: Clip.antiAlias,
       child: GestureDetector(
-        // Double-tap the post to like — the site's dblclick → heart burst.
-        // Like-only (never unlikes).
+        // Double-tap likes (never unlikes).
         behavior: HitTestBehavior.opaque,
         onDoubleTap: _likeFromGesture,
         child: Stack(
@@ -390,17 +339,14 @@ class _PostCardState extends State<PostCard> {
                     onDelete: widget.onDeletePost,
                   ),
                   const SizedBox(height: 8),
-                  // The drop target is the CONTENT area (the site's
-                  // contentBounds: text + image) — dropping the heart on the
-                  // action row or the author row is not a like.
+                  // Drop target is the content area (text + image) only.
                   DragTarget<String>(
                     onAcceptWithDetails: (_) => _likeFromGesture(),
                     builder: (context, candidates, rejected) => Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _PostContent(post: widget.post),
-                        // The site embeds the FIRST YouTube link in the
-                        // post (post_card.php renderYouTubeEmbed) between
+                        // First YouTube link in the post renders between
                         // the text and the image.
                         if (extractYouTubeId(widget.post.content) case final id?)
                           _YouTubeEmbed(
@@ -446,9 +392,7 @@ class _PostCardState extends State<PostCard> {
                 ],
               ),
             ),
-            // Drag tray (site's pointerdown drag): darken the whole card and
-            // show the dashed "Drag the heart here to like" drop zone while
-            // the heart is held.
+            // Darken the card + drop hint while the heart is held.
             if (_dragActive)
               Positioned.fill(
                 child: IgnorePointer(
@@ -503,8 +447,6 @@ class _PostCardState extends State<PostCard> {
   }
 }
 
-/// The site's showHeartAnimation port: a 64px solid heart at the card's
-/// center scales 1→4 and fades out over 0.5s, then is removed.
 class _HeartBurst extends StatelessWidget {
   const _HeartBurst();
 
@@ -527,7 +469,6 @@ class _HeartBurst extends StatelessWidget {
   }
 }
 
-/// Author row: avatar + username + badges + relative time (+ own-post menu).
 class _AuthorRow extends StatelessWidget {
   const _AuthorRow({
     required this.post,
@@ -546,8 +487,6 @@ class _AuthorRow extends StatelessWidget {
     final personality = PersonalityColors.forType(post.personalityType);
     return Row(
       children: [
-        // Avatar + username open the author's profile (site: click through
-        // the profile tooltip).
         GestureDetector(
           onTap: () => _openProfile(context, post.authorId),
           child: EnclavdAvatar(
@@ -606,8 +545,7 @@ class _AuthorRow extends StatelessWidget {
           style:
               const TextStyle(color: EnclavdColors.textSecondary, fontSize: 12),
         ),
-        // Own-post actions menu (site's post_menu.php: ellipsis → Edit /
-        // Delete). Only rendered for the viewer's own posts.
+        // Own-post Edit/Delete menu (site's post_menu.php).
         if (post.isOwner && (onEdit != null || onDelete != null))
           PopupMenuButton<String>(
             icon: const FaIcon(FontAwesomeIcons.ellipsis,
@@ -656,9 +594,6 @@ class _AuthorRow extends StatelessWidget {
   }
 }
 
-/// Content with the site's show-more heuristic. #hashtags and URLs render
-/// blue and tappable (the site's convertHashtagsToLinks/convertUrlsToLinks):
-/// hashtag → the hashtag page, link → the system browser (target=_blank).
 class _PostContent extends StatefulWidget {
   const _PostContent({required this.post});
 
@@ -671,20 +606,15 @@ class _PostContent extends StatefulWidget {
 class _PostContentState extends State<_PostContent> {
   bool _expanded = false;
 
-  // Tap recognizers owned by this State — must be disposed (postContentSpans
-  // hands ownership to the caller; creating them in build() leaks otherwise).
+  // Owned here so they get disposed; postContentSpans hands them over.
   final List<TapGestureRecognizer> _recognizers = [];
   List<InlineSpan>? _cachedSpans;
 
   @override
   void didUpdateWidget(covariant _PostContent oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Cards are keyed by post id, so editing a post keeps this State alive
-    // while the owning screen reloads the list — the cached spans MUST be
-    // dropped or the OLD text renders until the app restarts (the reported
-    // "edit doesn't show up" bug: save + reload both kept showing the old
-    // content). Collapse an expanded post too: the new content may be
-    // shorter, and the show-more clamp must recompute.
+    // Post edits keep this State alive (cards are keyed by id); drop the
+    // cached spans or the old text keeps rendering.
     if (oldWidget.post.content != widget.post.content) {
       _cachedSpans = null;
       _expanded = false;
@@ -712,21 +642,19 @@ class _PostContentState extends State<_PostContent> {
     return spans;
   }
 
-  /// Hashtag tap → the hashtag page (the site's /feed/tag/<tag>).
   void _openHashtag(String tag) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => HashtagScreen(tag: tag)),
     );
   }
 
-  /// Link tap → the system browser, like the site's target="_blank".
   Future<void> _openUrl(String url) async {
     final uri = Uri.tryParse(url);
     if (uri == null) return;
     try {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (_) {
-      // Never let a link open break the feed (defensive, like SoundService).
+      // Never let a link open break the feed.
     }
   }
 
@@ -768,9 +696,7 @@ class _PostContentState extends State<_PostContent> {
   }
 }
 
-/// Post image — port of the site's `feed-image w-auto max-h-[50vh] mx-auto`:
-/// capped at half the viewport height (a very tall image must never blow the
-/// card up), centered, tap → fullscreen viewer (site's openImageModal).
+/// Post image, capped at half the viewport height; tap -> fullscreen viewer.
 class PostImage extends StatefulWidget {
   const PostImage({
     super.key,
@@ -786,10 +712,6 @@ class PostImage extends StatefulWidget {
 }
 
 class PostImageState extends State<PostImage> {
-  /// Real image aspect ratio (width/height), probed from the decoded
-  /// bytes. Lets the card hug the image's actual shape — a landscape
-  /// rectangle gets a short box — instead of a fixed 50vh box that left
-  /// dead card space above and below non-square images.
   double? _aspect;
   ImageStream? _stream;
   bool _probeStarted = false;
@@ -799,15 +721,13 @@ class PostImageState extends State<PostImage> {
 
   late final ImageStreamListener _probeListener = ImageStreamListener(
     (info, _) {
-      // Tiny probe decode was only for the aspect ratio — detach at once
-      // so the only long-lived frame is EnclavdImage's display decode.
+      // Probe decode was only for the aspect ratio; detach immediately.
       _stream?.removeListener(_probeListener);
       _stream = null;
       if (!mounted || _aspect != null) return;
       setState(() => _aspect = info.image.width / info.image.height);
     },
-    // Probe failures fall through to EnclavdImage's own errorBuilder
-    // (no-image.jpg) — the box just stays at the default height.
+    // Probe failures fall through to EnclavdImage's errorBuilder.
     onError: (_, __) {
       _stream?.removeListener(_probeListener);
       _stream = null;
@@ -820,10 +740,6 @@ class PostImageState extends State<PostImage> {
     super.dispose();
   }
 
-  /// Starts the dimension probe once. A 128px decode is plenty for an
-  /// aspect ratio and lands almost instantly even on huge originals; the
-  /// display decode (at card width) runs separately inside EnclavdImage,
-  /// which keeps its own shimmer until that frame is ready.
   void _ensureProbe() {
     if (_probeStarted) return;
     _probeStarted = true;
@@ -842,10 +758,7 @@ class PostImageState extends State<PostImage> {
     return Center(
       child: LayoutBuilder(builder: (context, constraints) {
         final contentWidth = constraints.maxWidth;
-        // The site's feed-image cap (max-h-[50vh]): portraits taller than
-        // this keep the cap and center with side air, exactly like the
-        // site's mx-auto w-auto. Everything else renders at its natural
-        // aspect ratio, full card width.
+        // Cap at 50vh like the site's max-h-[50vh].
         final maxHeight = MediaQuery.sizeOf(context).height * 0.5;
         _ensureProbe();
         final height = _aspect == null
@@ -853,9 +766,7 @@ class PostImageState extends State<PostImage> {
             : math.min(contentWidth / _aspect!, maxHeight);
         return GestureDetector(
           onTap: () => _viewFullImage(context, _url),
-          // Long-press → save the image to the device gallery (Enclavd
-          // folder). Distinct from tap (fullscreen viewer), mirrors how
-          // long-press is used elsewhere (heart drag, etc.).
+          // Long-press saves to the gallery; tap opens the fullscreen viewer.
           onLongPress: () => _showSaveSheet(context, _url),
           child: Stack(
             clipBehavior: Clip.none,
@@ -868,8 +779,7 @@ class PostImageState extends State<PostImage> {
                 errorAsset: 'assets/images/no-image.jpg',
                 borderRadius: BorderRadius.circular(8),
               ),
-              // The site shows a fa-expand overlay on hover; on touch there's
-              // no hover, so keep a subtle always-on hint that it opens.
+              // No hover on touch, so keep an always-on expand hint.
               Positioned(
                 top: 8,
                 right: 8,
@@ -890,8 +800,6 @@ class PostImageState extends State<PostImage> {
     );
   }
 
-  /// Long-press menu: the one action that matters here is saving the
-  /// image to the device, into the Enclavd folder in the gallery.
   void _showSaveSheet(BuildContext context, String url) {
     showModalBottomSheet<void>(
       context: context,
@@ -917,9 +825,6 @@ class PostImageState extends State<PostImage> {
     );
   }
 
-  /// Save the full-resolution image into the Enclavd gallery folder.
-  /// GallerySaver returns a user-facing message for every outcome
-  /// (success / permission / download / generic) — never throws.
   Future<void> _saveToDevice(BuildContext context, String url) async {
     final messenger = ScaffoldMessenger.of(context);
     final message = await GallerySaver().saveImage(url);
@@ -929,8 +834,6 @@ class PostImageState extends State<PostImage> {
     ));
   }
 
-  /// Fullscreen viewer, mirroring the site's black/90 modal: full-res image
-  /// (no cacheWidth downscale), pinch-zoom, tap or × to close.
   void _viewFullImage(BuildContext context, String url) {
     showDialog<void>(
       context: context,
@@ -970,7 +873,6 @@ class PostImageState extends State<PostImage> {
   }
 }
 
-/// Like + comment buttons (now interactive).
 class _ActionRow extends StatelessWidget {
   const _ActionRow({
     required this.liked,
@@ -996,15 +898,10 @@ class _ActionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        // Left group (site: `flex items-center gap-6`, aligned left):
-        // heart (drag source) + like count + comment button.
         Expanded(
           child: Row(
             children: [
-              // The heart is a LongPressDraggable (site: pointerdown drag):
-              // HOLD the heart to start the drag — the "drag the heart here to
-              // like" tray appears and dropping it on the post content likes it.
-              // A plain TAP never likes an unliked post (onLike handles that).
+              // Hold to drag onto the content to like; a plain tap never likes.
               LongPressDraggable<String>(
                 data: 'like',
                 feedback: const FaIcon(FontAwesomeIcons.heart,
@@ -1029,7 +926,6 @@ class _ActionRow extends StatelessWidget {
                   child: Padding(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                    // Site uses a solid fa-heart that turns red when liked.
                     child: FaIcon(
                       FontAwesomeIcons.heart,
                       key: const ValueKey('like-heart'),
@@ -1042,8 +938,7 @@ class _ActionRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 6),
-              // Like count — tappable → "Liked by" list (site: count opens the
-              // showLikers modal).
+              // Tappable -> the "Liked by" list.
               InkWell(
                 onTap: onLikers,
                 borderRadius: BorderRadius.circular(8),
@@ -1066,7 +961,6 @@ class _ActionRow extends StatelessWidget {
                       const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                   child: Row(
                     children: [
-                      // Site: fa-comments when there are comments, fa-comment when empty.
                       FaIcon(
                         commentCount > 0
                             ? FontAwesomeIcons.comments
@@ -1085,9 +979,7 @@ class _ActionRow extends StatelessWidget {
             ],
           ),
         ),
-        // "Liked by N" — inline, opposite the buttons (site's justify-between
-        // action bar: `textSecondary text-sm` wrapper, textLink button). The
-        // count is also tappable → the same likers sheet.
+        // "Liked by N" opposite the buttons; count also opens the likers sheet.
         if (likeCount > 0)
           InkWell(
             onTap: onLikers,
@@ -1109,9 +1001,7 @@ class _ActionRow extends StatelessWidget {
   }
 }
 
-/// Port of the site's extractYouTubeId (feed/helpers/url_helpers.php):
-/// the FIRST YouTube video ID in the text — watch?v=, shorts/, embed/ or
-/// youtu.be/ forms, 11 chars, case-insensitive like the PHP `~...~i`.
+/// First YouTube video id in the text (watch?v=, shorts/, embed/, youtu.be).
 String? extractYouTubeId(String text) {
   final m = RegExp(
     r'(?:https?://)?(?:www\.)?'
@@ -1122,24 +1012,11 @@ String? extractYouTubeId(String text) {
   return m?.group(1);
 }
 
-/// The site's YouTube embed (renderYouTubeEmbed): a 16:9 card between the
-/// post text and the image. The site uses an iframe; the app embeds the
-/// REAL YouTube player in a WebView, so the video plays IN the app (streamed
-/// from YouTube) instead of redirecting to the YouTube app.
-///
-/// Tap the thumbnail → the player loads (autoplay=1) and plays inline
-/// (playsinline=1). The player keeps its own controls; a small overlay row
-/// offers collapse (back to the thumbnail) and an explicit "open in the
-/// YouTube app" escape hatch (the player's own links — title, related —
-/// also open externally via the navigation delegate).
 class _YouTubeEmbed extends StatefulWidget {
   const _YouTubeEmbed({required this.videoId, required this.apiBaseUrl});
 
   final String videoId;
 
-  /// Used as the embed request's Referer — YouTube requires API-client
-  /// identification for embeds inside apps (without it: error 153, "Video
-  /// Player Configuration Error"). Same origin the site's own embeds use.
   final String apiBaseUrl;
 
   @override
@@ -1150,9 +1027,6 @@ class _YouTubeEmbedState extends State<_YouTubeEmbed> {
   bool _playing = false;
   WebViewController? _controller;
 
-  /// Created lazily on first play (a WebView per card is heavy; the feed
-  /// only pays for videos the user actually opens) and kept alive under
-  /// the thumbnail afterwards, so collapse → re-open resumes instantly.
   WebViewController _ensureController() {
     final existing = _controller;
     if (existing != null) return existing;
@@ -1163,9 +1037,7 @@ class _YouTubeEmbedState extends State<_YouTubeEmbed> {
           NavigationDelegate(onNavigationRequest: _onNavigationRequest));
     final platform = controller.platform;
     if (platform is AndroidWebViewController) {
-      // Default true blocks autoplay=1 even though the user JUST tapped the
-      // thumbnail — flip it so the tap starts the video (the site's iframe
-      // plays on click the same way).
+      // Default blocks autoplay=1; flip so the tap starts the video.
       platform.setMediaPlaybackRequiresUserGesture(false);
     }
     controller.loadRequest(
@@ -1180,10 +1052,6 @@ class _YouTubeEmbedState extends State<_YouTubeEmbed> {
     return controller;
   }
 
-  /// The embed frame stays in the WebView; the player's own OUT-links
-  /// (title, related videos, "Watch on YouTube") open in the YouTube app /
-  /// browser — the app itself never redirects, only explicit taps inside
-  /// the player leave.
   NavigationDecision _onNavigationRequest(NavigationRequest request) {
     final url = request.url.toString();
     if (url.contains('youtube-nocookie.com/embed/') ||
@@ -1210,7 +1078,7 @@ class _YouTubeEmbedState extends State<_YouTubeEmbed> {
           Uri.parse('https://www.youtube.com/watch?v=${widget.videoId}'),
           mode: LaunchMode.externalApplication);
     } catch (_) {
-      // Defensive, like every other launcher call — never break the feed.
+      // Never let a launcher failure break the feed.
     }
   }
 
@@ -1230,15 +1098,10 @@ class _YouTubeEmbedState extends State<_YouTubeEmbed> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              // The player stays mounted once created (even while collapsed)
-              // so its state survives — the thumbnail just covers it.
+              // Player stays mounted when collapsed; the thumbnail covers it.
               if (_controller != null) WebViewWidget(controller: _controller!),
               if (!_playing)
-                // Resting state = what a real YouTube embed looks like
-                // before interaction: the thumbnail, a soft scrim, and
-                // YouTube's own red play button — custom-painted triangle
-                // (perfectly centered; FontAwesome's play glyph is
-                // optically off-center in a circle). Tap loads the player.
+                // Resting state: thumbnail + scrim + red play button.
                 GestureDetector(
                   onTap: _play,
                   child: Container(
@@ -1246,16 +1109,13 @@ class _YouTubeEmbedState extends State<_YouTubeEmbed> {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        // hqdefault always exists for every video id
-                        // (maxresdefault does not — no broken embeds).
+                        // hqdefault always exists; maxresdefault does not.
                         EnclavdImage(
                           'https://img.youtube.com/vi/${widget.videoId}/hqdefault.jpg',
                           fit: BoxFit.cover,
                           errorAsset: 'assets/images/no-image.jpg',
                         ),
-                        // Soft scrim so the red button pops on any
-                        // thumbnail (site embeds sit on YouTube's own
-                        // darkened chrome).
+                        // Scrim so the red button pops on any thumbnail.
                         ColoredBox(
                           color: Colors.black.withValues(alpha: 0.25),
                         ),
@@ -1269,8 +1129,7 @@ class _YouTubeEmbedState extends State<_YouTubeEmbed> {
                   ),
                 ),
               if (_playing) ...[
-                // Player overlay controls: collapse back to the thumbnail,
-                // or hand off to the YouTube app explicitly.
+                // Overlay controls: open in YouTube, or collapse.
                 Positioned(
                   top: 6,
                   right: 6,
@@ -1299,16 +1158,6 @@ class _YouTubeEmbedState extends State<_YouTubeEmbed> {
   }
 }
 
-/// YouTube's own resting play button: a rounded red chip with a WHITE
-/// play triangle drawn by [CustomPainter].
-///
-/// Why a painter and not FontAwesomeIcons.play: the FA glyph carries its
-/// own internal padding, so inside a circle it renders optically
-/// off-center (the triangle's centroid sits left of the box center). A
-/// painter places the triangle's CENTROID exactly on the button's center
-/// — deterministic centering, no font metrics involved. The button shape
-/// (68x48, radius 14, #FF0000) matches YouTube's embed chrome so the
-/// resting card reads as a video, not a broken image.
 class _YouTubePlayButton extends StatelessWidget {
   const _YouTubePlayButton({super.key});
 
@@ -1329,11 +1178,6 @@ class _YouTubePlayButton extends StatelessWidget {
   }
 }
 
-/// Paints a right-pointing play triangle whose CENTROID is the widget's
-/// center — the triangle spans 34%→80% of the width and 24%→76% of the
-/// height, which centers the centroid ((0.34+0.80)/2 horizontally is NOT
-/// the rule — the centroid of a triangle is the mean of its vertices, and
-/// these vertex fractions put it exactly at 50%, 50%).
 class _PlayTrianglePainter extends CustomPainter {
   const _PlayTrianglePainter();
 
@@ -1356,7 +1200,6 @@ class _PlayTrianglePainter extends CustomPainter {
   bool shouldRepaint(covariant _PlayTrianglePainter oldDelegate) => false;
 }
 
-/// Small circular overlay button on the playing embed (black/60 chip).
 class _PlayerOverlayButton extends StatelessWidget {
   const _PlayerOverlayButton({
     required this.icon,
@@ -1389,7 +1232,6 @@ class _PlayerOverlayButton extends StatelessWidget {
   }
 }
 
-/// Dashed rounded-rect border — the site's `2px dashed` drop tray.
 class _DashedBorderPainter extends CustomPainter {
   const _DashedBorderPainter({
     required this.color,
@@ -1424,11 +1266,6 @@ class _DashedBorderPainter extends CustomPainter {
       oldDelegate.color != color || oldDelegate.radius != radius;
 }
 
-/// Lazy-loaded comments: list (newest first) + composer.
-///
-/// Stateful: owns the read-more state for the whole list — only ONE long
-/// comment can be expanded at a time; opening another collapses the
-/// previous one (the feed stays scannable).
 class _CommentsSection extends StatefulWidget {
   const _CommentsSection({
     required this.comments,
@@ -1450,7 +1287,6 @@ class _CommentsSection extends StatefulWidget {
   final bool loading;
   final String? error;
 
-  /// Another page exists on the server (the "Load more" row shows).
   final bool hasMore;
   final bool loadingMore;
   final bool sending;
@@ -1467,7 +1303,6 @@ class _CommentsSection extends StatefulWidget {
 }
 
 class _CommentsSectionState extends State<_CommentsSection> {
-  /// The one expanded comment (by id); null = all collapsed.
   int? _expandedCommentId;
 
   @override
@@ -1489,8 +1324,7 @@ class _CommentsSectionState extends State<_CommentsSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Composer at the TOP of the comments (the site's newest-first
-        // list reads better when the reply box is right under the post).
+        // Composer on top so replies sit right under the post.
         _CommentComposer(
           controller: widget.controller,
           focusNode: widget.focusNode,
@@ -1500,9 +1334,8 @@ class _CommentsSectionState extends State<_CommentsSection> {
         const Divider(height: 20),
         for (final comment in comments)
           _CommentRow(
-            // Key by comment id: the list mutates at the TOP (new comments
-            // prepend), so positional State reuse would attach one row's
-            // cached mention recognizers to a different comment.
+            // Key by id: new comments prepend, so positional reuse would
+            // misattach row state.
             key: ValueKey(comment.id),
             comment: comment,
             apiBaseUrl: widget.apiBaseUrl,
@@ -1527,7 +1360,7 @@ class _CommentsSectionState extends State<_CommentsSection> {
                   : const FaIcon(FontAwesomeIcons.anglesDown,
                       size: 13, color: EnclavdColors.link),
               label: Text(
-                  widget.loadingMore ? 'Loading…' : 'Load more comments'),
+                  widget.loadingMore ? 'Loading...' : 'Load more comments'),
               style: TextButton.styleFrom(
                 foregroundColor: EnclavdColors.link,
                 textStyle:
@@ -1540,10 +1373,6 @@ class _CommentsSectionState extends State<_CommentsSection> {
   }
 }
 
-/// The comment composer: one field + send button, capped at 1000 chars
-/// (the app-side limit — silently, no visible counter). The modern look
-/// is the same as the forum reply bar: a filled rounded field with the
-/// send button centered on it.
 class _CommentComposer extends StatelessWidget {
   const _CommentComposer({
     required this.controller,
@@ -1560,8 +1389,7 @@ class _CommentComposer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      // The button rides the input's center line — multi-line growth
-      // keeps it aligned with the field, never below it.
+      // Stays aligned with the input's center as it grows.
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(
@@ -1573,12 +1401,12 @@ class _CommentComposer extends StatelessWidget {
             maxLength: 1000,
             textInputAction: TextInputAction.send,
             onSubmitted: (_) => onSend(),
-            // The 1000-char cap stays enforced silently — no counter UI.
+            // 1000-char cap enforced silently, no counter UI.
             style: const TextStyle(
                 fontSize: 14, color: EnclavdColors.textPrimary),
             cursorColor: EnclavdColors.link,
             decoration: const InputDecoration(
-              hintText: 'Add a comment…',
+              hintText: 'Add a comment...',
               hintStyle: TextStyle(
                   color: EnclavdColors.textSecondary, fontSize: 14),
               filled: true,
@@ -1620,8 +1448,7 @@ class _CommentComposer extends StatelessWidget {
   }
 }
 
-/// Port of feed/render_functions.php format_date():
-/// now / Xm / Xh / Xd / Xm(month) / Xy — minutes shown as 'm' like the site.
+/// Port of format_date(): now / Xm / Xh / Xd / Xmo / Xy.
 String relativeTime(String dbDateTime) {
   final parsed = DateTime.tryParse(dbDateTime.replaceFirst(' ', 'T'));
   if (parsed == null) return '';
@@ -1638,8 +1465,7 @@ String relativeTime(String dbDateTime) {
   return '${days ~/ 365}y';
 }
 
-/// Maps the server's Tailwind class (name_color) to our palette. Unknown
-/// classes fall back to Member gray.
+/// Maps the server's Tailwind name_color class to our palette.
 Color rankColorFromCssClass(String cssClass) {
   if (cssClass.contains('purple')) return RankColors.forRank('SysOp');
   if (cssClass.contains('red')) return RankColors.forRank('Admin');
@@ -1648,18 +1474,6 @@ Color rankColorFromCssClass(String cssClass) {
   return RankColors.forRank('Member');
 }
 
-/// One comment row: avatar, username (rank color), content, relative time,
-/// delete for own comments, reply (→ @mention) for everyone else's.
-///
-/// Content renders the site's comment pipeline (render_comment_content):
-/// @mentions → link-blue profile links (the server validates mentions
-/// against the post's commenters, so every mention is a real user), URLs →
-/// link-blue → system browser. NO hashtags (site parity).
-///
-/// Long comments (> 200 chars) collapse to a word-boundary preview with a
-/// "Read more" toggle — the site's max keeps the feed readable. Expansion
-/// is CONTROLLED by the owning comments section: only one comment is
-/// expanded at a time (opening another collapses the previous one).
 class _CommentRow extends StatefulWidget {
   const _CommentRow({
     super.key,
@@ -1675,13 +1489,10 @@ class _CommentRow extends StatefulWidget {
   final String apiBaseUrl;
   final void Function(Comment) onDelete;
 
-  /// Wires the row's reply icon to the composer ("@username " + focus).
   final void Function(Comment) onReply;
 
-  /// Whether this row's full text is shown (owned by the section).
   final bool expanded;
 
-  /// Flips this row's expansion (the section enforces one-at-a-time).
   final VoidCallback onToggle;
 
   @override
@@ -1689,17 +1500,13 @@ class _CommentRow extends StatefulWidget {
 }
 
 class _CommentRowState extends State<_CommentRow> {
-  // Tap recognizers owned by this State — must be disposed (commentContent-
-  // Spans hands ownership to the caller; creating them in build() leaks).
+  // Owned here so they get disposed; commentContentSpans hands them over.
   final List<TapGestureRecognizer> _recognizers = [];
   List<InlineSpan>? _cachedSpans;
-  String? _cachedFor; // 'full' | 'short' — which slice the cache holds
+  String? _cachedFor; // 'full' | 'short' slice the cache holds
 
-  /// Long comments collapse to this many characters (word-boundary cut).
   static const int _readMoreLimit = 200;
 
-  /// Long comments start COLLAPSED to their preview (the feed stays
-  /// scannable); the section's one-at-a-time rule drives expansion.
   bool get _expanded => widget.expanded;
 
   @override
@@ -1712,16 +1519,12 @@ class _CommentRowState extends State<_CommentRow> {
 
   Comment get comment => widget.comment;
 
-  /// The slice currently on screen: full text, or the word-boundary
-  /// preview of a long comment (cuts at the last space before the limit
-  /// so a mid-word / mid-mention slice never renders).
   String get _visibleContent {
     final content = comment.content;
     if (_expanded || content.length <= _readMoreLimit) return content;
     final preview = content.substring(0, _readMoreLimit);
     final lastSpace = preview.lastIndexOf(' ');
-    // Only back off to a word boundary when it leaves a substantial
-    // preview (a 120+ char single word is still cut hard).
+    // Only cut at a word boundary when it leaves a substantial preview.
     return lastSpace > _readMoreLimit * 0.6
         ? content.substring(0, lastSpace)
         : preview;
@@ -1730,8 +1533,7 @@ class _CommentRowState extends State<_CommentRow> {
   List<InlineSpan> _spans() {
     final key = _expanded ? 'full' : 'short';
     if (_cachedFor == key && _cachedSpans != null) return _cachedSpans!;
-    // Toggling the read-more rebuilds the spans: drop the recognizers of
-    // the previous slice so none are orphaned.
+    // Drop the previous slice's recognizers so none are orphaned.
     for (final r in _recognizers) {
       r.dispose();
     }
@@ -1744,17 +1546,13 @@ class _CommentRowState extends State<_CommentRow> {
       recognizers: _recognizers,
     );
     if (text.length < comment.content.length) {
-      spans.add(const TextSpan(text: '…'));
+      spans.add(const TextSpan(text: '...'));
     }
     _cachedSpans = spans;
     _cachedFor = key;
     return spans;
   }
 
-  /// Mention tap → the mentioned member's profile. The server only allows
-  /// mentions of users who commented on the post, so the name always
-  /// resolves; a stale/deleted account is a silent no-op (the site renders
-  /// unknown mentions as plain text).
   Future<void> _openMention(String username) async {
     final services = AppServices.current ?? await AppServices.create();
     if (!mounted) return;
@@ -1763,18 +1561,17 @@ class _CommentRowState extends State<_CommentRow> {
       if (!mounted || profile.id <= 0) return;
       _openProfile(context, profile.id);
     } catch (_) {
-      // Unknown username — site parity (plain text), no error UI.
+      // Unknown username: plain text, no error UI.
     }
   }
 
-  /// Link tap → the system browser, like the site's target="_blank".
   Future<void> _openUrl(String url) async {
     final uri = Uri.tryParse(url);
     if (uri == null) return;
     try {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } catch (_) {
-      // Defensive — never let a link open break the comments.
+      // Never let a link open break the comments.
     }
   }
 
@@ -1822,8 +1619,8 @@ class _CommentRowState extends State<_CommentRow> {
                       style: const TextStyle(
                           color: EnclavdColors.textSecondary, fontSize: 11),
                     ),
-                    // Reply on OTHER people's comments: inserts "@user "
-                    // into the composer (the mention the server validates).
+                    // Reply on others' comments: inserts "@user " for the
+                    // server to validate.
                     if (!comment.isOwner) ...[
                       const SizedBox(width: 6),
                       GestureDetector(

@@ -16,25 +16,6 @@ import 'login_screen.dart';
 import 'profile_screen.dart';
 import '../services/analytics_service.dart';
 
-/// Chat thread — one conversation, Instagram-style bubbles.
-///
-/// Port of the site's messages.php right pane + messages.js:
-///   - Sent: right-aligned blue-900/80 bubble (site rgba(30,58,138,0.8)),
-///     rounded 24 with the top-right corner 8; received: left-aligned
-///     white/10 bubble with the top-left corner 8.
-///   - Timestamps are hidden by default; tapping a bubble toggles its
-///     time line (site behavior — EnclavdTime.absolute format).
-///   - Read receipts on sent bubbles: single check = sent, double check
-///     blue-400 = seen (the other side's 'read' WS event flips them).
-///   - Typing indicator (site .typing-indicator, blue-300/80 italic) fed
-///     by the sidecar's typing frames; the app pings once per input burst
-///     and stops after 3s (messages.js parity).
-///
-/// LIVE path: the screen joins the conversation's WebSocket room (the Go
-/// sidecar) so messages/read/typing frames arrive instantly. REST stays
-/// the source of truth and the fallback: a 15s reconcile poll merges by id
-/// and refreshes receipts — the site's own "WS primary, REST on focus"
-/// pattern, and it keeps working if the socket gives up.
 class ChatScreen extends StatefulWidget {
   const ChatScreen({
     super.key,
@@ -54,8 +35,7 @@ class ChatScreen extends StatefulWidget {
   final MessagesService messages;
   final RealtimeService realtime;
 
-  /// The other member — header tap opens their profile (site: the
-  /// conversation title links to /profile/<participant_id>).
+  /// The other member; header tap opens their profile.
   final int? participantId;
   final String participantName;
   final String? participantAvatar; // root-relative path
@@ -80,28 +60,18 @@ class _ChatScreenState extends State<ChatScreen> {
   Timer? _pollTimer;
   StreamSubscription<RealtimeEvent>? _realtimeSub;
 
-  /// Highest inbound message id already marked read — the server sends
-  /// inbound messages with is_read:null (read-state is per-viewer, so the
-  /// history payload only carries it for OUR messages), which means the
-  /// client cannot tell from history whether inbound are read. Instead we
-  /// fire mark_read exactly when NEW inbound messages appear (thread open
-  /// or new arrivals mid-poll) — same net effect as the site marking read
-  /// on open, without a POST on every poll.
   int _maxInboundId = 0;
 
-  /// Typing ping state (site messages.js: once per burst, stop after 3s).
   bool _typingPingSent = false;
   Timer? _typingStopTimer;
 
-  /// The OTHER member is typing (sidecar typing frame).
   bool _otherTyping = false;
 
   @override
   void initState() {
     super.initState();
     trackScreen('/chat');
-    // Reading a thread counts as "messages screen open" for the
-    // notification-suppression rule.
+    // Reading a thread counts as the messages screen being open.
     MessageNotifications.instance?.setMessagesOpen(true);
     _load();
     _pollTimer = Timer.periodic(ChatScreen.pollInterval, (_) => _poll());
@@ -124,7 +94,6 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
-  /// Live frames for THIS conversation (the room join gates delivery).
   void _onRealtime(RealtimeEvent event) {
     if (event.conversationId != widget.conversationId) return;
     switch (event.type) {
@@ -140,11 +109,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  /// A new inbound message pushed by the sidecar (our own sends come back
-  /// via the REST response; the server excludes the sender from the room).
-  /// messageId <= 0 is rejected: legacy publishers (the site's old
-  /// send_message.php) used to fan out messageId 0, which would collapse
-  /// every dedupe — the REST poll reconciles real rows anyway.
   void _onLiveMessage(RealtimeEvent event) {
     final messageId = event.messageId;
     final senderId = event.senderId;
@@ -165,23 +129,18 @@ class _ChatScreenState extends State<ChatScreen> {
       createdAt: event.data['timestamp'] as String? ?? _nowDbString(),
     );
     if (!mounted) return;
-    // Merge BEFORE clearing: the cascade ..clear()..addAll(_merge(...))
-    // evaluates _merge AFTER clear(), so an inline merge reads the
-    // already-empty list and the whole thread collapses to one bubble
-    // (the vanish/reappear glitch). Compute first, then swap in.
+    // Merge BEFORE clearing: an inline merge in the cascade reads the
+    // cleared list and drops the whole thread.
     final merged = _merge([live]);
     setState(() {
       _messages
         ..clear()
         ..addAll(merged);
     });
-    // The other side already read everything when they sent, but our own
-    // inbox badge clears server-side only via mark_read — fire it.
+    // Our inbox badge clears server-side only via mark_read.
     _markReadIfNeeded([live]);
   }
 
-  /// The other participant opened the thread — every sent receipt flips to
-  /// the seen (double-check) state (site handleReadReceipt).
   void _onLiveRead(RealtimeEvent event) {
     final readerId = event.readerId;
     if (readerId == null || readerId == widget.myUserId) return;
@@ -207,9 +166,6 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  /// First load: history + mark-read in one pass. A failing mark_read must
-  /// never block the thread — it is fire-and-forget and retried whenever
-  /// an unread inbound message shows up in a poll.
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -234,7 +190,7 @@ class _ChatScreenState extends State<ChatScreen> {
             : e.message;
       });
       if (e.status == 401) {
-        // Session died — back to login like every other screen.
+        // Session died; back to login like every other screen.
         final services = await AppServices.create();
         await services.apiClient.clearSession();
         if (mounted) {
@@ -251,8 +207,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  /// Reconcile against the server: dedupe by id, refresh read-state on
-  /// existing messages (the other side's receipts) and append new ones.
   List<ChatMessage> _merge(List<ChatMessage> fresh) {
     final byId = <int, ChatMessage>{for (final m in fresh) m.id: m};
     final merged = [..._messages];
@@ -266,8 +220,6 @@ class _ChatScreenState extends State<ChatScreen> {
     return merged;
   }
 
-  /// Background poll: new messages land here (receive without WS). Silent
-  /// on failure — a blip must never disturb an open thread.
   Future<void> _poll() async {
     try {
       final fresh = await widget.messages.messages(widget.conversationId);
@@ -292,9 +244,6 @@ class _ChatScreenState extends State<ChatScreen> {
     return false;
   }
 
-  /// Mark inbound messages read when NEW ones show up (thread open +
-  /// after new arrivals). Fire-and-forget: the server flips the sender's
-  /// receipts and clears the unread badge; the next poll confirms.
   void _markReadIfNeeded(List<ChatMessage> history) {
     final newInbound = history
         .where((m) => m.senderId != widget.myUserId && m.id > _maxInboundId);
@@ -308,14 +257,12 @@ class _ChatScreenState extends State<ChatScreen> {
     final text = _input.text.trim();
     if (text.isEmpty || _sending) return;
     _input.clear();
-    _stopTypingPing(); // we're sending — no longer typing
+    _stopTypingPing(); // sending, no longer typing
     setState(() => _sending = true);
     try {
       final messageId = await widget.messages.send(widget.conversationId, text);
       if (!mounted) return;
-      // Server-authoritative append, the same shape the site renders after
-      // send_message.php responds (sender_name is not shown on own
-      // bubbles; the next poll replaces this entry with the DB row).
+      // Server-authoritative append; the next poll replaces it with the DB row.
       final sent = ChatMessage(
         id: messageId,
         conversationId: widget.conversationId,
@@ -325,8 +272,7 @@ class _ChatScreenState extends State<ChatScreen> {
         isRead: false,
         createdAt: _nowDbString(),
       );
-      // Same merge-before-clear rule as _onLiveMessage: an inline merge
-      // inside the cascade would read the cleared list and drop history.
+      // Same merge-before-clear rule as _onLiveMessage.
       final merged = _merge([sent]);
       setState(() {
         _messages
@@ -399,7 +345,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                     const SizedBox(height: 1),
                     Text(
-                      widget.participantIsOnline ? '• online' : '• offline',
+                      widget.participantIsOnline ? '- online' : '- offline',
                       style: TextStyle(
                         fontSize: 12,
                         color: widget.participantIsOnline
@@ -415,8 +361,7 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
       ),
       body: SafeArea(
-        // Gesture-nav phones draw content under the system bar — the
-        // input bar must sit above it (reported on-device bug).
+        // Gesture-nav phones draw under the system bar; the input bar clears it.
         top: false,
         child: Column(
           children: [
@@ -439,8 +384,7 @@ class _ChatScreenState extends State<ChatScreen> {
       return ErrorView(message: _error!, onRetry: _load);
     }
     if (_messages.isEmpty) {
-      // Fresh conversation: no history yet — the input bar below is the
-      // whole story (the site shows the same empty pane).
+      // Fresh conversation: no history yet.
       return const SizedBox.shrink();
     }
     return ListView.builder(
@@ -448,9 +392,8 @@ class _ChatScreenState extends State<ChatScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       itemCount: _messages.length,
       itemBuilder: (context, index) {
-        // reverse:true walks the list newest-first. Key by message id so a
-        // poll/WS merge never reuses a bubble's element for another
-        // message (positional reuse flickered on-device).
+        // Key by message id so merges never reuse a bubble's element
+        // for another message.
         final message = _messages[_messages.length - 1 - index];
         return _MessageBubble(
           key: ValueKey(message.id),
@@ -469,8 +412,6 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  /// Typing ping, site messages.js parity: send true once per burst (not
-  /// on every keystroke), false after 3s of silence or on send/blur.
   void _onInputChanged(String _) {
     if (_input.text.trim().isNotEmpty && !_typingPingSent) {
       _typingPingSent = true;
@@ -488,8 +429,6 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  /// The site's .typing-indicator (px-4 pb-1 text-xs text-blue-300/80
-  /// italic) — shown only while the other member is typing.
   Widget _buildTypingIndicator() {
     if (!_otherTyping) return const SizedBox.shrink();
     return Container(
@@ -524,7 +463,7 @@ class _ChatScreenState extends State<ChatScreen> {
               textInputAction: TextInputAction.send,
               onChanged: _onInputChanged,
               onSubmitted: (_) => _send(),
-              // NO autofillHints — they detach the IME on Android.
+              // No autofillHints: they detach the IME on Android.
               style: const TextStyle(
                   color: EnclavdColors.textPrimary, fontSize: 15),
               decoration: InputDecoration(
@@ -548,8 +487,7 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
           const SizedBox(width: 8),
-          // Send (site: btn-primary blue-900 rounded-lg "Send"; icon-only
-          // paper-plane like the app's composer Post button).
+          // Send button: icon-only paper-plane.
           SizedBox(
             width: 44,
             height: 44,
@@ -575,7 +513,6 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 }
 
-/// One bubble — sent vs received, tap toggles its timestamp (site parity).
 class _MessageBubble extends StatelessWidget {
   const _MessageBubble({
     super.key,
@@ -635,8 +572,7 @@ class _MessageBubble extends StatelessWidget {
         : const SizedBox.shrink();
 
     if (isMine) {
-      // Sent: check = sent, double-check blue-400 = seen (site .read-status
-      // sits at the wrapper's bottom-right corner).
+      // Check = sent, double-check blue-400 = seen.
       return Padding(
         padding: const EdgeInsets.only(bottom: 6),
         child: Column(
@@ -682,8 +618,7 @@ class _MessageBubble extends StatelessWidget {
   }
 }
 
-/// DB UTC wall-clock 'YYYY-MM-DD HH:MM:SS' for a locally-created message
-/// (approximation — the next poll replaces it with the server row).
+/// Local DB-style UTC timestamp; the next poll replaces it with the server row.
 String _nowDbString() {
   final t = DateTime.now().toUtc();
   String p(int n) => n.toString().padLeft(2, '0');
@@ -691,7 +626,6 @@ String _nowDbString() {
       '${p(t.hour)}:${p(t.minute)}:${p(t.second)}';
 }
 
-/// Root-relative avatar path → absolute URL (the conversations payload
-/// sends the same shape as profile_picture_url).
+/// Root-relative avatar path -> absolute URL.
 String resolveAvatarUrl(String base, String path) =>
     path.startsWith('/') ? '$base$path' : path;

@@ -16,29 +16,12 @@ import 'feed_screen.dart';
 import 'maintenance_screen.dart';
 import 'register_screen.dart';
 
-/// Login screen — mirrors the website's login.php card:
-/// email + password + remember-me, on the dark primaryCard surface.
-/// Server errors (flash messages from the redirect loop) surface verbatim.
-///
-/// Rate limiting (site_config rate_limit): on load and after every failed
-/// attempt the screen reads GET /api/v1/auth?action=rate_state&context=login
-/// and reflects it — a cooldown/IP-lock countdown banner with the submit
-/// button disabled, and the captcha question + answer field when the
-/// limiter demands it (the answer rides the login POST as captcha_answer).
-/// The server still enforces everything; the UI is proactive, not a bypass.
-///
-/// Keyboard notes: NO autofillHints here — on Android the autofill service
-/// detaches the IME after the first keystroke ("keyboard closes after the
-/// first character, then works"), a known Flutter/autofill bug. Fields use
-/// explicit FocusNodes + textInputAction instead. The scroll view uses the
-/// LayoutBuilder min-height pattern so the card stays centered when short
-/// and scrolls without jumping when the IME shrinks the viewport.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key, this.auth, this.siteConfig});
 
   static const routeName = '/login';
 
-  /// Test seams — bypass AppServices when provided.
+  /// Test seams: bypass AppServices when provided.
   final AuthService? auth;
   final SiteConfigService? siteConfig;
 
@@ -102,18 +85,15 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       setState(() {
         _rl = state;
-        // A rate-limited state means the server's own failure flash was a
-        // STATIC "wait N second(s)" copy (auth.php appends it to the
-        // message) — the live countdown banner below replaces it, so the
-        // screen never shows two red messages, one frozen at the parsed
-        // number. Non-rate failures keep their banner.
+        // Rate-limited states replace the server's static flash with a
+        // live countdown; non-rate failures keep their banner.
         if (state.waitSeconds > 0 || state.blocked == true) {
           _error = null;
         }
         _syncCountdown(state);
       });
     } catch (_) {
-      // No state → proceed without the rate-limit UI; the server still
+      // No state -> proceed without the rate-limit UI; the server still
       // enforces cooldowns/captcha on POST.
     }
   }
@@ -140,7 +120,7 @@ class _LoginScreenState extends State<LoginScreen> {
     _rlTimer?.cancel();
     _rlTimer = null;
     setState(() => _rlUntil = null);
-    // The lock may still be active server-side — re-check before enabling.
+    // The lock may still be active server-side; re-check before enabling.
     _initRateLimit();
   }
 
@@ -170,7 +150,7 @@ class _LoginScreenState extends State<LoginScreen> {
           _error = result.message;
         });
         _captcha.clear();
-        // The server recorded the failure — refresh cooldown/captcha.
+        // The server recorded the failure; refresh cooldown/captcha.
         _loadRateState(config);
       }
     } catch (e) {
@@ -182,14 +162,8 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  /// Post-login gate: banned → ban screen, maintenance without a allowed
-  /// rank → maintenance screen, otherwise the feed. A transient me()/config
-  /// failure falls through to the feed (the server gates its own pages).
   Future<void> _postLogin(AuthService auth, SiteConfigService config) async {
-    // Fresh session — catch the daily-quote widget up immediately. A
-    // stale session (or the device/server clock edge) can leave the
-    // widget on an old quote with the freshness stamp blocking retries;
-    // login is the guaranteed moment the session is valid again.
+    // Fresh session: catch the daily-quote widget up while it's valid.
     unawaited(DailyQuoteService.refreshWidgetNow());
     try {
       final user = await auth.me();

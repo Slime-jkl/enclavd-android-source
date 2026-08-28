@@ -6,7 +6,7 @@ import 'package:enclavd/api/search_service.dart';
 import 'api_client_test.dart' show Harness;
 
 /// The structured shape api/v1/search.php?format=json emits (raw rank
-/// names + MBTI strings — the app applies its own RankColors / chips).
+/// names + MBTI strings; the app applies its own RankColors / chips).
 Map<String, dynamic> _row({
   String type = 'user',
   int id = 42,

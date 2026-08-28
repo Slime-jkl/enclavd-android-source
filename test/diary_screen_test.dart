@@ -61,28 +61,36 @@ class _NoopStore implements SessionStore {
   Future<void> save(List<SessionCookie> cookies) async {}
 }
 
+String _daysAgo(int n) {
+  final d = DateTime.now().subtract(Duration(days: n));
+  return '${d.year}-${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
+}
+
 DiaryEntry _entry({
-  String date = '2026-08-26',
+  String? date,
   int mood = 3,
-  String moodEmoji = '😌',
+  String moodEmoji = '\u{1F60C}',
   String moodLabel = 'Steady',
   String win = 'Fixed the login bug',
   String avoided = '',
   String tomorrow = '',
   String thought = '',
-}) =>
-    DiaryEntry(
-      date: date,
-      mood: mood,
-      moodEmoji: moodEmoji,
-      moodLabel: moodLabel,
-      win: win,
-      avoided: avoided,
-      tomorrow: tomorrow,
-      thought: thought,
-      createdAt: '$date 21:00:00',
-      updatedAt: '$date 21:00:00',
-    );
+}) {
+  final d = date ?? _daysAgo(1);
+  return DiaryEntry(
+    date: d,
+    mood: mood,
+    moodEmoji: moodEmoji,
+    moodLabel: moodLabel,
+    win: win,
+    avoided: avoided,
+    tomorrow: tomorrow,
+    thought: thought,
+    createdAt: '$d 21:00:00',
+    updatedAt: '$d 21:00:00',
+  );
+}
 
 DiaryStats _stats({int total = 12}) => DiaryStats(
       streak: 4,
@@ -92,19 +100,19 @@ DiaryStats _stats({int total = 12}) => DiaryStats(
     );
 
 DiarySnapshot _unlocked({int total = 12}) => DiarySnapshot(
-      date: '2026-08-27',
+      date: _daysAgo(0),
       entry: null,
       locked: false,
       stats: _stats(total: total),
-      recent: [_entry(), _entry(date: '2026-08-25', win: 'Paid the invoice')],
+      recent: [_entry(), _entry(date: _daysAgo(2), win: 'Paid the invoice')],
     );
 
 DiarySnapshot _locked() => DiarySnapshot(
-      date: '2026-08-27',
+      date: _daysAgo(0),
       entry: _entry(
-        date: '2026-08-27',
+        date: _daysAgo(0),
         mood: 5,
-        moodEmoji: '🔥',
+        moodEmoji: '\u{1F525}',
         moodLabel: 'Unstoppable',
         win: 'Shipped the release',
         avoided: 'Procrastinating',
@@ -114,9 +122,9 @@ DiarySnapshot _locked() => DiarySnapshot(
       stats: _stats(total: 13),
       recent: [
         _entry(
-          date: '2026-08-27',
+          date: _daysAgo(0),
           mood: 5,
-          moodEmoji: '🔥',
+          moodEmoji: '\u{1F525}',
           moodLabel: 'Unstoppable',
           win: 'Shipped the release',
           avoided: 'Procrastinating',
@@ -127,9 +135,6 @@ DiarySnapshot _locked() => DiarySnapshot(
     );
 
 Future<void> _pump(WidgetTester tester, DiaryService diary) async {
-  // Phone-sized viewport: the stats + mood strip sit above the entry
-  // card now, so the wizard and the recent list must be reachable on a
-  // tall screen (default 800x600 would push wizard buttons off-screen).
   tester.view.physicalSize = const Size(800, 1600);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
@@ -141,9 +146,6 @@ Future<void> _pump(WidgetTester tester, DiaryService diary) async {
   await tester.pump(const Duration(milliseconds: 50));
 }
 
-/// Scroll a target into view before tapping it — the stats + mood strip
-/// now sit above the entry card, so wizard buttons can start below the
-/// 600px test viewport fold.
 Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.ensureVisible(finder);
   await tester.pump();
@@ -156,24 +158,21 @@ void main() {
       (tester) async {
     await _pump(tester, _FakeDiary(snapshot: _unlocked()));
 
-    expect(find.text('Diary'), findsOneWidget); // app bar
+    expect(find.text('Diary'), findsOneWidget);
     expect(find.text("Today's diary"), findsOneWidget);
     expect(find.text('Step 1 of 5'), findsOneWidget);
     expect(find.text('Welcome to Diary'), findsNothing);
     expect(find.textContaining('Pick how today went'), findsOneWidget);
-    // All five moods are tappable (uppercase labels, like the site).
     for (final label in ['ROUGH', 'FLAT', 'STEADY', 'GRINDING', 'UNSTOPPABLE']) {
       expect(find.text(label), findsOneWidget);
     }
-    expect(find.text('Tap a mood…'), findsOneWidget);
+    expect(find.text('Tap a mood...'), findsOneWidget);
 
-    // Stats + strip are at the top now (the modern layout).
     expect(find.text('4'), findsOneWidget); // day streak
     expect(find.text('9'), findsOneWidget); // best streak
     expect(find.text('12'), findsOneWidget); // entries
-    expect(find.text('Mood · last 30 days'), findsOneWidget);
+    expect(find.text('Mood - last 30 days'), findsOneWidget);
 
-    // Recent entries below the fold.
     await tester.drag(find.byType(ListView), const Offset(0, -700));
     await tester.pump();
     expect(find.text('Recent entries'), findsOneWidget);
@@ -199,16 +198,14 @@ void main() {
   testWidgets('mood and win are required with the site texts', (tester) async {
     await _pump(tester, _FakeDiary(snapshot: _unlocked()));
 
-    // No mood picked → the site's exact message.
+    // No mood picked: the site's exact message.
     await _tap(tester, find.text('Start'));
     expect(find.text('Pick a mood for today.'), findsOneWidget);
 
-    // Picking a mood clears the error and shows its hint.
     await _tap(tester, find.text('GRINDING'));
     expect(find.text('Pick a mood for today.'), findsNothing);
     expect(find.text('Locked in and pushing.'), findsOneWidget);
 
-    // Straight to the win step, then Next without a win → site message.
     await _tap(tester, find.text('Start'));
     expect(find.text('What was a small win you achieved today?'), findsOneWidget);
     expect(find.text('REQUIRED'), findsOneWidget);
@@ -230,9 +227,9 @@ void main() {
       snapshot: _unlocked(),
       onSave: (body) => sent = body,
       saveResult: DiarySaveResult(
-        date: '2026-08-27',
+        date: _daysAgo(0),
         entry: _entry(
-          date: '2026-08-27',
+          date: _daysAgo(0),
           mood: 3,
           win: 'Closed three tickets',
           avoided: 'The refactor',
@@ -251,7 +248,6 @@ void main() {
     await _tap(tester, find.text('Next'));
     await tester.enterText(find.byType(TextField), 'The refactor');
     await _tap(tester, find.text('Next'));
-    // Optional steps pass through freely.
     await _tap(tester, find.text('Next'));
     await _tap(tester, find.text('Lock it in'));
     await tester.pump(const Duration(milliseconds: 300));
@@ -284,17 +280,14 @@ void main() {
     await _pump(tester, _FakeDiary(snapshot: _locked()));
 
     expect(find.text('Locked in.'), findsOneWidget);
-    // Date label on the locked card + the expanded recent row for today.
     expect(find.text('Today'), findsWidgets);
-    expect(find.text('Unstoppable'), findsNothing); // mood label not shown
+    expect(find.text('Unstoppable'), findsNothing);
     expect(find.text("Today's mood"), findsNothing);
 
-    // Stats + strip are at the top now — visible without scrolling.
     expect(find.text('13'), findsOneWidget); // entries stat
-    expect(find.text('Mood · last 30 days'), findsOneWidget);
+    expect(find.text('Mood - last 30 days'), findsOneWidget);
 
-    // Today's answers render in the expanded recent row (only filled
-    // fields; tomorrow was left empty).
+    // Today's answers render in the expanded recent row (only filled fields).
     await tester.drag(find.byType(ListView), const Offset(0, -700));
     await tester.pump();
     expect(find.text('Recent entries'), findsOneWidget);
@@ -312,8 +305,7 @@ void main() {
         error: const ApiException('No network. Check your connection and try again.'));
     await _pump(tester, diary);
 
-    // Status-null ApiExceptions map to the standard internal-error line
-    // (the app's user-facing error contract — same as every other screen).
+    // Status-null ApiExceptions map to the standard internal-error line (same as every other screen).
     expect(find.text(kInternalError), findsOneWidget);
     expect(find.text('Try again'), findsOneWidget);
     expect(find.text("Today's diary"), findsNothing);

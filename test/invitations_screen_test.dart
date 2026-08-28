@@ -62,7 +62,7 @@ void main() {
     expect(find.text('Pending'), findsOneWidget);
     expect(find.text('Accepted'), findsOneWidget);
     expect(find.textContaining('Expires: Sep 20, 2026'), findsOneWidget);
-    // Accepted invites have no delete button — only the pending one does.
+    // Accepted invites have no delete button; only the pending one does.
     expect(find.byTooltip('Delete'), findsOneWidget);
   });
 

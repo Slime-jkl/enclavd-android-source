@@ -23,7 +23,6 @@ UnreadMessage unread({
       createdAt: '2026-08-21 10:00:00',
     );
 
-/// A fake source for the generic runner tests.
 class _FakeSource implements NotificationSource {
   _FakeSource(this._candidates, {this.failCheck = false});
 
@@ -91,7 +90,7 @@ void main() {
       expect(candidates.single.key, 'message:5:102');
     });
 
-    test('empty input → no candidates', () {
+    test('empty input -> no candidates', () {
       expect(MessageNotificationSource.candidatesFrom([]), isEmpty);
     });
   });
@@ -129,7 +128,7 @@ void main() {
       expect(fetched, isFalse);
     });
 
-    test('a failing fetch returns [] — the worker must never crash',
+    test('a failing fetch returns [] - the worker must never crash',
         () async {
       final prefs = await SharedPreferences.getInstance();
       final source = MessageNotificationSource(fetcher: (_) async {
@@ -184,7 +183,7 @@ void main() {
 
       final second = await freshCandidates([source], _context(prefs),
           tracker: tracker);
-      expect(second, isEmpty, reason: 'already notified → not repeated');
+      expect(second, isEmpty, reason: 'already notified -> not repeated');
     });
 
     test('a throwing source is skipped, others still run', () async {

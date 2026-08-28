@@ -10,9 +10,9 @@ before pub get runs.
 What this script does (run in the repo root, BEFORE `flutter pub get`, on
 BOTH the CI fdroid job and the pipe's metadata prebuild):
 
-  1. pubspec.yaml — drop the firebase dependency block (the comment and the
+  1. pubspec.yaml - drop the firebase dependency block (the comment and the
      two firebase_* lines).
-  2. transport_selector — rewire lib/services/push/transport_selector.dart
+  2. transport_selector - rewire lib/services/push/transport_selector.dart
      to export the firebase-free stub (fcm_transport_stub.dart) instead of
      the real FCM transport, so no file in the fdroid compile graph imports
      a firebase package.
@@ -28,7 +28,7 @@ import sys
 
 PUBSPEC = "pubspec.yaml"
 SELECTOR = "lib/services/push/transport_selector.dart"
-FDROID_SELECTOR = """// F-Droid flavor — rewired by tool/strip_firebase.py before pub get.
+FDROID_SELECTOR = """// F-Droid flavor - rewired by tool/strip_firebase.py before pub get.
 // (The play/dev default export lives in git.)
 export 'fcm_transport_stub.dart';
 """

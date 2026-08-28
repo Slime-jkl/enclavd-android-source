@@ -1,14 +1,11 @@
 import 'api_client.dart';
 
-/// A member's profile header — the "top part" of the site's profile page
-/// (GET /api/v1/profile?user_id=N).
-///
-/// Field contract (profile.php GET): id, username, full_name,
+/// A member's profile header - the "top part" of the site's profile page
+/// (GET /api/v1/profile?user_id=N). Fields: id, username, full_name,
 /// profile_picture_url, personality_type, rank, bio, prestige,
 /// date_created, is_online, is_active, block_reason, post_count,
-/// warning_count, warnings:[{id, reason, admin_id, admin_username,
-/// seconds_left}], follower_count, following_count, is_following,
-/// is_following_you, is_own.
+/// warning_count, warnings:[...], follower_count, following_count,
+/// is_following, is_following_you, is_own.
 class Profile {
   const Profile({
     required this.id,
@@ -84,9 +81,7 @@ class Profile {
       );
 }
 
-/// One ACTIVE warning on a profile — the site's profile.php warnings list
-/// (fa-exclamation-triangle + "Warning from <admin> - <reason>
-/// (<Nd remaining>)").
+/// One ACTIVE warning on a profile - the site's profile.php warnings list.
 class UserWarning {
   const UserWarning({
     required this.id,
@@ -133,9 +128,9 @@ class FollowResult {
       );
 }
 
-/// The viewer's OWN account row (GET /api/v1/profile?self=1) — the
-/// edit-profile prefill. The public profile header omits email, gender,
-/// birthdate and the geo ids; this is the full editable set.
+/// The viewer's OWN account row (GET /api/v1/profile?self=1) - the
+/// edit-profile prefill; the public profile header omits email, gender,
+/// birthdate and the geo ids.
 class AccountSettings {
   const AccountSettings({
     required this.id,
@@ -186,24 +181,9 @@ class AccountSettings {
       );
 }
 
-/// ProfileService — the profile header + account editing over api/v1.
-///
-/// Contracts (verified against the live handlers):
-///   GET  /api/v1/profile ?user_id=N    → {success, profile:{...}}
-///   GET  /api/v1/profile ?username=N   → same shape, resolved by username
-///        (comment @mention taps; 404 when the name doesn't exist)
-///   GET  /api/v1/profile ?self=1       → {success, account:{...}} — the
-///        viewer's own row (edit-profile prefill, incl. email/geo ids)
-///   POST /api/v1/profile {action:'follow', followee_id} (JSON + CSRF)
-///                                        → {success, action: followed|
-///                                           unfollowed, followers,
-///                                           following}
-///   POST {action:'update_profile', full_name, bio, birthdate, gender,
-///        geo_country, geo_region, geo_city} → {success} (null clears)
-///   POST {action:'change_password', current_password, new_password,
-///        confirm_password} → {success}
-///   POST {action:'upload_avatar', image_data: data URL} → {success,
-///        profile_picture_url}
+/// Profile header + account editing over api/v1 (JSON + CSRF).
+/// GET ?user_id=N / ?username=N -> {profile}; ?self=1 -> {account};
+/// POST actions: follow, update_profile, change_password, upload_avatar.
 class ProfileService {
   ProfileService(this._api);
 
@@ -215,8 +195,8 @@ class ProfileService {
     return _profileFrom(json);
   }
 
-  /// Resolves a username to its profile (site parity: the comment renderer
-  /// linkifies mentions by username → id lookup; the app resolves on tap).
+  /// Resolves a username to its profile (comment @mention taps; 404 when
+  /// the name doesn't exist).
   Future<Profile> fetchProfileByUsername(String username) async {
     final json = await _api
         .getJson('/api/v1/profile', query: {'username': username});
@@ -240,7 +220,7 @@ class ProfileService {
     return FollowResult.fromJson(json);
   }
 
-  /// The viewer's own account row — the edit-profile prefill.
+  /// The viewer's own account row - the edit-profile prefill.
   Future<AccountSettings> fetchSelf() async {
     final json =
         await _api.getJson('/api/v1/profile', query: const {'self': '1'});
@@ -251,8 +231,8 @@ class ProfileService {
     return AccountSettings.fromJson(raw);
   }
 
-  /// Saves the edit-profile fields. Null optional values CLEAR the field
-  /// server-side (profile-edit.php parity — empty optional inputs → NULL).
+  /// Saves the edit-profile fields; null optional values CLEAR the field
+  /// server-side (profile-edit.php parity).
   Future<void> updateProfile({
     required String fullName,
     required String bio,
@@ -288,8 +268,8 @@ class ProfileService {
     });
   }
 
-  /// Uploads a new avatar (data URL, same wire format as post images).
-  /// Returns the NEW root-relative profile_picture_url.
+  /// Uploads a new avatar (data URL, same wire format as post images);
+  /// returns the NEW root-relative profile_picture_url.
   Future<String> uploadAvatar(String dataUrl) async {
     final json = await _api.postJson('/api/v1/profile', {
       'action': 'upload_avatar',
@@ -300,7 +280,7 @@ class ProfileService {
   }
 }
 
-/// Port of profile.php's `Joined M j, Y` — '2024-11-20 21:05:59' →
+/// Port of profile.php's `Joined M j, Y` - '2024-11-20 21:05:59' ->
 /// 'Nov 20, 2024'. Returns '' on unparseable input.
 String formatJoinedDate(String dbDateTime) {
   final parsed = DateTime.tryParse(dbDateTime.replaceFirst(' ', 'T'));

@@ -11,12 +11,6 @@ import 'login_screen.dart';
 import 'maintenance_screen.dart';
 import 'quote_settings_screen.dart';
 
-/// Startup screen: restores the persisted session and probes /api/v1/me.
-///
-/// - 200 → session alive → feed.
-/// - 401 → session expired/dead → login.
-/// - Network error → show a retry screen (no cached session to fall back on
-///   for the first native milestone).
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -48,8 +42,8 @@ class _SplashScreenState extends State<SplashScreen> {
       final user = await services.auth.me();
       if (!mounted) return;
       if (user != null) {
-        // Post-login gate: banned → ban screen, maintenance without an
-        // allowed rank → maintenance screen, otherwise the feed.
+        // Post-login gate: banned -> ban screen, maintenance without an
+        // allowed rank -> maintenance screen, otherwise the feed.
         switch (await resolveGate(user, services.siteConfig)) {
           case Gate.ban:
             _goTo(BanScreen.routeName);
@@ -72,10 +66,6 @@ class _SplashScreenState extends State<SplashScreen> {
     }
   }
 
-  /// Widget tap / quote-notification deep link → the Quote of the day
-  /// settings screen, but ONLY past the session gate (this runs after a
-  /// live session resolved; no session → the login screen won the start,
-  /// and the requested screen never opens).
   Future<void> _maybeOpenQuoteSettings() async {
     var wantsQuote = QuoteDeepLink.pending;
     if (!wantsQuote) {
@@ -84,7 +74,7 @@ class _SplashScreenState extends State<SplashScreen> {
         wantsQuote =
             launch != null && launch.toString().contains('quote-settings');
       } catch (_) {
-        // home_widget unavailable (tests) — nothing to resolve.
+        // home_widget unavailable (tests): nothing to resolve.
       }
     }
     if (!wantsQuote) return;
@@ -114,7 +104,7 @@ class _SplashScreenState extends State<SplashScreen> {
                       style:
                           TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
-                  const Text('Loading…',
+                  const Text('Loading...',
                       style: TextStyle(color: Color(0xFF9CA3AF))),
                 ],
               ),

@@ -94,9 +94,8 @@ void main() {
     expect(find.text('Alice'), findsOneWidget);
     expect(find.text('Bob'), findsOneWidget);
     expect(find.text('see you soon'), findsOneWidget);
-    // Empty preview → the site's placeholder.
+    // Empty preview -> the site's placeholder.
     expect(find.text('No messages yet'), findsOneWidget);
-    // Unread badge shows the count.
     expect(find.text('2'), findsOneWidget);
     // Every conversation room is joined for live delivery.
     expect(realtime.joined, containsAll([1, 2]));
@@ -129,8 +128,7 @@ void main() {
     await tester.pump();
 
     expect(find.byType(ChatScreen), findsOneWidget);
-    // The thread header carries the participant through (the inbox row
-    // behind the route also shows the name, so scope to the ChatScreen).
+    // Scope to the ChatScreen: the inbox row behind the route also shows the name.
     expect(
       find.descendant(
           of: find.byType(ChatScreen), matching: find.text('Alice')),
@@ -152,9 +150,7 @@ void main() {
     await pumpInbox(tester, fake);
     await tester.pump();
 
-    // Both names render; the online dot logic is exercised via
-    // Conversation.isOnline (unit-tested) — here we just assert the rows
-    // render without error.
+    // Both names render; the online dot logic is covered by Conversation.isOnline unit tests.
     expect(find.text('OnlineUser'), findsOneWidget);
     expect(find.text('OfflineUser'), findsOneWidget);
 
@@ -168,13 +164,13 @@ void main() {
     final (realtime, _) = await pumpInbox(tester, fake);
     await tester.pump();
 
-    // The other side sends — the inbox re-fetches and reorders instantly.
+    // The other side sends; the inbox re-fetches and reorders instantly.
     fake.inbox = [conv(id: 1, name: 'Alice', preview: 'new msg', unread: 1)];
     realtime.emit(const RealtimeEvent(
       type: 'message',
       data: {'conversationId': 1, 'senderId': 42, 'messageId': 500, 'message': 'new msg'},
     ));
-    await tester.pump(); // event → refresh future resolves
+    await tester.pump(); // event -> refresh future resolves
     await tester.pump(); // setState frame
 
     expect(find.text('new msg'), findsOneWidget);

@@ -38,14 +38,13 @@ void main() {
 
     final second = await AppServices.create();
     expect(second.messageAlerts, same(singleton),
-        reason: 'first create wins — plugin initialized exactly once');
+        reason: 'first create wins - plugin initialized exactly once');
     expect(MessageNotifications.instance, same(singleton));
   });
 
   test('create() resets the worker quiet-window flags at boot', () async {
-    // A process killed while the messages screen or the notification drawer
-    // was open leaves the prefs flags true — the worker would stay silent
-    // for messages AND notifications until the next visit. Boot must clear.
+    // A killed process leaves the prefs flags true, so the worker would stay
+    // silent until the next visit; boot must clear them.
     SharedPreferences.setMockInitialValues({
       MessageNotificationSource.chatOpenPrefsKey: true,
       SocialNotificationSource.drawerOpenPrefsKey: true,
@@ -67,6 +66,6 @@ void main() {
 
     await AppServices.create();
     expect(SocialNotifications.instance, same(singleton),
-        reason: 'first create wins — one social path per app lifetime');
+        reason: 'first create wins - one social path per app lifetime');
   });
 }

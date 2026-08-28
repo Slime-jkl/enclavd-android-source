@@ -1,5 +1,4 @@
 <resources>
-    <!-- Home-screen widget description (Android 12+ shows it in the widget
-         picker). No apostrophes: XML string escaping is a silent trap. -->
+    <!-- Widget picker description (Android 12+). No apostrophes: XML escaping is a trap. -->
     <string name="quote_widget_description">Daily quote from Enclavd</string>
 </resources>

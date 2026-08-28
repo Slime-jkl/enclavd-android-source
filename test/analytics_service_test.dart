@@ -5,10 +5,8 @@ import 'package:enclavd/services/analytics_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// AnalyticsService against a REAL local HttpServer — the codebase's
-/// no-browser verification pattern. The service must POST the exact wire
-/// format the site's script.js uses (text/plain JSON {n,u,d,r,p}) so app
-/// pageviews merge into the same Plausible dashboard as web pages.
+/// AnalyticsService against a REAL local HttpServer. The service must POST
+/// the exact wire format script.js uses (text/plain JSON {n,u,d,r,p}).
 void main() {
   late HttpServer server;
   late List<HttpRequest> requests;
@@ -133,8 +131,7 @@ void main() {
         builder: (_) => const SizedBox.shrink(),
       );
       observer.didPush(route, null);
-      // No instance assertions needed: didPush on an unnamed route must
-      // not throw and must not fire (verified by the debounce test path).
+      // No instance assertions: didPush on an unnamed route must not throw or fire.
     });
 
     test('pop fires a pageview for the previous route', () async {
@@ -152,7 +149,7 @@ void main() {
       observer.didPush(feed, null);
       observer.didPush(profile, feed);
       observer.didPop(profile, feed);
-      // pop → previous route '/feed' pageview (the site's popstate)
+      // pop -> previous route '/feed' pageview (the site's popstate)
       final body = await lastBody();
       expect(body['u'], 'https://enclavd.com/feed');
     });
@@ -161,8 +158,7 @@ void main() {
       AnalyticsService.instance = service();
       addTearDown(() => AnalyticsService.instance = null);
       final observer = AnalyticsRouteObserver();
-      // A plain (non-Page) route with a name must NOT fire a pageview —
-      // dialogs/sheets are not pages.
+      // A plain (non-Page) route must NOT fire a pageview; dialogs/sheets are not pages.
       final dialog = _FakeRoute(settings: const RouteSettings(name: '/x'));
       observer.didPush(dialog, null);
       await Future<void>.delayed(const Duration(milliseconds: 100));
@@ -172,9 +168,6 @@ void main() {
 }
 
 /// Minimal non-PageRoute stub (dialogs/sheets are not PageRoutes).
-/// Extends TransitionRoute — Route itself doesn't declare
-/// createOverlayEntries/opaque (they live on OverlayRoute/TransitionRoute
-/// in current Flutter), so the overrides must target the right base.
 class _FakeRoute extends TransitionRoute<dynamic> {
   _FakeRoute({required super.settings});
 
@@ -191,7 +184,6 @@ class _FakeRoute extends TransitionRoute<dynamic> {
   bool get popGestureEnabled => false;
 }
 
-/// The pinned Chrome/124 UA from AppConfig (mirrors the wrapper's constant).
 const appAnalyticsUa =
     'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 '
     '(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36';

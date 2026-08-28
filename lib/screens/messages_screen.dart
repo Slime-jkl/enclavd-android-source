@@ -16,19 +16,6 @@ import '../widgets/error_view.dart';
 import 'chat_screen.dart';
 import '../services/analytics_service.dart';
 
-/// Messages inbox — Instagram-style DM list, port of the site's
-/// messages.php conversations sidebar.
-///
-/// Each row: the other member's avatar (white/10 ring like the site, with
-/// the 5-minute online dot), their name (white, semibold), a red unread
-/// count badge when the conversation has unread messages, and the latest
-/// message preview (truncated, white/60 — 'No messages yet' when empty).
-/// Unread rows keep the site's faint highlight (white/[0.05]).
-///
-/// LIVE path: the inbox joins every conversation's WebSocket room (bounded
-/// by the sidecar's per-client room cap) so inbound messages and
-/// conversation updates refresh previews + unread badges instantly. A 15s
-/// poll remains as the reconcile/fallback — the site's own REST pattern.
 class MessagesScreen extends StatefulWidget {
   const MessagesScreen({
     super.key,
@@ -71,9 +58,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
   void initState() {
     super.initState();
     trackScreen('/messages');
-    // In the messages area: suppress message notifications while this is
-    // the visible screen (the app-lifecycle check in the service handles
-    // the minimized case).
+    // Suppress message notifications while this screen is visible.
     MessageNotifications.instance?.setMessagesOpen(true);
     _init();
     _pollTimer =
@@ -85,8 +70,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
     MessageNotifications.instance?.setMessagesOpen(false);
     _pollTimer?.cancel();
     _realtimeSub?.cancel();
-    // Leave every room this screen joined (the pushed ChatScreen leaves
-    // its own room when it pops — order is chat first, then us).
+    // Leave every room this screen joined (ChatScreen leaves its own on pop).
     for (final conversationId in _joinedRooms) {
       _realtime?.leave(conversationId);
     }
@@ -108,8 +92,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
       try {
         myUserId = (await auth.me())?.id;
       } catch (_) {
-        // The inbox itself needs no id; a null id only disables the
-        // sent/received split in threads pushed from here.
+        // A null id only disables the sent/received split in pushed threads.
       }
     }
     if (!mounted) return;
@@ -120,8 +103,6 @@ class _MessagesScreenState extends State<MessagesScreen> {
     _loadConversations();
   }
 
-  /// Live frames: a message anywhere or a conversation change refreshes
-  /// the list (previews + unread counts) instantly.
   void _onRealtime(RealtimeEvent event) {
     if (event.type != 'message' && event.type != 'conversation_update') {
       return;
@@ -174,8 +155,6 @@ class _MessagesScreenState extends State<MessagesScreen> {
     }
   }
 
-  /// Background poll — new messages surface in previews and unread
-  /// badges without user action. Silent on failure.
   Future<void> _silentRefresh() async {
     final messages = _messages;
     if (messages == null || !_loadedOnce) return;
@@ -196,9 +175,6 @@ class _MessagesScreenState extends State<MessagesScreen> {
     }
   }
 
-  /// Live delivery needs a room subscription per conversation — join every
-  /// row the sidecar allows (per-client cap), and any NEW rows the next
-  /// refresh brings in. Idempotent.
   void _joinRooms(List<Conversation> conversations) {
     final realtime = _realtime;
     if (realtime == null) return;
@@ -244,7 +220,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
         ),
       ),
     );
-    // Previews / unread counts changed while chatting — refresh.
+    // Previews / unread counts changed while chatting; refresh.
     if (mounted) _loadConversations();
   }
 
@@ -259,8 +235,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
         onRefresh: _loadConversations,
         color: EnclavdColors.link,
         child: SafeArea(
-          // Gesture-nav phones draw content under the system bar — the
-          // last row must stay reachable above it.
+          // Gesture-nav phones draw under the system bar; keep the last row reachable.
           top: false,
           child: _buildBody(),
         ),
@@ -328,8 +303,6 @@ class _MessagesScreenState extends State<MessagesScreen> {
   }
 }
 
-/// One inbox row (site .conversation-item): avatar + online dot, name +
-/// unread badge, latest-message preview; faint highlight while unread.
 class _ConversationRow extends StatelessWidget {
   const _ConversationRow({super.key, required this.conversation, required this.onTap});
 
@@ -442,7 +415,6 @@ class _ConversationRow extends StatelessWidget {
   }
 }
 
-/// Shimmer rows while the inbox loads.
 class _ConversationRowSkeleton extends StatelessWidget {
   const _ConversationRowSkeleton();
 
@@ -473,8 +445,7 @@ class _ConversationRowSkeleton extends StatelessWidget {
   }
 }
 
-/// Minimal shimmer primitives (the full shimmer lives in widgets/shimmer.dart
-/// with feed-specific sizes; keep the inbox self-contained).
+/// Minimal shimmer primitives (the full shimmer lives in widgets/shimmer.dart).
 class ShimmerCircle extends StatelessWidget {
   const ShimmerCircle({super.key});
 

@@ -5,7 +5,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:enclavd/api/api_client.dart';
 import 'package:enclavd/api/notifications_service.dart';
 
-/// Minimal in-memory session store (no prefs, no binding needed here).
 class _Store implements SessionStore {
   @override
   Future<void> clear() async {}

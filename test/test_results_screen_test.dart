@@ -65,7 +65,7 @@ void main() {
     expect(find.textContaining('88%', findRichText: true), findsOneWidget);
     expect(find.textContaining('12%', findRichText: true), findsOneWidget);
 
-    // The remaining trait bars are below the fold — scroll the list.
+    // The remaining trait bars are below the fold; scroll the list.
     await tester.drag(find.byType(ListView), const Offset(0, -600));
     await tester.pump();
     expect(find.text('Sensing - Intuition'), findsOneWidget);
@@ -75,9 +75,8 @@ void main() {
 
   testWidgets('trait bars use the website colors for all 8 traits',
       (tester) async {
-    // Regression: bars once rendered all gray (track showing through).
-    // results.php: I/E blue+red, S/N green+purple, T/F yellow+pink,
-    // J/P orange+indigo.
+    // Regression: bars once rendered all gray (track showing through);
+    // I/E blue+red, S/N green+purple, T/F yellow+pink, J/P orange+indigo.
     await tester.pumpWidget(MaterialApp(
       theme: buildEnclavdTheme(),
       home: TestResultsScreen(results: _FakeResults(results: _sample)),
@@ -93,10 +92,8 @@ void main() {
     expect(barColors().contains(const Color(0xFF3B82F6)), isTrue); // blue
     expect(barColors().contains(const Color(0xFFEF4444)), isTrue); // red
 
-    // Each colored segment must actually PAINT, i.e. have non-zero size.
-    // Real regression: the empty segment ColoredBoxes collapsed to 0px
-    // height under the Row's loose cross-axis constraints (only the
-    // gray track painted), so the bars looked all gray.
+    // Each colored segment must actually PAINT: empty segments once
+    // collapsed to 0px height under loose cross-axis constraints.
     void expectPaintable(Color color) {
       final f = find.byWidgetPredicate(
           (w) => w is ColoredBox && w.color == color);

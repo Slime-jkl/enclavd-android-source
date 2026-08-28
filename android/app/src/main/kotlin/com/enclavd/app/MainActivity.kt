@@ -22,16 +22,13 @@ class MainActivity : FlutterActivity() {
         const val PREFS_ENABLED = "enabled"
     }
 
-    // Live re-render of the daily-quote widget on system theme flips
-    // (context-registered — CONFIGURATION_CHANGED is implicit and cannot
-    // be manifest-registered on API 26+). Unregistered in onDestroy.
+    // Re-renders the widget on theme flips. CONFIGURATION_CHANGED is implicit,
+    // so the receiver is context-registered; unregistered in onDestroy.
     private var configReceiver: BroadcastReceiver? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // The widget follows the system light/dark theme: repaint it now
-        // (a theme may have flipped while the app was dead) and register
-        // so future flips repaint it live while this process lives.
+        // Repaint now: the theme may have flipped while the app was dead.
         renderQuoteWidget()
         val receiver = QuoteWidgetConfigReceiver()
         val filter = IntentFilter(Intent.ACTION_CONFIGURATION_CHANGED)
@@ -79,13 +76,8 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    // The activity is no longer visible — hold the process perceptible so
-    // the Dart realtime streams keep their network while minimized.
-    // Conditional fallback: with a push transport active (FCM / Unified
-    // Push), background delivery is the push service's job — the keep-alive
-    // FGS is unnecessary and its persistent notice is noise. Dart writes
-    // the flag in PushManager; the Flutter SharedPreferences live in the
-    // native "FlutterSharedPreferences" file under the "flutter." prefix.
+    // Hold the process perceptible while minimized so the realtime streams
+    // keep their network; skipped when a push transport is active.
     override fun onStop() {
         super.onStop()
         val pushActive = getSharedPreferences(
@@ -101,7 +93,7 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    // Back in the foreground: the streams are live again, drop the keep-alive.
+    // Foreground again: streams are live, drop the keep-alive.
     override fun onStart() {
         super.onStart()
         stopService(Intent(this, RealtimeKeepAliveService::class.java))

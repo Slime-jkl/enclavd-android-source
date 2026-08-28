@@ -31,7 +31,6 @@ ApiClient _noopClient() => ApiClient(
 class _FakeSearch extends SearchService {
   _FakeSearch() : super(_noopClient());
 
-  /// When set, search() waits on this — lets tests observe the shimmer.
   Completer<void>? gate;
   List<SearchResult> results = const [];
 
@@ -123,7 +122,6 @@ void main() {
     expect(find.text('POSTS'), findsOneWidget);
     expect(find.text('COMMENTS'), findsOneWidget);
 
-    // Usernames present, rank badges shown.
     expect(find.text('alice'), findsOneWidget);
     expect(find.text('bob'), findsOneWidget);
     expect(find.text('carol'), findsOneWidget);
@@ -133,7 +131,6 @@ void main() {
     expect(find.text('INTJ'), findsOneWidget);
     expect(find.text('INTP'), findsOneWidget);
 
-    // Type-specific subtitles.
     expect(find.text('12 posts'), findsOneWidget);
     expect(find.textContaining('A post about things'), findsWidgets);
     expect(find.textContaining('On:'), findsOneWidget);
@@ -144,8 +141,7 @@ void main() {
     await pumpResults(tester, search);
 
     await tester.tap(find.text('alice'));
-    // Bounded pumps, not pumpAndSettle: ProfileScreen shows shimmer /
-    // spinner (infinite animations), so settle never returns.
+    // Bounded pumps: ProfileScreen's shimmer/spinner never settles.
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.byType(ProfileScreen), findsOneWidget);
@@ -156,13 +152,13 @@ void main() {
     final search = _FakeSearch()..results = [bobPost, carolComment];
     await pumpResults(tester, search);
 
-    // Post row → PostDetailScreen(postId = the post's own id).
+    // Post row -> PostDetailScreen(postId = the post's own id).
     await tester.tap(find.text('bob'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.byType(PostDetailScreen), findsOneWidget);
 
-    // Back, then comment row → PostDetailScreen(postId = parent post id).
+    // Back, then comment row -> PostDetailScreen(postId = parent post id).
     await tester.pageBack();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
