@@ -9,7 +9,6 @@ import 'package:workmanager/workmanager.dart';
 import '../api/api_client.dart';
 import 'daily_quote_widget.dart';
 
-/// A daily quote, exactly as the API serves it: id, text, author and tags.
 class QuoteData {
   const QuoteData({
     required this.id,
@@ -24,10 +23,8 @@ class QuoteData {
   final List<String> tags;
 }
 
-/// Today's quote plus the user's rating state for it (null = unrated) and
-/// the SERVER's quote day (YYYY-MM-DD) — the server's clock decides when a
-/// new quote becomes current, so that date (not the device's local day) is
-/// what the widget freshness stamp must record.
+/// Today's quote, the user's rating (null = unrated) and the server's quote
+/// day, which is what the widget freshness stamp must record.
 class TodayQuote {
   const TodayQuote({
     required this.quote,
@@ -40,7 +37,6 @@ class TodayQuote {
   final String date; // server quote day, e.g. '2026-08-25'
 }
 
-/// A parsed widget rate tap: which action, on which quote.
 class RateAction {
   const RateAction({required this.action, required this.quoteId});
 
@@ -48,57 +44,21 @@ class RateAction {
   final int quoteId;
 }
 
-/// Daily quote delivery: ONE notification per day at a RANDOM time between
-/// 08:00 and 20:00 LOCAL (shown only when NO widget is pinned on the home
-/// screen — the widget is the daily surface when it exists), plus the
-/// home-screen widget showing today's quote with 👍/👎 buttons that record
-/// the rating in the API.
-///
-/// Mechanics (no new native machinery — reuses the existing WorkManager +
-/// flutter_local_notifications stack + home_widget's interactive widgets):
-///  - A one-shot WorkManager task is armed with `initialDelay` = time until
-///    the next random slot. The task runs even when the app is swiped away
-///    (system service), fetches today's quote from api/v1/quote with the
-///    persisted session, shows the notification when no widget exists,
-///    refreshes the widget, then arms TOMORROW's random slot. After a run
-///    nothing is pending, so the next `registerOneOffTask` is a fresh
-///    registration.
-///  - The WIDGET rolls over at the server's day boundary (UTC midnight):
-///    a second one-shot ([rolloverTaskName], ~10 min after UTC midnight)
-///    fetches today's quote and pushes it to the widget WHEN A WIDGET IS
-///    PINNED — the card flips with the app closed, no notification. No
-///    widget → the run is a no-op (the random slot owns the notification).
-///  - App starts arm a slot ONLY if none is pending (ExistingWorkPolicy.keep
-///    preserves an already-armed run instead of re-randomizing it away).
-///  - The widget is also refreshed on app foreground when it's stale
-///    ([refreshWidgetIfStale], date-gated in prefs) — covers the case where
-///    the OS delayed or dropped the background run.
-///  - The 👍/👎 buttons deliver a broadcast to home_widget's
-///    HomeWidgetBackgroundReceiver, which wakes a headless Dart isolate
-///    running [quoteWidgetRateCallback] (registered at app start). The tap
-///    URI carries the action + quote id; the callback posts the rating with
-///    the persisted session and re-renders the widget tinted.
-///  - The notification is its own channel ('daily_quote') so users can
-///    silence it independently in OS settings; the app-side Settings toggle
-///    arms/cancels the whole pipeline.
+/// Daily quote notification + home-screen widget. The widget is the daily
+/// surface when pinned, so no notification is shown in that case.
 class DailyQuoteService {
   DailyQuoteService._();
 
   static const String taskName = 'enclavd-daily-quote';
 
-  /// The widget rollover one-shot: fires ~10 min after UTC midnight (the
-  /// server's day boundary) and pushes today's quote to a pinned widget —
-  /// the card flips without the app being opened. Notification-free.
+  /// Widget rollover one-shot: fires ~10 min after UTC midnight,
+  /// notification-free.
   static const String rolloverTaskName = 'enclavd-quote-rollover';
 
-  /// App-side master toggle for the feature (Settings screen).
   static const String enabledPrefsKey = 'daily_quote_enabled';
 
-  /// Local date (YYYY-MM-DD) the widget was last refreshed with today's
-  /// quote — used by [refreshWidgetIfStale] to avoid refetching every start.
   static const String widgetDatePrefsKey = 'daily_quote_widget_date';
 
-  /// URI scheme used by the widget's rate buttons (provider → callback).
   static const String widgetRateScheme = 'enclavdwidget';
 
   static const int _notificationId = 10001; // fixed id: one slot per day
@@ -106,18 +66,15 @@ class DailyQuoteService {
   static const String _channelName = 'Daily quote';
   static const String _channelDescription = "Today's quote, once a day";
 
-  /// Random-time window: 08:00–20:00 local, 20:00 exclusive (user spec).
+  // Delivery window: 08:00-20:00 local, 20:00 exclusive.
   static const int _windowStartHour = 8;
-  static const int _windowLengthMinutes = 12 * 60; // 720 → up to 19:59
+  static const int _windowLengthMinutes = 12 * 60; // 720 -> up to 19:59
 
-  /// The widget rollover fires this long after UTC midnight — a buffer for
-  /// device-clock skew so the fetch lands after the server's CURDATE() has
-  /// actually flipped (the server rotates at UTC midnight).
+  /// Buffer for device-clock skew; the server rotates at UTC midnight.
   static const int _rolloverOffsetMinutes = 10;
 
-  /// The next delivery slot: today at a random minute in [08:00, 20:00)
-  /// when that is still ahead of [now], otherwise tomorrow. [random] is
-  /// injectable for deterministic tests.
+  /// Next delivery slot: a random minute in [08:00, 20:00), today if still
+  /// ahead of [now], otherwise tomorrow.
   @visibleForTesting
   static DateTime nextSlot(DateTime now, {Random? random}) {
     final rng = random ?? Random();
@@ -130,10 +87,7 @@ class DailyQuoteService {
         : candidate.add(const Duration(days: 1));
   }
 
-  /// When the widget rollover fires: the next UTC midnight + 10 min. The
-  /// server's day boundary is UTC (MariaDB CURDATE()), so the fetch must be
-  /// timed against UTC, not the device's local midnight — in BST that is
-  /// 01:10 local. Pure — unit-tested.
+  /// Next UTC midnight + 10 min; the server's day boundary is UTC.
   @visibleForTesting
   static DateTime nextMidnightFire(DateTime now) {
     final utc = now.toUtc();
@@ -142,9 +96,7 @@ class DailyQuoteService {
         .add(const Duration(minutes: _rolloverOffsetMinutes));
   }
 
-  /// Parses a widget rate tap URI (`enclavdwidget://like?id=983`). Returns
-  /// null when the tap is not a well-formed rate action (foreign tap, bad
-  /// id). Pure — unit-tested.
+  /// Parses a widget rate tap URI; null for foreign or malformed taps.
   @visibleForTesting
   static RateAction? parseRateAction(Uri? uri) {
     if (uri == null) return null;
@@ -158,9 +110,8 @@ class DailyQuoteService {
   static bool isEnabled(SharedPreferences prefs) =>
       prefs.getBool(enabledPrefsKey) ?? true;
 
-  /// Arms the next run. `keep` preserves an already-armed slot (app starts
-  /// must not re-randomize an armed run away); after a completed run there
-  /// is nothing pending, so this registers fresh. No-op when disabled.
+  /// Arms the next run. keep preserves an already-armed slot so app starts
+  /// don't re-randomize it; nothing is pending after a completed run.
   static Future<void> scheduleNextRun() async {
     final prefs = await SharedPreferences.getInstance();
     if (!isEnabled(prefs)) return;
@@ -177,10 +128,7 @@ class DailyQuoteService {
     await scheduleMidnightRun(); // the widget rollover rides along
   }
 
-  /// Arms the widget rollover one-shot for ~10 min after the next UTC
-  /// midnight. `keep` preserves an already-armed run; after a completed run
-  /// nothing is pending, so this registers fresh (same contract as
-  /// [scheduleNextRun]).
+  /// Arms the widget rollover for ~10 min after the next UTC midnight.
   static Future<void> scheduleMidnightRun() async {
     final prefs = await SharedPreferences.getInstance();
     if (!isEnabled(prefs)) return;
@@ -197,21 +145,15 @@ class DailyQuoteService {
     debugPrint('daily quote: widget rollover in ${delay.inMinutes} min');
   }
 
-  /// Cancels the armed runs (Settings toggle off): the random slot AND the
-  /// midnight rollover.
+  /// Cancels the armed runs (Settings toggle off).
   static Future<void> cancel() async {
     await Workmanager().cancelByUniqueName(taskName);
     await Workmanager().cancelByUniqueName(rolloverTaskName);
     debugPrint('daily quote: cancelled');
   }
 
-  /// The widget rollover run (headless isolate — same contract as
-  /// [runTask]): fires ~10 min after UTC midnight with the app closed.
-  /// Pushes today's quote to the widget ONLY when a widget is pinned —
-  /// the card flips at the day boundary without any notification. No
-  /// widget → no-op (the random-time [runTask] owns the notification
-  /// surface). Always re-arms tomorrow's boundary, success or not, so a
-  /// transient failure self-heals on the next day.
+  /// Widget rollover run: pushes to the widget only when one is pinned;
+  /// always re-arms tomorrow's boundary, success or not.
   static Future<void> runMidnightRollover() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -242,13 +184,6 @@ class DailyQuoteService {
     }
   }
 
-  /// The background run (headless isolate — same contract as the poller):
-  /// fresh ApiClient from prefs (pinned UA rides the default factory),
-  /// fresh notification plugin instance. Fetches today's quote, shows the
-  /// daily notification, refreshes the widget, then arms tomorrow's slot.
-  ///
-  /// Every step is independently guarded: a failure shows nothing but the
-  /// next day's slot is still armed, so the feature self-heals.
   static Future<void> runTask() async {
     final prefs = await SharedPreferences.getInstance();
     if (!isEnabled(prefs)) {
@@ -272,10 +207,8 @@ class DailyQuoteService {
 
     final TodayQuote? today = await _fetchToday(api);
     if (today != null) {
-      // The widget IS the daily surface: when at least one instance sits
-      // on the home screen the quote is already in front of the user, so
-      // the notification is skipped (no double delivery). The widget is
-      // still refreshed and tomorrow's slot armed either way.
+      // The widget is the daily surface: skip the notification when one
+      // is pinned, no double delivery.
       final widgetInUse = await _hasWidgetInstance();
       if (widgetInUse) {
         debugPrint('daily quote: widget present, notification skipped');
@@ -285,13 +218,20 @@ class DailyQuoteService {
             id: _notificationId,
             title: '💬 Quote of the day',
             body: '“${today.quote.text}”\n— ${today.quote.author}',
-            notificationDetails: const NotificationDetails(
+            notificationDetails: NotificationDetails(
               android: AndroidNotificationDetails(
                 _channelId,
                 _channelName,
                 channelDescription: _channelDescription,
                 importance: Importance.defaultImportance,
                 priority: Priority.defaultPriority,
+                // The API serves the quote whole and it can run long; a
+                // plain body collapses to ~2 lines in the shade with no
+                // way to see the rest. BigTextStyle makes the notification
+                // expandable so the FULL quote + author is always there.
+                styleInformation: BigTextStyleInformation(
+                  '“${today.quote.text}”\n— ${today.quote.author}',
+                ),
               ),
             ),
             payload: 'quote',
@@ -306,12 +246,10 @@ class DailyQuoteService {
       debugPrint('daily quote: fetch failed, nothing delivered');
     }
 
-    await scheduleNextRun(); // armed regardless — tomorrow retries
+    await scheduleNextRun(); // armed regardless; tomorrow retries
   }
 
-  /// Whether at least one daily-quote widget is pinned on the home screen.
-  /// home_widget reports one entry per widget instance on Android. On a
-  /// probe failure the safe default is false → the notification fires.
+  /// Probe failure defaults to false, so the notification still fires.
   static Future<bool> _hasWidgetInstance() async {
     try {
       final widgets = await HomeWidget.getInstalledWidgets();
@@ -323,9 +261,8 @@ class DailyQuoteService {
     }
   }
 
-  /// Foreground refresh for the widget: once per LOCAL day, if a session
-  /// exists and the feature is enabled, fetch today's quote and push it to
-  /// the widget. Silent and cheap (date-gated) — call from app start/login.
+  /// Foreground widget refresh, once per local day. Silent and date-gated;
+  /// call from app start/login.
   static Future<void> refreshWidgetIfStale() async {
     final prefs = await SharedPreferences.getInstance();
     if (!isEnabled(prefs)) return;
@@ -338,11 +275,8 @@ class DailyQuoteService {
     await pushTodayToWidget(api: api, prefs: prefs, today: today);
   }
 
-  /// Background entry point for widget rate taps (registered via
-  /// HomeWidget.registerInteractivityCallback). Posts the rating with the
-  /// persisted session, then re-renders the widget. On a stale/duplicate
-  /// tap (server rejects) it re-syncs the widget to the server's truth
-  /// instead of leaving dead buttons.
+  /// Widget rate-tap entry: posts the rating and re-renders the widget;
+  /// re-syncs to the server's truth when the tap is rejected.
   static Future<void> rateFromWidget(Uri? uri) async {
     final rate = parseRateAction(uri);
     if (rate == null) {
@@ -355,7 +289,7 @@ class DailyQuoteService {
     await api.restoreSession();
     if (!api.hasSession) {
       debugPrint('quote widget: no session, rating dropped');
-      return; // logged out — the widget can't rate; next login re-pushes
+      return; // logged out; the widget can't rate. Next login re-pushes.
     }
     try {
       final data = await api.postJson(
@@ -366,8 +300,8 @@ class DailyQuoteService {
       await DailyQuoteWidget.markRated(quoteId: rate.quoteId, rated: rated);
       debugPrint('quote widget: $rated recorded for quote ${rate.quoteId}');
     } catch (e) {
-      // 400 'Quote already rated' (double tap) / 'no current quote' (widget
-      // stale across the daily rotation) — re-sync to today's state.
+      // 400 'already rated' (double tap) or 'no current quote' (stale
+      // widget); re-sync to today's state.
       debugPrint('quote widget: rate failed ($e) — resyncing');
       final today = await _fetchToday(api);
       if (today != null) {
@@ -376,21 +310,8 @@ class DailyQuoteService {
     }
   }
 
-  /// Writes today's quote (with the user's rating state) to the widget and
-  /// stamps the freshness date so [refreshWidgetIfStale] stays quiet.
-  ///
-  /// The stamp is the SERVER's quote day ([TodayQuote.date]), NOT the
-  /// device's local day. The gate compares the stamp against the local
-  /// day, so any offset between the device clock and the server clock
-  /// (timezone, skew) makes the gate re-fetch on the next app open until
-  /// the server has actually rotated — the widget can never lock onto a
-  /// stale quote for a whole day the way a device-day stamp could
-  /// (server rotates at UTC midnight; a device ahead/behind would keep
-  /// serving yesterday's quote all day).
-  ///
-  /// The stamp advances ONLY on a successful push: [DailyQuoteWidget.push]
-  /// reports failures now, so a plugin hiccup leaves the gate open and the
-  /// next start retries, instead of burning the whole day on a failed push.
+  /// Writes today's quote to the widget and stamps the freshness date:
+  /// the server's quote day, advanced only on a successful push.
   static Future<void> pushTodayToWidget({
     required ApiClient api,
     required SharedPreferences prefs,
@@ -408,10 +329,7 @@ class DailyQuoteService {
     }
   }
 
-  /// Fresh session hook (successful login): drop the freshness stamp so
-  /// the very next refresh actually fetches, and fetch right away — a
-  /// stale session could have silently starved the widget for days, and
-  /// now it catches up immediately instead of trusting the old stamp.
+  /// Fresh-session catch-up: drop the stamp and refetch right away.
   static Future<void> refreshWidgetNow() async {
     final prefs = await SharedPreferences.getInstance();
     if (!isEnabled(prefs)) return;
@@ -419,9 +337,8 @@ class DailyQuoteService {
     await refreshWidgetIfStale();
   }
 
-  /// GET-ward fetch of the daily quote (POST /api/v1/quote {action:today} —
-  /// the same idempotent-per-day call the web toast uses; CSRF rides the
-  /// persisted session's PHP sid via ApiClient.postJson).
+  /// POST /api/v1/quote {action: 'today'}, the same idempotent call the
+  /// web toast uses.
   static Future<TodayQuote?> _fetchToday(ApiClient api) async {
     try {
       final data = await api.postJson('/api/v1/quote', {'action': 'today'});
@@ -440,8 +357,7 @@ class DailyQuoteService {
         rated: (data['rated'] as String?)?.isNotEmpty == true
             ? data['rated'] as String
             : null,
-        // The server's quote day — the truth for the freshness stamp.
-        // Fall back to the device day only if the server ever omits it.
+        // The server's quote day; device day only as a fallback.
         date: (data['date'] as String?)?.isNotEmpty == true
             ? data['date'] as String
             : _todayKey(),
@@ -459,10 +375,7 @@ class DailyQuoteService {
   }
 }
 
-/// Top-level entry point for widget rate taps. Registered in the MAIN
-/// isolate at app start (HomeWidget.registerInteractivityCallback needs a
-/// stable handle); the actual call runs in a headless background isolate
-/// spawned by home_widget's receiver. @pragma keeps it in the AOT snapshot.
+/// Widget rate-tap entry point, registered at app start.
 @pragma('vm:entry-point')
 Future<void> quoteWidgetRateCallback(Uri? uri) async {
   await DailyQuoteService.rateFromWidget(uri);
