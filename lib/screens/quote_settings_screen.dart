@@ -39,9 +39,12 @@ class _QuoteSettingsScreenState extends State<QuoteSettingsScreen> {
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
     final dailyQuote = prefs.getBool(_dailyQuotePrefsKey) ?? true;
+    // Widget prefs live in home_widget storage, read via the service so a
+    // plugin hiccup degrades to defaults instead of throwing.
     final showTags = await DailyQuoteWidget.showTags();
     final light = await DailyQuoteWidget.lightMode();
     final followSystem = await DailyQuoteWidget.followsSystemTheme();
+    // Preview mirrors the widget
     final widgetQuote = await DailyQuoteWidget.current();
     final today =
         widgetQuote == null ? await DailyQuoteService.fetchToday() : null;
@@ -63,7 +66,7 @@ class _QuoteSettingsScreenState extends State<QuoteSettingsScreen> {
     await prefs.setBool(_dailyQuotePrefsKey, enabled);
     if (enabled) {
       await DailyQuoteService.scheduleNextRun();
-      // Drop the freshness stamp and refresh so re-enabling gives instant feedback
+      // Drop the freshness stamp and refresh so re-enabling gives instant feedback.
       unawaited(DailyQuoteService.refreshWidgetNow());
     } else {
       await DailyQuoteService.cancel();
@@ -154,6 +157,7 @@ class _QuoteSettingsScreenState extends State<QuoteSettingsScreen> {
             _toggleRow(
               loading: _widgetLight == null,
               value: _widgetLight ?? false,
+              // Light/dark only matters when not following the system theme.
               enabled: _widgetFollowSystem == false,
               onChanged: _toggleWidgetLight,
               icon: FontAwesomeIcons.sun,
@@ -163,11 +167,10 @@ class _QuoteSettingsScreenState extends State<QuoteSettingsScreen> {
                   : 'Light card instead of the dark one',
             ),
             const SizedBox(height: 10),
-            // The logo has no toggle; a quiet note keeps that from reading as a bug.
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 4),
               child: Text(
-                '',
+                'The Enclavd logo is always shown on the widget.',
                 style: TextStyle(
                     color: EnclavdColors.textSecondary, fontSize: 12),
               ),
@@ -178,8 +181,7 @@ class _QuoteSettingsScreenState extends State<QuoteSettingsScreen> {
     );
   }
 
-  /// The pinned card, re-rendered live from the toggle state. Light/dark
-  /// follows the system unless the manual override is unlocked.
+
   Widget _preview() {
     if (_quoteLoading) {
       return const SizedBox(

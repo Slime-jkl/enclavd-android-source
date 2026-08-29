@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// In-app mirror of the home-screen quote widget. Sizes and colors track
-/// applyColors so the settings preview matches the pinned card
+/// applyColors so the settings preview matches the pinned card.
 class QuoteWidgetPreview extends StatelessWidget {
   const QuoteWidgetPreview({
     super.key,
@@ -39,10 +39,10 @@ class QuoteWidgetPreview extends StatelessWidget {
         final scale = (constraints.maxWidth / 360).clamp(0.7, 1.5);
         final muted = light ? _mutedLight : _mutedDark;
         final mark = light ? _markLight : _markDark;
-        // Min height mirrors the Widget min 4x2
+        // Min height mirrors the launcher's default 4x2 cell
         final minHeight = constraints.maxWidth * 110 / 250;
         // Height is unbounded inside the settings ListView; size the
-        // watermark from the min cell so it stays proportional
+        // watermark from the min cell so it stays proportional.
         final watermarkBase = constraints.hasBoundedHeight
             ? constraints.biggest.shortestSide
             : minHeight;

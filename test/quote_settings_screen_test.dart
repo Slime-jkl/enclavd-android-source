@@ -95,8 +95,6 @@ void main() {
     expect(find.text('Widget Preview'), findsOneWidget);
     expect(find.text('How daily quotes work'), findsOneWidget);
     expect(find.textContaining('always shown on the widget'), findsOneWidget);
-
-
     expect(
         tester.getTopLeft(find.text('How daily quotes work')).dy,
         lessThan(tester.getTopLeft(find.text('Widget Preview')).dy));
