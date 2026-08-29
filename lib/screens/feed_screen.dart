@@ -433,14 +433,14 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _loadNext() async {
-    if (_lastPage == null || !_lastPage!.hasMore) return;
+    if (_loading || _lastPage == null || !_lastPage!.hasMore) return;
     setState(() => _loading = true);
     try {
       final page = await _services!.feed
           .nextPage(_lastPage!, limit: AppConfig.feedPageSize);
       if (!mounted) return;
       setState(() {
-        _posts.addAll(page.posts);
+        _posts.addAll(feedAppendPosts(_posts, page.posts));
         _lastPage = page;
         _loading = false;
       });
@@ -1015,6 +1015,12 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
 /// Highest post id seen, kept monotonic so nothing is re-offered.
 int feedMaxPostId(Iterable<Post> posts, int floor) =>
     posts.fold<int>(floor, (m, p) => p.id > m ? p.id : m);
+
+/// newly fetched page posts not already on screen.
+List<Post> feedAppendPosts(List<Post> current, List<Post> incoming) {
+  final known = {for (final p in current) p.id};
+  return [for (final p in incoming) if (!known.contains(p.id)) p];
+}
 
 /// Delta posts genuinely new: never shown (id > [seenMaxId]) and not on screen.
 List<Post> pillEligiblePosts(

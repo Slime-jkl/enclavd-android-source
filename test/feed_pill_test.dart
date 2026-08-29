@@ -91,4 +91,27 @@ void main() {
       expect(feedMaxPostId(ranked, seen), seen); // unchanged by the offer
     });
   });
+
+  group('feedAppendPosts', () {
+    test('appends new posts in order', () {
+      expect(
+        feedAppendPosts([post(1)], [post(2), post(3)]).map((p) => p.id),
+        [2, 3],
+      );
+    });
+
+    test('skips a boundary duplicate re-returned by the cursor', () {
+      final current = [post(1), post(2), post(10)];
+      final incoming = [post(10), post(11), post(12)];
+      expect(
+        feedAppendPosts(current, incoming).map((p) => p.id),
+        [11, 12],
+      );
+    });
+
+    test('skips a fully duplicated page but keeps incoming order', () {
+      final current = [post(5), post(6)];
+      expect(feedAppendPosts(current, [post(6)]), isEmpty);
+    });
+  });
 }
