@@ -12,7 +12,7 @@ import '../widgets/shimmer.dart';
 class DiaryScreen extends StatefulWidget {
   const DiaryScreen({super.key, this.diary});
 
-  /// Injected for tests (the real screen resolves AppServices.current).
+  /// injected for tests (the real screen resolves AppServices.current)
   final DiaryService? diary;
 
   @override
@@ -38,7 +38,6 @@ class _DiaryScreenState extends State<DiaryScreen> {
   bool _busy = false;
   String? _wizardError;
 
-  // The prestige line from the save, shown once on the locked hero.
   DiaryPrestige? _lastPrestige;
 
   @override
@@ -82,7 +81,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
     }
   }
 
-  // Wizard step map; first-ever users get a warning step up front.
+  // Wizard step map; first-ever users get an introduction
   bool get _hasWarningStep => (_snapshot?.stats.totalEntries ?? 0) == 0;
 
   int get _totalSteps => _hasWarningStep ? 6 : 5;
@@ -138,7 +137,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
       );
       if (!mounted) return;
       setState(() {
-        // Prepend the new entry to the recent list (dedup by date).
+        // Prepend the new entry to the recent list
         _snapshot = DiarySnapshot(
           date: result.date,
           entry: result.entry,
@@ -199,9 +198,6 @@ class _DiaryScreenState extends State<DiaryScreen> {
           ),
         ),
         const SizedBox(height: 20),
-        // Locked gate = "today has an entry", not the response's `locked`
-        // flag: a fresh save returns locked:false yet must land on the
-        // locked card (same rule as the web page's `$today_entry` check).
         _statsRow(snapshot.stats),
         const SizedBox(height: 12),
         _moodStrip(snapshot.stats),
@@ -274,13 +270,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
             FractionallySizedBox(
               alignment: Alignment.centerLeft,
               widthFactor: value.clamp(0.0, 1.0),
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Color(0xFF8B5CF6), Color(0xFF3B82F6)],
-                  ),
-                ),
-              ),
+              child: Container(color: const Color(0xFF3B82F6)),
             ),
           ],
         ),
@@ -373,11 +363,24 @@ class _DiaryScreenState extends State<DiaryScreen> {
             style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 10),
-          Row(
-            children: [
-              for (final mood in kDiaryMoods)
-                Expanded(child: _moodButton(mood)),
-            ],
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 3),
+            child: Column(
+              children: [
+                for (var i = 0; i < kDiaryMoods.length; i += 2) ...[
+                  if (i > 0) const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(child: _moodButton(kDiaryMoods[i])),
+                      if (i + 1 < kDiaryMoods.length) ...[
+                        const SizedBox(width: 6),
+                        Expanded(child: _moodButton(kDiaryMoods[i + 1])),
+                      ],
+                    ],
+                  ),
+                ],
+              ],
+            ),
           ),
         ],
       ),
@@ -389,46 +392,43 @@ class _DiaryScreenState extends State<DiaryScreen> {
 
   Widget _moodButton(DiaryMood mood) {
     final selected = _mood == mood.value;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 3),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: () => setState(() {
-          _mood = mood.value;
-          _wizardError = '';
-        }),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 2),
-          decoration: BoxDecoration(
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () => setState(() {
+        _mood = mood.value;
+        _wizardError = '';
+      }),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 2),
+        decoration: BoxDecoration(
+          color: selected
+              ? const Color(0xFF3B82F6).withValues(alpha: 0.15)
+              : EnclavdColors.cardSecondary.withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
             color: selected
-                ? const Color(0xFF3B82F6).withValues(alpha: 0.15)
-                : EnclavdColors.cardSecondary.withValues(alpha: 0.6),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: selected
-                  ? const Color(0xFF3B82F6)
-                  : EnclavdColors.border,
-              width: selected ? 1.5 : 1,
-            ),
+                ? const Color(0xFF3B82F6)
+                : EnclavdColors.border,
+            width: selected ? 1.5 : 1,
           ),
-          child: Column(
-            children: [
-              Text(mood.emoji, style: const TextStyle(fontSize: 26, height: 1)),
-              const SizedBox(height: 6),
-              Text(
-                mood.label.toUpperCase(),
-                style: TextStyle(
-                  fontSize: 9,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.4,
-                  color: selected
-                      ? EnclavdColors.textPrimary
-                      : EnclavdColors.textSecondary,
-                ),
+        ),
+        child: Column(
+          children: [
+            Text(mood.emoji, style: const TextStyle(fontSize: 26, height: 1)),
+            const SizedBox(height: 6),
+            Text(
+              mood.label.toUpperCase(),
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.4,
+                color: selected
+                    ? EnclavdColors.textPrimary
+                    : EnclavdColors.textSecondary,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -571,7 +571,6 @@ class _DiaryScreenState extends State<DiaryScreen> {
   Widget _lockedCard() {
     final entry = _snapshot!.entry!;
     final prestige = _lastPrestige;
-    // Just the lock, centered; the answers live in the Recent row below.
     return Card(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
@@ -764,8 +763,6 @@ class _DiaryScreenState extends State<DiaryScreen> {
         else
           for (final entry in snapshot.recent)
             _RecentEntryTile(
-              // Key by date: without it, the tile at index 0 reuses the
-              // previous day's State after a save.
               key: ValueKey(entry.date),
               entry: entry,
               initiallyOpen: entry.date == snapshot.date,
@@ -946,7 +943,7 @@ class _RecentEntryTileState extends State<_RecentEntryTile> {
   }
 }
 
-/// ISO date -> 'Today' / 'Yesterday' / 'Aug 27, 2026' (local midnight).
+
 String formatDiaryDate(String iso) {
   final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(iso);
   if (m == null) return iso;
