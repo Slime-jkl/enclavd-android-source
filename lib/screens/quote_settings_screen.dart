@@ -106,8 +106,7 @@ class _QuoteSettingsScreenState extends State<QuoteSettingsScreen> {
               child: ListTile(
                 leading: const FaIcon(FontAwesomeIcons.circleQuestion,
                     color: EnclavdColors.link, size: 18),
-                title: const Text('How daily quotes work'),
-                subtitle: const Text('The short version'),
+                title: const Text('How daily quotes work?'),
                 trailing: const Icon(Icons.chevron_right,
                     color: EnclavdColors.border),
                 onTap: () => Navigator.of(context).push(
@@ -166,13 +165,6 @@ class _QuoteSettingsScreenState extends State<QuoteSettingsScreen> {
                   ? 'Turn off \u2018Follow system theme\u2019 to choose'
                   : 'Light card instead of the dark one',
             ),
-            const SizedBox(height: 10),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 4),
-              child: Text(
-                'The Enclavd logo is always shown on the widget.',
-                style: TextStyle(
-                    color: EnclavdColors.textSecondary, fontSize: 12),
               ),
             ),
           ],
