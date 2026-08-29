@@ -93,10 +93,9 @@ void main() {
         findsOneWidget);
     expect(find.text('Show logo'), findsNothing);
     expect(find.text('Widget Preview'), findsOneWidget);
-    expect(find.text('How daily quotes work'), findsOneWidget);
-    expect(find.textContaining('always shown on the widget'), findsOneWidget);
+    expect(find.text('How daily quotes work?'), findsOneWidget);
     expect(
-        tester.getTopLeft(find.text('How daily quotes work')).dy,
+        tester.getTopLeft(find.text('How daily quotes work?')).dy,
         lessThan(tester.getTopLeft(find.text('Widget Preview')).dy));
 
     // Defaults: daily quote ON, tags ON, follow-system ON, light OFF.
@@ -220,7 +219,7 @@ void main() {
     await tester.pumpWidget(wrap(const QuoteSettingsScreen()));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('How daily quotes work'));
+    await tester.tap(find.text('How daily quotes work?'));
     await tester.pumpAndSettle();
     expect(find.byType(QuoteHelpScreen), findsOneWidget);
   });

@@ -165,13 +165,11 @@ class _QuoteSettingsScreenState extends State<QuoteSettingsScreen> {
                   ? 'Turn off \u2018Follow system theme\u2019 to choose'
                   : 'Light card instead of the dark one',
             ),
-            ),
           ],
         ),
       ),
     );
   }
-
 
   Widget _preview() {
     if (_quoteLoading) {
