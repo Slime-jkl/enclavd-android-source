@@ -54,4 +54,6 @@ flutter:
     - assets/images/default-logo.png
     - assets/images/no-image.jpg
     - assets/images/enclavd-logo-white.png
+    - assets/images/enclavd-logo-dark.png
+    - assets/images/quote-widget-logo-dark.png
     - assets/sounds/

@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../services/daily_quote_service.dart';
 import '../services/daily_quote_widget.dart';
 import '../theme/enclavd_theme.dart';
+import '../widgets/quote_widget_preview.dart';
 import 'quote_help_screen.dart';
 
 class QuoteSettingsScreen extends StatefulWidget {
@@ -25,6 +26,9 @@ class _QuoteSettingsScreenState extends State<QuoteSettingsScreen> {
   bool? _widgetShowTags; // null until loaded
   bool? _widgetLight; // null until loaded
   bool? _widgetFollowSystem; // null until loaded
+  WidgetQuote? _widgetQuote; // what the pinned widget shows right now
+  TodayQuote? _today; // fresh fallback when nothing is pushed yet
+  bool _quoteLoading = true;
 
   @override
   void initState() {
@@ -40,12 +44,20 @@ class _QuoteSettingsScreenState extends State<QuoteSettingsScreen> {
     final showTags = await DailyQuoteWidget.showTags();
     final light = await DailyQuoteWidget.lightMode();
     final followSystem = await DailyQuoteWidget.followsSystemTheme();
+    // Preview mirrors the home screen: the quote already on the widget
+    // first, today's quote from the API when nothing is pushed yet.
+    final widgetQuote = await DailyQuoteWidget.current();
+    final today =
+        widgetQuote == null ? await DailyQuoteService.fetchToday() : null;
     if (!mounted) return;
     setState(() {
       _dailyQuoteEnabled = dailyQuote;
       _widgetShowTags = showTags;
       _widgetLight = light;
       _widgetFollowSystem = followSystem;
+      _widgetQuote = widgetQuote;
+      _today = today;
+      _quoteLoading = false;
     });
   }
 
@@ -85,6 +97,10 @@ class _QuoteSettingsScreenState extends State<QuoteSettingsScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            const _SectionLabel('Preview'),
+            const SizedBox(height: 6),
+            _preview(),
+            const SizedBox(height: 18),
             const _SectionLabel('Daily quote'),
             const SizedBox(height: 6),
             _toggleRow(
@@ -162,6 +178,41 @@ class _QuoteSettingsScreenState extends State<QuoteSettingsScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  /// The pinned card, re-rendered live from the toggle state. Light/dark
+  /// follows the system unless the manual override is unlocked.
+  Widget _preview() {
+    if (_quoteLoading) {
+      return const SizedBox(
+        height: 160,
+        child: Center(
+          child: SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+    final quote = _widgetQuote;
+    final today = _today;
+    final light = (_widgetFollowSystem ?? true)
+        ? MediaQuery.platformBrightnessOf(context) == Brightness.light
+        : (_widgetLight ?? false);
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 380),
+        child: QuoteWidgetPreview(
+          text: quote?.text ?? today?.quote.text,
+          author: quote?.author ?? today?.quote.author ?? '',
+          tags: quote?.tags ?? today?.quote.tags ?? const [],
+          rated: quote?.rated ?? today?.rated,
+          showTags: _widgetShowTags ?? true,
+          light: light,
         ),
       ),
     );

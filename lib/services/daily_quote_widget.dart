@@ -1,11 +1,25 @@
 import 'package:flutter/foundation.dart';
 import 'package:home_widget/home_widget.dart';
 
-/// Home-screen widget showing today's quote (Android AppWidget). The
-/// widget itself is native: QuoteWidgetProvider.kt renders
-/// res/layout/enclavd_quote_widget.xml from the widget's
-/// SharedPreferences. This class is the ONLY Dart-side writer - every
-/// path with fresh quote data funnels through here.
+/// Snapshot of the quote currently pushed to the widget (what the home
+/// screen shows right now), read back from widget storage.
+class WidgetQuote {
+  const WidgetQuote({
+    required this.text,
+    required this.author,
+    required this.tags,
+    required this.id,
+    this.rated,
+  });
+
+  final String text;
+  final String author;
+  final List<String> tags;
+  final int id;
+  final String? rated; // 'like' | 'dislike' | null
+}
+
+/// Home-screen widget showing today's quote (Android AppWidget).
 class DailyQuoteWidget {
   DailyQuoteWidget._();
 
@@ -60,6 +74,31 @@ class DailyQuoteWidget {
           true;
     } catch (e) {
       return true;
+    }
+  }
+
+  /// The quote on the widget right now; null when nothing was pushed yet.
+  /// Used by the settings preview so it mirrors the home screen exactly.
+  static Future<WidgetQuote?> current() async {
+    try {
+      final text = await HomeWidget.getWidgetData<String>(keyText) ?? '';
+      if (text.isEmpty) return null;
+      final rated = await HomeWidget.getWidgetData<String>(keyRated) ?? '';
+      return WidgetQuote(
+        text: text,
+        author: await HomeWidget.getWidgetData<String>(keyAuthor) ?? '',
+        tags: (await HomeWidget.getWidgetData<String>(keyTags) ?? '')
+            .split('|')
+            .where((t) => t.isNotEmpty)
+            .toList(),
+        id: int.tryParse(
+                await HomeWidget.getWidgetData<String>(keyId) ?? '') ??
+            0,
+        rated: rated.isEmpty ? null : rated,
+      );
+    } catch (e) {
+      debugPrint('quote widget: read failed: $e');
+      return null;
     }
   }
 

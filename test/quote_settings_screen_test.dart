@@ -8,6 +8,7 @@ import 'package:enclavd/screens/quote_help_screen.dart';
 import 'package:enclavd/screens/quote_settings_screen.dart';
 import 'package:enclavd/services/daily_quote_service.dart';
 import 'package:enclavd/theme/enclavd_theme.dart';
+import 'package:enclavd/widgets/quote_widget_preview.dart';
 
 class _FakeWorkmanager extends WorkmanagerPlatform {
   final List<String> armed = [];
@@ -55,12 +56,29 @@ void main() {
         home: child,
       );
 
-  testWidgets('shows the feature toggles + the TLDR help link',
-      (tester) async {
-    SharedPreferences.setMockInitialValues({});
+  /// Serves widget-storage reads from [data]; anything unlisted reads null.
+  void mockWidgetData(Map<String, dynamic> data) {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(const MethodChannel('home_widget'), (call) async {
+      if (call.method == 'getWidgetData') {
+        final args = call.arguments as Map;
+        return data[args['id']] as Object?;
+      }
+      return null;
+    });
+  }
+
+  /// The preview pushes the toggles below the default 600px viewport.
+  void tallView(WidgetTester tester) {
     tester.view.physicalSize = const Size(800, 1600);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
+  }
+
+  testWidgets('shows the feature toggles + the TLDR help link',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    tallView(tester);
     await tester.pumpWidget(wrap(const QuoteSettingsScreen()));
     await tester.pumpAndSettle();
 
@@ -112,6 +130,7 @@ void main() {
   testWidgets('master toggle arms and cancels the daily-quote pipeline',
       (tester) async {
     SharedPreferences.setMockInitialValues({});
+    tallView(tester);
     // Bind the Workmanager singleton first (Linux test env), then swap in
     // the recording fake: the impl reads WorkmanagerPlatform.instance live.
     Workmanager();
@@ -140,6 +159,7 @@ void main() {
   testWidgets('widget display toggles persist to widget storage',
       (tester) async {
     SharedPreferences.setMockInitialValues({});
+    tallView(tester);
     final calls = <MethodCall>[];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(const MethodChannel('home_widget'), (call) {
@@ -192,11 +212,109 @@ void main() {
 
   testWidgets('help link opens the TLDR page', (tester) async {
     SharedPreferences.setMockInitialValues({});
+    tallView(tester);
     await tester.pumpWidget(wrap(const QuoteSettingsScreen()));
     await tester.pumpAndSettle();
 
     await tester.tap(find.text('How daily quotes work'));
     await tester.pumpAndSettle();
     expect(find.byType(QuoteHelpScreen), findsOneWidget);
+  });
+
+  testWidgets('preview shows the quote currently on the widget',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    tallView(tester);
+    mockWidgetData({
+      'quote_text': 'A real quote.',
+      'quote_author': 'Someone',
+      'quote_tags': 'wisdom|life',
+      'quote_id': '7',
+      'quote_rated': '',
+      'widget_show_tags': true,
+      'widget_light': false,
+      'widget_follow_system': true,
+    });
+    await tester.pumpWidget(wrap(const QuoteSettingsScreen()));
+    await tester.pumpAndSettle();
+
+    expect(find.text('A real quote.'), findsOneWidget);
+    expect(find.text('- Someone'), findsOneWidget);
+    expect(find.text('\u201C'), findsOneWidget);
+    expect(find.text('\u201D'), findsOneWidget);
+    expect(find.textContaining('#wisdom', findRichText: true), findsOneWidget);
+    expect(find.textContaining('#life', findRichText: true), findsOneWidget);
+    expect(
+        find.textContaining("Open Enclavd to see today's quote"), findsNothing);
+  });
+
+  testWidgets('preview falls back to the empty state when nothing is pushed',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    tallView(tester);
+    await tester.pumpWidget(wrap(const QuoteSettingsScreen()));
+    await tester.pumpAndSettle();
+
+    expect(
+        find.textContaining("Open Enclavd to see today's quote"), findsOneWidget);
+    expect(find.text('\u201C'), findsNothing);
+    expect(find.text('\u201D'), findsNothing);
+    expect(find.text('- Someone'), findsNothing);
+  });
+
+  testWidgets('show tags toggle updates the preview in real time',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    tallView(tester);
+    mockWidgetData({
+      'quote_text': 'A real quote.',
+      'quote_author': 'Someone',
+      'quote_tags': 'wisdom',
+      'quote_id': '7',
+      'quote_rated': '',
+      'widget_show_tags': true,
+      'widget_light': false,
+      'widget_follow_system': true,
+    });
+    await tester.pumpWidget(wrap(const QuoteSettingsScreen()));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('#wisdom', findRichText: true), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(SwitchListTile, 'Show tags'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('#wisdom', findRichText: true), findsNothing);
+  });
+
+  testWidgets('theme toggles flip the preview light/dark in real time',
+      (tester) async {
+    tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
+    addTearDown(tester.platformDispatcher.clearPlatformBrightnessTestValue);
+    SharedPreferences.setMockInitialValues({});
+    tallView(tester);
+    mockWidgetData({
+      'quote_text': 'A real quote.',
+      'quote_author': 'Someone',
+      'quote_tags': '',
+      'quote_id': '7',
+      'quote_rated': '',
+      'widget_show_tags': true,
+      'widget_light': false,
+      'widget_follow_system': true,
+    });
+    await tester.pumpWidget(wrap(const QuoteSettingsScreen()));
+    await tester.pumpAndSettle();
+
+    QuoteWidgetPreview preview() =>
+        tester.widget<QuoteWidgetPreview>(find.byType(QuoteWidgetPreview));
+    // Test env is light and the preview follows the system by default.
+    expect(preview().light, isTrue);
+
+    await tester.tap(find.widgetWithText(SwitchListTile, 'Follow system theme'));
+    await tester.pumpAndSettle();
+    expect(preview().light, isFalse);
+
+    await tester.tap(find.widgetWithText(SwitchListTile, 'Light variant'));
+    await tester.pumpAndSettle();
+    expect(preview().light, isTrue);
   });
 }

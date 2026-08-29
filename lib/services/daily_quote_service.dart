@@ -337,6 +337,21 @@ class DailyQuoteService {
     await refreshWidgetIfStale();
   }
 
+  /// Today's quote for in-app surfaces (settings preview); null when
+  /// logged out or the fetch fails. Never throws.
+  static Future<TodayQuote?> fetchToday() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final api = ApiClient(store: PrefsSessionStore(prefs));
+      await api.restoreSession();
+      if (!api.hasSession) return null;
+      return await _fetchToday(api);
+    } catch (e) {
+      debugPrint('daily quote: fetchToday failed: $e');
+      return null;
+    }
+  }
+
   /// POST /api/v1/quote {action: 'today'}, the same idempotent call the
   /// web toast uses.
   static Future<TodayQuote?> _fetchToday(ApiClient api) async {
