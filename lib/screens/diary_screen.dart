@@ -75,7 +75,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = userFacingError(e, fallback: 'Could not load your diary.');
+        _error = userFacingError(e, fallback: 'Could not load your journal.');
         _loading = false;
       });
     }
@@ -167,9 +167,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
       appBar: AppBar(
         title: const Row(
           children: [
-            FaIcon(FontAwesomeIcons.book, size: 18, color: EnclavdColors.link),
-            SizedBox(width: 10),
-            Text('Diary'),
+            Text('Journal'),
           ],
         ),
       ),
@@ -187,8 +185,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 8),
           child: Text(
-            'A private log of the daily grind. One entry a day. No feed, '
-            'no likes. Just you, the work, and the record.',
+            'A private log of the daily grind. One entry a day.',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: EnclavdColors.textSecondary,
@@ -219,7 +216,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
             Row(
               children: [
                 const Text(
-                  "Today's diary",
+                  "Today's journal",
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
                 const Spacer(),

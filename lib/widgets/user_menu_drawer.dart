@@ -103,7 +103,7 @@ class _UserMenuDrawerState extends State<UserMenuDrawer> {
                 ),
                 _MenuItem(
                   icon: FontAwesomeIcons.book,
-                  label: 'Diary',
+                  label: 'Your Journal',
                   onTap: () => _push(const DiaryScreen()),
                 ),
                 const _SectionLabel('Community'),

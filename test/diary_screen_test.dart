@@ -158,8 +158,8 @@ void main() {
       (tester) async {
     await _pump(tester, _FakeDiary(snapshot: _unlocked()));
 
-    expect(find.text('Diary'), findsOneWidget);
-    expect(find.text("Today's diary"), findsOneWidget);
+    expect(find.text('Journal'), findsOneWidget);
+    expect(find.text("Today's journal"), findsOneWidget);
     expect(find.text('Step 1 of 5'), findsOneWidget);
     expect(find.text('Welcome to Diary'), findsNothing);
     expect(find.textContaining('Pick how today went'), findsOneWidget);
@@ -308,7 +308,7 @@ void main() {
     // Status-null ApiExceptions map to the standard internal-error line (same as every other screen).
     expect(find.text(kInternalError), findsOneWidget);
     expect(find.text('Try again'), findsOneWidget);
-    expect(find.text("Today's diary"), findsNothing);
+    expect(find.text("Today's journal"), findsNothing);
 
     diary.error = null;
     diary.snapshot = _unlocked();
@@ -317,6 +317,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(diary.fetchCalls, 2);
-    expect(find.text("Today's diary"), findsOneWidget);
+    expect(find.text("Today's journal"), findsOneWidget);
   });
 }
