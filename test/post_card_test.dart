@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:enclavd/api/feed_service.dart';
 import 'package:enclavd/theme/enclavd_theme.dart';
+import 'package:enclavd/utils/db_time.dart';
 import 'package:enclavd/widgets/post_card.dart';
 
 void main() {
@@ -161,6 +162,22 @@ void main() {
     test('garbage input returns empty', () {
       expect(relativeTime('not-a-date'), '');
     });
+
+    test('DB UTC strings are read as UTC, not device-local', () {
+      expect(relativeTime(_iso(DateTime.now().toUtc())), 'now');
+      expect(
+        relativeTime(_iso(DateTime.now().toUtc()
+            .subtract(const Duration(hours: 3)))),
+        '3h',
+      );
+    });
+
+    test('already-relative server strings pass through', () {
+      expect(relativeTime('now'), 'now');
+      expect(relativeTime('5m'), '5m');
+      expect(relativeTime('3h'), '3h');
+      expect(relativeTime('2d'), '2d');
+    });
   });
 
   group('extractYouTubeId (site url_helpers.php port)', () {
@@ -233,4 +250,5 @@ void main() {
   });
 }
 
-String _iso(DateTime dt) => dt.toIso8601String().replaceFirst('T', ' ');
+String _iso(DateTime dt) =>
+    dt.toUtc().toIso8601String().replaceFirst('T', ' ');

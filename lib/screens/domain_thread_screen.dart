@@ -15,11 +15,12 @@ import '../services/analytics_service.dart';
 import '../services/sound_service.dart';
 import '../theme/enclavd_theme.dart';
 import '../utils/content_spans.dart'; // postContentSpans + commentContentSpans
+import '../utils/db_time.dart';
 import '../widgets/enclavd_avatar.dart';
 import '../widgets/error_view.dart';
 import '../widgets/personality_chip.dart';
 import '../widgets/post_card.dart'; // PostCardSkeleton, PostImage,
-// relativeTime, rankColorFromCssClass
+// rankColorFromCssClass
 import '../widgets/rank_badge.dart';
 import '../widgets/shimmer.dart';
 import 'compose_screen.dart';
@@ -969,7 +970,7 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                     ],
                     const Spacer(),
                     Text(
-                      reply.createdAt,
+                      relativeTime(reply.createdAtUtc),
                       style: const TextStyle(
                           color: EnclavdColors.textSecondary, fontSize: 11),
                     ),

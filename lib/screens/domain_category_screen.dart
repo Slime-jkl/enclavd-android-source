@@ -9,8 +9,8 @@ import '../config/app_config.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/error_view.dart';
 import '../utils/domain_icons.dart';
+import '../utils/db_time.dart';
 import '../widgets/enclavd_avatar.dart';
-import '../widgets/post_card.dart'; // relativeTime
 import '../widgets/rank_badge.dart';
 import '../widgets/shimmer.dart';
 import 'domain_thread_screen.dart';

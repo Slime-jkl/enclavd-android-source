@@ -4,7 +4,7 @@ import 'api_client.dart';
 class LikeResult {
   const LikeResult({required this.action, required this.likeCount});
 
-  final String action; // 'liked' | 'unliked'
+  final String action; // liked / unliked
   final int likeCount;
 
   bool get liked => action == 'liked';
@@ -15,9 +15,6 @@ class LikeResult {
       );
 }
 
-/// A single comment from GET/POST /api/v1/comments (comments.php
-/// api_comment_item contract). created_at arrives ALREADY
-/// relative-formatted by format_date - 'now', '5m', '3h'...
 class Comment {
   const Comment({
     required this.id,
@@ -32,6 +29,7 @@ class Comment {
     required this.content,
     required this.isOwner,
     this.rank = '',
+    this.createdAtUtc = '',
   });
 
   final int id;
@@ -46,8 +44,8 @@ class Comment {
   final String content;
   final bool isOwner;
 
-  /// Raw rank name ('SysOp'...). The comments API only recently started
-  /// sending it; until that deploy lands, derive it from [nameColor].
+  /// raw db time falls back to the server's relative string if created_at_utc missing
+  final String createdAtUtc;
   final String rank;
 
   factory Comment.fromJson(Map<String, dynamic> json) => Comment(
@@ -61,6 +59,9 @@ class Comment {
         nameColor: json['name_color'] as String? ?? 'text-gray-400',
         hasWarnings: json['has_warnings'] as bool? ?? false,
         createdAt: json['created_at'] as String? ?? '',
+        createdAtUtc: (json['created_at_utc'] as String?)?.isNotEmpty == true
+            ? json['created_at_utc'] as String
+            : json['created_at'] as String? ?? '',
         content: json['content'] as String? ?? '',
         isOwner: json['is_owner'] as bool? ?? false,
         rank: (json['rank'] as String?)?.isNotEmpty == true

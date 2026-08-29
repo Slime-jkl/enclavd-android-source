@@ -1,4 +1,6 @@
 import 'api_client.dart';
+import '../utils/db_time.dart';
+export '../utils/db_time.dart';
 
 /// A conversation in the inbox (GET /api/v1/messages?conversations=1).
 /// Fields: id, updated_at, participant_id/participants/
@@ -214,20 +216,6 @@ class UnreadMessage {
         message: json['message'] as String? ?? '',
         createdAt: json['created_at'] as String? ?? '',
       );
-}
-
-/// EnclavdTime.parse port (assets/js/time.js): the DB stores timestamps as
-/// UTC wall-clock strings ('YYYY-MM-DD HH:MM:SS') with no zone marker;
-/// bare strings must be read as UTC or every value shifts by the device's
-/// UTC offset. Strings that carry a zone (date('c')) fall through to the
-/// native parser. Returns null on unparseable input.
-DateTime? parseDbTime(String input) {
-  if (input.isEmpty) return null;
-  final s = input.trim();
-  if (RegExp(r'^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$').hasMatch(s)) {
-    return DateTime.tryParse('${s.replaceFirst(' ', 'T')}Z')?.toUtc();
-  }
-  return DateTime.tryParse(s)?.toUtc();
 }
 
 /// EnclavdTime.absolute port - a localized absolute timestamp in the

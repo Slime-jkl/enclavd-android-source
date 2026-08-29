@@ -19,6 +19,7 @@ import '../services/gallery_saver.dart';
 import '../services/sound_service.dart';
 import '../theme/enclavd_theme.dart';
 import '../utils/content_spans.dart';
+import '../utils/db_time.dart';
 import 'cached_image.dart';
 import 'enclavd_avatar.dart';
 import 'enclavd_image.dart';
@@ -1448,23 +1449,6 @@ class _CommentComposer extends StatelessWidget {
   }
 }
 
-/// Port of format_date(): now / Xm / Xh / Xd / Xmo / Xy.
-String relativeTime(String dbDateTime) {
-  final parsed = DateTime.tryParse(dbDateTime.replaceFirst(' ', 'T'));
-  if (parsed == null) return '';
-  final now = DateTime.now();
-  final diff = now.difference(parsed);
-  if (diff.inSeconds < 0) return 'now';
-  if (diff.inMinutes < 1) return 'now';
-  if (diff.inHours < 1) return '${diff.inMinutes}m';
-  if (diff.inDays < 1) return '${diff.inHours}h';
-  // Approximate months as 30 days (matches PHP's DateTime::diff month units).
-  final days = diff.inDays;
-  if (days < 30) return '${days}d';
-  if (days < 365) return '${days ~/ 30}m';
-  return '${days ~/ 365}y';
-}
-
 /// Maps the server's Tailwind name_color class to our palette.
 Color rankColorFromCssClass(String cssClass) {
   if (cssClass.contains('purple')) return RankColors.forRank('SysOp');
@@ -1615,12 +1599,10 @@ class _CommentRowState extends State<_CommentRow> {
                     ),
                     const SizedBox(width: 6),
                     Text(
-                      comment.createdAt,
+                      relativeTime(comment.createdAtUtc),
                       style: const TextStyle(
                           color: EnclavdColors.textSecondary, fontSize: 11),
                     ),
-                    // Reply on others' comments: inserts "@user " for the
-                    // server to validate.
                     if (!comment.isOwner) ...[
                       const SizedBox(width: 6),
                       GestureDetector(
