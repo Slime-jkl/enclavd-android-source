@@ -92,8 +92,14 @@ void main() {
     expect(find.widgetWithText(SwitchListTile, 'Light variant'),
         findsOneWidget);
     expect(find.text('Show logo'), findsNothing);
+    expect(find.text('Widget Preview'), findsOneWidget);
     expect(find.text('How daily quotes work'), findsOneWidget);
     expect(find.textContaining('always shown on the widget'), findsOneWidget);
+
+
+    expect(
+        tester.getTopLeft(find.text('How daily quotes work')).dy,
+        lessThan(tester.getTopLeft(find.text('Widget Preview')).dy));
 
     // Defaults: daily quote ON, tags ON, follow-system ON, light OFF.
     expect(
@@ -316,5 +322,29 @@ void main() {
     await tester.tap(find.widgetWithText(SwitchListTile, 'Light variant'));
     await tester.pumpAndSettle();
     expect(preview().light, isTrue);
+  });
+
+  testWidgets('preview grows past the 4x2 cell for a long quote',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    tallView(tester);
+    final longText = 'Long quote. ' * 12;
+    mockWidgetData({
+      'quote_text': longText,
+      'quote_author': 'Someone',
+      'quote_tags': 'wisdom',
+      'quote_id': '7',
+      'quote_rated': '',
+      'widget_show_tags': true,
+      'widget_light': false,
+      'widget_follow_system': true,
+    });
+    await tester.pumpWidget(wrap(const QuoteSettingsScreen()));
+    await tester.pumpAndSettle();
+
+    final size = tester.getSize(find.byType(QuoteWidgetPreview));
+    expect(size.height, greaterThan(size.width * 110 / 250),
+        reason: 'a long quote must not be clipped to the 4x2 cell');
+    expect(find.text(longText), findsOneWidget);
   });
 }

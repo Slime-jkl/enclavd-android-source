@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 /// In-app mirror of the home-screen quote widget. Sizes and colors track
-/// applyColors so the settings perview matches the pinned card;
+/// applyColors so the settings preview matches the pinned card
 class QuoteWidgetPreview extends StatelessWidget {
   const QuoteWidgetPreview({
     super.key,
@@ -34,17 +34,22 @@ class QuoteWidgetPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // The 4x2 cell (250x110dp min) the launcher renders by default.
-    return AspectRatio(
-      aspectRatio: 250 / 110,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final scale = (constraints.maxWidth / 360).clamp(0.7, 1.5);
-          final muted = light ? _mutedLight : _mutedDark;
-          final mark = light ? _markLight : _markDark;
-          final watermarkSize =
-              (constraints.biggest.shortestSide * 0.85).clamp(48.0, 260.0);
-          return Container(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final scale = (constraints.maxWidth / 360).clamp(0.7, 1.5);
+        final muted = light ? _mutedLight : _mutedDark;
+        final mark = light ? _markLight : _markDark;
+        // Min height mirrors the Widget min 4x2
+        final minHeight = constraints.maxWidth * 110 / 250;
+        // Height is unbounded inside the settings ListView; size the
+        // watermark from the min cell so it stays proportional
+        final watermarkBase = constraints.hasBoundedHeight
+            ? constraints.biggest.shortestSide
+            : minHeight;
+        final watermarkSize = (watermarkBase * 0.85).clamp(48.0, 260.0);
+        return ConstrainedBox(
+          constraints: BoxConstraints(minHeight: minHeight),
+          child: Container(
             decoration: BoxDecoration(
               color: light ? _bgLight : _bgDark,
               borderRadius: BorderRadius.circular(16),
@@ -68,57 +73,54 @@ class QuoteWidgetPreview extends StatelessWidget {
                     ),
                   ),
                 ),
-                SingleChildScrollView(
-                  physics: const NeverScrollableScrollPhysics(),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _header(constraints.maxWidth, scale),
-                      if (text == null)
-                        Transform.translate(
-                          offset: Offset(0, -6 * scale),
-                          child: _quoteText(
-                              "Open Enclavd to see today's quote", scale),
-                        )
-                      else ...[
-                        Padding(
-                          padding: EdgeInsets.only(top: 2 * scale),
-                          child: Text(
-                            '\u201C',
-                            style: TextStyle(
-                              color: mark,
-                              fontSize: 31 * scale,
-                              fontWeight: FontWeight.bold,
-                            ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _header(constraints.maxWidth, scale),
+                    if (text == null)
+                      Transform.translate(
+                        offset: Offset(0, -6 * scale),
+                        child: _quoteText(
+                            "Open Enclavd to see today's quote", scale),
+                      )
+                    else ...[
+                      Padding(
+                        padding: EdgeInsets.only(top: 2 * scale),
+                        child: Text(
+                          '\u201C',
+                          style: TextStyle(
+                            color: mark,
+                            fontSize: 31 * scale,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                        Transform.translate(
-                          offset: Offset(0, -6 * scale),
-                          child: _quoteText(text!, scale),
+                      ),
+                      Transform.translate(
+                        offset: Offset(0, -6 * scale),
+                        child: _quoteText(text!, scale),
+                      ),
+                      Padding(
+                        padding: EdgeInsets.only(top: 6 * scale),
+                        child: Text(
+                          '- $author',
+                          style: TextStyle(
+                              color: muted, fontSize: 13 * scale),
                         ),
+                      ),
+                      if (showTags && tags.isNotEmpty)
                         Padding(
-                          padding: EdgeInsets.only(top: 6 * scale),
-                          child: Text(
-                            '- $author',
-                            style: TextStyle(
-                                color: muted, fontSize: 13 * scale),
-                          ),
+                          padding: EdgeInsets.only(top: 8 * scale),
+                          child: _tags(scale, muted, mark),
                         ),
-                        if (showTags && tags.isNotEmpty)
-                          Padding(
-                            padding: EdgeInsets.only(top: 8 * scale),
-                            child: _tags(scale, muted, mark),
-                          ),
-                        Padding(
-                          padding: EdgeInsets.only(top: 10 * scale),
-                          child: rated == null
-                              ? _actions(scale)
-                              : _rated(scale, muted),
-                        ),
-                      ],
+                      Padding(
+                        padding: EdgeInsets.only(top: 10 * scale),
+                        child: rated == null
+                            ? _actions(scale)
+                            : _rated(scale, muted),
+                      ),
                     ],
-                  ),
+                  ],
                 ),
                 if (text != null)
                   Positioned(
@@ -135,9 +137,9 @@ class QuoteWidgetPreview extends StatelessWidget {
                   ),
               ],
             ),
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -177,7 +179,6 @@ class QuoteWidgetPreview extends StatelessWidget {
       ),
     );
   }
-
 
   Widget _tags(double scale, Color muted, Color mark) {
     final spans = <TextSpan>[];
