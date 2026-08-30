@@ -164,6 +164,10 @@ void main() {
     expect(find.text('Second reply'), findsOneWidget);
     expect(find.text('#1'), findsOneWidget);
     expect(find.text('#2'), findsOneWidget);
+    // Composer is hidden until the Reply button reveals it.
+    expect(find.byType(TextField), findsNothing);
+    await tester.tap(find.byKey(const Key('replyToggle')));
+    await tester.pump(const Duration(milliseconds: 50));
     expect(find.byType(TextField), findsOneWidget);
     expect(social.ascQueries, [218]);
   });
@@ -179,6 +183,8 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
+    await tester.tap(find.byKey(const Key('replyToggle')));
+    await tester.pump(const Duration(milliseconds: 50));
     await tester.enterText(find.byType(TextField), 'My new reply');
     await tester.tap(find.byTooltip('Send reply'));
     await tester.pump(const Duration(milliseconds: 50));
@@ -322,6 +328,9 @@ void main() {
             (w) => w is EnclavdAvatar && w.url.contains(urlPart)));
     expect(avatarOf('dev.png').size, 46, reason: 'OP avatar is forum-large');
     expect(avatarOf('x.png').size, 40, reason: 'reply avatar is forum-large');
+    expect(avatarOf('dev.png').square, isTrue,
+        reason: 'forum avatars are squared with rounded corners');
+    expect(avatarOf('x.png').square, isTrue);
   });
 
   testWidgets('reply on another reply quotes it in the composer and on send',
@@ -337,10 +346,10 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(find.text('Reply'), findsOneWidget);
+    expect(find.byKey(const Key('replyToggle')), findsOneWidget);
     expect(find.text('Delete'), findsNothing);
 
-    await tester.tap(find.text('Reply'));
+    await tester.tap(find.byKey(const Key('replyQuote-1')));
     await tester.pump(const Duration(milliseconds: 50));
 
     // Quote banner names the target above the composer (card + banner = two occurrences).
@@ -369,7 +378,7 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    await tester.tap(find.text('Reply'));
+    await tester.tap(find.byKey(const Key('replyQuote-1')));
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('Replying to @Someone'), findsOneWidget);
 

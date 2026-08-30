@@ -2,16 +2,12 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
 
 import '../api/api_client.dart';
-import '../api/auth_service.dart'; // resolveMediaUrl
 import '../api/domains_service.dart';
-import '../api/messages_service.dart'; // parseDbTime (DB UTC wall-clock)
-import '../config/app_config.dart';
+import '../api/social_service.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/error_view.dart';
 import '../utils/domain_icons.dart';
-import '../utils/db_time.dart';
-import '../widgets/enclavd_avatar.dart';
-import '../widgets/rank_badge.dart';
+import '../widgets/domain_thread_row.dart';
 import '../widgets/shimmer.dart';
 import 'domain_thread_screen.dart';
 import '../services/analytics_service.dart';
@@ -21,11 +17,13 @@ class DomainCategoryScreen extends StatefulWidget {
     super.key,
     required this.domains,
     required this.category,
+    this.social,
     this.threadBuilder,
   });
 
   final DomainsService domains;
   final DomainCategory category;
+  final SocialService? social;
 
   /// Test seam: replaces the pushed thread screen.
   final Widget Function(DomainThread thread)? threadBuilder;
@@ -143,6 +141,7 @@ class _DomainCategoryScreenState extends State<DomainCategoryScreen> {
               domains: widget.domains,
               postId: thread.post.id,
               breadcrumbName: _category.name,
+              social: widget.social,
             ),
     ));
   }
@@ -164,9 +163,9 @@ class _DomainCategoryScreenState extends State<DomainCategoryScreen> {
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: const [
           _CategoryHeaderSkeleton(),
-          _ThreadRowSkeleton(),
-          _ThreadRowSkeleton(),
-          _ThreadRowSkeleton(),
+          DomainThreadRowSkeleton(),
+          DomainThreadRowSkeleton(),
+          DomainThreadRowSkeleton(),
         ],
       );
     }
@@ -214,9 +213,10 @@ return ErrorView(message: _error!, onRetry: _loadFirst);
             );
           }
           final thread = _threads[threadIndex];
-          return _ThreadRow(
+          return DomainThreadRow(
             key: ValueKey(thread.post.id),
             thread: thread,
+            social: widget.social,
             onTap: () => _open(thread),
           );
         },
@@ -246,7 +246,10 @@ class _CategoryHeader extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             alignment: Alignment.center,
-            child: FaIcon(domainIconFor(category.icon), size: 19, color: accent),
+            child: FaIcon(
+                domainIconFor(category.icon, iconCode: category.iconCode),
+                size: 19,
+                color: accent),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -280,149 +283,6 @@ class _CategoryHeader extends StatelessWidget {
   }
 }
 
-class _ThreadRow extends StatelessWidget {
-  const _ThreadRow({super.key, required this.thread, required this.onTap});
-
-  final DomainThread thread;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final post = thread.post;
-    final personality = PersonalityColors.forType(post.personalityType);
-    final excerpt = _excerpt(post.content);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-      child: Material(
-        color: EnclavdColors.card,
-        borderRadius: BorderRadius.circular(16),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                EnclavdAvatar(
-                  size: 38,
-                  url: resolveMediaUrl(AppConfig.apiBaseUrl,
-                      avatarPath: post.profilePictureUrl),
-                  borderColor: personality,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Thread title = the excerpt (site: first line).
-                      Text(
-                        excerpt,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w600,
-                          height: 1.3,
-                          color: EnclavdColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      // Meta: author (rank color) + rank badge - relative
-                      // date (forum-identity like the thread view).
-                      Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              post.username,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                                color: post.isBlocked
-                                    ? RankColors.forRank('Blocked')
-                                    : RankColors.forRank(post.rank),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          RankBadge(rank: post.rank),
-                          const SizedBox(width: 6),
-                          Text(
-                            '- ${relativeTime(post.createdAt)}',
-                            style: const TextStyle(
-                                fontSize: 12,
-                                color: EnclavdColors.textSecondary),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      // Stats: comments + likes + last activity.
-                      Row(
-                        children: [
-                          const FaIcon(FontAwesomeIcons.comments,
-                              size: 12, color: EnclavdColors.textSecondary),
-                          const SizedBox(width: 4),
-                          Text('${post.commentCount}',
-                              style: const TextStyle(
-                                  fontSize: 12,
-                                  color: EnclavdColors.textSecondary)),
-                          const SizedBox(width: 14),
-                          const FaIcon(FontAwesomeIcons.heart,
-                              size: 12, color: EnclavdColors.textSecondary),
-                          const SizedBox(width: 4),
-                          Text('${post.likeCount}',
-                              style: const TextStyle(
-                                  fontSize: 12,
-                                  color: EnclavdColors.textSecondary)),
-                          if (_lastActivity != null) ...[
-                            const SizedBox(width: 14),
-                            const FaIcon(FontAwesomeIcons.clock,
-                                size: 12, color: EnclavdColors.textSecondary),
-                            const SizedBox(width: 4),
-                            Text(_lastActivity!,
-                                style: const TextStyle(
-                                    fontSize: 12,
-                                    color: EnclavdColors.textSecondary)),
-                          ],
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 4),
-                const FaIcon(FontAwesomeIcons.chevronRight,
-                    size: 12, color: EnclavdColors.textSecondary),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  String? get _lastActivity {
-    final raw = thread.lastReplyAt ?? thread.post.createdAt;
-    final t = parseDbTime(raw);
-    if (t == null) return null;
-    final now = DateTime.now();
-    final diff = now.difference(t);
-    if (diff.inMinutes < 1) return 'now';
-    if (diff.inHours < 1) return '${diff.inMinutes}m';
-    if (diff.inDays < 1) return '${diff.inHours}h';
-    if (diff.inDays < 30) return '${diff.inDays}d';
-    if (diff.inDays < 365) return '${diff.inDays ~/ 30}mo';
-    return '${diff.inDays ~/ 365}y';
-  }
-}
-
-String _excerpt(String content) {
-  final trimmed = content.trim();
-  if (trimmed.isEmpty) return '(no content)';
-  return trimmed.length > 120 ? '${trimmed.substring(0, 120)}...' : trimmed;
-}
-
 class _CategoryHeaderSkeleton extends StatelessWidget {
   const _CategoryHeaderSkeleton();
 
@@ -446,44 +306,6 @@ class _CategoryHeaderSkeleton extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ThreadRowSkeleton extends StatelessWidget {
-  const _ThreadRowSkeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-      child: Material(
-        color: EnclavdColors.card,
-        borderRadius: BorderRadius.all(Radius.circular(16)),
-        clipBehavior: Clip.antiAlias,
-        child: Padding(
-          padding: EdgeInsets.all(12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ShimmerBox(width: 38, height: 38, shape: BoxShape.circle),
-              SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    ShimmerBox(width: double.infinity, height: 13),
-                    SizedBox(height: 6),
-                    ShimmerBox(width: 190, height: 13),
-                    SizedBox(height: 8),
-                    ShimmerBox(width: 150, height: 11),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }

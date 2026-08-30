@@ -3,75 +3,155 @@ import 'package:flutter/material.dart';
 
 import '../api/api_client.dart';
 import '../api/domains_service.dart';
-import '../api/messages_service.dart'; // parseDbTime (DB UTC wall-clock)
+import '../api/social_service.dart';
 import '../theme/enclavd_theme.dart';
-import '../widgets/error_view.dart';
 import '../utils/domain_icons.dart';
+import '../widgets/domain_thread_row.dart';
+import '../widgets/error_view.dart';
 import '../widgets/shimmer.dart';
-import 'domain_category_screen.dart';
+import 'domain_thread_screen.dart';
 
+/// The Domains tab home - mirrors the site's new board: squared domain
+/// filter buttons at the top and a latest-posts feed below (newest
+/// activity first). Selecting a chip filters the feed to that domain and
+/// its subcategories; "All" shows every domain's posts.
 class DomainsScreen extends StatefulWidget {
-  const DomainsScreen({super.key, required this.domains, this.categoryBuilder});
+  const DomainsScreen({
+    super.key,
+    required this.domains,
+    this.social,
+    this.threadBuilder,
+  });
 
   final DomainsService domains;
+  final SocialService? social;
 
-  /// Test seam: replaces the pushed category screen in widget tests.
-  final Widget Function(DomainCategory category)? categoryBuilder;
+  /// Test seam: replaces the pushed thread screen.
+  final Widget Function(DomainThread thread)? threadBuilder;
 
   @override
   State<DomainsScreen> createState() => _DomainsScreenState();
 }
 
 class _DomainsScreenState extends State<DomainsScreen> {
-  List<DomainCategory> _roots = const [];
-  bool _loading = true;
-  bool _loaded = false;
+  List<DomainCategory> _categories = const [];
+  bool _chipsLoaded = false;
+
+  int? _selectedId;
+  final List<DomainThread> _threads = [];
+  final _scrollController = ScrollController();
+  bool _loading = false;
+  bool _initialLoadDone = false;
+  bool _hasMore = false;
+  int _offset = 0;
+  int _total = 0;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _scrollController.addListener(_onScroll);
+    _loadChips();
+    _loadFeed(reset: true);
   }
 
-  Future<void> _load() async {
-    if (mounted) {
-      setState(() {
-        _loading = true;
-        _error = null;
-      });
-    }
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadChips() async {
     try {
       final flat = await widget.domains.board();
       if (!mounted) return;
       setState(() {
-        _roots = DomainCategory.buildTree(flat);
+        _categories = flat;
+        _chipsLoaded = true;
+      });
+    } on ApiException {
+      // Chips are secondary; the feed still works without them.
+      if (!mounted) return;
+      setState(() => _chipsLoaded = true);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _chipsLoaded = true);
+    }
+  }
+
+  void _select(int? id) {
+    if (_selectedId == id) return;
+    setState(() {
+      _selectedId = id;
+      _threads.clear();
+      _initialLoadDone = false;
+      _error = null;
+    });
+    _loadFeed(reset: true);
+  }
+
+  void _onScroll() {
+    if (_loading || !_initialLoadDone) return;
+    final position = _scrollController.position;
+    if (position.pixels >= position.maxScrollExtent - 400) {
+      _loadFeed(reset: false);
+    }
+  }
+
+  Future<void> _loadFeed({required bool reset}) async {
+    if (_loading || (!reset && !_hasMore)) return;
+    setState(() {
+      _loading = true;
+      if (reset) _error = null;
+    });
+    try {
+      final page = await widget.domains.feed(
+        domainId: _selectedId,
+        offset: reset ? 0 : _offset,
+      );
+      if (!mounted) return;
+      setState(() {
+        if (reset) {
+          _threads
+            ..clear()
+            ..addAll(page.threads);
+          _offset = page.threads.length;
+        } else {
+          _threads.addAll(page.threads);
+          _offset += page.threads.length;
+        }
+        _hasMore = page.hasMore;
+        _total = page.total;
         _loading = false;
-        _loaded = true;
+        _initialLoadDone = true;
       });
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.message;
         _loading = false;
+        _initialLoadDone = true;
+        if (_threads.isEmpty) _error = e.message;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        _error = 'Failed to load domains.';
         _loading = false;
+        _initialLoadDone = true;
+        if (_threads.isEmpty) _error = 'Failed to load posts.';
       });
     }
   }
 
-  void _open(DomainCategory category) {
-    final builder = widget.categoryBuilder;
+  void _open(DomainThread thread) {
+    final builder = widget.threadBuilder;
     Navigator.of(context).push(MaterialPageRoute<void>(
       builder: (_) => builder != null
-          ? builder(category)
-          : DomainCategoryScreen(
+          ? builder(thread)
+          : DomainThreadScreen(
               domains: widget.domains,
-              category: category,
+              postId: thread.post.id,
+              breadcrumbName: thread.domainName,
+              social: widget.social,
             ),
     ));
   }
@@ -82,269 +162,208 @@ class _DomainsScreenState extends State<DomainsScreen> {
   }
 
   Widget _buildBody() {
-    if (!_loaded && _loading) {
+    if (!_initialLoadDone && _loading) {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: const [
-          _BoardHeaderSkeleton(),
-          _CategoryCardSkeleton(),
-          _CategoryCardSkeleton(),
+          _ChipsSkeleton(),
+          _FeedHeaderSkeleton(),
+          DomainThreadRowSkeleton(),
+          DomainThreadRowSkeleton(),
+          DomainThreadRowSkeleton(),
         ],
       );
     }
-    if (_error != null && !_loaded) {
-return ErrorView(message: _error!, onRetry: _load);
-    }
-    if (_roots.isEmpty) {
-      // Site empty state (domain/index.php board: "No domains have been
-      // created yet.").
-      return const Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            FaIcon(FontAwesomeIcons.sitemap,
-                color: EnclavdColors.textSecondary, size: 28),
-            SizedBox(height: 10),
-            Text('No domains yet',
-                style: TextStyle(color: EnclavdColors.textSecondary)),
-          ],
-        ),
-      );
+    if (_error != null && _threads.isEmpty) {
+      return ErrorView(message: _error!, onRetry: () => _loadFeed(reset: true));
     }
     return RefreshIndicator(
-      onRefresh: _load,
+      onRefresh: () => _loadFeed(reset: true),
       color: EnclavdColors.link,
-      child: ListView(
+      child: ListView.builder(
+        controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(vertical: 8),
-        children: [
-          // Board header: the site's "Domains of Discussion" title block.
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 10, 20, 4),
-            child: Text(
-              'Domains of Discussion',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.3,
-                color: EnclavdColors.textPrimary,
+        itemCount: _threads.isEmpty
+            ? 3
+            : 1 + 1 + _threads.length + (_loading ? 1 : 0),
+        itemBuilder: (context, index) {
+          if (index == 0) return _buildChips();
+          if (index == 1) return _buildFeedHeader();
+          final threadIndex = index - 2;
+          if (_threads.isEmpty) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 48),
+              child: Column(
+                children: [
+                  const FaIcon(FontAwesomeIcons.comments,
+                      color: EnclavdColors.textSecondary, size: 28),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'No posts yet',
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: EnclavdColors.textPrimary),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _selectedId == null
+                        ? 'Posts promoted to a domain will show up here.'
+                        : 'Nothing has been promoted to this domain yet.',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                        fontSize: 12.5,
+                        color: EnclavdColors.textSecondary),
+                  ),
+                ],
               ),
+            );
+          }
+          if (threadIndex >= _threads.length) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Center(child: ShimmerBox(width: 160, height: 22)),
+            );
+          }
+          final thread = _threads[threadIndex];
+          return DomainThreadRow(
+            key: ValueKey(thread.post.id),
+            thread: thread,
+            social: widget.social,
+            onTap: () => _open(thread),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildChips() {
+    if (!_chipsLoaded) {
+      return const Padding(
+        padding: EdgeInsets.fromLTRB(12, 8, 12, 4),
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _ChipSkeleton(),
+            _ChipSkeleton(),
+            _ChipSkeleton(),
+            _ChipSkeleton(),
+          ],
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          _DomainChip(
+            label: 'All',
+            icon: FontAwesomeIcons.tableCellsLarge,
+            iconColor: EnclavdColors.link,
+            selected: _selectedId == null,
+            onTap: () => _select(null),
+          ),
+          for (final cat in _categories)
+            _DomainChip(
+              label: cat.name,
+              icon: domainIconFor(cat.icon, iconCode: cat.iconCode),
+              iconColor: domainColorFromHex(cat.color),
+              selected: _selectedId == cat.id,
+              onTap: () => _select(cat.id),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeedHeader() {
+    DomainCategory? selected;
+    for (final c in _categories) {
+      if (c.id == _selectedId) {
+        selected = c;
+        break;
+      }
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 2),
+      child: Row(
+        children: [
+          Text(
+            selected != null ? 'Posts in ${selected.name}' : 'Latest Posts',
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.3,
+              color: EnclavdColors.textSecondary,
             ),
           ),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(20, 0, 20, 10),
-            child: Text(
-              'Browse discussions by category',
-              style: TextStyle(
-                  fontSize: 13, color: EnclavdColors.textSecondary),
-            ),
+          const Spacer(),
+          Text(
+            '$_total total',
+            style: const TextStyle(
+                fontSize: 11, color: EnclavdColors.textSecondary),
           ),
-          for (final root in _roots)
-            _CategoryCard(
-              root: root,
-              onOpen: _open,
-            ),
-          const SizedBox(height: 16),
         ],
       ),
     );
   }
 }
 
-class _CategoryCard extends StatelessWidget {
-  const _CategoryCard({required this.root, required this.onOpen});
+class _DomainChip extends StatelessWidget {
+  const _DomainChip({
+    required this.label,
+    required this.icon,
+    required this.iconColor,
+    required this.selected,
+    required this.onTap,
+  });
 
-  final DomainCategory root;
-  final void Function(DomainCategory) onOpen;
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = domainColorFromHex(root.color);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-      child: Material(
-        color: EnclavdColors.card,
-        borderRadius: BorderRadius.circular(16),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Root header (site: bg-gray-900/60 header over the rows).
-            InkWell(
-              onTap: () => onOpen(root),
-              child: Container(
-                width: double.infinity,
-                color: EnclavdColors.background.withValues(alpha: 0.45),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                child: Row(
-                  children: [
-                    _IconChip(icon: domainIconFor(root.icon), color: accent),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            root.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w700,
-                              color: EnclavdColors.textPrimary,
-                            ),
-                          ),
-                          if (root.description != null) ...[
-                            const SizedBox(height: 2),
-                            Text(
-                              root.description!,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  fontSize: 12,
-                                  color: EnclavdColors.textSecondary),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    _PostCount(count: root.postCount),
-                    const SizedBox(width: 4),
-                    const FaIcon(FontAwesomeIcons.chevronRight,
-                        size: 12, color: EnclavdColors.textSecondary),
-                  ],
-                ),
-              ),
-            ),
-            if (root.children.isNotEmpty)
-              for (final child in root.children)
-                _ChildRow(
-                  category: child,
-                  onTap: () => onOpen(child),
-                )
-            else
-              // Childless root: the header is the row, with the activity
-              // line under it.
-              _ActivityLine(category: root),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ActivityLine extends StatelessWidget {
-  const _ActivityLine({required this.category});
-
-  final DomainCategory category;
-
-  @override
-  Widget build(BuildContext context) {
-    final last = category.lastPostAt;
-    final author = category.lastPostAuthor;
-    final hasActivity = last != null && author != null;
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-      child: hasActivity
-          ? Text.rich(
-              TextSpan(
-                style: const TextStyle(
-                    fontSize: 11, color: EnclavdColors.textSecondary),
-                children: [
-                  const TextSpan(text: 'Last: '),
-                  TextSpan(
-                      text: _formatDate(last),
-                      style:
-                          const TextStyle(fontWeight: FontWeight.w600)),
-                  TextSpan(text: ' by @$author'),
-                ],
-              ),
-            )
-          : const Text(
-              'No activity yet',
-              style: TextStyle(
-                  fontSize: 11, color: EnclavdColors.textSecondary),
-            ),
-    );
-  }
-}
-
-class _ChildRow extends StatelessWidget {
-  const _ChildRow({required this.category, required this.onTap});
-
-  final DomainCategory category;
+  final String label;
+  final FaIconData icon;
+  final Color iconColor;
+  final bool selected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final accent = domainColorFromHex(category.color);
-    final last = category.lastPostAt;
-    final author = category.lastPostAuthor;
-    final hasActivity = last != null && author != null;
+    final bg = selected
+        ? EnclavdColors.link.withValues(alpha: 0.16)
+        : EnclavdColors.cardSecondary;
+    final fg = selected ? EnclavdColors.link : EnclavdColors.textSecondary;
     return InkWell(
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: selected
+                ? EnclavdColors.link.withValues(alpha: 0.5)
+                : EnclavdColors.border,
+          ),
+        ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(width: 18), // indent under the root header
-            _IconChip(icon: domainIconFor(category.icon), color: accent),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    category.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: EnclavdColors.textPrimary,
-                    ),
-                  ),
-                  if (category.description != null) ...[
-                    const SizedBox(height: 1),
-                    Text(
-                      category.description!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: 11.5,
-                          color: EnclavdColors.textSecondary),
-                    ),
-                  ],
-                  if (hasActivity) ...[
-                    const SizedBox(height: 3),
-                    Text.rich(
-                      TextSpan(
-                        style: const TextStyle(
-                            fontSize: 11,
-                            color: EnclavdColors.textSecondary),
-                        children: [
-                          const TextSpan(text: 'Last: '),
-                          TextSpan(
-                              text: _formatDate(last),
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w600)),
-                          TextSpan(text: ' by @$author'),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
+            FaIcon(icon, size: 11, color: selected ? fg : iconColor),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: fg,
               ),
             ),
-            const SizedBox(width: 8),
-            _PostCount(count: category.postCount),
-            const SizedBox(width: 4),
-            const FaIcon(FontAwesomeIcons.chevronRight,
-                size: 12, color: EnclavdColors.textSecondary),
           ],
         ),
       ),
@@ -352,131 +371,44 @@ class _ChildRow extends StatelessWidget {
   }
 }
 
-class _IconChip extends StatelessWidget {
-  const _IconChip({required this.icon, required this.color});
-
-  final FaIconData icon;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 34,
-      height: 34,
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.13),
-        borderRadius: BorderRadius.circular(9),
-      ),
-      alignment: Alignment.center,
-      child: FaIcon(icon, size: 15, color: color),
-    );
-  }
-}
-
-class _PostCount extends StatelessWidget {
-  const _PostCount({required this.count});
-
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Text(
-          '$count',
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-            color: EnclavdColors.textPrimary,
-          ),
-        ),
-        const Text(
-          'posts',
-          style: TextStyle(fontSize: 10, color: EnclavdColors.textSecondary),
-        ),
-      ],
-    );
-  }
-}
-
-String _formatDate(String dbUtc) {
-  final t = parseDbTime(dbUtc);
-  if (t == null) return '';
-  const months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-  ];
-  return '${months[t.month - 1]} ${t.day}, ${t.year}';
-}
-
-class _BoardHeaderSkeleton extends StatelessWidget {
-  const _BoardHeaderSkeleton();
+class _ChipsSkeleton extends StatelessWidget {
+  const _ChipsSkeleton();
 
   @override
   Widget build(BuildContext context) {
     return const Padding(
-      padding: EdgeInsets.fromLTRB(20, 14, 20, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: EdgeInsets.fromLTRB(12, 8, 12, 4),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
         children: [
-          ShimmerBox(width: 210, height: 20),
-          SizedBox(height: 8),
-          ShimmerBox(width: 160, height: 13),
+          _ChipSkeleton(),
+          _ChipSkeleton(),
+          _ChipSkeleton(),
+          _ChipSkeleton(),
         ],
       ),
     );
   }
 }
 
-class _CategoryCardSkeleton extends StatelessWidget {
-  const _CategoryCardSkeleton();
+class _ChipSkeleton extends StatelessWidget {
+  const _ChipSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const ShimmerBox(width: 86, height: 30, borderRadius: 8);
+  }
+}
+
+class _FeedHeaderSkeleton extends StatelessWidget {
+  const _FeedHeaderSkeleton();
 
   @override
   Widget build(BuildContext context) {
     return const Padding(
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-      child: Material(
-        color: EnclavdColors.card,
-        borderRadius: BorderRadius.all(Radius.circular(16)),
-        clipBehavior: Clip.antiAlias,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: EdgeInsets.all(14),
-              child: Row(
-                children: [
-                  ShimmerBox(width: 34, height: 34, borderRadius: 9),
-                  SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        ShimmerBox(width: 120, height: 14),
-                        SizedBox(height: 6),
-                        ShimmerBox(width: 180, height: 11),
-                      ],
-                    ),
-                  ),
-                  ShimmerBox(width: 30, height: 24),
-                ],
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.fromLTRB(14, 0, 14, 12),
-              child: Row(
-                children: [
-                  SizedBox(width: 18),
-                  ShimmerBox(width: 26, height: 26, borderRadius: 7),
-                  SizedBox(width: 12),
-                  ShimmerBox(width: 140, height: 12),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+      padding: EdgeInsets.fromLTRB(20, 12, 20, 6),
+      child: ShimmerBox(width: 130, height: 13),
     );
   }
 }

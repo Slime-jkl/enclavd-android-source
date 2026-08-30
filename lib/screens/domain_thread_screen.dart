@@ -18,7 +18,6 @@ import '../utils/content_spans.dart'; // postContentSpans + commentContentSpans
 import '../utils/db_time.dart';
 import '../widgets/enclavd_avatar.dart';
 import '../widgets/error_view.dart';
-import '../widgets/personality_chip.dart';
 import '../widgets/post_card.dart'; // PostCardSkeleton, PostImage,
 // rankColorFromCssClass
 import '../widgets/rank_badge.dart';
@@ -70,6 +69,7 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
   final _replyController = TextEditingController();
   final _replyFocus = FocusNode();
   bool _replying = false;
+  bool _composerOpen = false; // composer at the top of replies, hidden
 
   AppServices? _services;
 
@@ -177,9 +177,22 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
   }
 
   void _quoteReply(Comment reply) {
-    setState(() => _quoting = reply);
+    setState(() {
+      _quoting = reply;
+      _composerOpen = true;
+    });
     _replyController.clear();
     _replyFocus.requestFocus();
+  }
+
+  void _toggleComposer() {
+    setState(() => _composerOpen = !_composerOpen);
+    if (_composerOpen) {
+      // Focus after the frame so the reveal animation doesn't fight it.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _replyFocus.requestFocus();
+      });
+    }
   }
 
   void _dismissQuote() => setState(() => _quoting = null);
@@ -336,17 +349,6 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
         ],
       ),
       body: SafeArea(child: _buildBody()),
-      // Reply composer pinned above the keyboard (site: #reply-form).
-      bottomNavigationBar: _post == null
-          ? null
-          : _ReplyComposer(
-              controller: _replyController,
-              focusNode: _replyFocus,
-              sending: _replying,
-              onSend: _sendReply,
-              quote: _quoting,
-              onDismissQuote: _dismissQuote,
-            ),
     );
   }
 
@@ -374,7 +376,27 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
           onDeletePost: _deletePost,
         ),
         const SizedBox(height: 14),
-        _RepliesHeader(count: post.commentCount),
+        // Reply composer at the top of the replies, hidden until the
+        // "Reply" button reveals it (site: comment_list card).
+        if (_composerOpen)
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            decoration: BoxDecoration(
+              color: EnclavdColors.card,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: EnclavdColors.border),
+            ),
+            child: _ReplyComposer(
+              controller: _replyController,
+              focusNode: _replyFocus,
+              sending: _replying,
+              onSend: _sendReply,
+              quote: _quoting,
+              onDismissQuote: _dismissQuote,
+            ),
+          ),
+        _RepliesHeader(
+            count: post.commentCount, onReply: _toggleComposer),
         if (_repliesLoading)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 10),
@@ -601,6 +623,7 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                   url: resolveMediaUrl(widget.apiBaseUrl,
                       avatarPath: post.profilePictureUrl),
                   borderColor: personality,
+                  square: true,
                 ),
               ),
               const SizedBox(width: 12),
@@ -689,15 +712,11 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                       ],
                     ),
                     const SizedBox(height: 4),
-                    // Identity row: rank badge + personality chip +
-                    // active warnings.
+                    // Identity row: rank badge (personality tags are
+                    // hidden on domain pages) + active warnings.
                     Row(
                       children: [
                         RankBadge(rank: post.rank),
-                        if (post.personalityType != null) ...[
-                          const SizedBox(width: 6),
-                          PersonalityChip(type: post.personalityType!),
-                        ],
                         if (post.warningCount > 0) ...[
                           const SizedBox(width: 6),
                           const FaIcon(FontAwesomeIcons.triangleExclamation,
@@ -771,6 +790,34 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                 style: const TextStyle(
                     fontSize: 13, fontWeight: FontWeight.w600),
               ),
+              const Spacer(),
+              if (post.lastReplyAt != null &&
+                  post.lastReplyUsername != null)
+                Flexible(
+                  child: Text.rich(
+                    TextSpan(
+                      style: const TextStyle(
+                          fontSize: 11, color: EnclavdColors.textSecondary),
+                      children: [
+                        TextSpan(
+                            text:
+                                'Last reply ${relativeTime(post.lastReplyAt!)} @'),
+                        TextSpan(
+                          text: post.lastReplyUsername!,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: post.lastReplyActive == 'false'
+                                ? RankColors.forRank('Blocked')
+                                : RankColors.forRank(
+                                    post.lastReplyRank ?? 'Member'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
             ],
           ),
         ],
@@ -787,9 +834,10 @@ class _ForumPostCardState extends State<_ForumPostCard> {
 }
 
 class _RepliesHeader extends StatelessWidget {
-  const _RepliesHeader({required this.count});
+  const _RepliesHeader({required this.count, required this.onReply});
 
   final int count;
+  final VoidCallback onReply;
 
   @override
   Widget build(BuildContext context) {
@@ -807,6 +855,39 @@ class _RepliesHeader extends StatelessWidget {
               fontWeight: FontWeight.w700,
               letterSpacing: 0.6,
               color: EnclavdColors.textSecondary,
+            ),
+          ),
+          const Spacer(),
+          // Squared Reply button reveals the composer (site: comment
+          // list card header).
+          InkWell(
+            key: const Key('replyToggle'),
+            onTap: onReply,
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+              decoration: BoxDecoration(
+                color: EnclavdColors.cardSecondary,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: EnclavdColors.border),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FaIcon(FontAwesomeIcons.reply,
+                      size: 11, color: EnclavdColors.link),
+                  SizedBox(width: 6),
+                  Text(
+                    'Reply',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: EnclavdColors.link,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -937,6 +1018,7 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
               url: resolveMediaUrl(widget.apiBaseUrl,
                   avatarPath: reply.profilePictureUrl),
               borderColor: personality,
+              square: true,
             ),
           ),
           const SizedBox(width: 10),
@@ -1005,6 +1087,7 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                   children: [
                     if (!reply.isOwner)
                       InkWell(
+                        key: Key('replyQuote-${reply.id}'),
                         onTap: () => widget.onReply(reply),
                         borderRadius: BorderRadius.circular(8),
                         child: const Padding(
@@ -1098,18 +1181,12 @@ class _ReplyComposer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      // Pushed route: this bar must clear the phone's nav bar.
+    // Embedded in the replies card (parent supplies the box).
+    return Padding(
       padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-      decoration: const BoxDecoration(
-        color: EnclavdColors.card,
-        border: Border(top: BorderSide(color: EnclavdColors.border)),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
             if (quote != null) ...[
               _QuoteBanner(quote: quote!, onDismiss: onDismissQuote),
               const SizedBox(height: 6),
@@ -1174,7 +1251,6 @@ class _ReplyComposer extends StatelessWidget {
             ),
           ],
         ),
-      ),
     );
   }
 }

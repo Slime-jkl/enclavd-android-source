@@ -1,10 +1,6 @@
 import 'api_client.dart';
 import '../utils/html_entities.dart';
 
-/// A single post card from GET /api/v1/posts (posts.php $map_post
-/// contract: id, author_id, content, created_at, feed_score, like_count,
-/// comment_count, user_liked, warning_count, username,
-/// profile_picture_url, personality_type, is_active, rank, image).
 class Post {
   const Post({
     required this.id,
@@ -23,6 +19,10 @@ class Post {
     required this.rank,
     required this.image,
     this.isOwner = false,
+    this.lastReplyAt,
+    this.lastReplyUsername,
+    this.lastReplyRank,
+    this.lastReplyActive,
   });
 
   final int id;
@@ -37,16 +37,18 @@ class Post {
   final String username;
   final String profilePictureUrl;
   final String? personalityType;
-  final String isActive; // 'true' / 'false' (string from the DB)
+  final String isActive;
   final String rank;
-  final String? image; // BARE gallery filename when present
+  final String? image;
   final bool isOwner;
+  final String? lastReplyAt;
+  final String? lastReplyUsername;
+  final String? lastReplyRank;
+  final String? lastReplyActive;
 
   factory Post.fromJson(Map<String, dynamic> json) => Post(
         id: (json['id'] as num?)?.toInt() ?? 0,
         authorId: (json['author_id'] as num?)?.toInt() ?? 0,
-        // Content arrives htmlspecialchars-encoded (apostrophes are &#039;
-        // etc.); decode exactly once so the tokenizer runs on clean text.
         content:
             decodeHtmlEntities(json['content'] as String? ?? ''),
         createdAt: json['created_at'] as String? ?? '',
@@ -63,17 +65,17 @@ class Post {
         rank: json['rank'] as String? ?? 'Member',
         image: json['image'] as String?,
         isOwner: json['is_owner'] as bool? ?? false,
+        // Domain thread OP payload: last activity line (web parity).
+        lastReplyAt: json['last_reply_at'] as String?,
+        lastReplyUsername: json['last_reply_username'] as String?,
+        lastReplyRank: json['last_reply_rank'] as String?,
+        lastReplyActive: json['last_reply_active'] as String?,
       );
 
   bool get isBlocked => isActive == 'false';
 }
 
-/// One page of posts + the keyset cursor for the next page.
-///
-/// The ranked feed pages on (last_score, last_id); a user's profile posts
-/// and a hashtag page page on (last_created_at, last_id) - only one of the
-/// two cursors is set. [total] is only populated by the hashtag branch
-/// (every post carrying the tag, for the page header count).
+
 class FeedPage {
   const FeedPage({
     required this.posts,
@@ -109,11 +111,7 @@ class FeedPage {
   }
 }
 
-/// GET /api/v1/posts with keyset pagination (posts.php contract):
-/// ?limit=N (1-50, default 10), ?last_score&last_id (next page),
-/// ?after_id=N (delta), ?post_id=N (single). Response: {success, posts,
-/// has_more, last_score, last_id}. Guests -> 401; auth = the session
-/// cookies in the jar.
+
 class FeedService {
   FeedService(this._api);
 
@@ -134,8 +132,7 @@ class FeedService {
     );
   }
 
-  /// A single author's posts (profile screen) - newest first, keyset on
-  /// (last_created_at, last_id).
+
   Future<FeedPage> userPosts(
     int userId, {
     int limit = 10,
@@ -151,9 +148,7 @@ class FeedService {
     return FeedPage.fromJson(json);
   }
 
-  /// Posts carrying a hashtag (hashtag page) - newest first, keyset as
-  /// userPosts; carries [FeedPage.total] (every post with the tag, for
-  /// the header count).
+
   Future<FeedPage> tagPosts(
     String tag, {
     int limit = 10,
@@ -169,7 +164,7 @@ class FeedService {
     return FeedPage.fromJson(json);
   }
 
-  /// A single post by id (posts.php ?post_id=N).
+  /// A single post by id
   Future<Post> fetchPost(int postId) async {
     final json =
         await _api.getJson('/api/v1/posts', query: {'post_id': '$postId'});
@@ -180,9 +175,7 @@ class FeedService {
     return Post.fromJson(raw);
   }
 
-  /// Delta of posts newer than [afterId] (posts.php ?after_id=N) - the
-  /// "new posts" check used by pull-to-refresh; still score-ranked among
-  /// themselves.
+
   Future<FeedPage> newerThan(int afterId, {int limit = 10}) async {
     final json = await _api.getJson('/api/v1/posts', query: {
       'after_id': '$afterId',

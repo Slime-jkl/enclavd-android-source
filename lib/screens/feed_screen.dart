@@ -819,7 +819,10 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                         ? ArticlesScreen(articles: _services!.articles)
                         : const SizedBox.shrink(),
                     'domain' => _domainsTabBuilt && _services != null
-                        ? DomainsScreen(domains: _services!.domains)
+                        ? DomainsScreen(
+                            domains: _services!.domains,
+                            social: _services!.social,
+                          )
                         : const SizedBox.shrink(),
                     'vote' => _votesTabBuilt && _services != null
                         ? VotesScreen(votes: _services!.votes)

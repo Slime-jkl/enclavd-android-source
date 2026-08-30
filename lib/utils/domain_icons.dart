@@ -1,10 +1,16 @@
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
 
-/// Category icon mapping - the site's fa-* class names -> FontAwesomeIcons.
-/// The API ships the fa-* names verbatim; unknown names fall back to
-/// fa-folder (the site's own fallback).
-FaIconData domainIconFor(String faClass) {
+/// The web's fa-* class names -> FontAwesomeIcons.
+/// The API ships a resolved FA6 solid codepoint (icon_code, parsed
+/// server-side from the site's icon CSS) so new icons render without an
+/// app update; the name map below is the fallback for legacy payloads or
+/// names the server could not resolve
+FaIconData domainIconFor(String faClass, {int? iconCode}) {
+  if (iconCode != null && iconCode > 0) {
+    return FaIconData(IconData(iconCode,
+        fontFamily: 'FontAwesomeSolid', fontPackage: 'font_awesome_flutter'));
+  }
   switch (faClass) {
     case 'fa-music':
       return FontAwesomeIcons.music;
@@ -20,6 +26,16 @@ FaIconData domainIconFor(String faClass) {
       return FontAwesomeIcons.film;
     case 'fa-gamepad':
       return FontAwesomeIcons.gamepad;
+    case 'fa-fire':
+      return FontAwesomeIcons.fire;
+    case 'fa-play':
+      return FontAwesomeIcons.play;
+    case 'fa-trophy':
+      return FontAwesomeIcons.trophy;
+    case 'fa-puzzle-piece':
+      return FontAwesomeIcons.puzzlePiece;
+    case 'fa-globe':
+      return FontAwesomeIcons.globe;
     case 'fa-comments':
       return FontAwesomeIcons.comments;
     case 'fa-sitemap':
@@ -31,12 +47,10 @@ FaIconData domainIconFor(String faClass) {
     case 'fa-folder-open':
       return FontAwesomeIcons.folderOpen;
     default:
-      return FontAwesomeIcons.folder;
+      return FontAwesomeIcons.globe;
   }
 }
 
-/// Category accent color - the site's hex strings ('#60a5fa') -> Color.
-/// Invalid/empty values fall back to the site's default blue (#60a5fa).
 Color domainColorFromHex(String hex) {
   var h = hex.trim();
   if (h.startsWith('#')) h = h.substring(1);
