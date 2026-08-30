@@ -671,7 +671,8 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                                 color: EnclavdColors.textSecondary),
                             padding: EdgeInsets.zero,
                             style: IconButton.styleFrom(
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                minimumSize: Size.zero),
                             onSelected: (value) {
                               if (value == 'edit' && widget.onEditPost != null) {
                                 widget.onEditPost!(post);

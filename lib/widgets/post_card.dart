@@ -554,7 +554,8 @@ class _AuthorRow extends StatelessWidget {
                 size: 16, color: EnclavdColors.textSecondary),
             padding: EdgeInsets.zero,
             style: IconButton.styleFrom(
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                minimumSize: Size.zero),
             onSelected: (value) {
               if (value == 'edit' && onEdit != null) onEdit!(post);
               if (value == 'delete' && onDelete != null) onDelete!(post);
