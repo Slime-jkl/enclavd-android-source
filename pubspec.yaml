@@ -1,10 +1,10 @@
 name: enclavd
-description: "Enclavd - native app (Flutter). One codebase for Android and iOS, talking to the api/v1 backend."
+description: "Enclavd - Personality Social Network"
 publish_to: "none"
-version: 2.0.5+205
+version: 2.0.6+206
 
 environment:
-  sdk: ^3.5.0
+  sdk: ^3.6.0
 
 dependencies:
   flutter:
