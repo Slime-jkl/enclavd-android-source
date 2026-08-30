@@ -277,4 +277,69 @@ Finder expandHint() => find.byWidgetPredicate(
       expect(find.byKey(const Key('youtube-play-button')), findsNothing);
     });
   });
+
+  group('domain charted badge', () {
+    Post domainPost() => Post.fromJson({
+          'id': 7,
+          'author_id': 2,
+          'content': 'hello domain',
+          'created_at': '2026-08-20 09:00:00',
+          'feed_score': 1.5,
+          'like_count': 0,
+          'comment_count': 3,
+          'user_liked': false,
+          'warning_count': 0,
+          'username': 'Dev',
+          'profile_picture_url': '/a.png',
+          'personality_type': null,
+          'is_active': 'true',
+          'rank': 'Member',
+          'image': null,
+          'is_owner': false,
+          'has_domain': true,
+          'domain_by': 42,
+          'promoter_username': 'BigMod',
+          'domain_name': 'Music',
+          'domain_slug': 'music',
+        });
+
+    testWidgets('domain posts show the charted badge + View in Domains row',
+        (tester) async {
+      await pumpPost(tester, domainPost());
+
+      expect(find.textContaining('charted this to', findRichText: true),
+          findsOneWidget,
+          reason: 'promotion banner text');
+      expect(find.textContaining('@BigMod', findRichText: true),
+          findsOneWidget);
+      expect(find.text('View in Domains (3 replies)'), findsOneWidget);
+    });
+
+    testWidgets('plain posts show neither the badge nor the View row',
+        (tester) async {
+      await pumpPost(tester, _post());
+
+      expect(find.textContaining('charted this to', findRichText: true),
+          findsNothing);
+      expect(find.textContaining('View in Domains'), findsNothing);
+    });
+
+    testWidgets('domain posts route the comment button to the forum thread',
+        (tester) async {
+      // _openDomainThread resolves AppServices lazily; with no container
+      // it must not crash and must not open inline comments.
+      await pumpPost(tester, domainPost());
+
+      await tester.tap(findFa(FontAwesomeIcons.comments));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text('View in Domains (3 replies)'), findsOneWidget);
+      // Inline comment composer never appears for domain posts.
+      expect(find.byType(TextField), findsNothing);
+    });
+  });
 }
+
+/// FaIcon stores FaIconData as plain IconData; finders must compare code points (11.x quirk).
+Finder findFa(FaIconData icon) => find.byWidgetPredicate((w) =>
+    w is FaIcon && w.icon != null && w.icon!.codePoint == icon.codePoint);

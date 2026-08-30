@@ -23,6 +23,11 @@ class Post {
     this.lastReplyUsername,
     this.lastReplyRank,
     this.lastReplyActive,
+    this.hasDomain = false,
+    this.domainBy = 0,
+    this.promoterUsername,
+    this.domainName,
+    this.domainSlug,
   });
 
   final int id;
@@ -45,6 +50,13 @@ class Post {
   final String? lastReplyUsername;
   final String? lastReplyRank;
   final String? lastReplyActive;
+
+  // Domain context (feed API emits these for charted posts).
+  final bool hasDomain;
+  final int domainBy;
+  final String? promoterUsername;
+  final String? domainName;
+  final String? domainSlug;
 
   factory Post.fromJson(Map<String, dynamic> json) => Post(
         id: (json['id'] as num?)?.toInt() ?? 0,
@@ -70,6 +82,11 @@ class Post {
         lastReplyUsername: json['last_reply_username'] as String?,
         lastReplyRank: json['last_reply_rank'] as String?,
         lastReplyActive: json['last_reply_active'] as String?,
+        hasDomain: json['has_domain'] as bool? ?? false,
+        domainBy: (json['domain_by'] as num?)?.toInt() ?? 0,
+        promoterUsername: json['promoter_username'] as String?,
+        domainName: json['domain_name'] as String?,
+        domainSlug: json['domain_slug'] as String?,
       );
 
   bool get isBlocked => isActive == 'false';

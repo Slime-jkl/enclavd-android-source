@@ -13,6 +13,7 @@ import '../api/feed_service.dart';
 import '../api/social_service.dart';
 import '../api/api_client.dart';
 import '../main.dart'; // AppServices.current (mention -> profile resolution)
+import '../screens/domain_thread_screen.dart';
 import '../screens/hashtag_screen.dart';
 import '../screens/profile_screen.dart';
 import '../services/gallery_saver.dart';
@@ -180,6 +181,12 @@ class _PostCardState extends State<PostCard> {
   }
 
   Future<void> _openComments() async {
+    // Domain posts route to the forum thread instead of inline comments
+    // (web parity: the comment button is a link to /d/slug/id).
+    if (widget.post.hasDomain) {
+      await _openDomainThread();
+      return;
+    }
     // Forum-thread mode: the card's inline section is suppressed.
     if (widget.hideInlineComments) return;
     final toggle = widget.onToggleComments;
@@ -206,6 +213,26 @@ class _PostCardState extends State<PostCard> {
       _commentsError = null;
     });
     await _loadComments();
+  }
+
+  Future<void> _openDomainThread() async {
+    AppServices services;
+    try {
+      services = AppServices.current ?? await AppServices.create();
+    } catch (_) {
+      return; // no container (tests/edge): never crash a card tap
+    }
+    if (!mounted) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => DomainThreadScreen(
+          domains: services.domains,
+          postId: widget.post.id,
+          breadcrumbName: widget.post.domainName,
+          social: widget.social,
+        ),
+      ),
+    );
   }
 
   Future<void> _loadComments() async {
@@ -339,6 +366,14 @@ class _PostCardState extends State<PostCard> {
                     onEdit: widget.onEditPost,
                     onDelete: widget.onDeletePost,
                   ),
+                  if (widget.post.hasDomain &&
+                      (widget.post.domainName?.isNotEmpty ?? false)) ...[
+                    const SizedBox(height: 8),
+                    _DomainPromotionBanner(
+                      post: widget.post,
+                      onTap: _openDomainThread,
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   // Drop target is the content area (text + image) only.
                   DragTarget<String>(
@@ -372,6 +407,41 @@ class _PostCardState extends State<PostCard> {
                     onDragStarted: _beginDrag,
                     onDragEnded: _endDrag,
                   ),
+                  if (widget.post.hasDomain) ...[
+                    const Divider(height: 12),
+                    Center(
+                      child: InkWell(
+                        onTap: _openDomainThread,
+                        borderRadius: BorderRadius.circular(6),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const FaIcon(
+                                FontAwesomeIcons.arrowUpRightFromSquare,
+                                color: EnclavdColors.link,
+                                size: 13,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                _commentCount > 0
+                                    ? 'View in Domains ($_commentCount '
+                                        '${_commentCount == 1 ? 'reply' : 'replies'})'
+                                    : 'View in Domains',
+                                style: const TextStyle(
+                                  color: EnclavdColors.link,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                   if (_commentsOpen) ...[
                     const SizedBox(height: 8),
                     _CommentsSection(
@@ -869,6 +939,77 @@ class PostImageState extends State<PostImage> {
                 onPressed: () => Navigator.of(dialogContext).pop(),
                 icon: const FaIcon(FontAwesomeIcons.xmark,
                     color: Colors.white, size: 22),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DomainPromotionBanner extends StatelessWidget {
+  const _DomainPromotionBanner({required this.post, required this.onTap});
+
+  final Post post;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final promoter =
+        (post.promoterUsername?.isNotEmpty ?? false) ? post.promoterUsername! : 'System';
+    final domainName = post.domainName ?? '';
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          // Web parity: bg-blue-950/25 + border-blue-800/30.
+          color: const Color(0xFF172554).withValues(alpha: 0.25),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: const Color(0xFF1E40AF).withValues(alpha: 0.30),
+          ),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Padding(
+              padding: EdgeInsets.only(top: 2),
+              child: FaIcon(FontAwesomeIcons.bullhorn,
+                  color: EnclavdColors.link, size: 13),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text.rich(
+                TextSpan(
+                  style: const TextStyle(
+                    color: EnclavdColors.textSecondary,
+                    fontSize: 13,
+                    height: 1.3,
+                  ),
+                  children: [
+                    TextSpan(
+                      text: '@$promoter ',
+                      style: const TextStyle(
+                        color: EnclavdColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const TextSpan(text: 'charted this to '),
+                    if (domainName.isNotEmpty)
+                      TextSpan(
+                        text: domainName,
+                        style: const TextStyle(
+                          color: EnclavdColors.link,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    const TextSpan(text: ' Domain.'),
+                  ],
+                ),
               ),
             ),
           ],
