@@ -633,7 +633,7 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                   children: [
                     Row(
                       children: [
-                        Flexible(
+                        Expanded(
                           child: GestureDetector(
                             onTap: () => _openProfile(context, post.authorId),
                             child: Text(
@@ -654,7 +654,6 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                             ),
                           ),
                         ),
-                        const Spacer(),
                         Text(
                           relativeTime(post.createdAt),
                           style: const TextStyle(
@@ -1033,7 +1032,7 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                 // Header: username (rank color) + rank badge + time.
                 Row(
                   children: [
-                    Flexible(
+                    Expanded(
                       child: GestureDetector(
                         onTap: () => _openProfile(context, reply.userId),
                         child: Text(
@@ -1054,7 +1053,7 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                       const FaIcon(FontAwesomeIcons.triangleExclamation,
                           color: EnclavdColors.warning, size: 12),
                     ],
-                    const Spacer(),
+                    const SizedBox(width: 6),
                     Text(
                       relativeTime(reply.createdAtUtc),
                       style: const TextStyle(
