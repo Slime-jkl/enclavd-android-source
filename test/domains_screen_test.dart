@@ -71,7 +71,6 @@ DomainCategory _cat({
       displayOrder: id,
       icon: icon,
       color: color,
-      iconCode: 0xf06d,
       postCount: 0,
     );
 
@@ -96,7 +95,6 @@ DomainThread _thread(
   int id, {
   String domain = 'General',
   String domainIcon = 'fa-lightbulb',
-  int? iconCode = 0xf0eb,
   String? lastReplyUser,
 }) =>
     DomainThread(
@@ -104,7 +102,6 @@ DomainThread _thread(
       domainSlug: domain.toLowerCase().replaceAll(' ', '-'),
       domainName: domain,
       domainIcon: domainIcon,
-      domainIconCode: iconCode,
       lastReplyAt: lastReplyUser == null ? null : '2026-08-30 11:22:00',
       lastReplyUsername: lastReplyUser,
       lastReplyRank: 'Member',
@@ -196,7 +193,6 @@ void main() {
               188,
               domain: 'Movies & TV',
               domainIcon: 'fa-film',
-              iconCode: 0xf008,
             ),
           ],
           total: 1,

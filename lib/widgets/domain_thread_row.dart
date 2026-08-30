@@ -278,8 +278,7 @@ class _DomainBadge extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           FaIcon(
-            domainIconFor(thread.domainIcon,
-                iconCode: thread.domainIconCode),
+            domainIconFor(thread.domainIcon),
             size: 10,
             color: accent,
           ),

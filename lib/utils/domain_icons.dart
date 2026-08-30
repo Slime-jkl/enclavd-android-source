@@ -2,19 +2,10 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
 
 /// The web's fa-* class names -> FontAwesomeIcons.
-/// The API ships a resolved FA6 solid codepoint (icon_code, parsed
-/// server-side from the site's icon CSS) so new icons render without an
-/// app update; the name map below is the fallback for legacy payloads or
-/// names the server could not resolve
-FaIconData domainIconFor(String faClass, {int? iconCode}) {
-  if (iconCode != null && iconCode > 0) {
-    // Server-resolved codepoint: runtime value, so const IconData is
-    // impossible; tree-shaking is off, so it still renders.
-    // ignore: non_const_argument_for_const_parameter
-    final icon = IconData(iconCode,
-        fontFamily: 'FontAwesomeSolid', fontPackage: 'font_awesome_flutter');
-    return FaIconData(icon);
-  }
+/// All entries are const: Flutter's release builds tree-shake icon fonts
+/// and refuse non-constant IconData instances, so server-sent codepoints
+/// can't render. New icons need a name-map entry and an app update.
+FaIconData domainIconFor(String faClass) {
   switch (faClass) {
     case 'fa-music':
       return FontAwesomeIcons.music;

@@ -247,7 +247,7 @@ class _CategoryHeader extends StatelessWidget {
             ),
             alignment: Alignment.center,
             child: FaIcon(
-                domainIconFor(category.icon, iconCode: category.iconCode),
+                domainIconFor(category.icon),
                 size: 19,
                 color: accent),
           ),
