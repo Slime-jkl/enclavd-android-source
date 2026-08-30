@@ -793,7 +793,8 @@ class _ForumPostCardState extends State<_ForumPostCard> {
               const Spacer(),
               if (post.lastReplyAt != null &&
                   post.lastReplyUsername != null)
-                Flexible(
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 190),
                   child: Text.rich(
                     TextSpan(
                       style: const TextStyle(

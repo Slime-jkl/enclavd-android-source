@@ -98,7 +98,7 @@ class _DomainThreadRowState extends State<DomainThreadRow> {
                       square: true,
                     ),
                     const SizedBox(width: 8),
-                    Flexible(
+                    Expanded(
                       child: Text(
                         post.username,
                         maxLines: 1,
@@ -117,8 +117,9 @@ class _DomainThreadRowState extends State<DomainThreadRow> {
                         style: const TextStyle(
                             fontSize: 12,
                             color: EnclavdColors.textSecondary)),
-                    const Spacer(),
-                    Flexible(
+                    const SizedBox(width: 8),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 160),
                       child: _DomainBadge(thread: thread, accent: accent),
                     ),
                   ],
@@ -180,7 +181,10 @@ class _DomainThreadRowState extends State<DomainThreadRow> {
                     const Spacer(),
                     if (thread.lastReplyAt != null &&
                         thread.lastReplyUsername != null)
-                      Flexible(child: _lastReply(thread)),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 190),
+                        child: _lastReply(thread),
+                      ),
                   ],
                 ),
               ],
@@ -309,10 +313,10 @@ class _DomainBadge extends StatelessWidget {
   var title = lines.first.trim();
   if (title.isEmpty && lines.length > 1) {
     title = lines.skip(1).join('\n').trim();
-    return (title.length > 160 ? '${title.substring(0, 157)}...' : title, '');
+    return (title, '');
   }
   final body = lines.skip(1).join('\n').trim();
-  return (title.length > 160 ? '${title.substring(0, 157)}...' : title, body);
+  return (title, body);
 }
 
 /// Loading placeholder for DomainThreadRow

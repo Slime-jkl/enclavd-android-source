@@ -509,6 +509,7 @@ class _AuthorRow extends StatelessWidget {
                     Flexible(
                       child: Text(
                         post.username,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: post.isBlocked
@@ -1583,11 +1584,12 @@ class _CommentRowState extends State<_CommentRow> {
               children: [
                 Row(
                   children: [
-                    Flexible(
+                    Expanded(
                       child: GestureDetector(
                         onTap: () => _openProfile(context, comment.userId),
                         child: Text(
                           comment.username,
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: rankColorFromCssClass(comment.nameColor),
