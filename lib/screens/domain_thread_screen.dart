@@ -619,7 +619,7 @@ class _ForumPostCardState extends State<_ForumPostCard> {
               GestureDetector(
                 onTap: () => _openProfile(context, post.authorId),
                 child: EnclavdAvatar(
-                  size: 46,
+                  size: 54,
                   url: resolveMediaUrl(widget.apiBaseUrl,
                       avatarPath: post.profilePictureUrl),
                   borderColor: personality,
@@ -670,6 +670,8 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                                 size: 15,
                                 color: EnclavdColors.textSecondary),
                             padding: EdgeInsets.zero,
+                            style: IconButton.styleFrom(
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap),
                             onSelected: (value) {
                               if (value == 'edit' && widget.onEditPost != null) {
                                 widget.onEditPost!(post);
@@ -1015,7 +1017,7 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
           GestureDetector(
             onTap: () => _openProfile(context, reply.userId),
             child: EnclavdAvatar(
-              size: 40,
+              size: 48,
               url: resolveMediaUrl(widget.apiBaseUrl,
                   avatarPath: reply.profilePictureUrl),
               borderColor: personality,

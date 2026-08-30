@@ -326,8 +326,8 @@ void main() {
     EnclavdAvatar avatarOf(String urlPart) => tester.widget<EnclavdAvatar>(
         find.byWidgetPredicate(
             (w) => w is EnclavdAvatar && w.url.contains(urlPart)));
-    expect(avatarOf('dev.png').size, 46, reason: 'OP avatar is forum-large');
-    expect(avatarOf('x.png').size, 40, reason: 'reply avatar is forum-large');
+    expect(avatarOf('dev.png').size, 54, reason: 'OP avatar is forum-large');
+    expect(avatarOf('x.png').size, 48, reason: 'reply avatar is forum-large');
     expect(avatarOf('dev.png').square, isTrue,
         reason: 'forum avatars are squared with rounded corners');
     expect(avatarOf('x.png').square, isTrue);

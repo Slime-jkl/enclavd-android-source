@@ -112,11 +112,6 @@ class _DomainThreadRowState extends State<DomainThreadRow> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 6),
-                    Text('- ${relativeTime(post.createdAt)}',
-                        style: const TextStyle(
-                            fontSize: 12,
-                            color: EnclavdColors.textSecondary)),
                     const SizedBox(width: 8),
                     ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 160),

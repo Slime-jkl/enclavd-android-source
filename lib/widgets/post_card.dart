@@ -553,6 +553,8 @@ class _AuthorRow extends StatelessWidget {
             icon: const FaIcon(FontAwesomeIcons.ellipsis,
                 size: 16, color: EnclavdColors.textSecondary),
             padding: EdgeInsets.zero,
+            style: IconButton.styleFrom(
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap),
             onSelected: (value) {
               if (value == 'edit' && onEdit != null) onEdit!(post);
               if (value == 'delete' && onDelete != null) onDelete!(post);
