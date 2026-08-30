@@ -8,8 +8,12 @@ import 'package:flutter/material.dart';
 /// names the server could not resolve
 FaIconData domainIconFor(String faClass, {int? iconCode}) {
   if (iconCode != null && iconCode > 0) {
-    return FaIconData(IconData(iconCode,
-        fontFamily: 'FontAwesomeSolid', fontPackage: 'font_awesome_flutter'));
+    // Server-resolved codepoint: runtime value, so const IconData is
+    // impossible; tree-shaking is off, so it still renders.
+    // ignore: non_const_argument_for_const_parameter
+    final icon = IconData(iconCode,
+        fontFamily: 'FontAwesomeSolid', fontPackage: 'font_awesome_flutter');
+    return FaIconData(icon);
   }
   switch (faClass) {
     case 'fa-music':
