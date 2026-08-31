@@ -271,7 +271,7 @@ class _DomainsScreenState extends State<DomainsScreen> {
           for (final cat in _categories)
             _DomainChip(
               label: cat.name,
-              icon: domainIconFor(cat.icon),
+              icon: domainIconFor(cat.icon, codePoint: cat.iconCode),
               iconColor: domainColorFromHex(cat.color),
               selected: _selectedId == cat.id,
               onTap: () => _select(cat.id),

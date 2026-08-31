@@ -497,7 +497,7 @@ class _ChatScreenState extends State<ChatScreen> {
               style: ElevatedButton.styleFrom(
                 padding: EdgeInsets.zero,
                 backgroundColor: EnclavdColors.primaryButton,
-                foregroundColor: Colors.white,
+                foregroundColor: EnclavdColors.primaryButtonText,
                 disabledBackgroundColor:
                     EnclavdColors.primaryButton.withValues(alpha: 0.5),
                 shape: RoundedRectangleBorder(

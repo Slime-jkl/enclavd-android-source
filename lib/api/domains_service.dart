@@ -11,6 +11,7 @@ class DomainCategory {
     required this.displayOrder,
     this.description,
     required this.icon,
+    this.iconCode,
     required this.color,
     required this.postCount,
     this.lastPostAt,
@@ -26,6 +27,7 @@ class DomainCategory {
   final int displayOrder;
   final String? description;
   final String icon; // fa-* class name (fa-music, fa-folder, ...)
+  final int? iconCode; // FA6.7 solid codepoint from the site CSS
   final String color; // hex '#rrggbb'
   final int postCount;
   final String? lastPostAt; // DB UTC wall-clock
@@ -45,6 +47,7 @@ class DomainCategory {
         displayOrder: (json['display_order'] as num?)?.toInt() ?? 0,
         description: json['description'] as String?,
         icon: json['icon'] as String? ?? 'fa-globe',
+        iconCode: (json['icon_code'] as num?)?.toInt(),
         color: json['color'] as String? ?? '#60a5fa',
         postCount: (json['post_count'] as num?)?.toInt() ?? 0,
         lastPostAt: json['last_post_at'] as String?,
@@ -87,6 +90,7 @@ class DomainCategory {
       displayOrder: parent.displayOrder,
       description: parent.description,
       icon: parent.icon,
+      iconCode: parent.iconCode,
       color: parent.color,
       postCount: parent.postCount,
       lastPostAt: parent.lastPostAt,
@@ -104,6 +108,7 @@ class DomainThread {
     required this.domainSlug,
     required this.domainName,
     this.domainIcon = 'fa-globe',
+    this.domainIconCode,
     this.domainColor = '#60a5fa',
     this.lastReplyAt,
     this.lastReplyUsername,
@@ -115,6 +120,7 @@ class DomainThread {
   final String domainSlug;
   final String domainName;
   final String domainIcon; // fa-* class name
+  final int? domainIconCode; // FA6.7 solid codepoint from the site CSS
   final String domainColor; // hex '#rrggbb'
   final String? lastReplyAt; // DB UTC wall-clock, newest reply activity
   final String? lastReplyUsername;
@@ -126,6 +132,7 @@ class DomainThread {
         domainSlug: json['domain_slug'] as String? ?? '',
         domainName: json['domain_name'] as String? ?? '',
         domainIcon: json['domain_icon'] as String? ?? 'fa-globe',
+        domainIconCode: (json['domain_icon_code'] as num?)?.toInt(),
         domainColor: json['domain_color'] as String? ?? '#60a5fa',
         lastReplyAt: json['last_reply_at'] as String?,
         lastReplyUsername: json['last_reply_username'] as String?,

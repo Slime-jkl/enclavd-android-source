@@ -840,7 +840,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
               ? FloatingActionButton(
                   onPressed: _openComposer,
                   backgroundColor: EnclavdColors.primaryButton,
-                  foregroundColor: Colors.white,
+                  foregroundColor: EnclavdColors.primaryButtonText,
                   tooltip: 'Create post',
                   child: const FaIcon(FontAwesomeIcons.pen, size: 20),
                 )

@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:enclavd/api/api_client.dart';
 import 'package:enclavd/api/votes_service.dart';
 import 'package:enclavd/screens/votes_screen.dart';
+import 'package:enclavd/theme/enclavd_theme.dart';
 import 'package:enclavd/widgets/rank_badge.dart';
 
 class _FakeVotes extends VotesService {
@@ -205,7 +206,7 @@ void main() {
     expect(find.text('x1'), findsNWidgets(3));
   });
 
-  testWidgets('vote button icon is white, matching the button label',
+  testWidgets('vote button icon is dark, matching the button label',
       (tester) async {
     final service = _FakeVotes(_data(active: [_vote()]));
 
@@ -214,9 +215,9 @@ void main() {
     FaIcon iconIn(Finder button) =>
         tester.widget<FaIcon>(find.descendant(of: button, matching: find.byType(FaIcon)));
     expect(iconIn(find.widgetWithText(FilledButton, 'Submit Vote')).color,
-        Colors.white);
+        EnclavdColors.primaryButtonText);
 
-    // After voting the icon swaps to rotate (Change Vote), still white.
+    // After voting the icon swaps to rotate (Change Vote), still dark.
     await tester.tap(find.byKey(const ValueKey('vote-1-option-1')));
     await tester.pump();
     await tester.tap(find.text('Submit Vote'));
@@ -224,7 +225,7 @@ void main() {
     await tester.pump();
 
     expect(iconIn(find.widgetWithText(FilledButton, 'Change Vote')).color,
-        Colors.white);
+        EnclavdColors.primaryButtonText);
   });
 
   testWidgets('empty-state icons are centered in their circles',

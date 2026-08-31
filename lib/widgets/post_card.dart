@@ -964,51 +964,50 @@ class _DomainPromotionBanner extends StatelessWidget {
       borderRadius: BorderRadius.circular(10),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          // Web parity: bg-blue-950/25 + border-blue-800/30.
-          color: const Color(0xFF172554).withValues(alpha: 0.25),
+          // Soft tint, no border; text scales to fit, never wraps.
+          color: EnclavdColors.link.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: const Color(0xFF1E40AF).withValues(alpha: 0.30),
-          ),
         ),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Padding(
-              padding: EdgeInsets.only(top: 2),
-              child: FaIcon(FontAwesomeIcons.bullhorn,
-                  color: EnclavdColors.link, size: 13),
-            ),
-            const SizedBox(width: 8),
+            const FaIcon(FontAwesomeIcons.bullhorn,
+                color: EnclavdColors.link, size: 12),
+            const SizedBox(width: 6),
             Expanded(
-              child: Text.rich(
-                TextSpan(
-                  style: const TextStyle(
-                    color: EnclavdColors.textSecondary,
-                    fontSize: 13,
-                    height: 1.3,
-                  ),
-                  children: [
-                    TextSpan(
-                      text: '@$promoter ',
-                      style: const TextStyle(
-                        color: EnclavdColors.textPrimary,
-                        fontWeight: FontWeight.w600,
-                      ),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text.rich(
+                  TextSpan(
+                    style: const TextStyle(
+                      color: EnclavdColors.textSecondary,
+                      fontSize: 12,
+                      height: 1.2,
                     ),
-                    const TextSpan(text: 'charted this to '),
-                    if (domainName.isNotEmpty)
+                    children: [
                       TextSpan(
-                        text: domainName,
+                        text: '@$promoter ',
                         style: const TextStyle(
-                          color: EnclavdColors.link,
+                          color: EnclavdColors.textPrimary,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                    const TextSpan(text: ' Domain.'),
-                  ],
+                      const TextSpan(text: 'charted this to '),
+                      if (domainName.isNotEmpty)
+                        TextSpan(
+                          text: domainName,
+                          style: const TextStyle(
+                            color: EnclavdColors.link,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      const TextSpan(text: ' Domain.'),
+                    ],
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ),
@@ -1048,7 +1047,9 @@ class _ActionRow extends StatelessWidget {
           child: Row(
             children: [
               // Hold to drag onto the content to like; a plain tap never likes.
+              // Grab faster than the default 500ms long-press.
               LongPressDraggable<String>(
+                delay: const Duration(milliseconds: 300),
                 data: 'like',
                 feedback: const FaIcon(FontAwesomeIcons.heart,
                     color: EnclavdColors.likeActive, size: 40),

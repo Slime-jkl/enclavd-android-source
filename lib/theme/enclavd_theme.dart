@@ -15,8 +15,10 @@ class EnclavdColors {
   static const textPrimary = Color(0xFFFFFFFF);
   static const textSecondary = Color(0xFF9CA3AF); // gray-400
   static const link = Color(0xFF60A5FA); // blue-400
-  static const primaryButton = Color(0xFF1E3A8A); // blue-900
-  static const primaryButtonHover = Color(0xFF1E40AF); // blue-800
+  // donate.php pay-btn: bg-blue-500, hover bg-blue-400, text-gray-900.
+  static const primaryButton = Color(0xFF3B82F6); // blue-500
+  static const primaryButtonHover = Color(0xFF60A5FA); // blue-400
+  static const primaryButtonText = Color(0xFF111827); // gray-900
   static const likeActive = Color(0xFFF87171); // red-400
   static const warning = Color(0xFFFACC15); // yellow-400
 }
@@ -73,11 +75,9 @@ ThemeData buildEnclavdTheme() {
     fontFamily: 'Montserrat',
     colorScheme: const ColorScheme.dark(
       primary: EnclavdColors.primaryButton,
-      // White text on every primary (blue) button: FilledButton and the
-      // like derive their foreground from onPrimary, and the dark-scheme
-      // default is black (Save Changes / password dialog Save rendered
-      // black-on-blue).
-      onPrimary: Colors.white,
+      // Dark text on the light blue (pay-btn style); FilledButton and the
+      // like derive their foreground from onPrimary.
+      onPrimary: EnclavdColors.primaryButtonText,
       secondary: EnclavdColors.link,
       surface: EnclavdColors.card,
       error: Color(0xFFF87171),
@@ -103,13 +103,11 @@ ThemeData buildEnclavdTheme() {
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: EnclavdColors.primaryButton,
-        foregroundColor: EnclavdColors.textPrimary,
+        foregroundColor: EnclavdColors.primaryButtonText,
         disabledBackgroundColor:
             EnclavdColors.primaryButton.withValues(alpha: 0.5),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8), // rounded-lg
-          side:
-              const BorderSide(color: Color(0x801E40AF)), // border-blue-800/50
         ),
         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
       ),
