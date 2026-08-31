@@ -198,14 +198,15 @@ class _ComposeScreenState extends State<ComposeScreen> {
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
+                            strokeWidth: 2,
+                            color: EnclavdColors.primaryButtonText),
                       )
                     : FaIcon(
                         _isEdit
                             ? FontAwesomeIcons.floppyDisk
                             : FontAwesomeIcons.paperPlane,
                         size: 15,
-                        color: Colors.white,
+                        color: EnclavdColors.primaryButtonText,
                       ),
                 label: Text(_busy
                     ? (_isEdit ? 'Saving...' : 'Posting...')

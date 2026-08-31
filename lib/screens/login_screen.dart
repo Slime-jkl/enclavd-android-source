@@ -366,7 +366,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                       height: 20,
                                       child: CircularProgressIndicator(
                                           strokeWidth: 2,
-                                          color: Colors.white),
+                                          color:
+                                              EnclavdColors.primaryButtonText),
                                     )
                                   : const Row(
                                       mainAxisSize: MainAxisSize.min,
@@ -375,7 +376,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                             FontAwesomeIcons
                                                 .arrowRightToBracket,
                                             size: 15,
-                                            color: Colors.white),
+                                            color:
+                                                EnclavdColors.primaryButtonText),
                                         SizedBox(width: 8),
                                         Text('Login'),
                                       ],
