@@ -117,6 +117,7 @@ class _SuggestionCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: 12,
+                height: 1.2, // pinned: Montserrat's natural line box
                 fontWeight: FontWeight.w500,
                 color: RankColors.forRank(user.rank),
               ),
