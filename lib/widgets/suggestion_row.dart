@@ -7,8 +7,9 @@ import '../theme/enclavd_theme.dart';
 import 'enclavd_avatar.dart';
 
 /// Horizontal row of follow-suggestion cards above the feed, Instagram
-/// style: avatar, username, follow button per card. Tapping the avatar or
-/// name opens the profile; the follow button toggles the follow.
+/// style: one card per suggestion with avatar, username and a follow
+/// button. Tapping the avatar or name opens the profile; the follow
+/// button toggles the follow.
 class SuggestionRow extends StatelessWidget {
   const SuggestionRow({
     super.key,
@@ -33,49 +34,40 @@ class SuggestionRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (users.isEmpty) return const SizedBox.shrink();
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        color: EnclavdColors.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: EnclavdColors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 14),
-            child: Text(
-              'Suggested for you',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: EnclavdColors.textSecondary,
-              ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 14),
+          child: Text(
+            'Suggested for you',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: EnclavdColors.textSecondary,
             ),
           ),
-          const SizedBox(height: 10),
-          SizedBox(
-            height: 128,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              itemCount: users.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 10),
-              itemBuilder: (context, index) {
-                final user = users[index];
-                return _SuggestionCard(
-                  user: user,
-                  busy: busyUserId == user.id,
-                  onOpenProfile: () => onOpenProfile(user.id),
-                  onFollow: () => onFollow(user),
-                );
-              },
-            ),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 130,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            itemCount: users.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            itemBuilder: (context, index) {
+              final user = users[index];
+              return _SuggestionCard(
+                user: user,
+                busy: busyUserId == user.id,
+                onOpenProfile: () => onOpenProfile(user.id),
+                onFollow: () => onFollow(user),
+              );
+            },
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -95,15 +87,21 @@ class _SuggestionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 92,
+    return Container(
+      width: 104,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: EnclavdColors.card,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: EnclavdColors.border),
+      ),
       child: Column(
         children: [
           InkWell(
             onTap: onOpenProfile,
-            borderRadius: BorderRadius.circular(32),
+            borderRadius: BorderRadius.circular(28),
             child: EnclavdAvatar(
-              size: 64,
+              size: 56,
               url: resolveMediaUrl(AppConfig.apiBaseUrl,
                   avatarPath: user.profilePictureUrl),
               borderColor: PersonalityColors.forType(user.personalityType),
@@ -117,10 +115,10 @@ class _SuggestionCard extends StatelessWidget {
               user.username,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
-                color: EnclavdColors.textPrimary,
+                color: RankColors.forRank(user.rank),
               ),
             ),
           ),
@@ -132,8 +130,9 @@ class _SuggestionCard extends StatelessWidget {
   }
 }
 
-/// Compact follow button for the suggestion card (site .follow-button
-/// colors, smaller than the profile's full-size one).
+/// Compact follow button for the suggestion card. Blue-500 with gray-900
+/// text (the app's primary button scheme) and full card width so
+/// "Follow Back" fits on one line.
 class _FollowChip extends StatelessWidget {
   const _FollowChip({
     required this.busy,
@@ -148,30 +147,35 @@ class _FollowChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 26,
+      width: double.infinity,
+      height: 24,
       child: TextButton(
         onPressed: busy ? null : onPressed,
         style: TextButton.styleFrom(
-          foregroundColor: Colors.white,
+          foregroundColor: EnclavdColors.primaryButtonText,
           backgroundColor: EnclavdColors.primaryButton,
-          disabledForegroundColor: Colors.white.withValues(alpha: 0.7),
+          disabledForegroundColor:
+              EnclavdColors.primaryButtonText.withValues(alpha: 0.6),
           disabledBackgroundColor:
               EnclavdColors.primaryButton.withValues(alpha: 0.6),
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          minimumSize: const Size(0, 26),
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          minimumSize: const Size(0, 24),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(7),
           ),
           textStyle:
-              const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
         ),
         child: busy
             ? const SizedBox(
                 width: 12,
                 height: 12,
-                child: CircularProgressIndicator(strokeWidth: 2),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: EnclavdColors.primaryButtonText,
+                ),
               )
-            : Text(label),
+            : Text(label, maxLines: 1),
       ),
     );
   }

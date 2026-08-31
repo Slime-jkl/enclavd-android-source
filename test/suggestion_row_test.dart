@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:enclavd/api/social_service.dart';
+import 'package:enclavd/theme/enclavd_theme.dart';
 import 'package:enclavd/widgets/suggestion_row.dart';
 
 void main() {
@@ -92,6 +93,41 @@ void main() {
         tester.widgetList<TextButton>(find.byType(TextButton)).toList();
     expect(buttons[0].onPressed, isNull);
     expect(buttons[1].onPressed, isNotNull);
+  });
+
+  testWidgets('username carries the rank color, button uses the app scheme',
+      (tester) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: SuggestionRow(
+          users: const [
+            SuggestedUser(
+              id: 1,
+              username: 'officer_user',
+              profilePictureUrl: '/public/avatars/a.jpg',
+              personalityType: null,
+              rank: 'Officer',
+              isActive: 'true',
+              mutualCount: 0,
+              youFollow: false,
+              theyFollow: false,
+            ),
+          ],
+          onOpenProfile: (_) {},
+          onFollow: (_) {},
+        ),
+      ),
+    ));
+
+    // Rank-colored name (blue-400 for Officer), not the generic primary.
+    final name = tester.widget<Text>(find.text('officer_user'));
+    expect(name.style?.color, RankColors.forRank('Officer'));
+
+    // Blue-500 background with gray-900 text (app primary button scheme).
+    final button = tester.widget<TextButton>(find.byType(TextButton));
+    final style = button.style;
+    expect(style?.backgroundColor?.resolve({}), EnclavdColors.primaryButton);
+    expect(style?.foregroundColor?.resolve({}), EnclavdColors.primaryButtonText);
   });
 
   testWidgets('empty list renders nothing', (tester) async {
