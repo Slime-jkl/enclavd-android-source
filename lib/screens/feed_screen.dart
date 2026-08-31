@@ -9,6 +9,7 @@ import '../api/articles_service.dart';
 import '../api/auth_service.dart';
 import '../api/feed_service.dart';
 import '../api/site_config_service.dart';
+import '../api/social_service.dart';
 import '../config/app_config.dart';
 import '../main.dart';
 import '../services/analytics_service.dart';
@@ -21,6 +22,7 @@ import '../widgets/enclavd_avatar.dart';
 import '../widgets/error_view.dart';
 import '../widgets/post_card.dart';
 import '../widgets/shimmer.dart';
+import '../widgets/suggestion_row.dart';
 import '../widgets/user_menu_drawer.dart';
 import 'compose_screen.dart';
 import 'articles_screen.dart';
@@ -30,6 +32,7 @@ import 'login_screen.dart';
 import 'maintenance_screen.dart';
 import 'messages_screen.dart';
 import 'notifications_screen.dart';
+import 'profile_screen.dart';
 import 'search_results_screen.dart';
 import 'test_screen.dart';
 import 'votes_screen.dart';
@@ -59,6 +62,10 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   bool _loading = false;
   bool _initialLoadDone = false;
   String? _error;
+
+  // Follow suggestions row (horizontal cards above the feed).
+  List<SuggestedUser> _suggestions = [];
+  int? _suggestionsBusyId;
 
   // New-posts pill: a refresh offers newer posts, never auto-inserts them.
   int _seenMaxId = 0;
@@ -132,6 +139,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     if (!mounted) return;
     _loadMe();
     _loadFirst();
+    _loadSuggestions();
     _loadUnread();
     _loadNotifUnread();
     _loadNav();
@@ -296,6 +304,13 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     if (completed == true && mounted) _loadMe();
   }
 
+  void _openProfile(int userId) {
+    if (userId <= 0) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => ProfileScreen(userId: userId)),
+    );
+  }
+
   Future<void> _loadUnread() async {
     final services = _services;
     if (services == null) return;
@@ -424,6 +439,45 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// Follow suggestions for the header row. Fires on first load and on
+  /// every pull-to-refresh; a failed fetch just hides the row.
+  Future<void> _loadSuggestions() async {
+    final services = _services;
+    if (services == null) return;
+    try {
+      final list = await services.social.followSuggestions();
+      if (!mounted) return;
+      setState(() => _suggestions = list);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _suggestions = const []);
+    }
+  }
+
+  /// Follow/unfollow from a suggestion card. Success removes the card
+  /// (Instagram behavior: the suggestion is spent once followed).
+  Future<void> _followSuggestion(SuggestedUser user) async {
+    if (_suggestionsBusyId != null) return;
+    setState(() => _suggestionsBusyId = user.id);
+    try {
+      await _services!.profile.toggleFollow(user.id);
+      if (!mounted) return;
+      setState(() {
+        _suggestions.removeWhere((s) => s.id == user.id);
+        _suggestionsBusyId = null;
+      });
+      _toast('Following @${user.username}');
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _suggestionsBusyId = null);
+      _toast(e.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _suggestionsBusyId = null);
+      _toast('Could not update the follow.');
+    }
+  }
+
   void _onScroll() {
     if (_loading || !_initialLoadDone) return;
     final position = _scrollController.position;
@@ -488,6 +542,9 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
         _showNewPostsPill = pillPosts.isNotEmpty;
         _newPostCount = pillPosts.length;
       });
+      // Fresh suggestions alongside the fresh feed (server cache may have
+      // been invalidated by follows elsewhere).
+      unawaited(_loadSuggestions());
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -946,7 +1003,8 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     if (_error != null && _posts.isEmpty) {
       return ErrorView(message: _error!, onRetry: _loadFirst);
     }
-    final bannerOffset = _showTestBanner ? 1 : 0;
+    final suggestionsOffset = _suggestions.isNotEmpty ? 1 : 0;
+    final bannerOffset = suggestionsOffset + (_showTestBanner ? 1 : 0);
     return Stack(
       children: [
         ListView.builder(
@@ -955,7 +1013,15 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           itemCount: _posts.length + (_loading ? 1 : 0) + bannerOffset,
           itemBuilder: (context, index) {
-            if (_showTestBanner && index == 0) {
+            if (index == 0 && _suggestions.isNotEmpty) {
+              return SuggestionRow(
+                users: _suggestions,
+                busyUserId: _suggestionsBusyId,
+                onOpenProfile: _openProfile,
+                onFollow: _followSuggestion,
+              );
+            }
+            if (_showTestBanner && index == suggestionsOffset) {
               return _PersonalityTestBanner(onTakeTest: _openPersonalityTest);
             }
             final postIndex = index - bannerOffset;

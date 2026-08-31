@@ -327,6 +327,46 @@ void main() {
     });
   });
 
+  group('SocialService.followSuggestions', () {
+    test('GETs /api/v1/suggestions and parses the row fields', () async {
+      final h = await Harness.start((req) async {
+        Harness.respond(
+          req,
+          body: jsonEncode({
+            'success': true,
+            'suggestions': [
+              {
+                'id': 7,
+                'username': 'newbie',
+                'profile_picture_url': '/public/avatars/b.jpg',
+                'personality_type': 'ENFP',
+                'rank': 'Member',
+                'is_active': 'true',
+                'mutual_count': 3,
+                'you_follow': false,
+                'they_follow': true,
+              },
+            ],
+          }),
+        );
+      });
+
+      final list = await SocialService(h.client).followSuggestions();
+      expect(list, hasLength(1));
+      final s = list.first;
+      expect(s.id, 7);
+      expect(s.username, 'newbie');
+      expect(s.personalityType, 'ENFP');
+      expect(s.rank, 'Member');
+      expect(s.mutualCount, 3);
+      expect(s.youFollow, isFalse);
+      expect(s.theyFollow, isTrue);
+      expect(s.followLabel, 'Follow Back');
+
+      await h.close();
+    });
+  });
+
   group('AuthService.logout (JSON contract)', () {
     test('sends JSON body + CSRF header to /api/v1/auth (not a form)',
         () async {

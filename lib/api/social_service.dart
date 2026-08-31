@@ -175,6 +175,49 @@ class CommentPage {
 ///        (optional &limit=N&offset=M&order=asc; total stays the FULL count)
 ///   POST /api/v1/comments {action:create, post_id, content} -> {comment, comment_count}
 ///   POST /api/v1/comments {action:delete, comment_id, post_id} -> {comment_count}
+///   GET  /api/v1/suggestions -> {suggestions:[...]}
+///
+/// One follow suggestion: the same cached friend-of-friend list the web
+/// sidebar renders (menu_right.php).
+class SuggestedUser {
+  const SuggestedUser({
+    required this.id,
+    required this.username,
+    required this.profilePictureUrl,
+    required this.personalityType,
+    required this.rank,
+    required this.isActive,
+    required this.mutualCount,
+    required this.youFollow,
+    required this.theyFollow,
+  });
+
+  final int id;
+  final String username;
+  final String profilePictureUrl;
+  final String? personalityType;
+  final String rank;
+  final String isActive;
+  final int mutualCount;
+  final bool youFollow;
+  final bool theyFollow;
+
+  factory SuggestedUser.fromJson(Map<String, dynamic> json) => SuggestedUser(
+        id: (json['id'] as num?)?.toInt() ?? 0,
+        username: json['username'] as String? ?? '',
+        profilePictureUrl: json['profile_picture_url'] as String? ??
+            '/assets/default-avatar.png',
+        personalityType: json['personality_type'] as String?,
+        rank: json['rank'] as String? ?? 'Member',
+        isActive: json['is_active'] as String? ?? 'true',
+        mutualCount: (json['mutual_count'] as num?)?.toInt() ?? 0,
+        youFollow: json['you_follow'] as bool? ?? false,
+        theyFollow: json['they_follow'] as bool? ?? false,
+      );
+
+  String get followLabel => theyFollow ? 'Follow Back' : 'Follow';
+}
+
 class SocialService {
   SocialService(this._api);
 
@@ -198,6 +241,17 @@ class SocialService {
     return [
       for (final l in raw)
         if (l is Map<String, dynamic>) Liker.fromJson(l),
+    ];
+  }
+
+  /// Follow suggestions for the feed header (GET /api/v1/suggestions).
+  /// Server caches the list per user for an hour, same as the web sidebar.
+  Future<List<SuggestedUser>> followSuggestions() async {
+    final json = await _api.getJson('/api/v1/suggestions');
+    final raw = json['suggestions'] as List<dynamic>? ?? const [];
+    return [
+      for (final s in raw)
+        if (s is Map<String, dynamic>) SuggestedUser.fromJson(s),
     ];
   }
 
