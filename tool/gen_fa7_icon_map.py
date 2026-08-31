@@ -2,10 +2,12 @@
 """Regenerate lib/utils/fa7_solid_map.dart from font_awesome_flutter.
 
 Reads the package's generated icon class (FontAwesomeIcons, FA 7.2.0 solid)
-from the pub cache, kebab-cases each name, and emits a const name->IconData
-map. The const map doubles as the release icon tree-shake keep-list: every
-glyph the app can render is referenced as a constant, so no glyph gets
-stripped from the bundled font and server-sent codepoints render at runtime.
+from the pub cache, kebab-cases each name, and emits const name->IconData
+and codepoint->IconData maps. The const maps double as the release icon
+tree-shake keep-list: every glyph the app can render is referenced as a
+constant, so no glyph gets stripped from the bundled font and server-sent
+codepoints render at runtime. The codepoint map keeps the runtime lookup
+const - a non-const IconData fails release icon tree-shaking.
 
 Run after bumping font_awesome_flutter. Output is ASCII-only.
 
@@ -53,15 +55,23 @@ def main() -> int:
     # solid-only icon; 'a' must stay fa-a, not collide).
     fam_of = {n: fam for n, _, fam in pairs}
     entries = []
+    code_entries = {}
     for raw, code in sorted(solid, key=lambda p: p[1]):
         if raw.startswith("solid") and raw[5:] and raw[5:] not in fam_of:
             plain = raw[5].lower() + raw[6:]
             if fam_of.get(plain) not in (None, "FontAwesomeSolid"):
                 raw = plain
-        entries.append(
-            f"  'fa-{kebab(raw)}': FaIconData(IconData(0x{code:X}, "
-            "fontFamily: 'FontAwesomeSolid', fontPackage: 'font_awesome_flutter')),"
+        icon = (
+            f"FaIconData(IconData(0x{code:X}, "
+            "fontFamily: 'FontAwesomeSolid', fontPackage: 'font_awesome_flutter'))"
         )
+        entries.append(f"  'fa-{kebab(raw)}': {icon},")
+        # Solid codepoints are unique; a duplicate would be a compile error
+        # in the const map, so fail loudly instead of emitting it.
+        if code in code_entries:
+            print(f"DUPLICATE CODE POINT: 0x{code:X}", file=sys.stderr)
+            return 1
+        code_entries[code] = f"  0x{code:X}: {icon},"
     # Key collision check (a stripped name must never clash with a plain one).
     keys = [e.split("':")[0].strip() for e in entries]
     dups = {k for k in keys if keys.count(k) > 1}
@@ -80,6 +90,13 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 /// fa-* class name -> solid icon, full FA7 set ({len(solid)} icons).
 const Map<String, FaIconData> kFa7Solid = {{
 {chr(10).join(entries)}
+}};
+
+/// Server-sent glyph codepoint -> solid icon ({len(code_entries)} icons).
+/// The runtime codepoint path looks up here so every IconData stays const
+/// (a non-const IconData fails release icon tree-shaking).
+const Map<int, FaIconData> kFa7SolidByCodePoint = {{
+{chr(10).join(code_entries.values())}
 }};
 """
     with open(OUT, "w", encoding="ascii", newline="\n") as f:

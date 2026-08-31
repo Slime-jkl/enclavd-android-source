@@ -8,18 +8,16 @@ import 'fa7_solid_map.dart';
 /// are identical for every shared glyph, so any icon picked in the admin
 /// catalog renders without an app update. New domains just work.
 ///
-/// The generated kFa7Solid map is the const keep-list: every glyph is
-/// referenced as a constant so release icon tree-shaking keeps the full
-/// font (non-const IconData glyphs get stripped and render blank).
+/// The generated const maps (kFa7Solid / kFa7SolidByCodePoint) are the
+/// keep-list: every glyph is referenced as a constant so release icon
+/// tree-shaking keeps the full font (non-const IconData glyphs get
+/// stripped and render blank).
 FaIconData domainIconFor(String faClass, {int? codePoint}) {
   final special = _fa7Dropped[faClass];
   if (special != null) return special;
   if (codePoint != null && codePoint > 0) {
-    return FaIconData(IconData(
-      codePoint, // ignore: non_const_argument_for_const_parameter - runtime value
-      fontFamily: 'FontAwesomeSolid',
-      fontPackage: 'font_awesome_flutter',
-    ));
+    // Const lookup: a runtime IconData would fail release tree-shaking.
+    return kFa7SolidByCodePoint[codePoint] ?? FontAwesomeIcons.globe;
   }
   return kFa7Solid[faClass] ?? FontAwesomeIcons.globe;
 }
