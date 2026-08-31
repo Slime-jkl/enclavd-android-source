@@ -36,6 +36,7 @@ class SuggestionRow extends StatelessWidget {
     if (users.isEmpty) return const SizedBox.shrink();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
+      // Bottom gap to the first post, same as the personality banner.
       children: [
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 14),
@@ -49,22 +50,25 @@ class SuggestionRow extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        SizedBox(
-          height: 130,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            itemCount: users.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 10),
-            itemBuilder: (context, index) {
-              final user = users[index];
-              return _SuggestionCard(
-                user: user,
-                busy: busyUserId == user.id,
-                onOpenProfile: () => onOpenProfile(user.id),
-                onFollow: () => onFollow(user),
-              );
-            },
+        Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          child: SizedBox(
+            height: 130,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              itemCount: users.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 10),
+              itemBuilder: (context, index) {
+                final user = users[index];
+                return _SuggestionCard(
+                  user: user,
+                  busy: busyUserId == user.id,
+                  onOpenProfile: () => onOpenProfile(user.id),
+                  onFollow: () => onFollow(user),
+                );
+              },
+            ),
           ),
         ),
       ],
