@@ -641,14 +641,14 @@ class _VoteCard extends StatelessWidget {
               width: 16,
               height: 16,
               child: CircularProgressIndicator(
-                  strokeWidth: 2, color: Colors.white),
+                  strokeWidth: 2, color: EnclavdColors.primaryButtonText),
             )
           : FaIcon(
               myVote != null
                   ? FontAwesomeIcons.rotate
                   : FontAwesomeIcons.circleCheck,
               size: 14,
-              color: Colors.white, // matches the button's label
+              color: EnclavdColors.primaryButtonText, // matches the label
             ),
       label: Text(submitting
           ? 'Submitting...'
