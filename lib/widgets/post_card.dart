@@ -11,8 +11,8 @@ import 'package:webview_flutter_android/webview_flutter_android.dart';
 import '../api/auth_service.dart';
 import '../api/feed_service.dart';
 import '../api/social_service.dart';
-import '../api/api_client.dart';
 import '../main.dart'; // AppServices.current (mention -> profile resolution)
+import '../screens/comments_screen.dart';
 import '../screens/domain_thread_screen.dart';
 import '../screens/hashtag_screen.dart';
 import '../screens/profile_screen.dart';
@@ -26,7 +26,6 @@ import 'enclavd_avatar.dart';
 import 'enclavd_image.dart';
 import 'likers_sheet.dart';
 import 'personality_chip.dart';
-import 'shimmer.dart';
 
 class PostCard extends StatefulWidget {
   const PostCard({
@@ -36,9 +35,6 @@ class PostCard extends StatefulWidget {
     required this.social,
     this.onEditPost,
     this.onDeletePost,
-    this.hideInlineComments = false,
-    this.commentsOpen,
-    this.onToggleComments,
   });
 
   final Post post;
@@ -49,13 +45,6 @@ class PostCard extends StatefulWidget {
   final void Function(Post post)? onEditPost;
   final void Function(Post post)? onDeletePost;
 
-  /// Forum-thread mode: the card's inline comments section is suppressed.
-  final bool hideInlineComments;
-
-  /// Controlled mode: the owning list decides which section is open.
-  final bool? commentsOpen;
-  final VoidCallback? onToggleComments;
-
   @override
   State<PostCard> createState() => _PostCardState();
 }
@@ -64,24 +53,6 @@ class _PostCardState extends State<PostCard> {
   late int _likeCount;
   late bool _liked;
   late int _commentCount;
-
-  bool get _commentsOpen => widget.commentsOpen ?? _internalCommentsOpen;
-  bool _internalCommentsOpen = false;
-  bool _commentsLoading = false;
-  List<Comment> _comments = const [];
-  String? _commentsError;
-
-  bool _commentsHasMore = false;
-  bool _commentsLoadingMore = false;
-
-  // Owned here so reply taps can insert "@username " and focus the composer.
-  final _commentController = TextEditingController();
-  final _commentFocus = FocusNode();
-  bool _commentSending = false;
-
-  // Set by a comment's reply button: arms parent_comment_id on submit
-  // and shows the "Replying to @user" chip above the composer.
-  Comment? _replyTarget;
 
   // True while a like toggle is in flight (blocks double-taps).
   bool _likeBusy = false;
@@ -102,8 +73,6 @@ class _PostCardState extends State<PostCard> {
 
   @override
   void dispose() {
-    _commentController.dispose();
-    _commentFocus.dispose();
     super.dispose();
   }
 
@@ -185,38 +154,25 @@ class _PostCardState extends State<PostCard> {
   }
 
   Future<void> _openComments() async {
-    // Domain posts route to the forum thread instead of inline comments
-    // (web parity: the comment button is a link to /d/slug/id).
+    // Domain posts route to the forum thread (web parity: the comment
+    // button is a link to /d/slug/id). Everything else opens the
+    // full-screen comments view with a zoom-in transition.
     if (widget.post.hasDomain) {
       await _openDomainThread();
       return;
     }
-    // Forum-thread mode: the card's inline section is suppressed.
-    if (widget.hideInlineComments) return;
-    final toggle = widget.onToggleComments;
-    if (toggle != null) {
-      // Controlled mode: the owning list decides which section is open.
-      final opening = !(widget.commentsOpen ?? false);
-      toggle();
-      if (opening) {
-        setState(() {
-          _commentsLoading = true;
-          _commentsError = null;
-        });
-        await _loadComments();
-      }
-      return;
+    final newCount = await Navigator.of(context).push<int>(
+      CommentsScreen.route(
+        post: widget.post,
+        social: widget.social,
+        apiBaseUrl: widget.apiBaseUrl,
+      ),
+    );
+    // The full-screen view pops with the latest total; keep the card
+    // count in sync (covers comments added while it was open).
+    if (newCount != null && mounted) {
+      setState(() => _commentCount = newCount);
     }
-    if (_commentsOpen) {
-      setState(() => _internalCommentsOpen = false);
-      return;
-    }
-    setState(() {
-      _internalCommentsOpen = true;
-      _commentsLoading = true;
-      _commentsError = null;
-    });
-    await _loadComments();
   }
 
   Future<void> _openDomainThread() async {
@@ -237,135 +193,6 @@ class _PostCardState extends State<PostCard> {
         ),
       ),
     );
-  }
-
-  Future<void> _loadComments() async {
-    try {
-      final page =
-          await widget.social.listComments(widget.post.id); // page 1, DESC
-      if (!mounted) return;
-      setState(() {
-        _comments = page.comments;
-        _commentCount = page.total;
-        _commentsHasMore = page.hasMore;
-        _commentsLoading = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _commentsLoading = false;
-        _commentsError = 'Could not load comments.';
-      });
-    }
-  }
-
-  Future<void> _loadMoreComments() async {
-    if (_commentsLoadingMore || !_commentsHasMore) return;
-    setState(() => _commentsLoadingMore = true);
-    try {
-      final page = await widget.social.listComments(
-        widget.post.id,
-        offset: _comments.length,
-      );
-      if (!mounted) return;
-      setState(() {
-        _comments = [..._comments, ...page.comments];
-        _commentCount = page.total;
-        _commentsHasMore = page.hasMore;
-        _commentsLoadingMore = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() => _commentsLoadingMore = false);
-      _toast('Could not load more comments.');
-    }
-  }
-
-  void _replyToComment(Comment comment) {
-    final current = _commentController.text.trim();
-    final mention = '@${comment.username} ';
-    _commentController.text = current.isEmpty
-        ? mention
-        : '$current $mention';
-    _commentController.selection = TextSelection.collapsed(
-        offset: _commentController.text.length);
-    setState(() => _replyTarget = comment);
-    _commentFocus.requestFocus();
-  }
-
-  void _dismissReplyTarget() => setState(() => _replyTarget = null);
-
-  Future<void> _sendComment() async {
-    final content = _commentController.text.trim();
-    if (content.isEmpty || _commentSending) return;
-    setState(() {
-      _commentSending = true;
-      // Optimistic: bump now, server total corrects on success.
-      _commentCount += 1;
-    });
-    try {
-      final (comment, newCount) = await widget.social.createComment(
-        widget.post.id,
-        content,
-        parentCommentId: _replyTarget?.id,
-      );
-      if (!mounted) return;
-      setState(() {
-        _comments = [comment, ..._comments]; // newest first (server order)
-        _commentCount = newCount;
-        _commentSending = false;
-        _replyTarget = null;
-      });
-      _commentController.clear();
-      FocusScope.of(context).unfocus();
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _commentSending = false;
-        _commentCount -= 1; // roll back the optimistic bump
-      });
-      _toast(friendlyErrorText(e));
-    }
-  }
-
-  /// Drops a comment and its whole subtree from the local list (the
-  /// server deletes the subtree too).
-  void _dropCommentSubtree(int id) {
-    final toDrop = <int>{id};
-    var grew = true;
-    while (grew) {
-      grew = false;
-      for (final c in _comments) {
-        if (c.parentCommentId != null && toDrop.contains(c.parentCommentId) &&
-            !toDrop.contains(c.id)) {
-          toDrop.add(c.id);
-          grew = true;
-        }
-      }
-    }
-    _comments = _comments.where((c) => !toDrop.contains(c.id)).toList();
-  }
-
-  Future<void> _deleteComment(Comment comment) async {
-    setState(() {
-      _dropCommentSubtree(comment.id);
-      _commentCount -= 1; // optimistic; server total corrects on success
-    });
-    try {
-      final newCount =
-          await widget.social.deleteComment(comment.id, widget.post.id);
-      if (!mounted) return;
-      setState(() => _commentCount = newCount);
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _commentCount += 1; // roll back
-        // Restore the comment (newest-first by id, like the server order).
-        _comments = [..._comments, comment]
-          ..sort((a, b) => b.id.compareTo(a.id));
-      });
-      _toast('Could not delete the comment.');
-    }
   }
 
   void _toast(String message) {
@@ -469,26 +296,6 @@ class _PostCardState extends State<PostCard> {
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                  if (_commentsOpen) ...[
-                    const SizedBox(height: 8),
-                    _CommentsSection(
-                      comments: _comments,
-                      loading: _commentsLoading,
-                      error: _commentsError,
-                      hasMore: _commentsHasMore,
-                      loadingMore: _commentsLoadingMore,
-                      sending: _commentSending,
-                      controller: _commentController,
-                      focusNode: _commentFocus,
-                      replyTarget: _replyTarget,
-                      onDismissReply: _dismissReplyTarget,
-                      onSend: _sendComment,
-                      onLoadMore: _loadMoreComments,
-                      onDelete: _deleteComment,
-                      onReply: _replyToComment,
-                      apiBaseUrl: widget.apiBaseUrl,
                     ),
                   ],
                 ],
@@ -1442,548 +1249,4 @@ class _DashedBorderPainter extends CustomPainter {
   @override
   bool shouldRepaint(_DashedBorderPainter oldDelegate) =>
       oldDelegate.color != color || oldDelegate.radius != radius;
-}
-
-class _CommentsSection extends StatefulWidget {
-  const _CommentsSection({
-    required this.comments,
-    required this.loading,
-    required this.error,
-    required this.hasMore,
-    required this.loadingMore,
-    required this.sending,
-    required this.controller,
-    required this.focusNode,
-    required this.onSend,
-    required this.onLoadMore,
-    required this.onDelete,
-    required this.onReply,
-    required this.apiBaseUrl,
-    this.replyTarget,
-    this.onDismissReply,
-  });
-
-  final List<Comment> comments;
-  final bool loading;
-  final String? error;
-
-  final bool hasMore;
-  final bool loadingMore;
-  final bool sending;
-  final TextEditingController controller;
-  final FocusNode focusNode;
-  final VoidCallback onSend;
-  final VoidCallback onLoadMore;
-  final void Function(Comment) onDelete;
-  final void Function(Comment) onReply;
-  final String apiBaseUrl;
-
-  /// Armed reply target (shows the chip above the composer).
-  final Comment? replyTarget;
-  final VoidCallback? onDismissReply;
-
-  @override
-  State<_CommentsSection> createState() => _CommentsSectionState();
-}
-
-class _CommentsSectionState extends State<_CommentsSection> {
-  int? _expandedCommentId;
-
-  @override
-  Widget build(BuildContext context) {
-    if (widget.loading) {
-      return const Column(
-        children: [
-          ShimmerBox(width: double.infinity, height: 40),
-          SizedBox(height: 8),
-          ShimmerBox(width: double.infinity, height: 40),
-        ],
-      );
-    }
-    if (widget.error != null) {
-      return Text(widget.error!,
-          style: const TextStyle(color: EnclavdColors.textSecondary));
-    }
-    final tree = CommentTree.build(widget.comments);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Composer on top so replies sit right under the post.
-        _CommentComposer(
-          controller: widget.controller,
-          focusNode: widget.focusNode,
-          sending: widget.sending,
-          replyTarget: widget.replyTarget,
-          onDismissReply: widget.onDismissReply,
-          onSend: widget.onSend,
-        ),
-        const Divider(height: 20),
-        for (final root in tree.roots)
-          _CommentThread(
-            root: root,
-            children: tree.children[root.id] ?? const [],
-            parentUsernames: tree.parentUsernames,
-            apiBaseUrl: widget.apiBaseUrl,
-            onDelete: widget.onDelete,
-            onReply: widget.onReply,
-            expandedId: _expandedCommentId,
-            onToggle: (id) => setState(() {
-              _expandedCommentId = _expandedCommentId == id ? null : id;
-            }),
-          ),
-        if (widget.hasMore)
-          Center(
-            child: TextButton.icon(
-              onPressed: widget.loadingMore ? null : widget.onLoadMore,
-              icon: widget.loadingMore
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const FaIcon(FontAwesomeIcons.anglesDown,
-                      size: 13, color: EnclavdColors.link),
-              label: Text(
-                  widget.loadingMore ? 'Loading...' : 'Load more comments'),
-              style: TextButton.styleFrom(
-                foregroundColor: EnclavdColors.link,
-                textStyle:
-                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _CommentComposer extends StatelessWidget {
-  const _CommentComposer({
-    required this.controller,
-    required this.focusNode,
-    required this.sending,
-    required this.onSend,
-    this.replyTarget,
-    this.onDismissReply,
-  });
-
-  final TextEditingController controller;
-  final FocusNode focusNode;
-  final bool sending;
-  final VoidCallback onSend;
-
-  /// Armed reply target: shows the "Replying to @user" chip above the
-  /// input; the target id rides along on submit.
-  final Comment? replyTarget;
-  final VoidCallback? onDismissReply;
-
-  @override
-  Widget build(BuildContext context) {
-    final target = replyTarget;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (target != null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
-              decoration: BoxDecoration(
-                color: EnclavdColors.cardSecondary.withValues(alpha: 0.7),
-                borderRadius: BorderRadius.circular(10),
-                border: const Border(
-                    left: BorderSide(color: EnclavdColors.link, width: 3)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const FaIcon(FontAwesomeIcons.reply,
-                      size: 12, color: EnclavdColors.link),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      'Replying to @${target.username}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: EnclavdColors.link,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  if (onDismissReply != null)
-                    InkWell(
-                      onTap: onDismissReply,
-                      borderRadius: BorderRadius.circular(8),
-                      child: const Padding(
-                        padding: EdgeInsets.all(6),
-                        child: FaIcon(FontAwesomeIcons.xmark,
-                            size: 13, color: EnclavdColors.textSecondary),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        Row(
-          // Stays aligned with the input's center as it grows.
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Expanded(
-              child: TextField(
-                controller: controller,
-                focusNode: focusNode,
-                minLines: 1,
-                maxLines: 3,
-                maxLength: 1000,
-                textInputAction: TextInputAction.send,
-                onSubmitted: (_) => onSend(),
-                // 1000-char cap enforced silently, no counter UI.
-                style: const TextStyle(
-                    fontSize: 14, color: EnclavdColors.textPrimary),
-                cursorColor: EnclavdColors.link,
-                decoration: const InputDecoration(
-                  hintText: 'Add a comment...',
-                  hintStyle: TextStyle(
-                      color: EnclavdColors.textSecondary, fontSize: 14),
-                  filled: true,
-                  fillColor: EnclavdColors.background,
-                  isDense: true,
-                  counterText: '',
-                  contentPadding:
-                      EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(10)),
-                    borderSide: BorderSide(color: EnclavdColors.border),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(10)),
-                    borderSide: BorderSide(color: EnclavdColors.border),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(10)),
-                    borderSide: BorderSide(color: EnclavdColors.link, width: 2),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 4),
-            IconButton(
-              onPressed: sending ? null : onSend,
-              icon: sending
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const FaIcon(FontAwesomeIcons.paperPlane,
-                      size: 18, color: EnclavdColors.link),
-              tooltip: 'Send comment',
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-/// Maps the server's Tailwind name_color class to our palette.
-Color rankColorFromCssClass(String cssClass) {
-  if (cssClass.contains('purple')) return RankColors.forRank('SysOp');
-  if (cssClass.contains('red')) return RankColors.forRank('Admin');
-  if (cssClass.contains('blue')) return RankColors.forRank('Officer');
-  if (cssClass.contains('yellow')) return RankColors.forRank('Founding Member');
-  return RankColors.forRank('Member');
-}
-
-/// One top-level comment plus its clamped replies, behind a left rail.
-class _CommentThread extends StatelessWidget {
-  const _CommentThread({
-    required this.root,
-    required this.children,
-    required this.parentUsernames,
-    required this.apiBaseUrl,
-    required this.onDelete,
-    required this.onReply,
-    required this.expandedId,
-    required this.onToggle,
-  });
-
-  final Comment root;
-  final List<Comment> children;
-  final Map<int, String> parentUsernames;
-  final String apiBaseUrl;
-  final void Function(Comment) onDelete;
-  final void Function(Comment) onReply;
-  final int? expandedId;
-  final void Function(int id) onToggle;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _CommentRow(
-          // Key by id: new comments prepend, so positional reuse would
-          // misattach row state.
-          key: ValueKey(root.id),
-          comment: root,
-          apiBaseUrl: apiBaseUrl,
-          onDelete: onDelete,
-          onReply: onReply,
-          expanded: root.id == expandedId,
-          onToggle: () => onToggle(root.id),
-        ),
-        if (children.isNotEmpty)
-          Container(
-            margin: const EdgeInsets.only(left: 16),
-            padding: const EdgeInsets.only(left: 10),
-            decoration: const BoxDecoration(
-              border: Border(
-                left: BorderSide(color: EnclavdColors.border, width: 2),
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final child in children)
-                  _CommentRow(
-                    key: ValueKey(child.id),
-                    comment: child,
-                    replyToUsername: parentUsernames[child.id],
-                    apiBaseUrl: apiBaseUrl,
-                    onDelete: onDelete,
-                    onReply: onReply,
-                    expanded: child.id == expandedId,
-                    onToggle: () => onToggle(child.id),
-                  ),
-              ],
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _CommentRow extends StatefulWidget {
-  const _CommentRow({
-    super.key,
-    required this.comment,
-    required this.apiBaseUrl,
-    required this.onDelete,
-    required this.onReply,
-    required this.expanded,
-    required this.onToggle,
-    this.replyToUsername,
-  });
-
-  final Comment comment;
-  final String apiBaseUrl;
-  final void Function(Comment) onDelete;
-
-  final void Function(Comment) onReply;
-
-  final bool expanded;
-
-  final VoidCallback onToggle;
-
-  /// Direct reply target, shown as a hint line on nested rows.
-  final String? replyToUsername;
-
-  @override
-  State<_CommentRow> createState() => _CommentRowState();
-}
-
-class _CommentRowState extends State<_CommentRow> {
-  // Owned here so they get disposed; commentContentSpans hands them over.
-  final List<TapGestureRecognizer> _recognizers = [];
-  List<InlineSpan>? _cachedSpans;
-  String? _cachedFor; // 'full' | 'short' slice the cache holds
-
-  static const int _readMoreLimit = 200;
-
-  bool get _expanded => widget.expanded;
-
-  @override
-  void dispose() {
-    for (final r in _recognizers) {
-      r.dispose();
-    }
-    super.dispose();
-  }
-
-  Comment get comment => widget.comment;
-
-  String get _visibleContent {
-    final content = comment.content;
-    if (_expanded || content.length <= _readMoreLimit) return content;
-    final preview = content.substring(0, _readMoreLimit);
-    final lastSpace = preview.lastIndexOf(' ');
-    // Only cut at a word boundary when it leaves a substantial preview.
-    return lastSpace > _readMoreLimit * 0.6
-        ? content.substring(0, lastSpace)
-        : preview;
-  }
-
-  List<InlineSpan> _spans() {
-    final key = _expanded ? 'full' : 'short';
-    if (_cachedFor == key && _cachedSpans != null) return _cachedSpans!;
-    // Drop the previous slice's recognizers so none are orphaned.
-    for (final r in _recognizers) {
-      r.dispose();
-    }
-    _recognizers.clear();
-    final text = _visibleContent;
-    final spans = commentContentSpans(
-      text,
-      onMention: (username) => _openMention(username),
-      onUrl: (url) => _openUrl(url),
-      recognizers: _recognizers,
-    );
-    if (text.length < comment.content.length) {
-      spans.add(const TextSpan(text: '...'));
-    }
-    _cachedSpans = spans;
-    _cachedFor = key;
-    return spans;
-  }
-
-  Future<void> _openMention(String username) async {
-    final services = AppServices.current ?? await AppServices.create();
-    if (!mounted) return;
-    try {
-      final profile = await services.profile.fetchProfileByUsername(username);
-      if (!mounted || profile.id <= 0) return;
-      _openProfile(context, profile.id);
-    } catch (_) {
-      // Unknown username: plain text, no error UI.
-    }
-  }
-
-  Future<void> _openUrl(String url) async {
-    final uri = Uri.tryParse(url);
-    if (uri == null) return;
-    try {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } catch (_) {
-      // Never let a link open break the comments.
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final personality = PersonalityColors.forType(comment.personalityType);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          GestureDetector(
-            onTap: () => _openProfile(context, comment.userId),
-            child: EnclavdAvatar(
-              size: 28,
-              url: resolveMediaUrl(widget.apiBaseUrl,
-                  avatarPath: comment.profilePictureUrl),
-              borderColor: personality,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => _openProfile(context, comment.userId),
-                        child: Text(
-                          comment.username,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: rankColorFromCssClass(comment.nameColor),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      relativeTime(comment.createdAtUtc),
-                      style: const TextStyle(
-                          color: EnclavdColors.textSecondary, fontSize: 11),
-                    ),
-                    if (!comment.isOwner) ...[
-                      const SizedBox(width: 6),
-                      GestureDetector(
-                        onTap: () => widget.onReply(comment),
-                        behavior: HitTestBehavior.opaque,
-                        child: const Padding(
-                          padding: EdgeInsets.all(2),
-                          child: FaIcon(FontAwesomeIcons.reply,
-                              size: 13, color: EnclavdColors.textSecondary),
-                        ),
-                      ),
-                    ],
-                    if (comment.isOwner) ...[
-                      const SizedBox(width: 6),
-                      GestureDetector(
-                        onTap: () => widget.onDelete(comment),
-                        child: const FaIcon(FontAwesomeIcons.trashCan,
-                            size: 14, color: EnclavdColors.textSecondary),
-                      ),
-                    ],
-                  ],
-                ),
-                const SizedBox(height: 2),
-                if (widget.replyToUsername case final target?)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 2),
-                    child: Text(
-                      'Replying to @$target',
-                      style: const TextStyle(
-                        color: EnclavdColors.link,
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                Text.rich(
-                  TextSpan(children: _spans()),
-                  style: const TextStyle(
-                      color: EnclavdColors.textPrimary, fontSize: 14),
-                ),
-                if (comment.content.length > _readMoreLimit)
-                  GestureDetector(
-                    onTap: widget.onToggle,
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        _expanded ? 'Show less' : 'Read more',
-                        style: const TextStyle(
-                          color: EnclavdColors.link,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _openProfile(BuildContext context, int authorId) {
-    if (authorId <= 0) return;
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => ProfileScreen(userId: authorId)),
-    );
-  }
 }

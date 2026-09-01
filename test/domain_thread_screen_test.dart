@@ -11,6 +11,7 @@ import 'package:enclavd/screens/domain_thread_screen.dart';
 import 'package:enclavd/services/sound_service.dart';
 import 'package:enclavd/theme/enclavd_theme.dart';
 import 'package:enclavd/widgets/enclavd_avatar.dart';
+import 'package:enclavd/widgets/comment_quote_card.dart';
 import 'package:enclavd/widgets/post_card.dart'; // PostCard (must be ABSENT)
 import 'package:enclavd/widgets/shimmer.dart';
 
@@ -370,9 +371,12 @@ void main() {
 
     expect(social.sent, ['@Someone wrote: "First reply"\n\nAgreed!']);
     expect(social.sentParents, [1]);
-    // Quote banner is gone; the one remaining occurrence is the nested
-    // reply-to hint on the newly inserted reply (it nests under #1).
+    // The sent reply carries the quote prefix, so it renders as a styled
+    // quote card (its "Replying to @Someone" header replaces the banner);
+    // the typed text renders as the reply's own content.
+    expect(find.byType(CommentQuoteCard), findsOneWidget);
     expect(find.text('Replying to @Someone'), findsOneWidget);
+    expect(find.text('Agreed!'), findsOneWidget);
   });
 
   testWidgets('nested replies render under the root with a reply-to hint',

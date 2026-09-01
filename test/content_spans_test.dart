@@ -242,4 +242,33 @@ void main() {
       expect(opened, 'https://www.example.com');
     });
   });
+
+  group('parseCommentQuote', () {
+    test('splits a quote prefix into target, text and body', () {
+      final q = parseCommentQuote('@alice wrote: "hi there"\n\nmy reply');
+      expect(q, isNotNull);
+      expect(q!.target, 'alice');
+      expect(q.text, 'hi there');
+      expect(q.body, 'my reply');
+    });
+
+    test('quote-only content leaves an empty body', () {
+      final q = parseCommentQuote('@alice wrote: "hi"\n\n');
+      expect(q, isNotNull);
+      expect(q!.text, 'hi');
+      expect(q.body, '');
+    });
+
+    test('embedded double quotes survive (non-greedy terminator)', () {
+      final q = parseCommentQuote('@alice wrote: "he said "hi""\n\nok');
+      expect(q, isNotNull);
+      expect(q!.text, 'he said "hi"');
+      expect(q.body, 'ok');
+    });
+
+    test('plain content without the prefix returns null', () {
+      expect(parseCommentQuote('just a normal comment'), isNull);
+      expect(parseCommentQuote('@alice wrote: hi\n\nno quotes'), isNull);
+    });
+  });
 }

@@ -72,9 +72,6 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   bool _showNewPostsPill = false;
   int _newPostCount = 0;
 
-  // One comment section open at a time; opening another closes this one.
-  int? _openCommentsPostId;
-
   // Unread messages badge (site header: paper-plane icon + red count).
   int _unreadMessages = 0;
   Timer? _unreadTimer;
@@ -1041,13 +1038,6 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
               social: _services!.social,
               onEditPost: _editPost,
               onDeletePost: _deletePost,
-              // Only ONE comment section open at a time across the feed.
-              commentsOpen: _openCommentsPostId == _posts[postIndex].id,
-              onToggleComments: () => setState(() {
-                _openCommentsPostId = _openCommentsPostId == _posts[postIndex].id
-                    ? null
-                    : _posts[postIndex].id;
-              }),
             );
           },
         ),

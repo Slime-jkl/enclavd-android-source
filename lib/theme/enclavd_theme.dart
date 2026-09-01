@@ -40,6 +40,15 @@ class RankColors {
   static Color forRank(String rank) => colors[rank] ?? colors['Member']!;
 }
 
+/// Maps the server's Tailwind name_color class to our palette.
+Color rankColorFromCssClass(String cssClass) {
+  if (cssClass.contains('purple')) return RankColors.forRank('SysOp');
+  if (cssClass.contains('red')) return RankColors.forRank('Admin');
+  if (cssClass.contains('blue')) return RankColors.forRank('Officer');
+  if (cssClass.contains('yellow')) return RankColors.forRank('Founding Member');
+  return RankColors.forRank('Member');
+}
+
 /// Personality type -> accent color (components/personality_badge.php).
 /// Groups: NT=fuchsia, NF=amber, SJ=red, SP=blue.
 class PersonalityColors {

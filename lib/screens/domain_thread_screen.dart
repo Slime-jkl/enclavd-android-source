@@ -17,11 +17,13 @@ import '../theme/enclavd_theme.dart';
 import '../utils/content_spans.dart'; // postContentSpans + commentContentSpans
 import '../utils/db_time.dart';
 import '../widgets/enclavd_avatar.dart';
+import '../widgets/comment_quote_card.dart';
 import '../widgets/error_view.dart';
 import '../widgets/post_card.dart'; // PostCardSkeleton, PostImage,
 // rankColorFromCssClass
 import '../widgets/rank_badge.dart';
 import '../widgets/shimmer.dart';
+import '../widgets/thread_connector.dart';
 import 'compose_screen.dart';
 import 'hashtag_screen.dart';
 import 'profile_screen.dart';
@@ -476,37 +478,47 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
                         : _tree.roots[i].id;
                   }),
                 ),
-                // Nested replies clamp under the root, behind a left
-                // rail, each tagged with who it actually replies to.
+                // Nested replies clamp under the root. A connector drops
+                // from the parent's avatar and turns into a rounded L
+                // into each reply; the rail stops after the last one.
                 if (_tree.children[_tree.roots[i].id] case final kids?)
-                  Container(
-                    margin: const EdgeInsets.only(left: 14, top: 2),
-                    padding: const EdgeInsets.only(left: 12),
-                    decoration: const BoxDecoration(
-                      border: Border(
-                        left: BorderSide(
-                            color: EnclavdColors.border, width: 2),
-                      ),
-                    ),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 28, top: 2),
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        for (final kid in kids)
-                          _ForumReplyCard(
-                            key: ValueKey(kid.id),
-                            reply: kid,
-                            number: 0, // hidden on nested cards
-                            apiBaseUrl: AppConfig.apiBaseUrl,
-                            onDelete: _deleteReply,
-                            onReply: _quoteReply,
-                            expanded: kid.id == _expandedReplyId,
-                            onToggle: () => setState(() {
-                              _expandedReplyId =
-                                  _expandedReplyId == kid.id ? null : kid.id;
-                            }),
-                            nested: true,
-                            replyToUsername:
-                                _tree.parentUsernames[kid.id],
+                        for (var k = 0; k < kids.length; k++)
+                          IntrinsicHeight(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                ThreadElbow(
+                                  color: EnclavdColors.border,
+                                  elbowY: 26, // nested avatar 32 center + 10 pad
+                                  isLast: k == kids.length - 1,
+                                ),
+                                Expanded(
+                                  child: _ForumReplyCard(
+                                    key: ValueKey(kids[k].id),
+                                    reply: kids[k],
+                                    number: 0, // hidden on nested cards
+                                    apiBaseUrl: AppConfig.apiBaseUrl,
+                                    onDelete: _deleteReply,
+                                    onReply: _quoteReply,
+                                    expanded: kids[k].id == _expandedReplyId,
+                                    onToggle: () => setState(() {
+                                      _expandedReplyId =
+                                          _expandedReplyId == kids[k].id
+                                              ? null
+                                              : kids[k].id;
+                                    }),
+                                    nested: true,
+                                    replyToUsername:
+                                        _tree.parentUsernames[kids[k].id],
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                       ],
                     ),
@@ -1020,8 +1032,16 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
 
   Comment get reply => widget.reply;
 
+  CommentQuote? _parsedQuote;
+  CommentQuote? get _quote =>
+      _parsedQuote ??= parseCommentQuote(reply.content);
+
+  /// The part after any quote prefix; read-more clamps THIS, never the
+  /// quoted block.
+  String get _body => _quote?.body ?? reply.content;
+
   String get _visibleContent {
-    final content = reply.content;
+    final content = _body;
     if (_expanded || content.length <= _readMoreLimit) return content;
     final preview = content.substring(0, _readMoreLimit);
     final lastSpace = preview.lastIndexOf(' ');
@@ -1044,7 +1064,7 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
       onUrl: (url) => _openUrl(url),
       recognizers: _recognizers,
     );
-    if (text.length < reply.content.length) {
+    if (text.length < _body.length) {
       spans.add(const TextSpan(text: '...'));
     }
     _cachedSpans = spans;
@@ -1138,7 +1158,10 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                     ),
                   ],
                 ),
-                if (widget.replyToUsername case final target?)
+                if (_quote != null) ...[
+                  CommentQuoteCard(quote: _quote!),
+                  const SizedBox(height: 6),
+                ] else if (widget.replyToUsername case final target?)
                   Padding(
                     padding: const EdgeInsets.only(top: 3),
                     child: Text(
@@ -1158,7 +1181,7 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                       fontSize: 14,
                       height: 1.4),
                 ),
-                if (reply.content.length > _readMoreLimit)
+                if (_body.length > _readMoreLimit)
                   GestureDetector(
                     onTap: widget.onToggle,
                     child: Padding(

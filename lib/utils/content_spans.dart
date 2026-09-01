@@ -114,6 +114,37 @@ class CommentToken {
   bool get isPlain => kind == 'plain';
 }
 
+/// A quote-on-reply prefix parsed off the start of a comment: the app
+/// writes '@user wrote: "clamped"\n\n' + typed text, which would render
+/// as raw text. Cards render it as a styled quote block instead.
+class CommentQuote {
+  const CommentQuote({
+    required this.target,
+    required this.text,
+    required this.body,
+  });
+
+  final String target; // quoted author's username
+  final String text; // the quoted text
+  final String body; // the reply's own text after the prefix
+}
+
+/// Matches the app's quote prefix. Non-greedy: the quoted text is
+/// whitespace-collapsed by the writer, so the first `"\n\n` ends it
+/// (embedded double quotes survive because the terminator is `"\n\n`).
+final _commentQuoteRe = RegExp(r'^@([A-Za-z0-9_]+) wrote: "(.*?)"\n\n');
+
+/// Returns the quote prefix when the comment starts with one, else null.
+CommentQuote? parseCommentQuote(String content) {
+  final m = _commentQuoteRe.firstMatch(content);
+  if (m == null) return null;
+  return CommentQuote(
+    target: m.group(1)!,
+    text: m.group(2)!,
+    body: content.substring(m.end),
+  );
+}
+
 /// The site's convertMentionsToLinks regex, ported verbatim: the
 /// lookbehind keeps `email@x` and `@@user` from linkifying mid-token.
 final _commentTokenRe = RegExp(
