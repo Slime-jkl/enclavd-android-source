@@ -79,6 +79,10 @@ class _PostCardState extends State<PostCard> {
   final _commentFocus = FocusNode();
   bool _commentSending = false;
 
+  // Set by a comment's reply button: arms parent_comment_id on submit
+  // and shows the "Replying to @user" chip above the composer.
+  Comment? _replyTarget;
+
   // True while a like toggle is in flight (blocks double-taps).
   bool _likeBusy = false;
 
@@ -285,8 +289,11 @@ class _PostCardState extends State<PostCard> {
         : '$current $mention';
     _commentController.selection = TextSelection.collapsed(
         offset: _commentController.text.length);
+    setState(() => _replyTarget = comment);
     _commentFocus.requestFocus();
   }
+
+  void _dismissReplyTarget() => setState(() => _replyTarget = null);
 
   Future<void> _sendComment() async {
     final content = _commentController.text.trim();
@@ -297,13 +304,17 @@ class _PostCardState extends State<PostCard> {
       _commentCount += 1;
     });
     try {
-      final (comment, newCount) =
-          await widget.social.createComment(widget.post.id, content);
+      final (comment, newCount) = await widget.social.createComment(
+        widget.post.id,
+        content,
+        parentCommentId: _replyTarget?.id,
+      );
       if (!mounted) return;
       setState(() {
         _comments = [comment, ..._comments]; // newest first (server order)
         _commentCount = newCount;
         _commentSending = false;
+        _replyTarget = null;
       });
       _commentController.clear();
       FocusScope.of(context).unfocus();
@@ -317,9 +328,27 @@ class _PostCardState extends State<PostCard> {
     }
   }
 
+  /// Drops a comment and its whole subtree from the local list (the
+  /// server deletes the subtree too).
+  void _dropCommentSubtree(int id) {
+    final toDrop = <int>{id};
+    var grew = true;
+    while (grew) {
+      grew = false;
+      for (final c in _comments) {
+        if (c.parentCommentId != null && toDrop.contains(c.parentCommentId) &&
+            !toDrop.contains(c.id)) {
+          toDrop.add(c.id);
+          grew = true;
+        }
+      }
+    }
+    _comments = _comments.where((c) => !toDrop.contains(c.id)).toList();
+  }
+
   Future<void> _deleteComment(Comment comment) async {
     setState(() {
-      _comments = _comments.where((c) => c.id != comment.id).toList();
+      _dropCommentSubtree(comment.id);
       _commentCount -= 1; // optimistic; server total corrects on success
     });
     try {
@@ -453,6 +482,8 @@ class _PostCardState extends State<PostCard> {
                       sending: _commentSending,
                       controller: _commentController,
                       focusNode: _commentFocus,
+                      replyTarget: _replyTarget,
+                      onDismissReply: _dismissReplyTarget,
                       onSend: _sendComment,
                       onLoadMore: _loadMoreComments,
                       onDelete: _deleteComment,
@@ -1428,6 +1459,8 @@ class _CommentsSection extends StatefulWidget {
     required this.onDelete,
     required this.onReply,
     required this.apiBaseUrl,
+    this.replyTarget,
+    this.onDismissReply,
   });
 
   final List<Comment> comments;
@@ -1445,6 +1478,10 @@ class _CommentsSection extends StatefulWidget {
   final void Function(Comment) onReply;
   final String apiBaseUrl;
 
+  /// Armed reply target (shows the chip above the composer).
+  final Comment? replyTarget;
+  final VoidCallback? onDismissReply;
+
   @override
   State<_CommentsSection> createState() => _CommentsSectionState();
 }
@@ -1454,7 +1491,6 @@ class _CommentsSectionState extends State<_CommentsSection> {
 
   @override
   Widget build(BuildContext context) {
-    final comments = widget.comments;
     if (widget.loading) {
       return const Column(
         children: [
@@ -1468,6 +1504,7 @@ class _CommentsSectionState extends State<_CommentsSection> {
       return Text(widget.error!,
           style: const TextStyle(color: EnclavdColors.textSecondary));
     }
+    final tree = CommentTree.build(widget.comments);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1476,22 +1513,22 @@ class _CommentsSectionState extends State<_CommentsSection> {
           controller: widget.controller,
           focusNode: widget.focusNode,
           sending: widget.sending,
+          replyTarget: widget.replyTarget,
+          onDismissReply: widget.onDismissReply,
           onSend: widget.onSend,
         ),
         const Divider(height: 20),
-        for (final comment in comments)
-          _CommentRow(
-            // Key by id: new comments prepend, so positional reuse would
-            // misattach row state.
-            key: ValueKey(comment.id),
-            comment: comment,
+        for (final root in tree.roots)
+          _CommentThread(
+            root: root,
+            children: tree.children[root.id] ?? const [],
+            parentUsernames: tree.parentUsernames,
             apiBaseUrl: widget.apiBaseUrl,
             onDelete: widget.onDelete,
             onReply: widget.onReply,
-            expanded: comment.id == _expandedCommentId,
-            onToggle: () => setState(() {
-              _expandedCommentId =
-                  _expandedCommentId == comment.id ? null : comment.id;
+            expandedId: _expandedCommentId,
+            onToggle: (id) => setState(() {
+              _expandedCommentId = _expandedCommentId == id ? null : id;
             }),
           ),
         if (widget.hasMore)
@@ -1526,6 +1563,8 @@ class _CommentComposer extends StatelessWidget {
     required this.focusNode,
     required this.sending,
     required this.onSend,
+    this.replyTarget,
+    this.onDismissReply,
   });
 
   final TextEditingController controller;
@@ -1533,62 +1572,117 @@ class _CommentComposer extends StatelessWidget {
   final bool sending;
   final VoidCallback onSend;
 
+  /// Armed reply target: shows the "Replying to @user" chip above the
+  /// input; the target id rides along on submit.
+  final Comment? replyTarget;
+  final VoidCallback? onDismissReply;
+
   @override
   Widget build(BuildContext context) {
-    return Row(
-      // Stays aligned with the input's center as it grows.
-      crossAxisAlignment: CrossAxisAlignment.center,
+    final target = replyTarget;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Expanded(
-          child: TextField(
-            controller: controller,
-            focusNode: focusNode,
-            minLines: 1,
-            maxLines: 3,
-            maxLength: 1000,
-            textInputAction: TextInputAction.send,
-            onSubmitted: (_) => onSend(),
-            // 1000-char cap enforced silently, no counter UI.
-            style: const TextStyle(
-                fontSize: 14, color: EnclavdColors.textPrimary),
-            cursorColor: EnclavdColors.link,
-            decoration: const InputDecoration(
-              hintText: 'Add a comment...',
-              hintStyle: TextStyle(
-                  color: EnclavdColors.textSecondary, fontSize: 14),
-              filled: true,
-              fillColor: EnclavdColors.background,
-              isDense: true,
-              counterText: '',
-              contentPadding:
-                  EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.all(Radius.circular(10)),
-                borderSide: BorderSide(color: EnclavdColors.border),
+        if (target != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
+              decoration: BoxDecoration(
+                color: EnclavdColors.cardSecondary.withValues(alpha: 0.7),
+                borderRadius: BorderRadius.circular(10),
+                border: const Border(
+                    left: BorderSide(color: EnclavdColors.link, width: 3)),
               ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.all(Radius.circular(10)),
-                borderSide: BorderSide(color: EnclavdColors.border),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.all(Radius.circular(10)),
-                borderSide: BorderSide(color: EnclavdColors.link, width: 2),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const FaIcon(FontAwesomeIcons.reply,
+                      size: 12, color: EnclavdColors.link),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      'Replying to @${target.username}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: EnclavdColors.link,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  if (onDismissReply != null)
+                    InkWell(
+                      onTap: onDismissReply,
+                      borderRadius: BorderRadius.circular(8),
+                      child: const Padding(
+                        padding: EdgeInsets.all(6),
+                        child: FaIcon(FontAwesomeIcons.xmark,
+                            size: 13, color: EnclavdColors.textSecondary),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
-        ),
-        const SizedBox(width: 4),
-        IconButton(
-          onPressed: sending ? null : onSend,
-          icon: sending
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const FaIcon(FontAwesomeIcons.paperPlane,
-                  size: 18, color: EnclavdColors.link),
-          tooltip: 'Send comment',
+        Row(
+          // Stays aligned with the input's center as it grows.
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: TextField(
+                controller: controller,
+                focusNode: focusNode,
+                minLines: 1,
+                maxLines: 3,
+                maxLength: 1000,
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => onSend(),
+                // 1000-char cap enforced silently, no counter UI.
+                style: const TextStyle(
+                    fontSize: 14, color: EnclavdColors.textPrimary),
+                cursorColor: EnclavdColors.link,
+                decoration: const InputDecoration(
+                  hintText: 'Add a comment...',
+                  hintStyle: TextStyle(
+                      color: EnclavdColors.textSecondary, fontSize: 14),
+                  filled: true,
+                  fillColor: EnclavdColors.background,
+                  isDense: true,
+                  counterText: '',
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(10)),
+                    borderSide: BorderSide(color: EnclavdColors.border),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(10)),
+                    borderSide: BorderSide(color: EnclavdColors.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.all(Radius.circular(10)),
+                    borderSide: BorderSide(color: EnclavdColors.link, width: 2),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            IconButton(
+              onPressed: sending ? null : onSend,
+              icon: sending
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const FaIcon(FontAwesomeIcons.paperPlane,
+                      size: 18, color: EnclavdColors.link),
+              tooltip: 'Send comment',
+            ),
+          ],
         ),
       ],
     );
@@ -1604,6 +1698,75 @@ Color rankColorFromCssClass(String cssClass) {
   return RankColors.forRank('Member');
 }
 
+/// One top-level comment plus its clamped replies, behind a left rail.
+class _CommentThread extends StatelessWidget {
+  const _CommentThread({
+    required this.root,
+    required this.children,
+    required this.parentUsernames,
+    required this.apiBaseUrl,
+    required this.onDelete,
+    required this.onReply,
+    required this.expandedId,
+    required this.onToggle,
+  });
+
+  final Comment root;
+  final List<Comment> children;
+  final Map<int, String> parentUsernames;
+  final String apiBaseUrl;
+  final void Function(Comment) onDelete;
+  final void Function(Comment) onReply;
+  final int? expandedId;
+  final void Function(int id) onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _CommentRow(
+          // Key by id: new comments prepend, so positional reuse would
+          // misattach row state.
+          key: ValueKey(root.id),
+          comment: root,
+          apiBaseUrl: apiBaseUrl,
+          onDelete: onDelete,
+          onReply: onReply,
+          expanded: root.id == expandedId,
+          onToggle: () => onToggle(root.id),
+        ),
+        if (children.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(left: 16),
+            padding: const EdgeInsets.only(left: 10),
+            decoration: const BoxDecoration(
+              border: Border(
+                left: BorderSide(color: EnclavdColors.border, width: 2),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final child in children)
+                  _CommentRow(
+                    key: ValueKey(child.id),
+                    comment: child,
+                    replyToUsername: parentUsernames[child.id],
+                    apiBaseUrl: apiBaseUrl,
+                    onDelete: onDelete,
+                    onReply: onReply,
+                    expanded: child.id == expandedId,
+                    onToggle: () => onToggle(child.id),
+                  ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class _CommentRow extends StatefulWidget {
   const _CommentRow({
     super.key,
@@ -1613,6 +1776,7 @@ class _CommentRow extends StatefulWidget {
     required this.onReply,
     required this.expanded,
     required this.onToggle,
+    this.replyToUsername,
   });
 
   final Comment comment;
@@ -1624,6 +1788,9 @@ class _CommentRow extends StatefulWidget {
   final bool expanded;
 
   final VoidCallback onToggle;
+
+  /// Direct reply target, shown as a hint line on nested rows.
+  final String? replyToUsername;
 
   @override
   State<_CommentRow> createState() => _CommentRowState();
@@ -1773,6 +1940,18 @@ class _CommentRowState extends State<_CommentRow> {
                   ],
                 ),
                 const SizedBox(height: 2),
+                if (widget.replyToUsername case final target?)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Text(
+                      'Replying to @$target',
+                      style: const TextStyle(
+                        color: EnclavdColors.link,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
                 Text.rich(
                   TextSpan(children: _spans()),
                   style: const TextStyle(

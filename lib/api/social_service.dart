@@ -28,6 +28,7 @@ class Comment {
     required this.createdAt,
     required this.content,
     required this.isOwner,
+    this.parentCommentId,
     this.rank = '',
     this.createdAtUtc = '',
   });
@@ -43,6 +44,10 @@ class Comment {
   final String createdAt; // relative string, server-formatted
   final String content;
   final bool isOwner;
+
+  /// Reply target id (null = top-level comment). The API emits it for
+  /// every item; the server also validates it on create.
+  final int? parentCommentId;
 
   /// raw db time falls back to the server's relative string if created_at_utc missing
   final String createdAtUtc;
@@ -64,6 +69,7 @@ class Comment {
             : json['created_at'] as String? ?? '',
         content: json['content'] as String? ?? '',
         isOwner: json['is_owner'] as bool? ?? false,
+        parentCommentId: (json['parent_comment_id'] as num?)?.toInt(),
         rank: (json['rank'] as String?)?.isNotEmpty == true
             ? json['rank'] as String
             : _rankFromNameColor(json['name_color'] as String? ?? ''),
@@ -169,11 +175,71 @@ class CommentPage {
   }
 }
 
+/// Depth-1 display tree over a flat comment list (mirrors the site's
+/// load.php renderer). Every comment whose ancestor chain resolves to a
+/// top-level comment renders under that root; deeper replies collapse
+/// into the same group while [parentUsernames] keeps the direct target
+/// for "Replying to @user" hints. Comments whose parent is missing from
+/// the loaded window (pagination) fall back to root level.
+class CommentTree {
+  CommentTree({
+    required this.roots,
+    required this.children,
+    required this.rootOf,
+    required this.parentUsernames,
+  });
+
+  final List<Comment> roots; // display order preserved from the source list
+  final Map<int, List<Comment>> children; // rootId -> clamped replies, oldest first
+  final Map<int, int> rootOf; // commentId -> rootId (id itself for roots)
+  final Map<int, String> parentUsernames; // commentId -> direct parent's name
+
+  factory CommentTree.build(List<Comment> comments) {
+    final byId = {for (final c in comments) c.id: c};
+    final rootOf = <int, int>{};
+    final parentUsernames = <int, String>{};
+
+    for (final c in comments) {
+      var cur = c;
+      var guard = 0;
+      while (cur.parentCommentId != null && byId.containsKey(cur.parentCommentId) && guard++ < 50) {
+        final parent = byId[cur.parentCommentId!]!;
+        parentUsernames.putIfAbsent(c.id, () => parent.username);
+        cur = parent;
+      }
+      // cur is a root, or the chain broke on a missing parent (orphan).
+      rootOf[c.id] = cur.parentCommentId == null ? cur.id : 0;
+    }
+
+    final children = <int, List<Comment>>{};
+    for (final c in comments) {
+      final root = rootOf[c.id] ?? 0;
+      if (root != 0 && root != c.id) {
+        children.putIfAbsent(root, () => []).add(c);
+      }
+    }
+    for (final list in children.values) {
+      list.sort((a, b) {
+        final byTime = a.createdAtUtc.compareTo(b.createdAtUtc);
+        return byTime != 0 ? byTime : a.id.compareTo(b.id);
+      });
+    }
+
+    return CommentTree(
+      roots: [for (final c in comments) if ((rootOf[c.id] ?? 0) == c.id) c],
+      children: children,
+      rootOf: rootOf,
+      parentUsernames: parentUsernames,
+    );
+  }
+}
+
 /// Likes + comments over api/v1 (JSON + CSRF). Contracts:
 ///   POST /api/v1/likes    {post_id}          -> {action: liked|unliked, like_count}
 ///   GET  /api/v1/comments ?post_id=N         -> {comments:[...], total}
 ///        (optional &limit=N&offset=M&order=asc; total stays the FULL count)
-///   POST /api/v1/comments {action:create, post_id, content} -> {comment, comment_count}
+///   POST /api/v1/comments {action:create, post_id, content,
+///        parent_comment_id?} -> {comment, comment_count}
 ///   POST /api/v1/comments {action:delete, comment_id, post_id} -> {comment_count}
 ///   GET  /api/v1/suggestions -> {suggestions:[...]}
 ///
@@ -270,12 +336,15 @@ class SocialService {
     return CommentPage.fromJson(json);
   }
 
-  /// Creates a comment. Returns the created comment + the new total.
-  Future<(Comment, int)> createComment(int postId, String content) async {
+  /// Creates a comment (optionally a reply to [parentCommentId]).
+  /// Returns the created comment + the new total.
+  Future<(Comment, int)> createComment(int postId, String content,
+      {int? parentCommentId}) async {
     final json = await _api.postJson('/api/v1/comments', {
       'action': 'create',
       'post_id': postId,
       'content': content,
+      if (parentCommentId != null) 'parent_comment_id': parentCommentId,
     });
     final rawComment = json['comment'];
     if (rawComment is! Map<String, dynamic>) {

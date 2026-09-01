@@ -45,6 +45,7 @@ class _FakeSocial extends SocialService {
   final List<int> ascQueries = [];
   final List<int> offsets = [];
   final List<String> sent = [];
+  final List<int?> sentParents = [];
 
   @override
   Future<CommentPage> listComments(int postId,
@@ -61,8 +62,10 @@ class _FakeSocial extends SocialService {
   }
 
   @override
-  Future<(Comment, int)> createComment(int postId, String content) async {
+  Future<(Comment, int)> createComment(int postId, String content,
+      {int? parentCommentId}) async {
     sent.add(content);
+    sentParents.add(parentCommentId);
     final c = Comment(
       id: 999,
       postId: postId,
@@ -75,6 +78,7 @@ class _FakeSocial extends SocialService {
       createdAt: 'now',
       content: content,
       isOwner: true,
+      parentCommentId: parentCommentId,
     );
     // OP declared 2 comments; the server returns the real total after insert (2 + 1).
     return (c, 3);
@@ -117,7 +121,7 @@ DomainThreadDetail _detail() => DomainThreadDetail.fromJson({
     });
 
 Comment _reply(int id, String text,
-        {bool own = false, String rank = 'Member'}) =>
+        {bool own = false, String rank = 'Member', int? parent}) =>
     Comment(
       id: id,
       postId: 218,
@@ -131,6 +135,7 @@ Comment _reply(int id, String text,
       content: text,
       isOwner: own,
       rank: rank,
+      parentCommentId: parent,
     );
 
 void main() {
@@ -364,7 +369,61 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(social.sent, ['@Someone wrote: "First reply"\n\nAgreed!']);
-    expect(find.text('Replying to @Someone'), findsNothing);
+    expect(social.sentParents, [1]);
+    // Quote banner is gone; the one remaining occurrence is the nested
+    // reply-to hint on the newly inserted reply (it nests under #1).
+    expect(find.text('Replying to @Someone'), findsOneWidget);
+  });
+
+  testWidgets('nested replies render under the root with a reply-to hint',
+      (tester) async {
+    final social = _FakeSocial(replies: [
+      _reply(1, 'Root reply'),
+      _reply(2, 'Child reply', parent: 1),
+      _reply(3, 'Grandchild reply', parent: 2),
+    ]);
+    await tester.pumpWidget(wrap(DomainThreadScreen(
+      domains: _FakeDomains(_detail()),
+      postId: 218,
+      social: social,
+      posts: _FakePosts(),
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // All three render; the root keeps its number, nested rows do not.
+    expect(find.text('Root reply'), findsOneWidget);
+    expect(find.text('Child reply'), findsOneWidget);
+    expect(find.text('Grandchild reply'), findsOneWidget);
+    expect(find.text('#1'), findsOneWidget);
+    expect(find.text('#2'), findsNothing);
+    expect(find.text('#3'), findsNothing);
+    // Depth-1 clamp: both nested rows carry the direct-target hint.
+    expect(find.text('Replying to @Someone'), findsNWidgets(2));
+  });
+
+  testWidgets('reply on a nested reply quotes it and sends its parent id',
+      (tester) async {
+    final social = _FakeSocial(replies: [
+      _reply(1, 'Root reply'),
+      _reply(2, 'Child reply', parent: 1),
+    ]);
+    await tester.pumpWidget(wrap(DomainThreadScreen(
+      domains: _FakeDomains(_detail()),
+      postId: 218,
+      social: social,
+      posts: _FakePosts(),
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.tap(find.byKey(const Key('replyQuote-2')));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Replying to @Someone'), findsNWidgets(2)); // hint + banner
+
+    await tester.enterText(find.byType(TextField), 'Deep reply');
+    await tester.tap(find.byTooltip('Send reply'));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(social.sentParents, [2]);
   });
 
   testWidgets('the quote banner can be dismissed before sending',

@@ -214,11 +214,15 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
     if (content.isEmpty || _replying) return;
     setState(() => _replying = true);
     try {
-      final (comment, newCount) =
-          await _social.createComment(widget.postId, content);
+      final (comment, newCount) = await _social.createComment(
+        widget.postId,
+        content,
+        parentCommentId: quote?.id,
+      );
       if (!mounted) return;
       setState(() {
-        // Oldest-first list: a new reply APPENDS at the end.
+        // Oldest-first list: a new reply APPENDS at the end; the tree
+        // builder places it under its root on the next build.
         _replies = [..._replies, comment];
         _replying = false;
         _quoting = null;
@@ -235,13 +239,31 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
     }
   }
 
+  /// Drops a comment and its whole subtree from the local list (the
+  /// server deletes the subtree too).
+  void _dropSubtree(int id) {
+    final toDrop = <int>{id};
+    var grew = true;
+    while (grew) {
+      grew = false;
+      for (final c in _replies) {
+        if (c.parentCommentId != null && toDrop.contains(c.parentCommentId) &&
+            !toDrop.contains(c.id)) {
+          toDrop.add(c.id);
+          grew = true;
+        }
+      }
+    }
+    _replies = _replies.where((c) => !toDrop.contains(c.id)).toList();
+  }
+
   Future<void> _deleteReply(Comment comment) async {
     try {
       final newCount =
           await _social.deleteComment(comment.id, widget.postId);
       if (!mounted) return;
       setState(() {
-        _replies = _replies.where((c) => c.id != comment.id).toList();
+        _dropSubtree(comment.id);
         final post = _post;
         if (post != null) _post = _withCommentCount(post, newCount);
       });
@@ -325,6 +347,10 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
     }
     return widget.breadcrumbName ?? 'Thread';
   }
+
+  /// Depth-1 display tree over the loaded replies (rebuilt each build;
+  /// lists stay small, and the builder is a single pass).
+  CommentTree get _tree => CommentTree.build(_replies);
 
   @override
   Widget build(BuildContext context) {
@@ -431,20 +457,61 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
             ),
           )
         else
-          for (var i = 0; i < _replies.length; i++)
-            _ForumReplyCard(
-              key: ValueKey(_replies[i].id),
-              reply: _replies[i],
-              number: i + 1,
-              apiBaseUrl: AppConfig.apiBaseUrl,
-              onDelete: _deleteReply,
-              onReply: _quoteReply,
-              expanded: _replies[i].id == _expandedReplyId,
-              onToggle: () => setState(() {
-                _expandedReplyId = _expandedReplyId == _replies[i].id
-                    ? null
-                    : _replies[i].id;
-              }),
+          for (var i = 0; i < _tree.roots.length; i++)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _ForumReplyCard(
+                  key: ValueKey(_tree.roots[i].id),
+                  reply: _tree.roots[i],
+                  number: i + 1,
+                  apiBaseUrl: AppConfig.apiBaseUrl,
+                  onDelete: _deleteReply,
+                  onReply: _quoteReply,
+                  expanded: _tree.roots[i].id == _expandedReplyId,
+                  onToggle: () => setState(() {
+                    _expandedReplyId = _expandedReplyId ==
+                            _tree.roots[i].id
+                        ? null
+                        : _tree.roots[i].id;
+                  }),
+                ),
+                // Nested replies clamp under the root, behind a left
+                // rail, each tagged with who it actually replies to.
+                if (_tree.children[_tree.roots[i].id] case final kids?)
+                  Container(
+                    margin: const EdgeInsets.only(left: 14, top: 2),
+                    padding: const EdgeInsets.only(left: 12),
+                    decoration: const BoxDecoration(
+                      border: Border(
+                        left: BorderSide(
+                            color: EnclavdColors.border, width: 2),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (final kid in kids)
+                          _ForumReplyCard(
+                            key: ValueKey(kid.id),
+                            reply: kid,
+                            number: 0, // hidden on nested cards
+                            apiBaseUrl: AppConfig.apiBaseUrl,
+                            onDelete: _deleteReply,
+                            onReply: _quoteReply,
+                            expanded: kid.id == _expandedReplyId,
+                            onToggle: () => setState(() {
+                              _expandedReplyId =
+                                  _expandedReplyId == kid.id ? null : kid.id;
+                            }),
+                            nested: true,
+                            replyToUsername:
+                                _tree.parentUsernames[kid.id],
+                          ),
+                      ],
+                    ),
+                  ),
+              ],
             ),
         if (_repliesHasMore)
           Center(
@@ -909,6 +976,8 @@ class _ForumReplyCard extends StatefulWidget {
     required this.onReply,
     required this.expanded,
     required this.onToggle,
+    this.nested = false,
+    this.replyToUsername,
   });
 
   final Comment reply;
@@ -921,6 +990,13 @@ class _ForumReplyCard extends StatefulWidget {
   final bool expanded;
 
   final VoidCallback onToggle;
+
+  /// Nested (depth-1) variant: compact inline row behind the thread
+  /// rail instead of a standalone card.
+  final bool nested;
+
+  /// Direct reply target (shown as "Replying to @user" on nested rows).
+  final String? replyToUsername;
 
   @override
   State<_ForumReplyCard> createState() => _ForumReplyCardState();
@@ -1003,13 +1079,14 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
   @override
   Widget build(BuildContext context) {
     final personality = PersonalityColors.forType(reply.personalityType);
+    final nested = widget.nested;
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
+      margin: EdgeInsets.only(bottom: nested ? 8 : 10),
+      padding: EdgeInsets.all(nested ? 10.0 : 14.0),
       decoration: BoxDecoration(
-        color: EnclavdColors.card,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: EnclavdColors.border),
+        color: nested ? EnclavdColors.cardSecondary : EnclavdColors.card,
+        borderRadius: BorderRadius.circular(nested ? 10.0 : 14.0),
+        border: nested ? null : Border.all(color: EnclavdColors.border),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1017,14 +1094,14 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
           GestureDetector(
             onTap: () => _openProfile(context, reply.userId),
             child: EnclavdAvatar(
-              size: 48,
+              size: nested ? 32 : 48,
               url: resolveMediaUrl(widget.apiBaseUrl,
                   avatarPath: reply.profilePictureUrl),
               borderColor: personality,
               square: true,
             ),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: nested ? 8 : 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1061,6 +1138,18 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                     ),
                   ],
                 ),
+                if (widget.replyToUsername case final target?)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Text(
+                      'Replying to @$target',
+                      style: const TextStyle(
+                        color: EnclavdColors.link,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
                 const SizedBox(height: 6),
                 Text.rich(
                   TextSpan(children: _spans()),
@@ -1138,14 +1227,15 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                         ),
                       ),
                     const Spacer(),
-                    Text(
-                      '#${widget.number}',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontFamily: 'monospace',
-                        color: EnclavdColors.textSecondary,
+                    if (!nested)
+                      Text(
+                        '#${widget.number}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontFamily: 'monospace',
+                          color: EnclavdColors.textSecondary,
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ],
