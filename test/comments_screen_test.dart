@@ -7,7 +7,9 @@ import 'package:enclavd/api/social_service.dart';
 import 'package:enclavd/screens/comments_screen.dart';
 import 'package:enclavd/services/sound_service.dart';
 import 'package:enclavd/theme/enclavd_theme.dart';
+import 'package:enclavd/widgets/enclavd_avatar.dart';
 import 'package:enclavd/widgets/post_card.dart';
+import 'package:enclavd/widgets/thread_connector.dart';
 
 class _NoopStore implements SessionStore {
   @override
@@ -135,6 +137,102 @@ void main() {
     expect(find.byType(TextField), findsOneWidget);
     // Nested row carries the reply-to hint.
     expect(find.text('Replying to @Someone'), findsOneWidget);
+    // Short posts render in full: no read-more toggle on the header.
+    expect(find.text('Show more'), findsNothing);
+  });
+
+  testWidgets('long post content clamps behind a show-more toggle',
+      (tester) async {
+    final social = _FakeSocial();
+    final post = Post.fromJson(_postJson()..['content'] = 'word ' * 200);
+    await tester.pumpWidget(wrap(CommentsScreen(
+      post: post,
+      social: social,
+      apiBaseUrl: 'https://example.com',
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // Collapsed by default; expanding reveals the full text, and the
+    // toggle flips back so it can be clamped again.
+    expect(find.text('Show more'), findsOneWidget);
+    await tester.tap(find.text('Show more'));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Show less'), findsOneWidget);
+    await tester.tap(find.text('Show less'));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Show more'), findsOneWidget);
+  });
+
+  testWidgets('deleting an own comment asks first, then drops the subtree',
+      (tester) async {
+    final social = _FakeSocial(comments: [
+      _comment(1, 'My comment', own: true),
+      _comment(2, 'Child reply', parent: 1),
+    ]);
+    await tester.pumpWidget(wrap(CommentsScreen(
+      post: _post(),
+      social: social,
+      apiBaseUrl: 'https://example.com',
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // Cancel keeps the thread intact.
+    await tester.tap(findFa(FontAwesomeIcons.trashCan));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Delete this comment?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('My comment'), findsOneWidget);
+    expect(find.text('Child reply'), findsOneWidget);
+
+    // Confirming removes the comment and its replies together.
+    await tester.tap(findFa(FontAwesomeIcons.trashCan));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.descendant(
+        of: find.byType(AlertDialog), matching: find.text('Delete')));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('My comment'), findsNothing);
+    expect(find.text('Child reply'), findsNothing);
+  });
+
+  testWidgets('nested avatar stays top-aligned so the L hits its center',
+      (tester) async {
+    // A multi-line reply makes the row tall; the avatar must hug the top
+    // (elbowY 20 = 6 pad + 28/2) instead of floating mid-row.
+    final long = 'word ' * 40;
+    final social = _FakeSocial(comments: [
+      _comment(1, 'Root comment'),
+      _comment(2, long, parent: 1),
+    ]);
+    await tester.pumpWidget(wrap(CommentsScreen(
+      post: _post(),
+      social: social,
+      apiBaseUrl: 'https://example.com',
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final elbowBox = tester.renderObject<RenderBox>(find.byType(ThreadElbow));
+    expect(elbowBox.size.height, greaterThan(100),
+        reason: 'multi-line reply must make the row tall');
+
+    // The child avatar is the second x.png one (root first, child after).
+    final childAvatar = find.byWidgetPredicate((w) =>
+        w is EnclavdAvatar &&
+        w.url.contains('x.png') &&
+        w.size == 28);
+    final avatarBox = tester.renderObject<RenderBox>(childAvatar.last);
+    final rowTop = elbowBox.localToGlobal(Offset.zero).dy;
+    final avatarTop = avatarBox.localToGlobal(Offset.zero).dy;
+    final avatarCenter = avatarBox
+        .localToGlobal(Offset(0, avatarBox.size.height / 2))
+        .dy;
+
+    expect(avatarBox.size.height, 28);
+    expect(avatarTop - rowTop, closeTo(6, 1), reason: 'avatar top pad');
+    expect(avatarCenter - rowTop, closeTo(20, 1),
+        reason: 'avatar center must sit on the elbow arm (6 + 28/2)');
+    expect(avatarCenter - rowTop, lessThan(elbowBox.size.height / 3),
+        reason: 'avatar must NOT be vertically centered on tall rows');
   });
 
   testWidgets('sending arms the parent id and prepends the new comment',

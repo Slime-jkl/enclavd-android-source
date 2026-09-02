@@ -14,6 +14,7 @@ import 'package:enclavd/widgets/enclavd_avatar.dart';
 import 'package:enclavd/widgets/comment_quote_card.dart';
 import 'package:enclavd/widgets/post_card.dart'; // PostCard (must be ABSENT)
 import 'package:enclavd/widgets/shimmer.dart';
+import 'package:enclavd/widgets/thread_connector.dart';
 
 class _NoopStore implements SessionStore {
   @override
@@ -213,7 +214,7 @@ void main() {
     expect(find.textContaining('No replies yet'), findsOneWidget);
   });
 
-  testWidgets('deleting an own reply removes it', (tester) async {
+  testWidgets('deleting an own reply asks first, then removes it', (tester) async {
     final social = _FakeSocial(replies: [
       _reply(1, 'First reply'),
       _reply(2, 'My own reply', own: true),
@@ -229,11 +230,59 @@ void main() {
     // The trash icon appears only on own replies (one).
     final trash = findFa(FontAwesomeIcons.trashCan);
     expect(trash, findsOneWidget);
+
+    // Cancel keeps the reply.
     await tester.tap(trash);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Delete this reply?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('My own reply'), findsOneWidget);
+
+    // Confirming removes it. The row itself labels Delete too, so pick
+    // the dialog's own action button.
+    await tester.tap(trash);
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.descendant(
+        of: find.byType(AlertDialog), matching: find.text('Delete')));
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(find.text('My own reply'), findsNothing);
     expect(find.text('First reply'), findsOneWidget);
+  });
+
+  testWidgets('nested reply avatar hugs the card top so the L hits it',
+      (tester) async {
+    // Nested card avatar (32) sits at the card's top padding (10), so the
+    // elbow arm (elbowY 26 = 10 + 32/2) must meet its center.
+    final social = _FakeSocial(replies: [
+      _reply(1, 'First reply'),
+      _reply(2, 'word ' * 40, parent: 1),
+    ]);
+    await tester.pumpWidget(wrap(DomainThreadScreen(
+      domains: _FakeDomains(_detail()),
+      postId: 218,
+      social: social,
+      posts: _FakePosts(),
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final elbowBox = tester.renderObject<RenderBox>(find.byType(ThreadElbow));
+    final nestedAvatar = find.byWidgetPredicate(
+        (w) => w is EnclavdAvatar && w.url.contains('x.png') && w.size == 32);
+    final avatarBox = tester.renderObject<RenderBox>(nestedAvatar);
+    final rowTop = elbowBox.localToGlobal(Offset.zero).dy;
+    final avatarTop = avatarBox.localToGlobal(Offset.zero).dy;
+    final avatarCenter = avatarBox
+        .localToGlobal(Offset(0, avatarBox.size.height / 2))
+        .dy;
+
+    expect(elbowBox.size.height, greaterThan(40),
+        reason: 'reply must wrap to more than one line');
+    expect(avatarBox.size.height, 32);
+    expect(avatarTop - rowTop, closeTo(10, 1), reason: 'card top pad');
+    expect(avatarCenter - rowTop, closeTo(26, 1),
+        reason: 'avatar center must sit on the elbow arm (10 + 32/2)');
   });
 
   testWidgets('long replies collapse with a read-more toggle', (tester) async {

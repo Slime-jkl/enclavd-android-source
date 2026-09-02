@@ -28,8 +28,13 @@ class EnclavdAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(size * 0.28);
+    // Factors pin the box to the avatar size: a plain Align expands to
+    // fill bounded heights (rows inside IntrinsicHeight/stretch), which
+    // floats the avatar mid-row on multi-line items. Parents align it.
     return Align(
       alignment: Alignment.center,
+      widthFactor: 1,
+      heightFactor: 1,
       child: Container(
         width: size,
         height: size,

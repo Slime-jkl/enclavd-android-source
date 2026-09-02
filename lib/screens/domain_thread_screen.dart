@@ -14,6 +14,7 @@ import '../main.dart'; // AppServices (edit/delete need posts + social)
 import '../services/analytics_service.dart';
 import '../services/sound_service.dart';
 import '../theme/enclavd_theme.dart';
+import '../utils/confirm_dialog.dart';
 import '../utils/content_spans.dart'; // postContentSpans + commentContentSpans
 import '../utils/db_time.dart';
 import '../widgets/enclavd_avatar.dart';
@@ -1032,6 +1033,17 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
 
   Comment get reply => widget.reply;
 
+  Future<void> _confirmDelete() async {
+    final confirmed = await confirmDelete(
+      context,
+      title: 'Delete this reply?',
+      body: 'This cannot be undone. The reply and any replies '
+          'under it will be permanently removed.',
+    );
+    if (!confirmed || !mounted) return;
+    widget.onDelete(reply);
+  }
+
   CommentQuote? _parsedQuote;
   CommentQuote? get _quote =>
       _parsedQuote ??= parseCommentQuote(reply.content);
@@ -1227,7 +1239,7 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                       ),
                     if (reply.isOwner)
                       InkWell(
-                        onTap: () => widget.onDelete(reply),
+                        onTap: () => _confirmDelete(),
                         borderRadius: BorderRadius.circular(8),
                         child: const Padding(
                           padding: EdgeInsets.symmetric(

@@ -8,6 +8,7 @@ import '../api/social_service.dart';
 import '../main.dart'; // AppServices.current (mention -> profile resolution)
 import '../screens/profile_screen.dart';
 import '../theme/enclavd_theme.dart';
+import '../utils/confirm_dialog.dart';
 import '../utils/content_spans.dart';
 import '../utils/db_time.dart';
 import 'comment_quote_card.dart';
@@ -370,6 +371,17 @@ class _CommentRowState extends State<CommentRow> {
 
   Comment get comment => widget.comment;
 
+  Future<void> _confirmDelete() async {
+    final confirmed = await confirmDelete(
+      context,
+      title: 'Delete this comment?',
+      body: 'This cannot be undone. The comment and any replies '
+          'under it will be permanently removed.',
+    );
+    if (!confirmed || !mounted) return;
+    widget.onDelete(comment);
+  }
+
   CommentQuote? _parsedQuote;
   CommentQuote? get _quote =>
       _parsedQuote ??= parseCommentQuote(comment.content);
@@ -494,7 +506,7 @@ class _CommentRowState extends State<CommentRow> {
                     if (comment.isOwner) ...[
                       const SizedBox(width: 6),
                       GestureDetector(
-                        onTap: () => widget.onDelete(comment),
+                        onTap: () => _confirmDelete(),
                         child: const FaIcon(FontAwesomeIcons.trashCan,
                             size: 14, color: EnclavdColors.textSecondary),
                       ),

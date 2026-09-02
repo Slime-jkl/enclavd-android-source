@@ -4,6 +4,13 @@ import 'package:flutter/material.dart';
 /// avatar and turns into a rounded L into each nested reply. One elbow
 /// column per child row, sized by IntrinsicHeight so the rail spans the
 /// row; the last child's rail stops at its elbow instead of running on.
+///
+/// Geometry contract (keep every host in sync):
+/// - elbowY = the child avatar's VERTICAL CENTER measured from the row
+///   top (avatar top padding + avatar size / 2).
+/// - Child avatars are TOP-aligned with the comment block (same as the
+///   parent), never vertically centered. EnclavdAvatar is pinned to its
+///   own size (Align width/heightFactor 1), so rows must not re-center.
 class ThreadElbow extends StatelessWidget {
   const ThreadElbow({
     super.key,

@@ -366,8 +366,55 @@ class _PostHeader extends StatefulWidget {
 class _PostHeaderState extends State<_PostHeader> {
   final List<TapGestureRecognizer> _recognizers = [];
   List<InlineSpan>? _cachedSpans;
+  bool _expanded = false;
 
   Post get post => widget.post;
+
+  bool get _needsOverflow {
+    // Same heuristic as the feed card's content clamp.
+    final content = post.content;
+    final charCount = content.trim().length;
+    final newlineCount = '\n'.allMatches(content).length;
+    return charCount > 250 || (charCount + newlineCount * 75) > 300;
+  }
+
+  /// The post text plus its Show more / Show less toggle. Expanded
+  /// text is capped so a huge post cannot push the pinned composer
+  /// off-screen; the block scrolls only when it outgrows the cap.
+  List<Widget> _contentBlock() {
+    final needs = _needsOverflow;
+    final collapsed = needs && !_expanded;
+    final text = Text.rich(
+      TextSpan(children: _spans()),
+      maxLines: collapsed ? 4 : null,
+      overflow: collapsed ? TextOverflow.ellipsis : null,
+      style: const TextStyle(
+          color: EnclavdColors.textPrimary, fontSize: 14, height: 1.45),
+    );
+    return [
+      if (needs && _expanded)
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 300),
+          child: ListView(
+            shrinkWrap: true,
+            padding: EdgeInsets.zero,
+            children: [text],
+          ),
+        )
+      else
+        text,
+      if (needs)
+        TextButton(
+          onPressed: () => setState(() => _expanded = !_expanded),
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            minimumSize: const Size(0, 32),
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          child: Text(_expanded ? 'Show less' : 'Show more'),
+        ),
+    ];
+  }
 
   @override
   void dispose() {
@@ -467,16 +514,9 @@ class _PostHeaderState extends State<_PostHeader> {
             ],
           ),
           const SizedBox(height: 10),
-          // Clamped context; the full content lives on the feed card.
-          Text.rich(
-            TextSpan(children: _spans()),
-            maxLines: 4,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-                color: EnclavdColors.textPrimary,
-                fontSize: 14,
-                height: 1.45),
-          ),
+          // Post content reads like a feed card: short posts in full,
+          // long ones clamp to 4 lines behind a Show more toggle.
+          ..._contentBlock(),
           if (post.image != null && post.image!.isNotEmpty) ...[
             const SizedBox(height: 10),
             ConstrainedBox(
