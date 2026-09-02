@@ -291,6 +291,17 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   }
 
   Future<void> _save() async {
+    final bio = _bioController.text.trim();
+    if (bio.runes.length > kMaxBioChars) {
+      // The field's own cap counts graphemes; the server counts code
+      // points (mb_strlen), so multi-code-point text can still exceed.
+      if (!mounted) return;
+      setState(() {
+        _error = 'Bio must be $kMaxBioChars characters or fewer.';
+      });
+      _revealError();
+      return;
+    }
     setState(() {
       _saving = true;
       _error = null;
@@ -299,7 +310,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     try {
       await _profile.updateProfile(
         fullName: _fullNameController.text.trim(),
-        bio: _bioController.text.trim(),
+        bio: bio,
         birthdate: _birthdate,
         gender: _gender,
         geoCountry: _countryId,
@@ -565,7 +576,7 @@ return ErrorView(message: _error!, onRetry: _load);
           child: TextField(
             controller: _bioController,
             maxLines: 3,
-            maxLength: 1000,
+            maxLength: kMaxBioChars,
             style: const TextStyle(color: EnclavdColors.textPrimary),
             decoration: _inputDecoration(),
           ),

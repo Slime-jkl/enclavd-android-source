@@ -117,7 +117,7 @@ void main() {
         home: child,
       );
 
-  testWidgets('shows the post header + nested comments + pinned composer',
+  testWidgets('nested replies start collapsed behind the count toggle',
       (tester) async {
     final social = _FakeSocial(comments: [
       _comment(1, 'Root comment'),
@@ -130,13 +130,26 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    // Post context + both comments + the composer.
+    // Post context + the root comment + the composer.
     expect(find.text('The post content'), findsOneWidget);
     expect(find.text('Root comment'), findsOneWidget);
-    expect(find.text('Child reply'), findsOneWidget);
     expect(find.byType(TextField), findsOneWidget);
-    // Nested row carries the reply-to hint.
+    // The nested reply is hidden behind its count toggle by default.
+    expect(find.text('Child reply'), findsNothing);
+    expect(find.text('1 reply'), findsOneWidget);
+    expect(find.text('Replying to @Someone'), findsNothing);
+
+    // Tapping the toggle expands the reply under the root.
+    await tester.tap(find.text('1 reply'));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Child reply'), findsOneWidget);
     expect(find.text('Replying to @Someone'), findsOneWidget);
+
+    // Tapping again collapses it back behind the toggle.
+    await tester.tap(find.text('Hide reply'));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Child reply'), findsNothing);
+    expect(find.text('1 reply'), findsOneWidget);
     // Short posts render in full: no read-more toggle on the header.
     expect(find.text('Show more'), findsNothing);
   });
@@ -176,14 +189,14 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    // Cancel keeps the thread intact.
+    // Cancel keeps the thread intact (nested reply still behind its toggle).
     await tester.tap(findFa(FontAwesomeIcons.trashCan));
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('Delete this comment?'), findsOneWidget);
     await tester.tap(find.text('Cancel'));
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('My comment'), findsOneWidget);
-    expect(find.text('Child reply'), findsOneWidget);
+    expect(find.text('1 reply'), findsOneWidget);
 
     // Confirming removes the comment and its replies together.
     await tester.tap(findFa(FontAwesomeIcons.trashCan));
@@ -192,7 +205,7 @@ void main() {
         of: find.byType(AlertDialog), matching: find.text('Delete')));
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('My comment'), findsNothing);
-    expect(find.text('Child reply'), findsNothing);
+    expect(find.text('1 reply'), findsNothing);
   });
 
   testWidgets('nested avatar stays top-aligned so the L hits its center',
@@ -209,6 +222,10 @@ void main() {
       social: social,
       apiBaseUrl: 'https://example.com',
     )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // The group starts collapsed; open it so the elbow row exists.
+    await tester.tap(find.text('1 reply'));
     await tester.pump(const Duration(milliseconds: 50));
 
     final elbowBox = tester.renderObject<RenderBox>(find.byType(ThreadElbow));
@@ -233,6 +250,27 @@ void main() {
         reason: 'avatar center must sit on the elbow arm (6 + 28/2)');
     expect(avatarCenter - rowTop, lessThan(elbowBox.size.height / 3),
         reason: 'avatar must NOT be vertically centered on tall rows');
+
+    // The rail must REACH the root avatar, not float under the parent
+    // row: the bridge fills the root row at the elbow rail x (12 indent
+    // + 18/2) and starts inside the root avatar's band (6 pad + 28).
+    final rail = tester.widget<RailDrop>(find.byType(RailDrop));
+    final railBox = tester.renderObject<RenderBox>(find.byType(RailDrop));
+    expect(rail.railX, 21, reason: 'bridge shares the elbow rail x');
+    expect(rail.startY, 32, reason: 'bridge starts at the avatar rim');
+    final rootAvatarBox = tester.renderObject<RenderBox>(childAvatar.first);
+    final rootTop = rootAvatarBox.localToGlobal(Offset.zero).dy;
+    final railStart = railBox
+        .localToGlobal(Offset(0, rail.startY))
+        .dy;
+    expect(railStart, greaterThan(rootTop),
+        reason: 'bridge must start inside the root avatar band');
+    expect(railStart, lessThan(rootTop + 28),
+        reason: 'bridge must start inside the root avatar band');
+    expect(
+        railBox.localToGlobal(Offset(0, railBox.size.height)).dy,
+        closeTo(rowTop, 0.5),
+        reason: 'bridge bottom must be flush with the first elbow');
   });
 
   testWidgets('sending arms the parent id and prepends the new comment',
@@ -260,9 +298,17 @@ void main() {
 
     expect(social.sent, ['@Someone My comment']);
     expect(social.sentParents, [1]);
-    // The comment renders as a plain (non-quoted) reply under the root.
+    // The new reply nests under the root, so it starts behind the
+    // count toggle; the chip is cleared too.
+    expect(find.text('1 reply'), findsOneWidget);
+    expect(find.textContaining('My comment'), findsNothing);
+    expect(find.text('Replying to @Someone'), findsNothing);
+
+    // Expanding shows the plain (non-quoted) reply under the root with
+    // its reply-to hint.
+    await tester.tap(find.text('1 reply'));
+    await tester.pump(const Duration(milliseconds: 50));
     expect(find.textContaining('My comment'), findsOneWidget);
-    // Chip cleared; the new nested reply carries the reply-to hint.
     expect(find.text('Replying to @Someone'), findsOneWidget);
   });
 

@@ -23,8 +23,8 @@ import '../widgets/error_view.dart';
 import '../widgets/post_card.dart'; // PostCardSkeleton, PostImage,
 // rankColorFromCssClass
 import '../widgets/rank_badge.dart';
+import '../widgets/replies_pager.dart';
 import '../widgets/shimmer.dart';
-import '../widgets/thread_connector.dart';
 import 'compose_screen.dart';
 import 'hashtag_screen.dart';
 import 'profile_screen.dart';
@@ -61,11 +61,37 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
   String? _error;
   String? _repliesError;
 
-  // Reply pagination: one page (10) at a time, oldest-first forum order.
-  bool _repliesHasMore = false;
-  bool _repliesLoadingMore = false;
+  // Reply pagination: fixed 20-row pages over the oldest-first reply
+  // list. The thread OPENS on the last (newest) page and the pager
+  // walks back through older replies. Page 0 asks the server for the
+  // newest page; _replyPage/_replyPages mirror the page after the fetch.
+  static const int _repliesPerPage = 20;
+
+  int _replyPage = 1;
+  int _replyPages = 1;
+
+  bool _replyBusy = false; // a page fetch is in flight
+
+  // Owned here so the initial jump to the newest reply can scroll the
+  // reply list to its end once the first page lands.
+  final _repliesScroll = ScrollController();
+  bool _jumpToRepliesEnd = false;
 
   int? _expandedReplyId;
+
+  /// Scrolls the reply list to its newest row once the frame that
+  /// changed its content has laid out. Used after landing on the last
+  /// page and after posting, so the fresh reply is in view.
+  void _scheduleRepliesEndJump() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_jumpToRepliesEnd || !_repliesScroll.hasClients) {
+        _jumpToRepliesEnd = false;
+        return;
+      }
+      _repliesScroll.jumpTo(_repliesScroll.position.maxScrollExtent);
+      _jumpToRepliesEnd = false;
+    });
+  }
 
   Comment? _quoting;
 
@@ -85,6 +111,7 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
 
   @override
   void dispose() {
+    _repliesScroll.dispose();
     _replyController.dispose();
     _replyFocus.dispose();
     super.dispose();
@@ -130,52 +157,55 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
     await _loadReplies();
   }
 
+  /// Initial reply load: the newest (last) page, scrolled to its end so
+  /// the latest reply is in view on busy threads.
   Future<void> _loadReplies() async {
-    final post = _post;
-    if (post == null) return;
-    if (mounted) {
-      setState(() {
-        _repliesLoading = true;
-        _repliesError = null;
-      });
-    }
-    try {
-      // Page 1, oldest first (forum order); "Load more" appends the rest.
-      final page = await _social.listComments(widget.postId, asc: true);
-      if (!mounted) return;
-      setState(() {
-        _replies = page.comments;
-        _repliesHasMore = page.hasMore;
-        _repliesLoading = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _repliesLoading = false;
-        _repliesError = 'Could not load replies.';
-      });
-    }
+    _jumpToRepliesEnd = true;
+    await _fetchReplyPage(0);
   }
 
-  Future<void> _loadMoreReplies() async {
-    if (_repliesLoadingMore || !_repliesHasMore) return;
-    setState(() => _repliesLoadingMore = true);
+  /// Fetches one grouped reply page (0 = newest) and swaps the list.
+  /// The old rows stay on screen while the fetch runs; [_replyBusy]
+  /// disables the pager meanwhile. A failed page fetch keeps the current
+  /// rows and surfaces a toast - only the very first load falls back to
+  /// the full-width error state (no rows to keep).
+  Future<void> _fetchReplyPage(int page) async {
+    final post = _post;
+    if (post == null || _replyBusy) return;
+    setState(() {
+      _replyBusy = true;
+      _repliesError = null;
+      // Nothing on screen yet (first load / retry): show the shimmer.
+      if (_replies.isEmpty) _repliesLoading = true;
+    });
     try {
-      final page = await _social.listComments(
+      final result = await _social.forumRepliesPage(
         widget.postId,
-        asc: true,
-        offset: _replies.length,
+        page: page,
+        perPage: _repliesPerPage,
       );
       if (!mounted) return;
       setState(() {
-        _replies = [..._replies, ...page.comments];
-        _repliesHasMore = page.hasMore;
-        _repliesLoadingMore = false;
+        _replies = result.comments;
+        _replyPage = result.page;
+        _replyPages = result.pages;
+        _replyBusy = false;
+        _repliesLoading = false;
+        _post = _withCommentCount(post, result.total);
+        // A freshly loaded newest page shows its tail first.
+        if (result.page == result.pages) _jumpToRepliesEnd = true;
       });
+      _scheduleRepliesEndJump();
     } catch (_) {
       if (!mounted) return;
-      setState(() => _repliesLoadingMore = false);
-      _toast('Could not load more replies.');
+      setState(() {
+        _replyBusy = false;
+        _repliesLoading = false;
+        if (_replies.isEmpty) {
+          _repliesError = 'Could not load replies.';
+        }
+      });
+      if (_replies.isNotEmpty) _toast('Could not load replies.');
     }
   }
 
@@ -224,15 +254,19 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
       );
       if (!mounted) return;
       setState(() {
-        // Oldest-first list: a new reply APPENDS at the end; the tree
-        // builder places it under its root on the next build.
+        // Append locally (the tree places the reply under its root on
+        // the next build) instead of refetching, so the fresh reply
+        // never flickers out of view mid-page; the pager refetches when
+        // the user navigates. A sent reply rides at the list end.
         _replies = [..._replies, comment];
         _replying = false;
         _quoting = null;
+        _jumpToRepliesEnd = true;
         // Keep the OP card's count in sync.
         final post = _post;
         if (post != null) _post = _withCommentCount(post, newCount);
       });
+      _scheduleRepliesEndJump();
       _replyController.clear();
       FocusScope.of(context).unfocus();
     } catch (e) {
@@ -351,10 +385,6 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
     return widget.breadcrumbName ?? 'Thread';
   }
 
-  /// Depth-1 display tree over the loaded replies (rebuilt each build;
-  /// lists stay small, and the builder is a single pass).
-  CommentTree get _tree => CommentTree.build(_replies);
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -394,6 +424,7 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
       );
     }
     return ListView(
+      controller: _repliesScroll,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       children: [
         _ForumPostCard(
@@ -459,94 +490,48 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
                       fontSize: 13, color: EnclavdColors.textSecondary)),
             ),
           )
-        else
-          for (var i = 0; i < _tree.roots.length; i++)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _ForumReplyCard(
-                  key: ValueKey(_tree.roots[i].id),
-                  reply: _tree.roots[i],
-                  number: i + 1,
-                  apiBaseUrl: AppConfig.apiBaseUrl,
-                  onDelete: _deleteReply,
-                  onReply: _quoteReply,
-                  expanded: _tree.roots[i].id == _expandedReplyId,
-                  onToggle: () => setState(() {
-                    _expandedReplyId = _expandedReplyId ==
-                            _tree.roots[i].id
-                        ? null
-                        : _tree.roots[i].id;
-                  }),
-                ),
-                // Nested replies clamp under the root. A connector drops
-                // from the parent's avatar and turns into a rounded L
-                // into each reply; the rail stops after the last one.
-                if (_tree.children[_tree.roots[i].id] case final kids?)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 28, top: 2),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        for (var k = 0; k < kids.length; k++)
-                          IntrinsicHeight(
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                ThreadElbow(
-                                  color: EnclavdColors.border,
-                                  elbowY: 26, // nested avatar 32 center + 10 pad
-                                  isLast: k == kids.length - 1,
-                                ),
-                                Expanded(
-                                  child: _ForumReplyCard(
-                                    key: ValueKey(kids[k].id),
-                                    reply: kids[k],
-                                    number: 0, // hidden on nested cards
-                                    apiBaseUrl: AppConfig.apiBaseUrl,
-                                    onDelete: _deleteReply,
-                                    onReply: _quoteReply,
-                                    expanded: kids[k].id == _expandedReplyId,
-                                    onToggle: () => setState(() {
-                                      _expandedReplyId =
-                                          _expandedReplyId == kids[k].id
-                                              ? null
-                                              : kids[k].id;
-                                    }),
-                                    nested: true,
-                                    replyToUsername:
-                                        _tree.parentUsernames[kids[k].id],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-              ],
+        else ...[
+          // One pager above the first reply, one under the last. Single-
+          // page threads skip both so short discussions stay clean.
+          if (_replyPages > 1) ...[
+            RepliesPager(
+              page: _replyPage,
+              pages: _replyPages,
+              busy: _replyBusy,
+              onPage: _fetchReplyPage,
             ),
-        if (_repliesHasMore)
-          Center(
-            child: TextButton.icon(
-              onPressed: _repliesLoadingMore ? null : _loadMoreReplies,
-              icon: _repliesLoadingMore
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const FaIcon(FontAwesomeIcons.anglesDown,
-                      size: 13, color: EnclavdColors.link),
-              label: Text(
-                  _repliesLoadingMore ? 'Loading...' : 'Load more replies'),
-              style: TextButton.styleFrom(
-                foregroundColor: EnclavdColors.link,
-                textStyle:
-                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            const SizedBox(height: 6),
+          ],
+          // Flat reply list. A reply that answers another one carries
+          // its quoted text inline (quote card), so rows never nest.
+          // Numbers stay global across pages: fixed 20-row pages, so the
+          // first row of page N is at (N - 1) * 20 + 1.
+          for (var i = 0; i < _replies.length; i++)
+            _ForumReplyCard(
+              key: ValueKey(_replies[i].id),
+              reply: _replies[i],
+              number: (_replyPage - 1) * _repliesPerPage + i + 1,
+              apiBaseUrl: AppConfig.apiBaseUrl,
+              onDelete: _deleteReply,
+              onReply: _quoteReply,
+              expanded: _replies[i].id == _expandedReplyId,
+              onToggle: () => setState(() {
+                _expandedReplyId = _expandedReplyId == _replies[i].id
+                    ? null
+                    : _replies[i].id;
+              }),
+            ),
+          if (_replyPages > 1)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: RepliesPager(
+                page: _replyPage,
+                pages: _replyPages,
+                busy: _replyBusy,
+                onPage: _fetchReplyPage,
               ),
             ),
-          ),
+        ],
         const SizedBox(height: 12),
       ],
     );
@@ -989,11 +974,11 @@ class _ForumReplyCard extends StatefulWidget {
     required this.onReply,
     required this.expanded,
     required this.onToggle,
-    this.nested = false,
-    this.replyToUsername,
   });
 
   final Comment reply;
+
+  /// Reply number within the whole thread (continues across pages).
   final int number;
   final String apiBaseUrl;
   final void Function(Comment) onDelete;
@@ -1003,13 +988,6 @@ class _ForumReplyCard extends StatefulWidget {
   final bool expanded;
 
   final VoidCallback onToggle;
-
-  /// Nested (depth-1) variant: compact inline row behind the thread
-  /// rail instead of a standalone card.
-  final bool nested;
-
-  /// Direct reply target (shown as "Replying to @user" on nested rows).
-  final String? replyToUsername;
 
   @override
   State<_ForumReplyCard> createState() => _ForumReplyCardState();
@@ -1111,14 +1089,13 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
   @override
   Widget build(BuildContext context) {
     final personality = PersonalityColors.forType(reply.personalityType);
-    final nested = widget.nested;
     return Container(
-      margin: EdgeInsets.only(bottom: nested ? 8 : 10),
-      padding: EdgeInsets.all(nested ? 10.0 : 14.0),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: nested ? EnclavdColors.cardSecondary : EnclavdColors.card,
-        borderRadius: BorderRadius.circular(nested ? 10.0 : 14.0),
-        border: nested ? null : Border.all(color: EnclavdColors.border),
+        color: EnclavdColors.card,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: EnclavdColors.border),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1126,14 +1103,14 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
           GestureDetector(
             onTap: () => _openProfile(context, reply.userId),
             child: EnclavdAvatar(
-              size: nested ? 32 : 48,
+              size: 48,
               url: resolveMediaUrl(widget.apiBaseUrl,
                   avatarPath: reply.profilePictureUrl),
               borderColor: personality,
               square: true,
             ),
           ),
-          SizedBox(width: nested ? 8 : 10),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1170,21 +1147,12 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                     ),
                   ],
                 ),
+                // Quoted context renders as its own block; the reply's
+                // own text follows (read-more clamps only the reply).
                 if (_quote != null) ...[
                   CommentQuoteCard(quote: _quote!),
                   const SizedBox(height: 6),
-                ] else if (widget.replyToUsername case final target?)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 3),
-                    child: Text(
-                      'Replying to @$target',
-                      style: const TextStyle(
-                        color: EnclavdColors.link,
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
+                ],
                 const SizedBox(height: 6),
                 Text.rich(
                   TextSpan(children: _spans()),
@@ -1262,15 +1230,14 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                         ),
                       ),
                     const Spacer(),
-                    if (!nested)
-                      Text(
-                        '#${widget.number}',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          fontFamily: 'monospace',
-                          color: EnclavdColors.textSecondary,
-                        ),
+                    Text(
+                      '#${widget.number}',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontFamily: 'monospace',
+                        color: EnclavdColors.textSecondary,
                       ),
+                    ),
                   ],
                 ),
               ],

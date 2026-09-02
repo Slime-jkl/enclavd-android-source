@@ -22,6 +22,9 @@ class _FakeProfile extends ProfileService {
   final Object? updateProfileError;
   final Object? uploadAvatarError;
 
+  int updateProfileCalls = 0;
+  String? lastBio;
+
   @override
   Future<AccountSettings> fetchSelf() async => account!;
 
@@ -35,6 +38,8 @@ class _FakeProfile extends ProfileService {
     int? geoRegion,
     int? geoCity,
   }) async {
+    updateProfileCalls++;
+    lastBio = bio;
     if (updateProfileError != null) throw updateProfileError!;
   }
 
@@ -154,6 +159,40 @@ void main() {
         reason: '5xx maps to the report-it line, not raw server text');
     expect(find.textContaining('Internal Server Error'), findsNothing,
         reason: 'raw 500 text is never shown');
+  });
+
+  testWidgets('bio input is cut at the 250-char platform cap before saving',
+      (tester) async {
+    final fake = _FakeProfile(account: _account);
+    await _pump(tester, fake);
+    await tester.drag(find.byType(ListView), const Offset(8, -300));
+    await tester.pump();
+
+    await tester.enterText(
+        find.widgetWithText(TextField, 'hello world'), 'a' * 500);
+    await _tapSave(tester);
+
+    expect(fake.updateProfileCalls, 1, reason: 'save still runs');
+    expect(fake.lastBio?.length, 250,
+        reason: 'over-long bio never leaves the form');
+  });
+
+  testWidgets('bio over 250 code points shows the verbose error, no save '
+      'call', (tester) async {
+    final fake = _FakeProfile(account: _account);
+    await _pump(tester, fake);
+    await tester.drag(find.byType(ListView), const Offset(8, -300));
+    await tester.pump();
+
+    // 250 combining-accent graphemes = 500 code points: within the field's
+    // grapheme cap but over the server's code-point cap (like ZWJ emoji).
+    await tester.enterText(find.widgetWithText(TextField, 'hello world'),
+        'e\u{0301}' * 250);
+    await _tapSave(tester);
+
+    expect(fake.updateProfileCalls, 0, reason: 'rejected before the network');
+    expect(find.textContaining('Bio must be 250 characters or fewer'),
+        findsOneWidget, reason: 'verbose local error names the limit');
   });
 
   testWidgets('network failure on save shows the connection message',

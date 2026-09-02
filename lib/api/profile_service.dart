@@ -1,5 +1,10 @@
 import 'api_client.dart';
 
+/// Max bio length the server accepts (accounts.bio is varchar(250); the
+/// api rejects anything longer with 422 "Bio must be 250 characters or
+/// fewer" - match it, counting code points like mb_strlen does).
+const int kMaxBioChars = 250;
+
 /// A member's profile header - the "top part" of the site's profile page
 /// (GET /api/v1/profile?user_id=N). Fields: id, username, full_name,
 /// profile_picture_url, personality_type, rank, bio, prestige,

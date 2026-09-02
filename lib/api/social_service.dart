@@ -175,6 +175,44 @@ class CommentPage {
   }
 }
 
+/// One page of forum replies (GET /api/v1/comments with order=asc&page=N|0
+/// &limit=M). Pages are fixed slices of the oldest-first reply list;
+/// replies are flat rows, since a reply carries its quoted context
+/// inline. [page] 0 requests the LAST (newest) page. [page]/[pages] are
+/// 1-based and resolved by the server.
+class ForumReplyPage {
+  const ForumReplyPage({
+    required this.comments,
+    required this.total,
+    required this.page,
+    required this.pages,
+    required this.hasMore,
+  });
+
+  final List<Comment> comments;
+  final int total;
+
+  /// Resolved 1-based page number (clamped by the server).
+  final int page;
+  final int pages;
+  final bool hasMore;
+
+  factory ForumReplyPage.fromJson(Map<String, dynamic> json) {
+    final raw = json['comments'] as List<dynamic>? ?? const [];
+    final page = (json['page'] as num?)?.toInt() ?? 1;
+    return ForumReplyPage(
+      comments: [
+        for (final c in raw)
+          if (c is Map<String, dynamic>) Comment.fromJson(c),
+      ],
+      total: (json['total'] as num?)?.toInt() ?? raw.length,
+      page: page,
+      pages: (json['pages'] as num?)?.toInt() ?? page,
+      hasMore: json['has_more'] as bool? ?? false,
+    );
+  }
+}
+
 /// Depth-1 display tree over a flat comment list (mirrors the site's
 /// load.php renderer). Every comment whose ancestor chain resolves to a
 /// top-level comment renders under that root; deeper replies collapse
@@ -334,6 +372,22 @@ class SocialService {
       if (offset > 0) 'offset': '$offset',
     });
     return CommentPage.fromJson(json);
+  }
+
+  /// Forum reply paging (domain thread view): fixed 20-row pages over
+  /// the oldest-first reply list. [page] 0 = the LAST (newest) page -
+  /// what the thread screen opens on; later fetches pass the 1-based
+  /// page the pager asks for. Replies are flat rows; the server replies
+  /// with resolved page/pages so the pager can render.
+  Future<ForumReplyPage> forumRepliesPage(int postId,
+      {int page = 0, int perPage = 20}) async {
+    final json = await _api.getJson('/api/v1/comments', query: {
+      'post_id': '$postId',
+      'order': 'asc',
+      'page': '$page',
+      'limit': '$perPage',
+    });
+    return ForumReplyPage.fromJson(json);
   }
 
   /// Creates a comment (optionally a reply to [parentCommentId]).

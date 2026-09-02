@@ -14,7 +14,6 @@ import 'package:enclavd/widgets/enclavd_avatar.dart';
 import 'package:enclavd/widgets/comment_quote_card.dart';
 import 'package:enclavd/widgets/post_card.dart'; // PostCard (must be ABSENT)
 import 'package:enclavd/widgets/shimmer.dart';
-import 'package:enclavd/widgets/thread_connector.dart';
 
 class _NoopStore implements SessionStore {
   @override
@@ -38,28 +37,33 @@ class _FakeDomains extends DomainsService {
 }
 
 class _FakeSocial extends SocialService {
-  _FakeSocial({this.replies = const [], this.hasMore = false})
+  _FakeSocial({this.replies = const []})
       : super(ApiClient(store: _NoopStore(), apiBaseUrl: 'https://example.com'));
 
   final List<Comment> replies;
 
-  final bool hasMore;
-  final List<int> ascQueries = [];
-  final List<int> offsets = [];
+  /// Page numbers asked for; 0 = the newest page.
+  final List<int> pageRequests = [];
   final List<String> sent = [];
   final List<int?> sentParents = [];
 
   @override
-  Future<CommentPage> listComments(int postId,
-      {bool asc = false, int limit = SocialService.pageSize, int offset = 0}) async {
-    ascQueries.add(postId);
-    offsets.add(offset);
-    expect(asc, isTrue, reason: 'forum replies must be oldest-first');
-    final pageComments = offset == 0 ? replies : const <Comment>[];
-    return CommentPage(
-      comments: pageComments,
-      total: replies.length,
-      hasMore: offset == 0 && hasMore,
+  Future<ForumReplyPage> forumRepliesPage(int postId,
+      {int page = 0, int perPage = 20}) async {
+    pageRequests.add(page);
+    final total = replies.length;
+    final pages = total > 0 ? (total + perPage - 1) ~/ perPage : 1;
+    final index = page > 0 ? page - 1 : pages - 1;
+    final start = index * perPage;
+    final slice = start >= total
+        ? const <Comment>[]
+        : replies.sublist(start, (start + perPage).clamp(0, total));
+    return ForumReplyPage(
+      comments: slice,
+      total: total,
+      page: index + 1,
+      pages: pages,
+      hasMore: index + 1 < pages,
     );
   }
 
@@ -152,7 +156,7 @@ void main() {
         home: child,
       );
 
-  testWidgets('renders the OP card + replies oldest-first', (tester) async {
+  testWidgets('renders the OP card + single-page replies', (tester) async {
     final social = _FakeSocial(replies: [
       _reply(1, 'First reply'),
       _reply(2, 'Second reply'),
@@ -176,7 +180,10 @@ void main() {
     await tester.tap(find.byKey(const Key('replyToggle')));
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.byType(TextField), findsOneWidget);
-    expect(social.ascQueries, [218]);
+    // The thread opens on the newest page (0 = last); 2 rows fit one.
+    expect(social.pageRequests, [0]);
+    // Single-page threads skip the pager bars.
+    expect(find.textContaining('Page '), findsNothing);
   });
 
   testWidgets('sending a reply appends it and bumps the count',
@@ -251,13 +258,12 @@ void main() {
     expect(find.text('First reply'), findsOneWidget);
   });
 
-  testWidgets('nested reply avatar hugs the card top so the L hits it',
+  testWidgets('a quoted reply renders flat with its context inline',
       (tester) async {
-    // Nested card avatar (32) sits at the card's top padding (10), so the
-    // elbow arm (elbowY 26 = 10 + 32/2) must meet its center.
+    const quoted = '@Someone wrote: "First reply"\n\nAgreed!';
     final social = _FakeSocial(replies: [
       _reply(1, 'First reply'),
-      _reply(2, 'word ' * 40, parent: 1),
+      _reply(2, quoted, parent: 1),
     ]);
     await tester.pumpWidget(wrap(DomainThreadScreen(
       domains: _FakeDomains(_detail()),
@@ -267,22 +273,27 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    final elbowBox = tester.renderObject<RenderBox>(find.byType(ThreadElbow));
-    final nestedAvatar = find.byWidgetPredicate(
-        (w) => w is EnclavdAvatar && w.url.contains('x.png') && w.size == 32);
-    final avatarBox = tester.renderObject<RenderBox>(nestedAvatar);
-    final rowTop = elbowBox.localToGlobal(Offset.zero).dy;
-    final avatarTop = avatarBox.localToGlobal(Offset.zero).dy;
-    final avatarCenter = avatarBox
-        .localToGlobal(Offset(0, avatarBox.size.height / 2))
-        .dy;
+    // Both rows are full cards in the flat list; no nesting affordances.
+    // 'First reply' appears twice: the original card + its preview in
+    // the quote card.
+    expect(find.text('First reply'), findsNWidgets(2));
+    expect(find.text('Agreed!'), findsOneWidget);
+    expect(find.text('#1'), findsOneWidget);
+    expect(find.text('#2'), findsOneWidget);
+    expect(find.byType(CommentQuoteCard), findsOneWidget);
+    // The quote header is the only "Replying to" text (no hint lines).
+    expect(find.text('Replying to @Someone'), findsOneWidget);
+    expect(find.text('1 reply'), findsNothing);
+    expect(find.text('Hide replies'), findsNothing);
 
-    expect(elbowBox.size.height, greaterThan(40),
-        reason: 'reply must wrap to more than one line');
-    expect(avatarBox.size.height, 32);
-    expect(avatarTop - rowTop, closeTo(10, 1), reason: 'card top pad');
-    expect(avatarCenter - rowTop, closeTo(26, 1),
-        reason: 'avatar center must sit on the elbow arm (10 + 32/2)');
+    // Both replies use the same full-size card layout.
+    final avatars = tester
+        .widgetList<EnclavdAvatar>(find.byType(EnclavdAvatar))
+        .where((w) => w.url.contains('x.png'))
+        .toList();
+    expect(avatars, hasLength(2));
+    expect(avatars.every((w) => w.size == 48), isTrue,
+        reason: 'flat replies are full-size cards, not nested rows');
   });
 
   testWidgets('long replies collapse with a read-more toggle', (tester) async {
@@ -341,11 +352,19 @@ void main() {
     expect(find.text(long2), findsOneWidget);
   });
 
-  testWidgets('load more appends the next page of replies', (tester) async {
-    final social = _FakeSocial(
-      replies: [_reply(1, 'First reply'), _reply(2, 'Second reply')],
-      hasMore: true,
-    );
+  testWidgets('opens on the newest page and pages back through replies',
+      (tester) async {
+    // Tall viewport: a full 20-card page must render without lazy
+    // disposal, so every row and both pager bars stay findable.
+    tester.view.physicalSize = const Size(800, 3800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    // 45 replies -> 3 pages (20/20/5); the thread must open showing the
+    // LAST page (newest replies).
+    final social = _FakeSocial(replies: [
+      for (var n = 1; n <= 45; n++) _reply(n, 'Reply $n'),
+    ]);
     await tester.pumpWidget(wrap(DomainThreadScreen(
       domains: _FakeDomains(_detail()),
       postId: 218,
@@ -354,13 +373,44 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(find.text('Load more replies'), findsOneWidget);
-    await tester.tap(find.text('Load more replies'));
-    await tester.pump(const Duration(milliseconds: 50));
+    // Newest page 3: rows #41..#45; pager bars top and bottom.
+    expect(social.pageRequests, [0], reason: 'open must fetch the last page');
+    expect(find.text('Reply 41'), findsOneWidget);
+    expect(find.text('Reply 45'), findsOneWidget);
+    expect(find.text('Reply 1'), findsNothing);
+    expect(find.text('#41'), findsOneWidget);
+    expect(find.text('#45'), findsOneWidget);
+    expect(find.text('Page 3 of 3'), findsNWidgets(2));
 
-    // Second page fetched at offset 2; nothing more to load.
-    expect(social.offsets, [0, 2]);
-    expect(find.text('Load more replies'), findsNothing);
+    // Prev walks to page 2 (#21..), then page 1 (#1..#20).
+    await tester.tap(find.byTooltip('Older replies').first);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(social.pageRequests, [0, 2]);
+    expect(find.text('Page 2 of 3'), findsNWidgets(2));
+    expect(find.text('Reply 21'), findsOneWidget);
+    expect(find.text('Reply 40'), findsOneWidget);
+    expect(find.text('Reply 45'), findsNothing);
+
+    await tester.tap(find.byTooltip('Older replies').first);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Page 1 of 3'), findsNWidgets(2));
+    expect(find.text('Reply 1'), findsOneWidget);
+    expect(find.text('#1'), findsOneWidget);
+    expect(find.text('Reply 45'), findsNothing);
+
+    // Prev is disabled on page 1: tapping does not refetch.
+    final before = social.pageRequests.length;
+    await tester.tap(find.byTooltip('Older replies').first);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(social.pageRequests.length, before);
+
+    // Next walks forward again to the newest page.
+    await tester.tap(find.byTooltip('Newer replies').first);
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.byTooltip('Newer replies').first);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Page 3 of 3'), findsNWidgets(2));
+    expect(find.text('Reply 45'), findsOneWidget);
   });
 
   testWidgets('OP is a forum card: rank badge, large avatar, no PostCard',
@@ -420,15 +470,16 @@ void main() {
 
     expect(social.sent, ['@Someone wrote: "First reply"\n\nAgreed!']);
     expect(social.sentParents, [1]);
-    // The sent reply carries the quote prefix, so it renders as a styled
-    // quote card (its "Replying to @Someone" header replaces the banner);
-    // the typed text renders as the reply's own content.
+    // The sent reply is a new flat card (appended locally): it carries
+    // the quote prefix, so it renders as a styled quote card whose
+    // "Replying to @Someone" header replaces the banner; the typed text
+    // renders as the reply's own content.
     expect(find.byType(CommentQuoteCard), findsOneWidget);
     expect(find.text('Replying to @Someone'), findsOneWidget);
     expect(find.text('Agreed!'), findsOneWidget);
   });
 
-  testWidgets('nested replies render under the root with a reply-to hint',
+  testWidgets('reply chains render as separate flat cards, all numbered',
       (tester) async {
     final social = _FakeSocial(replies: [
       _reply(1, 'Root reply'),
@@ -443,18 +494,25 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    // All three render; the root keeps its number, nested rows do not.
+    // Every reply is its own row with its own number; there is no tree,
+    // no count toggle and no reply-to hint (quotes carry the context).
     expect(find.text('Root reply'), findsOneWidget);
     expect(find.text('Child reply'), findsOneWidget);
     expect(find.text('Grandchild reply'), findsOneWidget);
     expect(find.text('#1'), findsOneWidget);
-    expect(find.text('#2'), findsNothing);
-    expect(find.text('#3'), findsNothing);
-    // Depth-1 clamp: both nested rows carry the direct-target hint.
-    expect(find.text('Replying to @Someone'), findsNWidgets(2));
+    expect(find.text('#2'), findsOneWidget);
+    expect(find.text('#3'), findsOneWidget);
+    expect(find.text('3 Replies'), findsOneWidget);
+    expect(find.text('Replying to @Someone'), findsNothing);
+    // Quoting still works from any row (its parent id rides along).
+    await tester.ensureVisible(find.byKey(const Key('replyQuote-3')));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.byKey(const Key('replyQuote-3')));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Replying to @Someone'), findsOneWidget); // banner
   });
 
-  testWidgets('reply on a nested reply quotes it and sends its parent id',
+  testWidgets('quoting a reply arms its parent id on send',
       (tester) async {
     final social = _FakeSocial(replies: [
       _reply(1, 'Root reply'),
@@ -468,9 +526,10 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
+    // Reply rows are always visible flat; quoting any row arms its id.
     await tester.tap(find.byKey(const Key('replyQuote-2')));
     await tester.pump(const Duration(milliseconds: 50));
-    expect(find.text('Replying to @Someone'), findsNWidgets(2)); // hint + banner
+    expect(find.text('Replying to @Someone'), findsOneWidget); // banner
 
     await tester.enterText(find.byType(TextField), 'Deep reply');
     await tester.tap(find.byTooltip('Send reply'));

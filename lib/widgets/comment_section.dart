@@ -13,6 +13,7 @@ import '../utils/content_spans.dart';
 import '../utils/db_time.dart';
 import 'comment_quote_card.dart';
 import 'enclavd_avatar.dart';
+import 'replies_toggle.dart';
 import 'shimmer.dart';
 import 'thread_connector.dart';
 
@@ -51,6 +52,16 @@ class CommentsSection extends StatefulWidget {
 class _CommentsSectionState extends State<CommentsSection> {
   int? _expandedCommentId;
 
+  // Reply groups the user opened. Default: every group is collapsed
+  // behind its 'n replies' toggle until tapped.
+  final Set<int> _openThreads = {};
+
+  void _toggleReplies(int rootId) {
+    setState(() {
+      if (!_openThreads.remove(rootId)) _openThreads.add(rootId);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.loading) {
@@ -82,6 +93,8 @@ class _CommentsSectionState extends State<CommentsSection> {
             onToggle: (id) => setState(() {
               _expandedCommentId = _expandedCommentId == id ? null : id;
             }),
+            nestedOpen: _openThreads.contains(root.id),
+            onToggleNested: () => _toggleReplies(root.id),
           ),
         if (widget.hasMore)
           Center(
@@ -245,6 +258,9 @@ class CommentComposer extends StatelessWidget {
 }
 
 /// One top-level comment plus its clamped replies, behind a left rail.
+/// The reply group starts collapsed behind a count toggle; expanding
+/// reveals the rows (with the L connector) and moves the toggle under
+/// them so the group can be closed again.
 class CommentThread extends StatelessWidget {
   const CommentThread({
     super.key,
@@ -256,6 +272,8 @@ class CommentThread extends StatelessWidget {
     required this.onReply,
     required this.expandedId,
     required this.onToggle,
+    required this.nestedOpen,
+    required this.onToggleNested,
   });
 
   final Comment root;
@@ -267,53 +285,98 @@ class CommentThread extends StatelessWidget {
   final int? expandedId;
   final void Function(int id) onToggle;
 
+  /// Whether this thread's nested replies are shown.
+  final bool nestedOpen;
+  final VoidCallback onToggleNested;
+
   @override
   Widget build(BuildContext context) {
+    final showRail = children.isNotEmpty && nestedOpen;
+    final rootRow = CommentRow(
+      // Key by id: new comments prepend, so positional reuse would
+      // misattach row state.
+      key: ValueKey(root.id),
+      comment: root,
+      apiBaseUrl: apiBaseUrl,
+      onDelete: onDelete,
+      onReply: onReply,
+      expanded: root.id == expandedId,
+      onToggle: () => onToggle(root.id),
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        CommentRow(
-          // Key by id: new comments prepend, so positional reuse would
-          // misattach row state.
-          key: ValueKey(root.id),
-          comment: root,
-          apiBaseUrl: apiBaseUrl,
-          onDelete: onDelete,
-          onReply: onReply,
-          expanded: root.id == expandedId,
-          onToggle: () => onToggle(root.id),
-        ),
+        if (showRail)
+          // Carry the rail up to the root avatar: rail x 21 = 12 indent +
+          // 18/2, start 32 = the avatar's rim at that x (6 pad + 28 box,
+          // minus the inset). Painted BEHIND the row, so the avatar and
+          // its border cover the overlap and the line seems to start at
+          // the rim.
+          Stack(
+            fit: StackFit.passthrough,
+            children: [
+              const Positioned.fill(
+                child: RailDrop(
+                  color: EnclavdColors.border,
+                  railX: 21,
+                  startY: 32,
+                ),
+              ),
+              rootRow,
+            ],
+          )
+        else
+          rootRow,
         if (children.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.only(left: 12, top: 2),
+            padding: const EdgeInsets.only(left: 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                for (var i = 0; i < children.length; i++)
-                  IntrinsicHeight(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        ThreadElbow(
-                          color: EnclavdColors.border,
-                          elbowY: 20, // child avatar 28 center + 6 pad
-                          isLast: i == children.length - 1,
-                        ),
-                        Expanded(
-                          child: CommentRow(
-                            key: ValueKey(children[i].id),
-                            comment: children[i],
-                            replyToUsername: parentUsernames[children[i].id],
-                            apiBaseUrl: apiBaseUrl,
-                            onDelete: onDelete,
-                            onReply: onReply,
-                            expanded: children[i].id == expandedId,
-                            onToggle: () => onToggle(children[i].id),
+                if (nestedOpen)
+                  for (var i = 0; i < children.length; i++)
+                    IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          ThreadElbow(
+                            color: EnclavdColors.border,
+                            elbowY: 20, // child avatar 28 center + 6 pad
+                            isLast: i == children.length - 1,
                           ),
-                        ),
-                      ],
+                          Expanded(
+                            child: CommentRow(
+                              key: ValueKey(children[i].id),
+                              comment: children[i],
+                              replyToUsername:
+                                  parentUsernames[children[i].id],
+                              apiBaseUrl: apiBaseUrl,
+                              onDelete: onDelete,
+                              onReply: onReply,
+                              expanded: children[i].id == expandedId,
+                              onToggle: () => onToggle(children[i].id),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
+                // Keep the toggle under the reply column so it lines up
+                // with the nested text, not the avatar rail.
+                Row(
+                  children: [
+                    const SizedBox(width: 18),
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: RepliesToggle(
+                          count: children.length,
+                          open: nestedOpen,
+                          onTap: onToggleNested,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
