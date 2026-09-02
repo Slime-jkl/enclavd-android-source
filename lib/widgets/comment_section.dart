@@ -307,19 +307,18 @@ class CommentThread extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (showRail)
-          // Carry the rail up to the root avatar: rail x 21 = 12 indent +
-          // 18/2, start 32 = the avatar's rim at that x (6 pad + 28 box,
-          // minus the inset). Painted BEHIND the row, so the avatar and
-          // its border cover the overlap and the line seems to start at
-          // the rim.
+          // Hang the rail from the root avatar: same x as the child
+          // rail (flush block, 28 wide elbow column -> 14 = the avatar's
+          // center) but starting BELOW the circle (6 pad + 28 size + 4
+          // gap) so the stem floats clear of it at both ends.
           Stack(
             fit: StackFit.passthrough,
             children: [
               const Positioned.fill(
                 child: RailDrop(
                   color: EnclavdColors.border,
-                  railX: 21,
-                  startY: 32,
+                  railX: 14,
+                  startY: 38,
                 ),
               ),
               rootRow,
@@ -328,57 +327,56 @@ class CommentThread extends StatelessWidget {
         else
           rootRow,
         if (children.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(left: 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (nestedOpen)
-                  for (var i = 0; i < children.length; i++)
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          ThreadElbow(
-                            color: EnclavdColors.border,
-                            elbowY: 20, // child avatar 28 center + 6 pad
-                            isLast: i == children.length - 1,
-                          ),
-                          Expanded(
-                            child: CommentRow(
-                              key: ValueKey(children[i].id),
-                              comment: children[i],
-                              replyToUsername:
-                                  parentUsernames[children[i].id],
-                              apiBaseUrl: apiBaseUrl,
-                              onDelete: onDelete,
-                              onReply: onReply,
-                              expanded: children[i].id == expandedId,
-                              onToggle: () => onToggle(children[i].id),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                // Keep the toggle under the reply column so it lines up
-                // with the nested text, not the avatar rail.
-                Row(
-                  children: [
-                    const SizedBox(width: 18),
-                    Expanded(
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: RepliesToggle(
-                          count: children.length,
-                          open: nestedOpen,
-                          onTap: onToggleNested,
+          // Flush reply block: the elbow column (28 wide, rail at its
+          // center 14) sits directly under the root avatar's middle.
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (nestedOpen)
+                for (var i = 0; i < children.length; i++)
+                  IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        ThreadElbow(
+                          color: EnclavdColors.border,
+                          elbowY: 20, // child avatar 28 center + 6 pad
+                          isLast: i == children.length - 1,
                         ),
+                        Expanded(
+                          child: CommentRow(
+                            key: ValueKey(children[i].id),
+                            comment: children[i],
+                            replyToUsername:
+                                parentUsernames[children[i].id],
+                            apiBaseUrl: apiBaseUrl,
+                            onDelete: onDelete,
+                            onReply: onReply,
+                            expanded: children[i].id == expandedId,
+                            onToggle: () => onToggle(children[i].id),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              // Under the last reply: keep the toggle in the reply
+              // column (avatar gutter offset), not under the root.
+              Row(
+                children: [
+                  const SizedBox(width: 28),
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: RepliesToggle(
+                        count: children.length,
+                        open: nestedOpen,
+                        onTap: onToggleNested,
                       ),
                     ),
-                  ],
-                ),
-              ],
-            ),
+                  ),
+                ],
+              ),
+            ],
           ),
       ],
     );

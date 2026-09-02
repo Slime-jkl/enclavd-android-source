@@ -251,22 +251,36 @@ void main() {
     expect(avatarCenter - rowTop, lessThan(elbowBox.size.height / 3),
         reason: 'avatar must NOT be vertically centered on tall rows');
 
-    // The rail must REACH the root avatar, not float under the parent
-    // row: the bridge fills the root row at the elbow rail x (12 indent
-    // + 18/2) and starts inside the root avatar's band (6 pad + 28).
+    // The rail hangs from the ROOT avatar's middle with air, not glued
+    // to its rim: bridge x = the avatar center (14), start a gap below
+    // the circle bottom (6 pad + 28 box + 4), and the first child rail
+    // picks up at the same x flush below the root row.
     final rail = tester.widget<RailDrop>(find.byType(RailDrop));
     final railBox = tester.renderObject<RenderBox>(find.byType(RailDrop));
-    expect(rail.railX, 21, reason: 'bridge shares the elbow rail x');
-    expect(rail.startY, 32, reason: 'bridge starts at the avatar rim');
+    expect(rail.railX, 14, reason: 'bridge drops under the avatar center');
+    expect(rail.startY, 38,
+        reason: 'bridge starts a gap below the avatar bottom (34 + 4)');
     final rootAvatarBox = tester.renderObject<RenderBox>(childAvatar.first);
     final rootTop = rootAvatarBox.localToGlobal(Offset.zero).dy;
     final railStart = railBox
         .localToGlobal(Offset(0, rail.startY))
         .dy;
-    expect(railStart, greaterThan(rootTop),
-        reason: 'bridge must start inside the root avatar band');
-    expect(railStart, lessThan(rootTop + 28),
-        reason: 'bridge must start inside the root avatar band');
+    expect(railStart, greaterThan(rootTop + 28),
+        reason: 'bridge must clear the avatar, not touch its rim');
+    expect(railStart, closeTo(rootTop + 32, 1),
+        reason: 'about 4px of air between the avatar bottom and the stem');
+    final railX = railBox.localToGlobal(Offset(rail.railX, 0)).dx;
+    expect(
+        railX,
+        closeTo(rootAvatarBox
+            .localToGlobal(Offset(rootAvatarBox.size.width / 2, 0))
+            .dx, 0.5),
+        reason: 'stem passes through the avatar middle, not beside it');
+    final elbowX = elbowBox
+        .localToGlobal(Offset(elbowBox.size.width / 2, 0))
+        .dx;
+    expect(elbowX, closeTo(railX, 0.5),
+        reason: 'child rail continues the bridge at the same x');
     expect(
         railBox.localToGlobal(Offset(0, railBox.size.height)).dy,
         closeTo(rowTop, 0.5),
