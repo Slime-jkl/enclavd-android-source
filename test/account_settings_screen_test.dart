@@ -170,6 +170,10 @@ void main() {
 
     await tester.enterText(
         find.widgetWithText(TextField, 'hello world'), 'a' * 500);
+    // Drop focus so _tapSave's ListView drag is not swallowed by the
+    // field's selection gesture.
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pump();
     await _tapSave(tester);
 
     expect(fake.updateProfileCalls, 1, reason: 'save still runs');
@@ -188,6 +192,8 @@ void main() {
     // grapheme cap but over the server's code-point cap (like ZWJ emoji).
     await tester.enterText(find.widgetWithText(TextField, 'hello world'),
         'e\u{0301}' * 250);
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pump();
     await _tapSave(tester);
 
     expect(fake.updateProfileCalls, 0, reason: 'rejected before the network');
