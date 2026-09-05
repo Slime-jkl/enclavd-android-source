@@ -133,6 +133,94 @@ class FollowResult {
       );
 }
 
+/// Which relation list a request targets (the ?list= wire value).
+enum FollowListKind {
+  followers('followers'),
+  following('following');
+
+  const FollowListKind(this.wire);
+  final String wire;
+}
+
+/// One member row in a followers/following list (GET /api/v1/profile
+/// ?user_id=N&list=...): account fields + the viewer's relation state.
+class FollowListItem {
+  const FollowListItem({
+    required this.id,
+    required this.username,
+    required this.fullName,
+    required this.profilePictureUrl,
+    required this.personalityType,
+    required this.rank,
+    required this.bio,
+    required this.isActive,
+    required this.isOnline,
+    required this.isFollowing,
+    required this.isFollowingYou,
+    required this.isOwn,
+  });
+
+  final int id;
+  final String username;
+  final String fullName;
+  final String profilePictureUrl;
+  final String? personalityType;
+  final String rank;
+  final String bio;
+  final String isActive; // 'true' / 'false'
+  final bool isOnline;
+  final bool isFollowing; // the viewer follows this row user
+  final bool isFollowingYou; // this row user follows the viewer
+  final bool isOwn; // this row user IS the viewer
+
+  bool get isBlocked => isActive == 'false';
+
+  FollowListItem copyWith({bool? isFollowing}) => FollowListItem(
+        id: id,
+        username: username,
+        fullName: fullName,
+        profilePictureUrl: profilePictureUrl,
+        personalityType: personalityType,
+        rank: rank,
+        bio: bio,
+        isActive: isActive,
+        isOnline: isOnline,
+        isFollowing: isFollowing ?? this.isFollowing,
+        isFollowingYou: isFollowingYou,
+        isOwn: isOwn,
+      );
+
+  factory FollowListItem.fromJson(Map<String, dynamic> json) =>
+      FollowListItem(
+        id: (json['id'] as num?)?.toInt() ?? 0,
+        username: json['username'] as String? ?? '',
+        fullName: json['full_name'] as String? ?? '',
+        profilePictureUrl: json['profile_picture_url'] as String? ??
+            '/assets/default-avatar.png',
+        personalityType: json['personality_type'] as String?,
+        rank: json['rank'] as String? ?? 'Member',
+        bio: json['bio'] as String? ?? '',
+        isActive: json['is_active'] as String? ?? 'true',
+        isOnline: json['is_online'] as bool? ?? false,
+        isFollowing: json['is_following'] as bool? ?? false,
+        isFollowingYou: json['is_following_you'] as bool? ?? false,
+        isOwn: json['is_own'] as bool? ?? false,
+      );
+}
+
+/// One page of a relation list, with the server's total for the header.
+class FollowListPage {
+  const FollowListPage({
+    required this.users,
+    required this.total,
+    required this.hasMore,
+  });
+
+  final List<FollowListItem> users;
+  final int total;
+  final bool hasMore;
+}
+
 /// The viewer's OWN account row (GET /api/v1/profile?self=1) - the
 /// edit-profile prefill; the public profile header omits email, gender,
 /// birthdate and the geo ids.
@@ -188,6 +276,7 @@ class AccountSettings {
 
 /// Profile header + account editing over api/v1 (JSON + CSRF).
 /// GET ?user_id=N / ?username=N -> {profile}; ?self=1 -> {account};
+/// GET ?user_id=N&list=followers|following -> {users, total, has_more};
 /// POST actions: follow, update_profile, change_password, upload_avatar.
 class ProfileService {
   ProfileService(this._api);
@@ -223,6 +312,31 @@ class ProfileService {
       'followee_id': followeeId,
     });
     return FollowResult.fromJson(json);
+  }
+
+  /// One page of a member's followers/following, newest relation first
+  /// (offset pagination; the server caps limit at 50).
+  Future<FollowListPage> listFollows({
+    required int userId,
+    required FollowListKind kind,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    final json = await _api.getJson('/api/v1/profile', query: {
+      'user_id': '$userId',
+      'list': kind.wire,
+      'limit': '$limit',
+      'offset': '$offset',
+    });
+    final raw = json['users'] as List<dynamic>? ?? const [];
+    return FollowListPage(
+      users: [
+        for (final u in raw)
+          if (u is Map<String, dynamic>) FollowListItem.fromJson(u),
+      ],
+      total: (json['total'] as num?)?.toInt() ?? 0,
+      hasMore: json['has_more'] as bool? ?? false,
+    );
   }
 
   /// The viewer's own account row - the edit-profile prefill.

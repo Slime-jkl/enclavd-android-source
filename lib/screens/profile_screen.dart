@@ -16,6 +16,7 @@ import '../widgets/rank_badge.dart';
 import '../widgets/shimmer.dart';
 import 'chat_screen.dart';
 import 'compose_screen.dart';
+import 'follows_screen.dart';
 import 'personality_screen.dart';
 import '../services/analytics_service.dart';
 
@@ -271,6 +272,25 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _openFollowList(FollowListKind kind) async {
+    final profile = _profile;
+    if (profile == null) return;
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => FollowsScreen(
+          profile: _services.profile,
+          userId: profile.id,
+          username: profile.username,
+          initialTab: kind,
+          isOwnList: profile.isOwn,
+        ),
+      ),
+    );
+    // Follows made from the lists (follow-backs, own-list unfollows)
+    // change the header counts; re-fetch to stay in sync.
+    if (mounted) _loadProfile();
+  }
+
   Future<void> _openConversation() async {
     final profile = _profile;
     if (profile == null || profile.isOwn || profile.isBlocked) return;
@@ -370,7 +390,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onFollow: _toggleFollow,
               followBusy: _followBusy,
               onMessage: _openConversation,
-              messageBusy: _messageBusy);
+              messageBusy: _messageBusy,
+              onFollowersTap: () =>
+                  _openFollowList(FollowListKind.followers),
+              onFollowingTap: () =>
+                  _openFollowList(FollowListKind.following));
         }
         if (index == 1) {
           return const Padding(
@@ -435,6 +459,8 @@ class _ProfileHeader extends StatelessWidget {
     required this.followBusy,
     required this.onMessage,
     required this.messageBusy,
+    required this.onFollowersTap,
+    required this.onFollowingTap,
   });
 
   final Profile profile;
@@ -442,6 +468,10 @@ class _ProfileHeader extends StatelessWidget {
   final bool followBusy;
   final VoidCallback onMessage;
   final bool messageBusy;
+
+  /// Open the connections screen on the tapped count.
+  final VoidCallback onFollowersTap;
+  final VoidCallback onFollowingTap;
 
   @override
   Widget build(BuildContext context) {
@@ -550,33 +580,58 @@ class _ProfileHeader extends StatelessWidget {
                               fontSize: 13)),
                     ],
                     const SizedBox(height: 10),
-                    // Follow stats (site: "N Followers - N Following").
+                    // Follow stats; each count opens the connections
+                    // screen (blocked profiles keep a plain read-only row).
                     Row(
                       children: [
-                        Text('${profile.followerCount}',
-                            style: const TextStyle(
-                                color: EnclavdColors.textPrimary,
-                                fontSize: 14)),
-                        const SizedBox(width: 4),
-                        const Text('Followers',
-                            style: TextStyle(
-                                color: EnclavdColors.textSecondary,
-                                fontSize: 14)),
-                        const SizedBox(width: 12),
+                        InkWell(
+                          onTap: profile.isBlocked ? null : onFollowersTap,
+                          borderRadius: BorderRadius.circular(6),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 4, vertical: 2),
+                            child: Row(
+                              children: [
+                                Text('${profile.followerCount}',
+                                    style: const TextStyle(
+                                        color: EnclavdColors.textPrimary,
+                                        fontSize: 14)),
+                                const SizedBox(width: 4),
+                                const Text('Followers',
+                                    style: TextStyle(
+                                        color: EnclavdColors.textSecondary,
+                                        fontSize: 14)),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
                         const Text('-',
                             style: TextStyle(
                                 color: EnclavdColors.textSecondary,
                                 fontSize: 14)),
-                        const SizedBox(width: 12),
-                        Text('${profile.followingCount}',
-                            style: const TextStyle(
-                                color: EnclavdColors.textPrimary,
-                                fontSize: 14)),
-                        const SizedBox(width: 4),
-                        const Text('Following',
-                            style: TextStyle(
-                                color: EnclavdColors.textSecondary,
-                                fontSize: 14)),
+                        const SizedBox(width: 8),
+                        InkWell(
+                          onTap: profile.isBlocked ? null : onFollowingTap,
+                          borderRadius: BorderRadius.circular(6),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 4, vertical: 2),
+                            child: Row(
+                              children: [
+                                Text('${profile.followingCount}',
+                                    style: const TextStyle(
+                                        color: EnclavdColors.textPrimary,
+                                        fontSize: 14)),
+                                const SizedBox(width: 4),
+                                const Text('Following',
+                                    style: TextStyle(
+                                        color: EnclavdColors.textSecondary,
+                                        fontSize: 14)),
+                              ],
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                     if (!profile.isOwn) ...[
