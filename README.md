@@ -61,13 +61,13 @@ CI (`.github/workflows/build.yml`) runs all builds.
 ## Layout
 
 ```
-lib/
-  main.dart                 app entry + service container
-  config/app_config.dart    build-time flavor/feature switches
-  api/                      api_client - auth_service - feed_service
-  screens/                  splash - login - register - feed
-  theme/                    Enclavd design system
-  widgets/                  post card (feed)
-test/                       unit tests (pure Dart, headless)
-assets/                     Montserrat fonts, default avatar, logo
+📂 lib/
+  📄 main.dart                 app entry + service container
+  📄 config/app_config.dart    build-time flavor/feature switches
+  📁 api/                      api_client - auth_service - feed_service
+  📁 screens/                  splash - login - register - feed
+  📁 theme/                    Enclavd design system
+  📁 widgets/                  post card (feed)
+📁 test/                       unit tests (pure Dart, headless)
+📁 assets/                     Montserrat fonts, default avatar, logo
 ```
