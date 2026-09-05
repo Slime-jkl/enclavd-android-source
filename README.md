@@ -40,19 +40,12 @@ Download Enclavd and stop existing for the feed.
 
 Every flavor-level switch is a compile-time dart-define read by
 `lib/config/app_config.dart`. The GitHub workflow applies them per flavor.
-**The app always talks to https://enclavd.com - there is no localhost build**
-(a phone can't reach a dev box; local-only verification runs against the dev
-stack via `tool/verify_live.dart` on the dev machine itself).
 
 | Flavor  | API base            | Notifications | Insecure TLS |
 |---------|---------------------|---------------|--------------|
 | `play`  | https://enclavd.com  | on            | no           |
 | `fdroid`| https://enclavd.com  | off           | no           |
 | `dev`   | https://enclavd.com  | on            | no           |
-
-To add a feature switch: add a `bool.fromEnvironment`/`String.fromEnvironment`
-in `AppConfig`, use it in code, then wire the `--dart-define` in
-`.github/workflows/build.yml` per flavor.
 
 ## Building
 
@@ -63,10 +56,7 @@ flutter test
 flutter build apk --debug --dart-define=ENCLAVD_FLAVOR=dev
 ```
 
-CI (`.github/workflows/build.yml`) runs the first three on every push to
-`native-dev` and produces APKs for all flavors. The iOS job exists but is
-gated behind the `build_ios` dispatch input (needs a macOS runner; no
-codesign yet).
+CI (`.github/workflows/build.yml`) runs all builds.
 
 ## Layout
 
