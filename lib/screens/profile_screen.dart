@@ -726,7 +726,7 @@ class _ProfileHeader extends StatelessWidget {
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(
+                  MaterialPageRoute<void>(
                     builder: (_) => PersonalityScreen(
                         userId: profile.id, username: profile.username),
                   ),
