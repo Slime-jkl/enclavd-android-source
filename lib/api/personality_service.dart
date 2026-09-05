@@ -1,18 +1,27 @@
 import 'api_client.dart';
 
-// one member's personality details for the profile
+
 class MemberPersonality {
   const MemberPersonality({
     required this.personalityType,
     required this.traits,
     required this.info,
     required this.compatibility,
+    this.profile,
+    this.viewer,
   });
 
   final String personalityType;
   final PersonalityTraits? traits; // null = no valid test row yet
   final PersonalityInfo info;
   final PersonalityCompatibility? compatibility; // null on own profile
+
+  // The member's own header (id/username/rank/avatar)
+  final PersonalityIdentity? profile;
+
+  // viewer's header; present only when compatibility is, so the
+  /// two identities can sit side by side with the synergy score between.
+  final PersonalityIdentity? viewer;
 
   factory MemberPersonality.fromJson(Map<String, dynamic> json) =>
       MemberPersonality(
@@ -26,6 +35,36 @@ class MemberPersonality {
             ? PersonalityCompatibility.fromJson(
                 json['compatibility'] as Map<String, dynamic>)
             : null,
+        profile: json['profile'] is Map<String, dynamic>
+            ? PersonalityIdentity.fromJson(json['profile'] as Map<String, dynamic>)
+            : null,
+        viewer: json['viewer'] is Map<String, dynamic>
+            ? PersonalityIdentity.fromJson(json['viewer'] as Map<String, dynamic>)
+            : null,
+      );
+}
+
+// public header of one participant (server sends root-relative avatar)
+class PersonalityIdentity {
+  const PersonalityIdentity({
+    required this.id,
+    required this.username,
+    required this.rank,
+    required this.profilePictureUrl,
+  });
+
+  final int id;
+  final String username;
+  final String rank;
+  final String profilePictureUrl;
+
+  factory PersonalityIdentity.fromJson(Map<String, dynamic> json) =>
+      PersonalityIdentity(
+        id: (json['id'] as num?)?.toInt() ?? 0,
+        username: json['username'] as String? ?? '',
+        rank: json['rank'] as String? ?? 'Member',
+        profilePictureUrl: json['profile_picture_url'] as String? ??
+            '/assets/default-avatar.png',
       );
 }
 
@@ -87,6 +126,7 @@ class PersonalityCompatibility {
     required this.theirType,
     required this.proReason,
     required this.consReason,
+    this.percentage,
   });
 
   final String myType;
@@ -94,12 +134,16 @@ class PersonalityCompatibility {
   final String proReason;
   final String consReason;
 
+  /// 0-100 synergy score
+  final int? percentage;
+
   factory PersonalityCompatibility.fromJson(Map<String, dynamic> json) =>
       PersonalityCompatibility(
         myType: json['my_type'] as String? ?? '',
         theirType: json['their_type'] as String? ?? '',
         proReason: json['pro_reason'] as String? ?? '',
         consReason: json['cons_reason'] as String? ?? '',
+        percentage: (json['percentage'] as num?)?.toInt(),
       );
 }
 

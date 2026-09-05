@@ -782,8 +782,7 @@ class _ProfileHeader extends StatelessWidget {
               OutlinedButton.icon(
                 onPressed: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) => PersonalityScreen(
-                        userId: profile.id, username: profile.username),
+                    builder: (_) => PersonalityScreen(userId: profile.id),
                   ),
                 ),
                 icon: const FaIcon(FontAwesomeIcons.brain,
