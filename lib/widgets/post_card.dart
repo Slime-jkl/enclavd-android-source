@@ -69,6 +69,24 @@ class _PostCardState extends State<PostCard> {
   }
 
   @override
+  void didUpdateWidget(covariant PostCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Cards are keyed by post id, so a refresh swaps in a fresh Post and
+    // keeps this State. Adopt its server counts, or a reload never shows
+    // likes/comments made elsewhere. Skip while a like toggle is in
+    // flight: its response is authoritative and lands right after.
+    final old = oldWidget.post;
+    final fresh = widget.post;
+    if (!_likeBusy) {
+      if (old.userLiked != fresh.userLiked) _liked = fresh.userLiked;
+      if (old.likeCount != fresh.likeCount) _likeCount = fresh.likeCount;
+    }
+    if (old.commentCount != fresh.commentCount) {
+      _commentCount = fresh.commentCount;
+    }
+  }
+
+  @override
   void dispose() {
     super.dispose();
   }

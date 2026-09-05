@@ -14,6 +14,7 @@ Post _post({
   bool userLiked = false,
   String content = 'hello world',
   String? image,
+  int commentCount = 0,
 }) =>
     Post.fromJson({
       'id': id,
@@ -22,7 +23,7 @@ Post _post({
       'created_at': '2026-08-20 09:00:00',
       'feed_score': 1.5,
       'like_count': likeCount,
-      'comment_count': 0,
+      'comment_count': commentCount,
       'user_liked': userLiked,
       'warning_count': 0,
       'username': 'Dev',
@@ -161,6 +162,51 @@ void main() {
       expect(social.toggleCalls, 0,
           reason: 'double-tap is like-only, never an unlike');
       expect(find.text('Liked by 1'), findsOneWidget);
+    });
+  });
+
+  group('refresh reconciliation (feed cards are keyed by post id)', () {
+    testWidgets('a reloaded Post updates card counts and liked state',
+        (tester) async {
+      final social = _FakeSocial();
+      Future<void> pump(Post post) async {
+        await tester.pumpWidget(MaterialApp(
+          theme: buildEnclavdTheme(),
+          home: Scaffold(
+            body: PostCard(
+              // Same key the feed uses: a refresh reuses the State, so
+              // only didUpdateWidget can surface the fresh numbers.
+              key: ValueKey(post.id),
+              post: post,
+              apiBaseUrl: 'https://example.com',
+              social: social,
+            ),
+          ),
+        ));
+      }
+
+      await pump(_post(likeCount: 2, commentCount: 1));
+      expect(find.text('Liked by 2'), findsOneWidget);
+      expect(tester.widget<FaIcon>(heart()).color,
+          EnclavdColors.textSecondary);
+
+      // Pull-to-refresh returns the same id with server-fresh numbers.
+      await pump(_post(likeCount: 5, userLiked: true, commentCount: 3));
+      expect(find.text('Liked by 5'), findsOneWidget,
+          reason: 'fresh like count adopted after refresh');
+      expect(find.text('Liked by 2'), findsNothing);
+      expect(find.text('3'), findsOneWidget,
+          reason: 'fresh comment count adopted after refresh');
+      expect(tester.widget<FaIcon>(heart()).color, EnclavdColors.likeActive,
+          reason: 'fresh liked state adopted after refresh');
+
+      // Another refresh: someone unliked meanwhile.
+      await pump(_post(likeCount: 4, userLiked: false, commentCount: 3));
+      expect(find.text('Liked by 4'), findsOneWidget);
+      expect(find.text('Liked by 5'), findsNothing);
+      expect(tester.widget<FaIcon>(heart()).color,
+          EnclavdColors.textSecondary,
+          reason: 'fresh unliked state adopted after refresh');
     });
   });
 
