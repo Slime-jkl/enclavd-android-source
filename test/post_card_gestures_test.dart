@@ -100,20 +100,20 @@ void main() {
     return social;
   }
 
-  group('like gestures (site parity)', () {
-    testWidgets('tap on an UNLIKED heart does not like - shows the hint',
-        (tester) async {
+  group('like gestures', () {
+    testWidgets('tap on an UNLIKED heart likes it', (tester) async {
       final social = await pumpPost(tester, _post());
 
       await tester.tap(heart());
       // The ancestor double-tap recognizer delays single taps ~300ms.
       await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 800));
 
-      expect(social.toggleCalls, 0,
-          reason: 'tapping an unliked heart must not like');
-      expect(
-          find.text('Drag the heart onto the post to like it'), findsOneWidget,
-          reason: 'site tooltip hint');
+      expect(social.toggleCalls, 1,
+          reason: 'a plain tap on the heart is a like');
+      expect(find.text('Liked by 1'), findsOneWidget,
+          reason: 'optimistic count then reconcile');
     });
 
     testWidgets('tap on a LIKED heart unlikes', (tester) async {
@@ -129,46 +129,8 @@ void main() {
 
       expect(social.toggleCalls, 1,
           reason: 'tap on a liked heart toggles (unlike)');
-    });
-
-    testWidgets(
-        'holding the heart shows the drop tray; release without '
-        'dropping does not like', (tester) async {
-      final social = await pumpPost(tester, _post());
-
-      final g = await tester.startGesture(tester.getCenter(heart()));
-      await tester.pump(const Duration(milliseconds: 600)); // long-press
-      await tester.pump();
-
-      expect(find.text('Drag the heart here to like'), findsOneWidget,
-          reason: 'drop tray appears while the heart is held');
-
-      await g.up();
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 800));
-      expect(social.toggleCalls, 0,
-          reason: 'release without dropping is not a like');
-    });
-
-    testWidgets('dragging the heart onto the post likes it', (tester) async {
-      final social = await pumpPost(tester, _post());
-
-      final g = await tester.startGesture(tester.getCenter(heart()));
-      await tester.pump(const Duration(milliseconds: 600)); // long-press
-      await tester.pump();
-      // Drag the heart onto the CONTENT text (the DragTarget region).
-      final target = tester.getCenter(find.text('hello world'));
-      final origin = tester.getCenter(heart());
-      await g.moveBy(target - origin);
-      await tester.pump();
-      await g.up();
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 800));
-
-      expect(social.toggleCalls, 1,
-          reason: 'dropping the heart on the post likes it');
-      expect(find.text('Liked by 1'), findsOneWidget,
-          reason: 'optimistic count then reconcile');
+      expect(find.textContaining('Liked by'), findsNothing,
+          reason: 'count reconciled to 0');
     });
 
     testWidgets('double-tap on the post likes it', (tester) async {
@@ -182,6 +144,23 @@ void main() {
       await tester.pump(const Duration(milliseconds: 800));
 
       expect(social.toggleCalls, 1, reason: 'double-tap likes (like-only)');
+    });
+
+    testWidgets('double-tap on an already-liked post never unlikes',
+        (tester) async {
+      final social =
+          await pumpPost(tester, _post(likeCount: 1, userLiked: true));
+
+      await tester.tap(find.byType(PostCard));
+      await tester.pump(const Duration(milliseconds: 80));
+      await tester.tap(find.byType(PostCard));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 800));
+
+      expect(social.toggleCalls, 0,
+          reason: 'double-tap is like-only, never an unlike');
+      expect(find.text('Liked by 1'), findsOneWidget);
     });
   });
 

@@ -60,9 +60,6 @@ class _PostCardState extends State<PostCard> {
   // Heart-burst overlay on double-tap.
   bool _burst = false;
 
-  // Drag-to-like tray while the heart is held.
-  bool _dragActive = false;
-
   @override
   void initState() {
     super.initState();
@@ -113,21 +110,7 @@ class _PostCardState extends State<PostCard> {
   }
 
   void _onHeartTap() {
-    if (_likeBusy) return;
-    if (_liked) {
-      _toggleLike();
-    } else {
-      _toast('Drag the heart onto the post to like it');
-    }
-  }
-
-  void _beginDrag() {
-    if (_liked || _likeBusy) return;
-    setState(() => _dragActive = true);
-  }
-
-  void _endDrag() {
-    if (mounted) setState(() => _dragActive = false);
+    _toggleLike();
   }
 
   void _showBurst() {
@@ -231,26 +214,22 @@ class _PostCardState extends State<PostCard> {
                     ),
                   ],
                   const SizedBox(height: 8),
-                  // Drop target is the content area (text + image) only.
-                  DragTarget<String>(
-                    onAcceptWithDetails: (_) => _likeFromGesture(),
-                    builder: (context, candidates, rejected) => Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        _PostContent(post: widget.post),
-                        // First YouTube link in the post renders between
-                        // the text and the image.
-                        if (extractYouTubeId(widget.post.content) case final id?)
-                          _YouTubeEmbed(
-                              videoId: id, apiBaseUrl: widget.apiBaseUrl),
-                        if (widget.post.image != null &&
-                            widget.post.image!.isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          PostImage(
-                              post: widget.post, apiBaseUrl: widget.apiBaseUrl),
-                        ],
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _PostContent(post: widget.post),
+                      // First YouTube link in the post renders between
+                      // the text and the image.
+                      if (extractYouTubeId(widget.post.content) case final id?)
+                        _YouTubeEmbed(
+                            videoId: id, apiBaseUrl: widget.apiBaseUrl),
+                      if (widget.post.image != null &&
+                          widget.post.image!.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        PostImage(
+                            post: widget.post, apiBaseUrl: widget.apiBaseUrl),
                       ],
-                    ),
+                    ],
                   ),
                   const Divider(height: 8),
                   _ActionRow(
@@ -260,8 +239,6 @@ class _PostCardState extends State<PostCard> {
                     onLike: _onHeartTap,
                     onLikers: _openLikers,
                     onComments: _openComments,
-                    onDragStarted: _beginDrag,
-                    onDragEnded: _endDrag,
                   ),
                   if (widget.post.hasDomain) ...[
                     const Divider(height: 12),
@@ -301,47 +278,6 @@ class _PostCardState extends State<PostCard> {
                 ],
               ),
             ),
-            // Darken the card + drop hint while the heart is held.
-            if (_dragActive)
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: Container(
-                    color: const Color(0xFF0F172A).withValues(alpha: 0.6),
-                    alignment: Alignment.center,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 28, vertical: 12),
-                      child: CustomPaint(
-                        painter: _DashedBorderPainter(
-                          color: const Color(0xFFF87171).withValues(alpha: 0.9),
-                          radius: BorderRadius.circular(12),
-                          dashLength: 6,
-                        ),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 10),
-                          decoration: BoxDecoration(
-                            color:
-                                const Color(0xFF0F172A).withValues(alpha: 0.75),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Center(
-                            child: Text(
-                              'Drag the heart here to like',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: Color(0xFFFECACA), // red-200
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
             // Heart burst on double-tap (site's showHeartAnimation).
             if (_burst)
               const Positioned.fill(
@@ -864,8 +800,6 @@ class _ActionRow extends StatelessWidget {
     required this.onLike,
     required this.onLikers,
     required this.onComments,
-    required this.onDragStarted,
-    required this.onDragEnded,
   });
 
   final bool liked;
@@ -874,8 +808,6 @@ class _ActionRow extends StatelessWidget {
   final VoidCallback onLike;
   final VoidCallback onLikers;
   final VoidCallback onComments;
-  final VoidCallback onDragStarted;
-  final VoidCallback onDragEnded;
 
   @override
   Widget build(BuildContext context) {
@@ -884,15 +816,12 @@ class _ActionRow extends StatelessWidget {
         Expanded(
           child: Row(
             children: [
-              // Hold to drag onto the content to like; a plain tap never likes.
-              // Grab faster than the default 500ms long-press.
-              LongPressDraggable<String>(
-                delay: const Duration(milliseconds: 300),
-                data: 'like',
-                feedback: const FaIcon(FontAwesomeIcons.heart,
-                    color: EnclavdColors.likeActive, size: 40),
-                childWhenDragging: Opacity(
-                  opacity: 0.3,
+              InkWell(
+                onTap: onLike,
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                   child: FaIcon(
                     FontAwesomeIcons.heart,
                     key: const ValueKey('like-heart'),
@@ -900,25 +829,6 @@ class _ActionRow extends StatelessWidget {
                         ? EnclavdColors.likeActive
                         : EnclavdColors.textSecondary,
                     size: 20,
-                  ),
-                ),
-                onDragStarted: onDragStarted,
-                onDragEnd: (_) => onDragEnded(),
-                onDraggableCanceled: (_, __) => onDragEnded(),
-                child: InkWell(
-                  onTap: onLike,
-                  borderRadius: BorderRadius.circular(8),
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                    child: FaIcon(
-                      FontAwesomeIcons.heart,
-                      key: const ValueKey('like-heart'),
-                      color: liked
-                          ? EnclavdColors.likeActive
-                          : EnclavdColors.textSecondary,
-                      size: 20,
-                    ),
                   ),
                 ),
               ),
@@ -1215,38 +1125,4 @@ class _PlayerOverlayButton extends StatelessWidget {
       ),
     );
   }
-}
-
-class _DashedBorderPainter extends CustomPainter {
-  const _DashedBorderPainter({
-    required this.color,
-    required this.radius,
-    required this.dashLength,
-  });
-
-  final Color color;
-  final BorderRadius radius;
-  final double dashLength;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-    final path = Path()
-      ..addRRect(RRect.fromRectAndRadius(Offset.zero & size, radius.topLeft));
-    for (final metric in path.computeMetrics()) {
-      var d = 0.0;
-      while (d < metric.length) {
-        final end = math.min(d + dashLength, metric.length);
-        canvas.drawPath(metric.extractPath(d, end), paint);
-        d += dashLength * 2;
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(_DashedBorderPainter oldDelegate) =>
-      oldDelegate.color != color || oldDelegate.radius != radius;
 }
