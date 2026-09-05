@@ -1,7 +1,7 @@
 # Enclavd - Personality Social Network
 <img src="fastlane/metadata/android/en-US/images/featureGraphic.png">
 
-Stop broadcasting into the void. Enclavd is a private social network built on compatibility. Take a personality quiz, get matched with people on your wavelength, and connect through a feed built around who you actually are.
+Stop broadcasting into the void. Enclavd is a rivate social network built on compatibility. Take a personality quiz, get matched with people on your wavelength, and connect through a feed built around who you actually are.
 
 <b>CORE PRINCIPLES</b>
 
@@ -62,12 +62,12 @@ CI (`.github/workflows/build.yml`) runs all builds.
 
 ```
 📂 lib/
-  📄 main.dart                 app entry + service container
-  📄 config/app_config.dart    build-time flavor/feature switches
+  📄 main.dart                 App entry + service container
+  📄 config/app_config.dart    Build-time flavor/feature switches
   📁 api/                      api_client - auth_service - feed_service
-  📁 screens/                  splash - login - register - feed
-  📁 theme/                    Enclavd design system
-  📁 widgets/                  post card (feed)
-📁 test/                       unit tests (pure Dart, headless)
-📁 assets/                     Montserrat fonts, default avatar, logo
+  📁 screens/                  Splash - login - register - feed
+  📁 theme/                    Design system
+  📁 widgets/                  Post Card (Feed)
+📁 test/                       Unit Tests (pure Dart, headless)
+📁 assets/                     Fonts, default avatar, logo
 ```
