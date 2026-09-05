@@ -1,6 +1,6 @@
 import 'api_client.dart';
 
-/// Site-wide config from GET /api/v1/site_config (public, no auth).
+// site-wide config from GET /api/v1/site_config (public, no auth)
 class SiteConfig {
   const SiteConfig({
     required this.isInvitationRequired,
@@ -8,22 +8,33 @@ class SiteConfig {
     required this.maintenance,
     required this.rateLimit,
     this.nav = const [],
+    this.features = const {},
   });
 
   final bool isInvitationRequired;
-
-  /// New accounts must confirm their email before they can log in
-  /// (site_config.php require_email_verification); the register flow
-  /// shows the verify-email screen after signup when this is true.
   final bool requireEmailVerification;
-
   final MaintenanceConfig maintenance;
   final RateLimitConfig rateLimit;
 
-  /// The site's global nav rules (site_config.php $nav_links), in order:
-  /// which pages exist, their labels and the public-visibility flag. The
-  /// app renders its menu from this list.
+  /*
+  The site's global nav rules (site config & nav_links), in order:
+  which pages exist, their labels and the public-visibility flag. The
+  app renders its menu from this list.
+  */
   final List<NavLink> nav;
+
+  final Map<String, String> features;
+
+  String feature(String key) => features[key] ?? 'on';
+
+  // Whether the feature renders for this user: 'on' for everyone,
+  // 'off' for nobody, 'debug' for admins only.
+  bool featureEnabled(String key, {required bool isAdmin}) {
+    final state = feature(key);
+    if (state == 'off') return false;
+    if (state == 'debug') return isAdmin;
+    return true;
+  }
 
   factory SiteConfig.fromJson(Map<String, dynamic> json) => SiteConfig(
         isInvitationRequired: json['isInvitationRequired'] as bool? ?? false,
@@ -40,27 +51,24 @@ class SiteConfig {
                 (e as Map?)?.cast<String, dynamic>() ?? const {}))
             .toList() ??
             const [],
+        features: (json['features'] as Map?)
+            ?.map<String, String>((k, v) => MapEntry('$k', '$v')) ??
+            const {},
       );
 }
 
-/// One navigation entry (site_config.php $nav_links) - the site's global
-/// nav rules. 'public' entries are shown to logged-out visitors; logged-in
-/// users see every entry (the same rule header.php applies).
 class NavLink {
   const NavLink({
     required this.url,
     required this.text,
     required this.public,
   });
-
-  /// Clean-URL key of the page ('', 'articles', 'domain', ...). The app
-  /// maps each known url to its native screen; unknown urls are skipped.
+/*
+ * clean URL key of the page ('', 'articles', 'domain', ..etc). The app
+ * maps each known url to its native screen; unknown urls are skipped
+*/
   final String url;
-
-  /// Display label (site_config.php $link['text']).
   final String text;
-
-  /// Shown to guests when true; the app renders it when public || logged in.
   final bool public;
 
   factory NavLink.fromJson(Map<String, dynamic> json) => NavLink(
@@ -70,7 +78,7 @@ class NavLink {
       );
 }
 
-/// Maintenance-mode settings (site_config.php 'maintenance').
+/// Maintenance-mode settings on/off remotely in site config.
 class MaintenanceConfig {
   const MaintenanceConfig({
     required this.enabled,
@@ -81,7 +89,7 @@ class MaintenanceConfig {
 
   final bool enabled;
 
-  /// accounts.rank values that may use the app during maintenance.
+  // user rank values that may use the app during maintenance.
   final List<String> allowedRanks;
   final String reason;
   final String estTime;
@@ -96,7 +104,7 @@ class MaintenanceConfig {
       );
 }
 
-/// Rate-limiting settings (site_config.php 'rate_limit').
+// eate-limiting settings (site config 'rate_limit').
 class RateLimitConfig {
   const RateLimitConfig({
     required this.enabled,
@@ -109,7 +117,7 @@ class RateLimitConfig {
 
   final bool enabled;
 
-  /// Seconds to wait, keyed by the failed-attempt number (1-indexed).
+  // Seconds to wait, keyed by the failed-attempt number
   final Map<int, int> cooldowns;
   final int captchaAt;
   final int lockAt;
@@ -135,8 +143,8 @@ class RateLimitConfig {
   }
 }
 
-/// Live rate-limit state for one context (login|register), from
-/// GET /api/v1/auth?action=rate_state&context=...
+// Live rate-limit state for one context login/register, from
+// GET /api/v1/auth?action=rate_state&context=...
 class RateLimitState {
   const RateLimitState({
     required this.blocked,
@@ -149,21 +157,21 @@ class RateLimitState {
 
   final bool blocked;
 
-  /// Seconds remaining in the current cooldown (0 = none).
+  // Seconds remaining in the current cooldown
   final int cooldown;
   final bool needsCaptcha;
 
-  /// Captcha already solved in this cooldown window.
+  // Captcha already solved in this cooldown window
   final bool captchaOk;
 
-  /// Seconds until an IP hard-lock expires (0 = not locked).
+  // Seconds until an IP hard-lock expires
   final int lockRemaining;
   final String? captchaQuestion;
 
-  /// The user must answer the captcha on the next submit.
+  // The user must answer the captcha on the next submit
   bool get captchaRequired => needsCaptcha && !captchaOk;
 
-  /// How long to wait before the next attempt (cooldown or lock).
+  // How long to wait before the next attempt (cooldown or lock).
   int get waitSeconds => blocked ? lockRemaining : cooldown;
 
   factory RateLimitState.fromJson(Map<String, dynamic> json) =>
@@ -178,13 +186,13 @@ class RateLimitState {
       );
 }
 
-/// SiteConfigService: public site config + live rate-limit state.
+// SiteConfigService: public site config + live rate-limit state.
 class SiteConfigService {
   SiteConfigService(this._api);
 
   final ApiClient _api;
 
-  /// Public site config (invitation requirement, maintenance, rate limits).
+  // Public site config [ invitation requirement, maintenance, rate limits ]
   Future<SiteConfig> fetch() async {
     final json = await _api.getJson('/api/v1/site_config');
     final config = json['config'];
@@ -194,7 +202,7 @@ class SiteConfigService {
     return SiteConfig.fromJson(config);
   }
 
-  /// Current rate-limit state for a context ('login' or 'register').
+  // Current rate-limit state for a context login/register
   Future<RateLimitState> rateState(String context) async {
     final json = await _api.getJson(
       '/api/v1/auth',

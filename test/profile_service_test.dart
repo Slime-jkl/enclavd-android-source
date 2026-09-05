@@ -441,6 +441,109 @@ void main() {
     });
   });
 
+  group('ProfileService.listFollows', () {
+    test('followers: builds the query and parses rows + totals', () async {
+      String? query;
+      final h = await Harness.start((req) async {
+        if (req.uri.path == '/api/v1/profile') {
+          query = req.uri.query;
+          Harness.respond(
+            req,
+            body: jsonEncode({
+              'success': true,
+              'users': [
+                {
+                  'id': 3,
+                  'username': 'df4fwr3',
+                  'full_name': 'Test User',
+                  'profile_picture_url': '/public/avatars/a.jpg',
+                  'personality_type': 'INTP',
+                  'rank': 'Member',
+                  'bio': 'hi',
+                  'is_active': 'true',
+                  'is_online': false,
+                  'is_following': true,
+                  'is_following_you': false,
+                  'is_own': false,
+                },
+                {
+                  'id': 9,
+                  'username': 'Bad',
+                  'full_name': '',
+                  'profile_picture_url': '/assets/default-avatar.png',
+                  'personality_type': null,
+                  'rank': 'Member',
+                  'bio': '',
+                  'is_active': 'false',
+                  'is_online': false,
+                  'is_following': false,
+                  'is_following_you': true,
+                  'is_own': true,
+                },
+              ],
+              'total': 2,
+              'has_more': false,
+            }),
+          );
+        } else {
+          Harness.respond(req, status: 404);
+        }
+      });
+
+      final page = await ProfileService(h.client).listFollows(
+          userId: 7, kind: FollowListKind.followers);
+      expect(query, 'user_id=7&list=followers&limit=20&offset=0');
+      expect(page.users, hasLength(2));
+      expect(page.total, 2);
+      expect(page.hasMore, isFalse);
+      final first = page.users.first;
+      expect(first.id, 3);
+      expect(first.username, 'df4fwr3');
+      expect(first.fullName, 'Test User');
+      expect(first.personalityType, 'INTP');
+      expect(first.isFollowing, isTrue);
+      expect(first.isBlocked, isFalse);
+      final second = page.users[1];
+      expect(second.isBlocked, isTrue);
+      expect(second.isFollowingYou, isTrue);
+      expect(second.isOwn, isTrue);
+
+      await h.close();
+    });
+
+    test('following: pagination params pass through', () async {
+      String? query;
+      final h = await Harness.start((req) async {
+        if (req.uri.path == '/api/v1/profile') {
+          query = req.uri.query;
+          Harness.respond(
+            req,
+            body: jsonEncode({
+              'success': true,
+              'users': <Object>[],
+              'total': 15,
+              'has_more': true,
+            }),
+          );
+        } else {
+          Harness.respond(req, status: 404);
+        }
+      });
+
+      final page = await ProfileService(h.client).listFollows(
+          userId: 1,
+          kind: FollowListKind.following,
+          limit: 5,
+          offset: 5);
+      expect(query, 'user_id=1&list=following&limit=5&offset=5');
+      expect(page.users, isEmpty);
+      expect(page.total, 15);
+      expect(page.hasMore, isTrue);
+
+      await h.close();
+    });
+  });
+
   group('formatJoinedDate', () {
     test("ports profile.php's 'M j, Y'", () {
       expect(formatJoinedDate('2024-11-20 21:05:59'), 'Nov 20, 2024');
