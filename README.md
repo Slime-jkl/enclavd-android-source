@@ -5,25 +5,16 @@ Stop broadcasting into the void. Enclavd is a private social network built on co
 
 <b>CORE PRINCIPLES</b>
 
-<b>Personality over Popularity:</b> Your feed is filtered by personality. Find people who are on the same frequency.
+<b>Personality Types:</b> Your feed is filtered by personality. Find people who are on the same frequency.
 
-<b>Private by Design:</b> Your profile and activity exist inside a closed network. No public indexing, no search engine scraping, no exposure.
+<b>Quality Content:</b> We maintain high quality standards for content, removing spam and curating the feed.
 
-<b>Invite-Only Network:</b> Enclavd grows through trusted invitations only. No open sign-ups, no bot accounts, no spam profiles cluttering your feed.
-
-<b>Minimalist Interface:</b> A clean, stripped-back design built for focus, with nothing competing for your attention except the people you're actually connecting with.
-
-<b>Free to Join:</b> Enclavd is free to download and use, with no barriers to finding your community.
+<b>Clean Interface:</b> A clean, stripped-back design built for focus, with nothing competing for your attention.
 
 <b>WHO ENCLAVD IS FOR</b>
-- You're tired of social media feeds built around outrage and engagement bait.
-
-- You want a private social network instead of a public profile anyone can scrape.
-
-- You're looking for real conversations and genuine compatibility, not more followers.
-
-- You'd rather join through a trusted invite than scroll past strangers and bots.
-Enclavd is a social network for people who want depth over reach.
+- You're tired of social media feeds.
+- You're looking for real conversations.
+- You'd rather join through a trusted network than scroll past bots.
 
 
 Take the quiz. Find your matches. Build your enclave.
