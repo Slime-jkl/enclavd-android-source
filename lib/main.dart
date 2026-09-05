@@ -16,6 +16,7 @@ import 'api/invitations_service.dart';
 import 'api/messages_service.dart';
 import 'api/notifications_service.dart';
 import 'api/personality_test_service.dart';
+import 'api/personality_service.dart';
 import 'api/posts_service.dart';
 import 'api/profile_service.dart';
 import 'api/reports_service.dart';
@@ -124,7 +125,7 @@ class AppServices {
       this.posts, this.messages, this.notifications, this.search,
       this.realtime, this.messageAlerts, this.articles, this.domains,
       this.results, this.invitations, this.reports, this.personalityTest,
-      this.siteConfig, this.votes, this.diary);
+      this.personality, this.siteConfig, this.votes, this.diary);
 
   final ApiClient apiClient;
   final AuthService auth;
@@ -143,6 +144,7 @@ class AppServices {
   final InvitationsService invitations;
   final ReportsService reports;
   final PersonalityTestService personalityTest;
+  final PersonalityService personality;
   final SiteConfigService siteConfig;
   final VotesService votes;
   final DiaryService diary;
@@ -222,6 +224,7 @@ class AppServices {
         InvitationsService(api),
         ReportsService(api),
         PersonalityTestService(api),
+        PersonalityService(api),
         SiteConfigService(api),
         VotesService(api),
         DiaryService(api));

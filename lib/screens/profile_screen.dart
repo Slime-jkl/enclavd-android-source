@@ -16,6 +16,7 @@ import '../widgets/rank_badge.dart';
 import '../widgets/shimmer.dart';
 import 'chat_screen.dart';
 import 'compose_screen.dart';
+import 'personality_screen.dart';
 import '../services/analytics_service.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -719,6 +720,26 @@ class _ProfileHeader extends StatelessWidget {
             if (profile.warnings.isNotEmpty) ...[
               const SizedBox(height: 12),
               for (final w in profile.warnings) _WarningCard(warning: w),
+            ],
+            // View personality
+            if (profile.personalityType != null) ...[
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => PersonalityScreen(
+                        userId: profile.id, username: profile.username),
+                  ),
+                ),
+                icon: const FaIcon(FontAwesomeIcons.brain,
+                    size: 14, color: EnclavdColors.link),
+                label: const Text('View personality'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: EnclavdColors.link,
+                  side: const BorderSide(color: EnclavdColors.border),
+                  minimumSize: const Size.fromHeight(44),
+                ),
+              ),
             ],
           ],
         ),
