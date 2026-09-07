@@ -1,6 +1,7 @@
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
 
+import '../api/activity_service.dart';
 import '../api/api_client.dart';
 import '../api/auth_service.dart';
 import '../api/feed_service.dart';
@@ -8,6 +9,7 @@ import '../api/profile_service.dart';
 import '../config/app_config.dart';
 import '../main.dart';
 import '../theme/enclavd_theme.dart';
+import '../widgets/activity_card.dart';
 import '../widgets/enclavd_avatar.dart';
 import '../widgets/error_view.dart';
 import '../widgets/personality_chip.dart';
@@ -18,6 +20,7 @@ import 'chat_screen.dart';
 import 'compose_screen.dart';
 import 'follows_screen.dart';
 import 'personality_screen.dart';
+import 'post_detail_screen.dart';
 import '../services/analytics_service.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -45,6 +48,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _postsLoading = false;
   bool _postsInitialLoadDone = false;
   String? _postsError;
+
+  // Own-profile Activity tab (interaction history). Lazy: the feed only
+  // loads once the tab is first opened.
+  bool _activityTab = false;
+  bool _activityLoadDone = false;
+  final List<ActivityItem> _activity = [];
+  bool _activityLoading = false; // first load / refresh in flight
+  bool _activityLoadingMore = false;
+  bool _activityHasMore = false;
+  String? _activityError;
 
   final _scrollController = ScrollController();
 
@@ -147,11 +160,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _onScroll() {
-    if (_postsLoading || !_postsInitialLoadDone) return;
     final position = _scrollController.position;
-    if (position.pixels >= position.maxScrollExtent - 400) {
-      _loadNextPosts();
+    if (position.pixels < position.maxScrollExtent - 400) return;
+    if (_activityTab) {
+      if (_activityLoadDone &&
+          !_activityLoading &&
+          !_activityLoadingMore &&
+          _activityHasMore &&
+          _activityError == null) {
+        _loadNextActivity();
+      }
+      return;
     }
+    if (_postsLoading || !_postsInitialLoadDone) return;
+    _loadNextPosts();
   }
 
   Future<void> _loadNextPosts() async {
@@ -177,7 +199,109 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Future<void> _refresh() => _loadAll();
+  /// Loads (or refreshes) the first activity page. The tab is only
+  /// reachable on the own profile, so the response is always this user's.
+  Future<void> _loadFirstActivity() async {
+    if (_activityLoading) return;
+    setState(() {
+      _activityLoading = true;
+      _activityError = null;
+    });
+    try {
+      final page = await _services.activity.fetch(
+        limit: AppConfig.feedPageSize,
+      );
+      if (!mounted) return;
+      setState(() {
+        _activity
+          ..clear()
+          ..addAll(page.items);
+        _activityHasMore = page.hasMore;
+        _activityLoading = false;
+        _activityLoadDone = true;
+      });
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _activityLoading = false;
+        _activityLoadDone = true;
+        _activityError = e.status == 401
+            ? 'Session expired. Please log in again.'
+            : e.message;
+      });
+      if (e.status == 401) {
+        await _services.apiClient.clearSession();
+        if (mounted) {
+          Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
+        }
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _activityLoading = false;
+        _activityLoadDone = true;
+        _activityError = 'Failed to load activity.';
+      });
+    }
+  }
+
+  Future<void> _loadNextActivity() async {
+    if (_activityLoadingMore || !_activityHasMore) return;
+    setState(() => _activityLoadingMore = true);
+    try {
+      final page = await _services.activity.fetch(
+        limit: AppConfig.feedPageSize,
+        offset: _activity.length,
+      );
+      if (!mounted) return;
+      setState(() {
+        _activity.addAll(page.items);
+        _activityHasMore = page.hasMore;
+        _activityLoadingMore = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _activityLoadingMore = false);
+    }
+  }
+
+  void _selectTab(bool activity) {
+    if (activity == _activityTab) return;
+    setState(() => _activityTab = activity);
+    trackScreen(activity ? '/activity' : '/profile');
+    // Different content under the header: restart at the top.
+    if (_scrollController.hasClients) {
+      _scrollController.jumpTo(0);
+    }
+    if (activity && !_activityLoadDone) {
+      _loadFirstActivity();
+    }
+  }
+
+  void _openActivityItem(ActivityItem item) {
+    if (item.type != ActivityType.follow && item.post != null) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => PostDetailScreen(postId: item.post!.id),
+        ),
+      );
+      return;
+    }
+    final user = item.user;
+    if (user != null && !user.isOwn) {
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => ProfileScreen(userId: user.id),
+        ),
+      );
+    }
+  }
+
+  Future<void> _refresh() async {
+    await _loadAll();
+    // Keep a loaded activity tab true after pull-to-refresh.
+    if (_activityLoadDone) await _loadFirstActivity();
+  }
 
   Future<void> _editPost(Post post) async {
     final saved = await Navigator.of(context).push<bool>(
@@ -359,14 +483,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildBody(Profile? profile) {
     if (_profileLoading) {
+      final activitySkeleton = (profile?.isOwn ?? false) && _activityTab;
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(12),
-        children: const [
-          _ProfileHeaderSkeleton(),
-          SizedBox(height: 16),
-          PostCardSkeleton(),
-          PostCardSkeleton(),
+        children: [
+          const _ProfileHeaderSkeleton(),
+          const SizedBox(height: 16),
+          if (activitySkeleton) ...[
+            const ActivityCardSkeleton(),
+            const SizedBox(height: 8),
+            const ActivityCardSkeleton(),
+            const SizedBox(height: 8),
+            const ActivityCardSkeleton(),
+          ] else ...[
+            const PostCardSkeleton(),
+            const PostCardSkeleton(),
+          ],
         ],
       );
     }
@@ -374,10 +507,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return ErrorView(message: _profileError!, onRetry: _loadAll);
     }
 
-    final showEmptyState =
-        !_postsLoading && _postsError == null && _posts.isEmpty;
-    final itemCount =
-        2 + _posts.length + (showEmptyState ? 1 : 0) + (_postsLoading ? 1 : 0);
+    final isOwn = profile?.isOwn ?? false;
+    final onActivity = isOwn && _activityTab;
+    final listLength = onActivity ? _activity.length : _posts.length;
+    final footer = onActivity ? _activityFooter() : _postsFooter();
+    final itemCount = 2 + listLength + (footer != null ? 1 : 0);
     return ListView.builder(
       controller: _scrollController,
       physics: const AlwaysScrollableScrollPhysics(),
@@ -397,45 +531,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _openFollowList(FollowListKind.following));
         }
         if (index == 1) {
+          // The own profile splits its history into two tabs; other
+          // members keep the plain posts heading.
+          if (isOwn) {
+            return _ProfileTabRow(
+              activity: onActivity,
+              onSelect: _selectTab,
+            );
+          }
           return const Padding(
             padding: EdgeInsets.only(top: 12, bottom: 4),
             child: Text('Posts',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           );
         }
-        if (index >= 2 + _posts.length) {
-          // Footer: inline shimmer on the next page, or the posts error.
-          if (_postsError != null && _posts.isEmpty) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 24),
-              child: Column(
-                children: [
-                  Text(_postsError!,
-                      textAlign: TextAlign.center,
-                      style:
-                          const TextStyle(color: EnclavdColors.textSecondary)),
-                  const SizedBox(height: 12),
-                  ElevatedButton(
-                      onPressed: _loadFirstPosts, child: const Text('Retry')),
-                ],
-              ),
-            );
-          }
-          if (showEmptyState) {
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 28),
-              child: Center(
-                child: Text(
-                  'This user has no posts.',
-                  style: TextStyle(
-                      color: EnclavdColors.textSecondary, fontSize: 14),
-                ),
-              ),
-            );
-          }
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 12),
-            child: Center(child: ShimmerBox(width: 160, height: 22)),
+        if (index >= 2 + listLength) {
+          return footer!;
+        }
+        if (onActivity) {
+          final item = _activity[index - 2];
+          return ActivityCard(
+            key: ValueKey('activity-${item.type.wire}-${item.id}'),
+            item: item,
+            onTap: () => _openActivityItem(item),
           );
         }
         return PostCard(
@@ -448,6 +566,186 @@ class _ProfileScreenState extends State<ProfileScreen> {
           onDeletePost: _deletePost,
         );
       },
+    );
+  }
+
+  /// Posts-list footer: first-page error, empty state, or the next-page
+  /// shimmer. Null when the list is complete on screen.
+  Widget? _postsFooter() {
+    if (_postsError != null && _posts.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Column(
+          children: [
+            Text(_postsError!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: EnclavdColors.textSecondary)),
+            const SizedBox(height: 12),
+            ElevatedButton(
+                onPressed: _loadFirstPosts, child: const Text('Retry')),
+          ],
+        ),
+      );
+    }
+    final showEmptyState =
+        !_postsLoading && _postsError == null && _posts.isEmpty;
+    if (showEmptyState) {
+      final own = _profile?.isOwn ?? false;
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 28),
+        child: Center(
+          child: Text(
+            own ? 'No posts yet.' : 'This user has no posts.',
+            style: const TextStyle(
+                color: EnclavdColors.textSecondary, fontSize: 14),
+          ),
+        ),
+      );
+    }
+    if (_postsLoading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: Center(child: ShimmerBox(width: 160, height: 22)),
+      );
+    }
+    return null;
+  }
+
+  /// Activity-tab footer: first-visit skeleton, first-page error, or the
+  /// empty state. Null when the list is complete on screen.
+  Widget? _activityFooter() {
+    // First visit OR a retry with nothing on screen yet: skeleton cards
+    // while the page loads (a bare retry would otherwise flash the empty
+    // state - the error is cleared before the request starts).
+    if (!_activityLoadDone || (_activityLoading && _activity.isEmpty)) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: Column(
+          children: [
+            ActivityCardSkeleton(),
+            SizedBox(height: 8),
+            ActivityCardSkeleton(),
+            SizedBox(height: 8),
+            ActivityCardSkeleton(),
+          ],
+        ),
+      );
+    }
+    if (_activityError != null && _activity.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        child: Column(
+          children: [
+            Text(_activityError!,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: EnclavdColors.textSecondary)),
+            const SizedBox(height: 12),
+            ElevatedButton(
+                onPressed: _loadFirstActivity, child: const Text('Retry')),
+          ],
+        ),
+      );
+    }
+    if (_activity.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 32),
+        child: Column(
+          children: [
+            FaIcon(FontAwesomeIcons.clockRotateLeft,
+                color: EnclavdColors.textSecondary, size: 30),
+            SizedBox(height: 12),
+            Text(
+              'No activity yet',
+              style: TextStyle(
+                  color: EnclavdColors.textSecondary, fontSize: 15),
+            ),
+            SizedBox(height: 4),
+            Text(
+              'Posts you like, comments you leave and people you follow '
+              'will show up here.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                  color: EnclavdColors.textSecondary, fontSize: 12.5),
+            ),
+          ],
+        ),
+      );
+    }
+    if (_activityLoadingMore) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: Center(child: ShimmerBox(width: 160, height: 22)),
+      );
+    }
+    return null;
+  }
+}
+
+/// Posts | Activity switcher shown on the own profile only.
+class _ProfileTabRow extends StatelessWidget {
+  const _ProfileTabRow({required this.activity, required this.onSelect});
+
+  /// True when the Activity tab is selected.
+  final bool activity;
+
+  /// Called with true for Activity, false for Posts.
+  final ValueChanged<bool> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(top: 12),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: EnclavdColors.border)),
+      ),
+      child: Row(
+        children: [
+          _tab('Posts', selected: !activity, onTap: () => onSelect(false)),
+          _tab('Activity', selected: activity, onTap: () => onSelect(true)),
+        ],
+      ),
+    );
+  }
+
+  Widget _tab(
+    String label, {
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected
+                      ? EnclavdColors.textPrimary
+                      : EnclavdColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 6),
+              // Sliding blue underline on the selected tab.
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOut,
+                height: 3,
+                width: 26,
+                decoration: BoxDecoration(
+                  color: selected ? EnclavdColors.link : Colors.transparent,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

@@ -6,6 +6,7 @@ import 'package:home_widget/home_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
 
+import 'api/activity_service.dart';
 import 'api/api_client.dart';
 import 'api/articles_service.dart';
 import 'api/auth_service.dart';
@@ -137,7 +138,8 @@ class AppServices {
       this.posts, this.messages, this.notifications, this.search,
       this.realtime, this.messageAlerts, this.articles, this.domains,
       this.results, this.invitations, this.reports, this.personalityTest,
-      this.personality, this.siteConfig, this.votes, this.diary);
+      this.personality, this.siteConfig, this.votes, this.diary,
+      this.activity);
 
   final ApiClient apiClient;
   final AuthService auth;
@@ -160,6 +162,7 @@ class AppServices {
   final SiteConfigService siteConfig;
   final VotesService votes;
   final DiaryService diary;
+  final ActivityService activity;
 
   /// The most recently created container - the one the app is actively
   /// using. Singletons must resolve against THIS: on a cold start the
@@ -239,7 +242,8 @@ class AppServices {
         PersonalityService(api),
         SiteConfigService(api),
         VotesService(api),
-        DiaryService(api));
+        DiaryService(api),
+        ActivityService(api));
     current = services;
     // Background push: resolve the best transport for this build/device
     // (FCM -> Unified Push -> 15-minute polling) and register the token,
