@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart' show FlutterError, kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -54,6 +54,18 @@ import 'widgets/microdot_overlay.dart';
 /// the UI.
 void main(List<String> args) {
   WidgetsFlutterBinding.ensureInitialized();
+  // In-app error channel -> Grafana/Loki (mirror only, never Plausible).
+  // Fire-and-forget with a null-safe guard: a dead monitoring stack, or
+  // an error before AppServices.create, changes nothing the user sees.
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    AnalyticsService.instance?.error(details.exceptionAsString(),
+        stack: details.stack?.toString());
+  };
+  WidgetsBinding.instance.platformDispatcher.onError = (error, stack) {
+    AnalyticsService.instance?.error(error.toString(), stack: stack.toString());
+    return false; // keep the framework's default unhandled-error handling
+  };
   if (args.contains('--unifiedpush-bg')) {
     UnifiedPushTransport.runBackground();
     return;
@@ -240,13 +252,16 @@ class AppServices {
     unawaited(DailyQuoteService.refreshWidgetIfStale());
     // Self-hosted Plausible analytics: ONLY release builds of the
     // play/fdroid flavors report; debug/dev must never pollute the
-    // production dashboard.
+    // production dashboard. The mirror endpoint lands the same events in
+    // Grafana/Loki via the site bridge; it must never block or break the
+    // app, so it shares the fire-and-forget path and a short timeout.
     AnalyticsService.instance = (kDebugMode || AppConfig.isDev)
         ? null
         : AnalyticsService(
             endpoint: AppConfig.analyticsEndpoint,
             domain: AppConfig.analyticsDomain,
             userAgent: AppConfig.analyticsUserAgent,
+            mirrorEndpoint: AppConfig.appEventsEndpoint,
           );
     return services;
   }

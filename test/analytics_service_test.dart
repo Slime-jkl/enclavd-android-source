@@ -165,6 +165,85 @@ void main() {
       expect(requests, isEmpty);
     });
   });
+
+  group('mirror to the site events bridge', () {
+    late HttpServer mirrorServer;
+    late List<(String, String, Map<String, dynamic>)> seen;
+
+    setUp(() async {
+      seen = [];
+      mirrorServer = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      mirrorServer.listen((req) async {
+        final mime = req.headers.contentType?.mimeType ?? '';
+        final body =
+            jsonDecode(await utf8.decoder.bind(req).join()) as Map<String, dynamic>;
+        seen.add((req.uri.path, mime, body));
+        req.response.statusCode = HttpStatus.accepted;
+        await req.response.close();
+      });
+    });
+
+    tearDown(() async {
+      await mirrorServer.close(force: true);
+    });
+
+    AnalyticsService mirrored() => AnalyticsService(
+          endpoint: 'http://127.0.0.1:${mirrorServer.port}/api/event',
+          domain: 'enclavd.com',
+          userAgent: appAnalyticsUa,
+          mirrorEndpoint:
+              'http://127.0.0.1:${mirrorServer.port}/api/v1/app_events',
+        );
+
+    Future<void> waitSeen(int count) async {
+      for (var i = 0; i < 100 && seen.length < count; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      expect(seen.length, count, reason: 'expected $count requests');
+    }
+
+    test('pageview mirrors the same payload to the bridge as JSON', () async {
+      mirrored().pageview('/feed');
+      await waitSeen(2);
+
+      final primary = seen.firstWhere((e) => e.$1 == '/api/event');
+      final mirror = seen.firstWhere((e) => e.$1 == '/api/v1/app_events');
+      expect(primary.$3, mirror.$3, reason: 'mirror must reuse the payload');
+      expect(primary.$2, 'text/plain'); // Plausible wire format
+      expect(mirror.$2, 'application/json'); // site bridge format
+      expect(mirror.$3['u'], 'https://enclavd.com/feed');
+    });
+
+    test('a dead mirror never breaks the Plausible send', () async {
+      final a = AnalyticsService(
+        endpoint: 'http://127.0.0.1:${mirrorServer.port}/api/event',
+        domain: 'enclavd.com',
+        userAgent: appAnalyticsUa,
+        mirrorEndpoint: 'http://127.0.0.1:1/api/v1/app_events', // refused
+      );
+      a.pageview('/feed'); // must not throw and must not block the primary
+      await waitSeen(1);
+      expect(seen.first.$1, '/api/event');
+    });
+
+    test('error() ships to the bridge only, never to Plausible', () async {
+      final a = mirrored();
+      a.error('boom', stack: 'trace.line1');
+      await waitSeen(1);
+
+      expect(seen.first.$1, '/api/v1/app_events');
+      expect(seen.single.$3['n'], 'app_error');
+      expect(seen.single.$3['p']['message'], 'boom');
+      expect(seen.single.$3['p']['stack'], 'trace.line1');
+    });
+
+    test('null mirrorEndpoint sends exactly one (legacy) request', () async {
+      service().pageview('/feed');
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(requests.length, 1);
+      expect(requests.single.uri.path, '/api/event');
+    });
+  });
 }
 
 /// Minimal non-PageRoute stub (dialogs/sheets are not PageRoutes).
