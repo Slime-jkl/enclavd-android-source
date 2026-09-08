@@ -919,58 +919,87 @@ class _MessageBubble extends StatelessWidget {
       ),
     );
 
-    // Reveal-on-click row (web .message-meta): the timestamp and, for
-    // sent messages, the receipt, plus the delete options - all at the
-    // timestamp's small size. Tombstones reveal nothing.
+    // Reveal-on-click row (web .message-meta): the datetime sits on its
+    // own line (with the receipt for sent messages) and the delete
+    // options render BELOW it as small icon buttons, spaced so they
+    // cannot be mis-tapped. Tombstones reveal nothing.
     Widget? metaRow;
     if (expanded && !tombstone) {
-      final items = <Widget>[
-        Text(formatMessageTime(message.createdAt),
-            style:
-                const TextStyle(fontSize: 10, color: Color(0x99FFFFFF))),
-      ];
-      Widget gap() => const SizedBox(width: 8);
-      if (isMine) {
-        items
-          ..add(gap())
-          ..add(FaIcon(
-            message.isRead == true
-                ? FontAwesomeIcons.checkDouble
-                : FontAwesomeIcons.check,
-            key: ValueKey('receipt-${message.id}'),
-            size: 10,
-            color: message.isRead == true
-                ? const Color(0xFF60A5FA) // blue-400 (seen)
-                : const Color(0x99FFFFFF), // white/60 (sent)
-          ));
-      }
-      Widget action(String label, Color color, VoidCallback? onTap) =>
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onTap,
-            child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-              child: Text(label, style: TextStyle(fontSize: 10, color: color)),
+      final timeLine = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(formatMessageTime(message.createdAt),
+              style:
+                  const TextStyle(fontSize: 10, color: Color(0x99FFFFFF))),
+          if (isMine) ...[
+            const SizedBox(width: 8),
+            FaIcon(
+              message.isRead == true
+                  ? FontAwesomeIcons.checkDouble
+                  : FontAwesomeIcons.check,
+              key: ValueKey('receipt-${message.id}'),
+              size: 10,
+              color: message.isRead == true
+                  ? const Color(0xFF60A5FA) // blue-400 (seen)
+                  : const Color(0x99FFFFFF), // white/60 (sent)
             ),
-          );
-      items
-        ..add(gap())
-        ..add(action('Delete for me', const Color(0x99FFFFFF), onDeleteMe));
-      if (onDeleteEveryone != null) {
-        items
-          ..add(gap())
-          ..add(action(
-              'Delete for everyone', const Color(0xFFFCA5A5), onDeleteEveryone));
+          ],
+        ],
+      );
+
+      final actionChildren = <Widget>[];
+      void addAction(String label, Color color, VoidCallback? onTap) {
+        if (onTap == null) return;
+        if (actionChildren.isNotEmpty) {
+          actionChildren.add(const SizedBox(width: 10));
+        }
+        actionChildren.add(GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: const Color(0x26FFFFFF)), // white/15
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FaIcon(FontAwesomeIcons.trash, size: 10, color: color),
+                const SizedBox(width: 5),
+                Text(label,
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        height: 1.2,
+                        color: color)),
+              ],
+            ),
+          ),
+        ));
       }
+
+      addAction('Delete for me', const Color(0xCCFFFFFF), onDeleteMe);
+      addAction(
+          'Delete for everyone', const Color(0xFFFCA5A5), onDeleteEveryone);
+
       metaRow = Padding(
         padding: EdgeInsets.only(top: 3, right: isMine ? 2 : 0),
-        child: Wrap(
-          alignment: isMine ? WrapAlignment.end : WrapAlignment.start,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 8,
-          runSpacing: 2,
-          children: items,
+        child: Column(
+          crossAxisAlignment:
+              isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            timeLine,
+            if (actionChildren.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: actionChildren,
+                ),
+              ),
+          ],
         ),
       );
     }
