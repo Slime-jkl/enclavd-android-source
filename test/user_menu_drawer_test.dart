@@ -168,8 +168,8 @@ void main() {
       expect(find.text('App settings'), findsOneWidget);
       expect(find.text('ACCOUNT'), findsOneWidget, reason: 'section labels');
       expect(
-          find.byWidgetPredicate((w) =>
-              w is ShimmerBox && w.width == 130 && w.height == 13),
+          find.byWidgetPredicate(
+              (w) => w is ShimmerBox && w.width == 130 && w.height == 13),
           findsNothing,
           reason: 'the skeleton menu rows are gone');
     });

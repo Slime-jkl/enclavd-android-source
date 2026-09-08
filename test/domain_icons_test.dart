@@ -1,6 +1,8 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:enclavd/api/domains_service.dart';
+import 'package:enclavd/theme/enclavd_theme.dart';
 import 'package:enclavd/utils/domain_icons.dart';
 
 void main() {
@@ -63,6 +65,32 @@ void main() {
       expect(t.domainIconCode, 0xF556);
       expect(domainIconFor(t.domainIcon, codePoint: t.domainIconCode).codePoint,
           0xF556);
+    });
+  });
+
+  group('accentGlyph (server hex vs theme)', () {
+    // Server accents are tuned for the dark site; light glyphs must
+    // darken pale grays or they wash out on light cards.
+    const gray400 = Color(0xFF9CA3AF); // the invisible-on-light case
+
+    test('dark passes server colors through untouched', () {
+      expect(EnclavdPalette.dark.accentGlyph(gray400), gray400);
+      expect(EnclavdPalette.dark.isLight, isFalse);
+    });
+
+    test('light washes pale grays toward the ink', () {
+      final flipped = EnclavdPalette.light.accentGlyph(gray400);
+      expect(flipped.computeLuminance(), lessThan(gray400.computeLuminance()));
+      expect(EnclavdPalette.light.isLight, isTrue);
+    });
+
+    test('light leaves already-deep accents alone', () {
+      const deep = Color(0xFF4B5563); // gray-600
+      expect(EnclavdPalette.light.accentGlyph(deep), deep);
+      expect(
+          EnclavdPalette.light
+              .accentGlyph(const Color(0xFF7E22CE)), // purple-700
+          const Color(0xFF7E22CE));
     });
   });
 }

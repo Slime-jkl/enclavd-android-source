@@ -476,7 +476,7 @@ class _QuizView extends StatelessWidget {
                 child: LinearProgressIndicator(
                   value: progress,
                   minHeight: 8,
-                  backgroundColor: context.enclavd.cardSecondary,
+                  backgroundColor: context.enclavd.border,
                   color: context.enclavd.primaryButton,
                 ),
               ),

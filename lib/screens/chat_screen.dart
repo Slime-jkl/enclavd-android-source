@@ -933,9 +933,7 @@ class _MessageBubble extends StatelessWidget {
                 ? (light
                     ? const Color(0x0D000000) // black/[0.05]
                     : const Color(0x0AFFFFFF))
-                : (light
-                    ? context.enclavd.card
-                    : const Color(0x1AFFFFFF))),
+                : (light ? context.enclavd.card : const Color(0x1AFFFFFF))),
         border: (!isMine && light)
             ? Border.all(color: context.enclavd.border)
             : null,

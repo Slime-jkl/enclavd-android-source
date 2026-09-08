@@ -410,7 +410,7 @@ class _ConversationRow extends StatelessWidget {
         // Unread rows keep the site's faint highlight (white/[0.05]).
         decoration: BoxDecoration(
           color: unread > 0
-              ? context.enclavd.textSecondary.withValues(alpha: 0.08)
+              ? context.enclavd.textSecondary.withValues(alpha: 0.12)
               : Colors.transparent,
           border: Border(bottom: BorderSide(color: context.enclavd.divider)),
         ),

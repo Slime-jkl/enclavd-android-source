@@ -27,20 +27,21 @@ class EnclavdPalette extends ThemeExtension<EnclavdPalette> {
     required this.error,
     required this.rankNameColors,
     required this.personalityGroupColors,
+    this.isLight = false, // light surfaces re-tune server hex accents
   });
 
-  final Color background; // page bg (gray-950 / gray-100)
-  final Color card; // card + drawer + input fill (gray-900 / gray-50)
+  final Color background; // page bg (gray-950 / gray-200)
+  final Color card; // card + drawer + input fill (gray-900 / gray-100)
   final Color cardSecondary; // chips, secondary fills (gray-800 / gray-200)
-  final Color border; // card borders (gray-800 / gray-200)
-  final Color divider; // hairline dividers (gray-700 / gray-200)
+  final Color border; // card borders (gray-800 / gray-300)
+  final Color divider; // hairline dividers (gray-700 / gray-300)
   final Color textPrimary; // body + headings (white / gray-900)
   final Color textSecondary; // secondary text (gray-400 / gray-600)
-  final Color link; // links + icon accents (blue-400 / blue-600)
+  final Color link; // links + icon accents (blue-400 / blue-700)
   final Color primaryButton; // button fill (blue-500 / blue-600)
   final Color primaryButtonHover; // donate hover (blue-400 / blue-700)
   final Color primaryButtonText; // button label (gray-900 / white)
-  final Color likeActive; // red-400 / red-500
+  final Color likeActive; // red-400 / red-600
   final Color warning; // yellow-400 / amber-700
   final Color error; // red-400 / red-600
 
@@ -51,6 +52,9 @@ class EnclavdPalette extends ThemeExtension<EnclavdPalette> {
 
   /// Personality group (NT/NF/SF/ST) accent, 600s on dark, 700s on light.
   final Map<String, Color> personalityGroupColors;
+
+  /// True for the light instance; see [accentGlyph].
+  final bool isLight;
 
   static const dark = EnclavdPalette(
     background: Color(0xFF030712), // gray-950
@@ -85,26 +89,27 @@ class EnclavdPalette extends ThemeExtension<EnclavdPalette> {
   );
 
   static const light = EnclavdPalette(
-    // Cool-gray ladder mirrored from the dark stack: page gray-100,
-    // cards gray-50 (never pure white), chips/borders gray-200.
-    background: Color(0xFFF3F4F6), // gray-100
-    card: Color(0xFFF9FAFB), // gray-50
+    // Light ladder steps one rung lower than the old white-on-gray-100
+    // scheme so cards (gray-100) separate from the page (gray-200):
+    // less total white, defined edges, no pure white anywhere.
+    background: Color(0xFFE5E7EB), // gray-200
+    card: Color(0xFFF3F4F6), // gray-100
     cardSecondary: Color(0xFFE5E7EB), // gray-200
-    border: Color(0xFFE5E7EB), // gray-200
-    divider: Color(0xFFE5E7EB), // gray-200
+    border: Color(0xFFD1D5DB), // gray-300
+    divider: Color(0xFFD1D5DB), // gray-300
     textPrimary: Color(0xFF111827), // gray-900
     textSecondary: Color(0xFF4B5563), // gray-600
-    link: Color(0xFF2563EB), // blue-600
+    link: Color(0xFF1D4ED8), // blue-700
     primaryButton: Color(0xFF2563EB), // blue-600 (white label ~5:1)
     primaryButtonHover: Color(0xFF1D4ED8), // blue-700
     primaryButtonText: Color(0xFFFFFFFF), // white
-    likeActive: Color(0xFFEF4444), // red-500
+    likeActive: Color(0xFFDC2626), // red-600
     warning: Color(0xFFB45309), // amber-700
     error: Color(0xFFDC2626), // red-600
     rankNameColors: {
       'SysOp': Color(0xFF9333EA), // purple-600
       'Admin': Color(0xFFDC2626), // red-600
-      'Officer': Color(0xFF2563EB), // blue-600
+      'Officer': Color(0xFF1D4ED8), // blue-700
       'Founding Member': Color(0xFFB45309), // amber-700
       'Labcoat': Color(0xFF374151), // gray-700
       'Member': Color(0xFF4B5563), // gray-600
@@ -116,6 +121,7 @@ class EnclavdPalette extends ThemeExtension<EnclavdPalette> {
       'SF': Color(0xFFB91C1C), // red-700
       'ST': Color(0xFF1D4ED8), // blue-700
     },
+    isLight: true,
   );
 
   /// The palette the current context paints with. Falls back to dark for
@@ -142,6 +148,19 @@ class EnclavdPalette extends ThemeExtension<EnclavdPalette> {
     if (type == null || type.length != 4) return null;
     final t = type.toUpperCase();
     return personalityGroupColors[t.substring(1, 3)];
+  }
+
+  /// Server hex accents (domain colors, poll colors) are tuned for the
+  /// site's dark theme. On light surfaces a pale color - the grays above
+  /// all - is washed toward the ink until the glyph holds ~3:1 against a
+  /// light card; dark surfaces pass the raw color through.
+  Color accentGlyph(Color raw) {
+    if (!isLight || raw.computeLuminance() <= 0.22) return raw;
+    var c = raw;
+    for (var i = 0; i < 6 && c.computeLuminance() > 0.22; i++) {
+      c = Color.lerp(c, Colors.black, 0.25)!;
+    }
+    return c;
   }
 
   @override
@@ -181,6 +200,7 @@ class EnclavdPalette extends ThemeExtension<EnclavdPalette> {
       rankNameColors: rankNameColors ?? this.rankNameColors,
       personalityGroupColors:
           personalityGroupColors ?? this.personalityGroupColors,
+      isLight: isLight,
     );
   }
 
@@ -209,6 +229,7 @@ class EnclavdPalette extends ThemeExtension<EnclavdPalette> {
       error: Color.lerp(error, other.error, t)!,
       rankNameColors: maps.rankNameColors,
       personalityGroupColors: maps.personalityGroupColors,
+      isLight: t < 0.5 ? isLight : other.isLight,
     );
   }
 }
@@ -259,7 +280,7 @@ ThemeData buildEnclavdTheme({bool light = false}) {
             primary: Color(0xFF2563EB), // blue-600
             onPrimary: Color(0xFFFFFFFF), // white
             secondary: Color(0xFF1D4ED8), // blue-700
-            surface: Color(0xFFF9FAFB), // gray-50
+            surface: Color(0xFFF3F4F6), // gray-100 (cards)
             error: Color(0xFFDC2626), // red-600
           )
         : const ColorScheme.dark(

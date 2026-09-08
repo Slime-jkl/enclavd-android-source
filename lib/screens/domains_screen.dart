@@ -270,7 +270,8 @@ class _DomainsScreenState extends State<DomainsScreen> {
             _DomainChip(
               label: cat.name,
               icon: domainIconFor(cat.icon, codePoint: cat.iconCode),
-              iconColor: domainColorFromHex(cat.color),
+              iconColor:
+                  context.enclavd.accentGlyph(domainColorFromHex(cat.color)),
               selected: _selectedId == cat.id,
               onTap: () => _select(cat.id),
             ),

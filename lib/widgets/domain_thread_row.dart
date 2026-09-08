@@ -71,7 +71,8 @@ class _DomainThreadRowState extends State<DomainThreadRow> {
   Widget build(BuildContext context) {
     final thread = widget.thread;
     final post = thread.post;
-    final accent = domainColorFromHex(thread.domainColor);
+    final accent =
+        context.enclavd.accentGlyph(domainColorFromHex(thread.domainColor));
     final (title, body) = _splitContent(post.content);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),

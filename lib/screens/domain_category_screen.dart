@@ -232,7 +232,8 @@ class _CategoryHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = domainColorFromHex(category.color);
+    final accent =
+        context.enclavd.accentGlyph(domainColorFromHex(category.color));
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
       child: Row(
