@@ -48,6 +48,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
   final List<Conversation> _conversations = [];
   final Set<int> _joinedRooms = {};
+  final TextEditingController _search = TextEditingController();
+  String _query = '';
   bool _loading = true;
   bool _loadedOnce = false;
   String? _error;
@@ -70,11 +72,23 @@ class _MessagesScreenState extends State<MessagesScreen> {
     MessageNotifications.instance?.setMessagesOpen(false);
     _pollTimer?.cancel();
     _realtimeSub?.cancel();
+    _search.dispose();
     // Leave every room this screen joined (ChatScreen leaves its own on pop).
     for (final conversationId in _joinedRooms) {
       _realtime?.leave(conversationId);
     }
     super.dispose();
+  }
+
+  /// Client-side filter over the loaded inbox (searching users in the
+  /// conversation list). Names are matched case-insensitively.
+  List<Conversation> get _visibleConversations {
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return _conversations;
+    return [
+      for (final c in _conversations)
+        if (c.participantName.toLowerCase().contains(q)) c,
+    ];
   }
 
   Future<void> _init() async {
@@ -231,13 +245,64 @@ class _MessagesScreenState extends State<MessagesScreen> {
         title: const Text('Messages',
             style: TextStyle(fontWeight: FontWeight.w600)),
       ),
-      body: RefreshIndicator(
-        onRefresh: _loadConversations,
-        color: EnclavdColors.link,
-        child: SafeArea(
-          // Gesture-nav phones draw under the system bar; keep the last row reachable.
-          top: false,
-          child: _buildBody(),
+      body: SafeArea(
+        // Gesture-nav phones draw under the system bar; keep the last row reachable.
+        top: false,
+        child: Column(
+          children: [
+            if (_conversations.isNotEmpty && _loadedOnce)
+              _buildSearchField(),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _loadConversations,
+                color: EnclavdColors.link,
+                child: _buildBody(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchField() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+      child: TextField(
+        controller: _search,
+        onChanged: (value) => setState(() => _query = value),
+        style: const TextStyle(
+            color: EnclavdColors.textPrimary, fontSize: 14),
+        decoration: InputDecoration(
+          hintText: 'Search conversations',
+          hintStyle: TextStyle(
+              color: EnclavdColors.textSecondary.withValues(alpha: 0.7)),
+          isDense: true,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          prefixIcon: const FaIcon(FontAwesomeIcons.magnifyingGlass,
+              size: 15, color: EnclavdColors.textSecondary),
+          suffixIcon: _query.isEmpty
+              ? null
+              : IconButton(
+                  icon: const Icon(Icons.close,
+                      size: 17, color: EnclavdColors.textSecondary),
+                  onPressed: () {
+                    _search.clear();
+                    setState(() => _query = '');
+                  },
+                ),
+          filled: true,
+          fillColor: const Color(0x0DFFFFFF), // white/[0.05]
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8), // rounded-lg
+            borderSide:
+                const BorderSide(color: EnclavdColors.border), // white/10
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: const BorderSide(color: EnclavdColors.link, width: 2),
+          ),
         ),
       ),
     );
@@ -288,11 +353,36 @@ class _MessagesScreenState extends State<MessagesScreen> {
         ],
       );
     }
+    final visible = _visibleConversations;
+    if (visible.isEmpty) {
+      // The inbox has rows but the search matched none.
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: const [
+          SizedBox(height: 160),
+          Text(
+            'No conversations found',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                color: EnclavdColors.textPrimary,
+                fontSize: 15,
+                fontWeight: FontWeight.w600),
+          ),
+          SizedBox(height: 6),
+          Text(
+            'Try a different name.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                color: EnclavdColors.textSecondary, fontSize: 13),
+          ),
+        ],
+      );
+    }
     return ListView.builder(
       physics: const AlwaysScrollableScrollPhysics(),
-      itemCount: _conversations.length,
+      itemCount: visible.length,
       itemBuilder: (context, index) {
-        final conversation = _conversations[index];
+        final conversation = visible[index];
         return _ConversationRow(
           key: ValueKey(conversation.id),
           conversation: conversation,

@@ -142,7 +142,8 @@ void main() {
       await h.close();
     });
 
-    test('messages() GETs ?conversation_id=N, oldest-first rows', () async {
+    test('messages() GETs ?conversation_id=N, oldest-first rows in a page',
+        () async {
       String? query;
       final h = await Harness.start((req) async {
         if (req.uri.path == '/api/v1/messages') {
@@ -151,6 +152,9 @@ void main() {
             req,
             body: jsonEncode({
               'success': true,
+              'has_more': true,
+              'blocked_by_me': true,
+              'blocked_by_them': false,
               'messages': [
                 messageJson(id: 1, senderId: 42, isRead: null),
                 messageJson(id: 2, senderId: 7, message: 'reply', isRead: false),
@@ -162,12 +166,41 @@ void main() {
         }
       });
 
-      final messages = await MessagesService(h.client).messages(7);
-      expect(query, 'conversation_id=7');
-      expect(messages, hasLength(2));
-      expect(messages.first.isRead, isNull);
-      expect(messages.last.message, 'reply');
-      expect(messages.last.isRead, isFalse);
+      final page = await MessagesService(h.client).messages(7);
+      expect(query, 'conversation_id=7&limit=30');
+      expect(page.messages, hasLength(2));
+      expect(page.hasMore, isTrue);
+      expect(page.blockedByMe, isTrue);
+      expect(page.blockedByThem, isFalse);
+      expect(page.messages.first.isRead, isNull);
+      expect(page.messages.last.message, 'reply');
+      expect(page.messages.last.isRead, isFalse);
+
+      await h.close();
+    });
+
+    test('messages() sends before_id for an older window', () async {
+      String? query;
+      final h = await Harness.start((req) async {
+        if (req.uri.path == '/api/v1/messages') {
+          query = req.uri.query;
+          Harness.respond(
+            req,
+            body: jsonEncode({
+              'success': true,
+              'has_more': false,
+              'messages': [messageJson(id: 1, senderId: 42, isRead: null)],
+            }),
+          );
+        } else {
+          Harness.respond(req, status: 404);
+        }
+      });
+
+      final page = await MessagesService(h.client).messages(7, beforeId: 40);
+      expect(query, 'conversation_id=7&before_id=40&limit=30');
+      expect(page.messages, hasLength(1));
+      expect(page.hasMore, isFalse);
 
       await h.close();
     });

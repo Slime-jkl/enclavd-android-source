@@ -313,7 +313,8 @@ Future<void> main() async {
   final sentId = await messages.send(convId, 'live verify $msgStamp');
   check('send() returns a message id', sentId > 0, '#$sentId');
 
-  final history = await messages.messages(convId);
+  final historyPage = await messages.messages(convId);
+  final history = historyPage.messages;
   check('history contains the sent message',
       history.any((m) => m.id == sentId && m.message.contains('$msgStamp')),
       '${history.length} messages');

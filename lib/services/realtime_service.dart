@@ -14,6 +14,7 @@ class RealtimeEvent {
 
   /// 'message' | 'typing' | 'read' | 'presence' | 'conversation_update' |
   /// 'history' | 'error' | 'message_unread' | 'notification' | 'new_post'
+  /// | 'message_deleted' | 'conversation_blocked'
   final String type;
   final Map<String, dynamic> data;
 
@@ -22,6 +23,8 @@ class RealtimeEvent {
   int? get messageId => (data['messageId'] as num?)?.toInt();
   int? get readerId => (data['readerId'] as num?)?.toInt();
   int? get userId => (data['userId'] as num?)?.toInt();
+  int? get actorId => (data['actorId'] as num?)?.toInt();
+  bool get blocked => data['blocked'] as bool? ?? false;
   String get message => data['message'] as String? ?? '';
   bool get isTyping => data['isTyping'] as bool? ?? false;
   int? get unreadCount => (data['unread_count'] as num?)?.toInt();

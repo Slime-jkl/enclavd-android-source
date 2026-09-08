@@ -57,6 +57,8 @@ class Conversation {
 /// One message in a thread (GET /api/v1/messages?conversation_id=N).
 /// message is PLAIN text (stored raw like comments, no HTML encoding);
 /// is_read is 1/0 ONLY for the viewer's own messages, null for inbound.
+/// deletedForEveryone tombstones the message (content removed server-side,
+/// both sides render a placeholder).
 class ChatMessage {
   const ChatMessage({
     required this.id,
@@ -66,6 +68,7 @@ class ChatMessage {
     required this.message,
     required this.isRead,
     required this.createdAt,
+    this.deletedForEveryone = false,
   });
 
   final int id;
@@ -74,9 +77,14 @@ class ChatMessage {
   final String senderName;
   final String message;
   final bool? isRead; // own: sent(0)/seen(1); inbound: null
+  final bool deletedForEveryone;
   final String createdAt; // DB UTC wall-clock
 
   bool isFrom(int userId) => senderId == userId;
+
+  /// Placeholder a tombstone renders; wording mirrors the site.
+  String get placeholder =>
+      deletedForEveryone ? 'This message was deleted' : '';
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) {
     // Server sends 0/1 (int); tolerate bool payloads too (tests, proxies).
@@ -89,6 +97,13 @@ class ChatMessage {
     } else {
       isRead = (read as num) != 0;
     }
+    final deleted = json['deleted_for_everyone'];
+    final bool deletedForEveryone;
+    if (deleted is bool) {
+      deletedForEveryone = deleted;
+    } else {
+      deletedForEveryone = (deleted as num?) != null && (deleted as num) != 0;
+    }
     return ChatMessage(
       id: (json['id'] as num?)?.toInt() ?? 0,
       conversationId: (json['conversation_id'] as num?)?.toInt() ?? 0,
@@ -96,9 +111,28 @@ class ChatMessage {
       senderName: json['sender_name'] as String? ?? '',
       message: json['message'] as String? ?? '',
       isRead: isRead,
+      deletedForEveryone: deletedForEveryone,
       createdAt: json['created_at'] as String? ?? '',
     );
   }
+}
+
+/// One history window of a thread (GET /api/v1/messages?conversation_id=N).
+/// The server returns the NEWEST [limit] messages oldest-first; pass
+/// beforeId (the oldest loaded id) to page further back. Block flags
+/// describe the block state vs the other participant.
+class ThreadPage {
+  const ThreadPage({
+    required this.messages,
+    required this.hasMore,
+    required this.blockedByMe,
+    required this.blockedByThem,
+  });
+
+  final List<ChatMessage> messages; // oldest first
+  final bool hasMore;
+  final bool blockedByMe;
+  final bool blockedByThem;
 }
 
 /// Inbox + threads over api/v1 (JSON + CSRF). GET /api/v1/messages with
@@ -121,17 +155,60 @@ class MessagesService {
     ];
   }
 
-  /// Full history of a conversation, oldest first. Read-only - call
-  /// [markRead] when the thread is opened so the sender's receipts flip.
-  Future<List<ChatMessage>> messages(int conversationId) async {
+  /// One history window of a conversation, oldest first within the window.
+  /// Without [beforeId] the server returns the NEWEST [limit] messages;
+  /// pass the oldest loaded message id to page further back. Read-only -
+  /// call [markRead] when the thread is opened so the sender's receipts
+  /// flip.
+  Future<ThreadPage> messages(
+    int conversationId, {
+    int? beforeId,
+    int limit = 30,
+  }) async {
     final json = await _api.getJson('/api/v1/messages', query: {
       'conversation_id': '$conversationId',
+      if (beforeId != null) 'before_id': '$beforeId',
+      'limit': '$limit',
     });
     final raw = json['messages'] as List<dynamic>? ?? const [];
-    return [
-      for (final m in raw)
-        if (m is Map<String, dynamic>) ChatMessage.fromJson(m),
-    ];
+    return ThreadPage(
+      messages: [
+        for (final m in raw)
+          if (m is Map<String, dynamic>) ChatMessage.fromJson(m),
+      ],
+      hasMore: json['has_more'] as bool? ?? false,
+      blockedByMe: json['blocked_by_me'] as bool? ?? false,
+      blockedByThem: json['blocked_by_them'] as bool? ?? false,
+    );
+  }
+
+  /// Deletes a message: scope 'me' hides it from this viewer only
+  /// (everyone else keeps their copy); scope 'everyone' removes the
+  /// content for all participants (sender-only server-side) and both
+  /// sides render a tombstone.
+  Future<void> deleteMessage(int messageId, {required String scope}) async {
+    await _api.postJson('/api/v1/messages', {
+      'action': 'delete_message',
+      'message_id': messageId,
+      'scope': scope,
+    });
+  }
+
+  /// Blocks the other participant of [conversationId]. While a block
+  /// exists in either direction neither side can send.
+  Future<void> block(int conversationId) async {
+    await _api.postJson('/api/v1/messages', {
+      'action': 'block',
+      'conversation_id': conversationId,
+    });
+  }
+
+  /// Removes a block THIS user placed on the other participant.
+  Future<void> unblock(int conversationId) async {
+    await _api.postJson('/api/v1/messages', {
+      'action': 'unblock',
+      'conversation_id': conversationId,
+    });
   }
 
   /// Sends a reply in an existing conversation (the site's send_message;

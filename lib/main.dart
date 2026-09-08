@@ -47,7 +47,8 @@ import 'services/realtime_service.dart';
 import 'services/social_notification_source.dart';
 import 'services/social_notifications.dart';
 import 'theme/enclavd_theme.dart';
-import 'widgets/microdot_overlay.dart';
+// microdot off
+// import 'widgets/microdot_overlay.dart';
 
 /// Enclavd native app (Flutter). Only the Android APK is built by CI for
 /// now. [args] carries the UnifiedPush background flag: with
@@ -282,14 +283,13 @@ class EnclavdApp extends StatelessWidget {
       navigatorKey: navigatorKey,
       navigatorObservers: [AnalyticsRouteObserver()],
       theme: buildEnclavdTheme(),
-      // The site's microdot.php port: a faint user-id watermark tiled
-      // over EVERY screen while logged in, above the Navigator.
-      builder: (context, child) => Stack(
-        children: [
-          if (child != null) child,
-          const MicrodotOverlay(),
-        ],
-      ),
+      // microdot off
+      // builder: (context, child) => Stack(
+      //   children: [
+      //     if (child != null) child,
+      //     const MicrodotOverlay(),
+      //   ],
+      // ),
       home: const SplashScreen(),
       routes: {
         LoginScreen.routeName: (_) => const LoginScreen(),
