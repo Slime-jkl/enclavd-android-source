@@ -61,10 +61,7 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
   String? _error;
   String? _repliesError;
 
-  // Reply pagination: fixed 20-row pages over the oldest-first reply
-  // list. The thread OPENS on the last (newest) page and the pager
-  // walks back through older replies. Page 0 asks the server for the
-  // newest page; _replyPage/_replyPages mirror the page after the fetch.
+  // Reply pagination: fixed 20-row pages over the oldest-first reply list
   static const int _repliesPerPage = 20;
 
   int _replyPage = 1;
@@ -72,16 +69,13 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
 
   bool _replyBusy = false; // a page fetch is in flight
 
-  // Owned here so the initial jump to the newest reply can scroll the
-  // reply list to its end once the first page lands.
   final _repliesScroll = ScrollController();
   bool _jumpToRepliesEnd = false;
 
   int? _expandedReplyId;
 
   /// Scrolls the reply list to its newest row once the frame that
-  /// changed its content has laid out. Used after landing on the last
-  /// page and after posting, so the fresh reply is in view.
+  /// changed its content has laid out.
   void _scheduleRepliesEndJump() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_jumpToRepliesEnd || !_repliesScroll.hasClients) {
@@ -164,11 +158,8 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
     await _fetchReplyPage(0);
   }
 
-  /// Fetches one grouped reply page (0 = newest) and swaps the list.
-  /// The old rows stay on screen while the fetch runs; [_replyBusy]
-  /// disables the pager meanwhile. A failed page fetch keeps the current
-  /// rows and surfaces a toast - only the very first load falls back to
-  /// the full-width error state (no rows to keep).
+  /// Fetches one grouped reply page (0 = newest) and swaps the list
+  /// The old rows stay on screen while the fetch runs
   Future<void> _fetchReplyPage(int page) async {
     final post = _post;
     if (post == null || _replyBusy) return;
@@ -192,7 +183,7 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
         _replyBusy = false;
         _repliesLoading = false;
         _post = _withCommentCount(post, result.total);
-        // A freshly loaded newest page shows its tail first.
+        // freshly loaded newest page shows its tail first.
         if (result.page == result.pages) _jumpToRepliesEnd = true;
       });
       _scheduleRepliesEndJump();
@@ -221,7 +212,6 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
   void _toggleComposer() {
     setState(() => _composerOpen = !_composerOpen);
     if (_composerOpen) {
-      // Focus after the frame so the reveal animation doesn't fight it.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _replyFocus.requestFocus();
       });
@@ -256,7 +246,7 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
       setState(() {
         // Append locally (the tree places the reply under its root on
         // the next build) instead of refetching, so the fresh reply
-        // never flickers out of view mid-page; the pager refetches when
+        // never flickers out of view mid-page, the pager refetches when
         // the user navigates. A sent reply rides at the list end.
         _replies = [..._replies, comment];
         _replying = false;
@@ -696,6 +686,23 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Identity row: rank badge (personality tags are
+                    // hidden on domain pages) + active warnings, above
+                    // the username.
+                    Row(
+                      children: [
+                        RankBadge(rank: post.rank),
+                        if (post.warningCount > 0) ...[
+                          const SizedBox(width: 6),
+                          const FaIcon(FontAwesomeIcons.triangleExclamation,
+                              color: EnclavdColors.warning, size: 13),
+                          Text('${post.warningCount}',
+                              style: const TextStyle(
+                                  color: EnclavdColors.warning, fontSize: 10)),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 4),
                     Row(
                       children: [
                         Expanded(
@@ -775,22 +782,6 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                                 ),
                             ],
                           ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    // Identity row: rank badge (personality tags are
-                    // hidden on domain pages) + active warnings.
-                    Row(
-                      children: [
-                        RankBadge(rank: post.rank),
-                        if (post.warningCount > 0) ...[
-                          const SizedBox(width: 6),
-                          const FaIcon(FontAwesomeIcons.triangleExclamation,
-                              color: EnclavdColors.warning, size: 13),
-                          Text('${post.warningCount}',
-                              style: const TextStyle(
-                                  color: EnclavdColors.warning, fontSize: 10)),
                         ],
                       ],
                     ),
@@ -1115,7 +1106,18 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Header: username (rank color) + rank badge + time.
+                // Identity row above the username, like the OP card.
+                Row(
+                  children: [
+                    RankBadge(rank: reply.rank),
+                    if (reply.hasWarnings) ...[
+                      const SizedBox(width: 6),
+                      const FaIcon(FontAwesomeIcons.triangleExclamation,
+                          color: EnclavdColors.warning, size: 12),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 4),
                 Row(
                   children: [
                     Expanded(
@@ -1132,13 +1134,6 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 6),
-                    RankBadge(rank: reply.rank),
-                    if (reply.hasWarnings) ...[
-                      const SizedBox(width: 6),
-                      const FaIcon(FontAwesomeIcons.triangleExclamation,
-                          color: EnclavdColors.warning, size: 12),
-                    ],
                     const SizedBox(width: 6),
                     Text(
                       relativeTime(reply.createdAtUtc),

@@ -428,6 +428,14 @@ void main() {
     expect(find.byType(PostCard), findsNothing);
     expect(find.text('SysOp'), findsOneWidget);
     expect(find.text('Member'), findsOneWidget);
+    // Rank badge sits ABOVE the username on both the OP and every
+    // reply card (the two-line identity block they share).
+    expect(tester.getTopLeft(find.text('SysOp')).dy <
+            tester.getTopLeft(find.text('Developer')).dy,
+        isTrue, reason: 'OP rank badge above its username');
+    expect(tester.getTopLeft(find.text('Member')).dy <
+            tester.getTopLeft(find.text('Someone')).dy,
+        isTrue, reason: 'reply rank badge above its username');
     EnclavdAvatar avatarOf(String urlPart) => tester.widget<EnclavdAvatar>(
         find.byWidgetPredicate(
             (w) => w is EnclavdAvatar && w.url.contains(urlPart)));
