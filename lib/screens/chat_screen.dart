@@ -61,6 +61,7 @@ class _ChatScreenState extends State<ChatScreen> {
   String? _error;
   bool _sending = false;
   Timer? _pollTimer;
+  Timer? _sweepTimer;
   StreamSubscription<RealtimeEvent>? _realtimeSub;
 
   int _maxInboundId = 0;
@@ -91,6 +92,11 @@ class _ChatScreenState extends State<ChatScreen> {
     MessageNotifications.instance?.setMessagesOpen(true);
     _load();
     _pollTimer = Timer.periodic(ChatScreen.pollInterval, (_) => _poll());
+    // Web parity: the del-all option dies with its 15-minute window, so
+    // an expanded fresh bubble loses the button once the window lapses.
+    _sweepTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      _sweepExpiredDeletes();
+    });
     _realtimeSub = widget.realtime.events.listen(_onRealtime);
     widget.realtime.join(widget.conversationId);
   }
@@ -99,6 +105,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void dispose() {
     MessageNotifications.instance?.setMessagesOpen(false);
     _pollTimer?.cancel();
+    _sweepTimer?.cancel();
     _typingStopTimer?.cancel();
     _realtimeSub?.cancel();
     // The site's blur handler stops the ping on leaving.
@@ -395,14 +402,23 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   // ── Delete for me / for everyone ───────────────────────────────────
+  // Both scopes confirm in a dialog first (web parity); nothing hits
+  // the api until the user confirms.
   Future<void> _deleteMessage(ChatMessage message, String scope) async {
-    if (scope == 'everyone') {
-      final ok = await _confirm(
-        'Delete for everyone?',
-        'This removes the message for both of you. This cannot be undone.',
-      );
-      if (ok != true || !mounted) return;
-    }
+    final ok = scope == 'everyone'
+        ? await _confirm(
+            'Delete for everyone?',
+            'This removes the message for both of you. This cannot be undone.',
+            confirmLabel: 'Delete',
+            destructive: true,
+          )
+        : await _confirm(
+            'Delete for me?',
+            'This hides the message from your view only. The other person can still see it.',
+            confirmLabel: 'Delete',
+            destructive: true,
+          );
+    if (ok != true || !mounted) return;
     try {
       await widget.messages.deleteMessage(message.id, scope: scope);
     } on ApiException catch (e) {
@@ -434,44 +450,36 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  void _showMessageActions(ChatMessage message) {
-    final isMine = message.isFrom(widget.myUserId);
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: EnclavdColors.card,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (sheetContext) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isMine)
-              ListTile(
-                leading: const FaIcon(FontAwesomeIcons.trash,
-                    color: Color(0xFFF87171)),
-                title: const Text('Delete for everyone',
-                    style: TextStyle(color: Color(0xFFF87171))),
-                onTap: () {
-                  Navigator.of(sheetContext).pop();
-                  _deleteMessage(message, 'everyone');
-                },
-              ),
-            ListTile(
-              leading: const FaIcon(FontAwesomeIcons.trash,
-                  color: EnclavdColors.textSecondary),
-              title: const Text('Delete for me',
-                  style: TextStyle(color: EnclavdColors.textPrimary)),
-              onTap: () {
-                Navigator.of(sheetContext).pop();
-                _deleteMessage(message, 'me');
-              },
-            ),
-            const SizedBox(height: 4),
-          ],
-        ),
-      ),
-    );
+  // Del-for-everyone rides along only while the 15-minute window is
+  // open (the server enforces the same limit on the api).
+  bool _canDeleteEveryone(ChatMessage message) {
+    if (!message.isFrom(widget.myUserId) || message.deletedForEveryone) {
+      return false;
+    }
+    final created = parseDbTime(message.createdAt);
+    return created != null &&
+        DateTime.now().toUtc().difference(created) <=
+            const Duration(minutes: 15);
+  }
+
+  // Rebuild when an expanded fresh bubble's del-all window lapses so
+  // the option disappears without waiting for the next poll.
+  void _sweepExpiredDeletes() {
+    if (!mounted || _visibleTimes.isEmpty) return;
+    final now = DateTime.now().toUtc();
+    for (final m in _messages) {
+      if (!_visibleTimes.contains(m.id) ||
+          !m.isFrom(widget.myUserId) ||
+          m.deletedForEveryone) {
+        continue;
+      }
+      final created = parseDbTime(m.createdAt);
+      if (created != null &&
+          now.difference(created) > const Duration(minutes: 15)) {
+        setState(() {});
+        return;
+      }
+    }
   }
 
   // ── Block / unblock ───────────────────────────────────────────────
@@ -514,7 +522,8 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Future<bool?> _confirm(String title, String body) {
+  Future<bool?> _confirm(String title, String body,
+      {String confirmLabel = 'OK', bool destructive = false}) {
     return showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -529,7 +538,11 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('OK', style: TextStyle(color: EnclavdColors.link)),
+            child: Text(confirmLabel,
+                style: TextStyle(
+                    color: destructive
+                        ? const Color(0xFFF87171)
+                        : EnclavdColors.link)),
           ),
         ],
       ),
@@ -709,21 +722,29 @@ class _ChatScreenState extends State<ChatScreen> {
           // Key by message id so merges never reuse a bubble's element
           // for another message.
           final message = _messages[_messages.length - 1 - index];
+          final isMine = message.isFrom(widget.myUserId);
           return _MessageBubble(
             key: ValueKey(message.id),
             message: message,
-            isMine: message.isFrom(widget.myUserId),
-            showTime: _visibleTimes.contains(message.id),
-            onTap: () {
-              setState(() {
-                if (!_visibleTimes.add(message.id)) {
-                  _visibleTimes.remove(message.id);
-                }
-              });
-            },
-            onLongPress: message.deletedForEveryone
+            isMine: isMine,
+            expanded: _visibleTimes.contains(message.id),
+            // Click toggles the reveal row (web parity); tombstones have
+            // nothing to reveal, so they do not toggle.
+            onTap: message.deletedForEveryone
                 ? null
-                : () => _showMessageActions(message),
+                : () {
+                    setState(() {
+                      if (!_visibleTimes.add(message.id)) {
+                        _visibleTimes.remove(message.id);
+                      }
+                    });
+                  },
+            onDeleteMe: message.deletedForEveryone
+                ? null
+                : () => _deleteMessage(message, 'me'),
+            onDeleteEveryone: _canDeleteEveryone(message)
+                ? () => _deleteMessage(message, 'everyone')
+                : null,
           );
         },
       ),
@@ -842,16 +863,20 @@ class _MessageBubble extends StatelessWidget {
     super.key,
     required this.message,
     required this.isMine,
-    required this.showTime,
-    required this.onTap,
-    this.onLongPress,
+    required this.expanded,
+    this.onTap,
+    this.onDeleteMe,
+    this.onDeleteEveryone,
   });
 
   final ChatMessage message;
   final bool isMine;
-  final bool showTime;
-  final VoidCallback onTap;
-  final VoidCallback? onLongPress;
+
+  /// The click-to-reveal row (time + delete options) is visible.
+  final bool expanded;
+  final VoidCallback? onTap;
+  final VoidCallback? onDeleteMe;
+  final VoidCallback? onDeleteEveryone;
 
   @override
   Widget build(BuildContext context) {
@@ -894,30 +919,71 @@ class _MessageBubble extends StatelessWidget {
       ),
     );
 
-    final timeLine = showTime
-        ? Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Text(
-              formatMessageTime(message.createdAt),
-              style: const TextStyle(
-                fontSize: 10, // 0.625rem (site .message-time)
-                color: Color(0x99FFFFFF), // white/60
-              ),
+    // Reveal-on-click row (web .message-meta): the timestamp and, for
+    // sent messages, the receipt, plus the delete options - all at the
+    // timestamp's small size. Tombstones reveal nothing.
+    Widget? metaRow;
+    if (expanded && !tombstone) {
+      final items = <Widget>[
+        Text(formatMessageTime(message.createdAt),
+            style:
+                const TextStyle(fontSize: 10, color: Color(0x99FFFFFF))),
+      ];
+      Widget gap() => const SizedBox(width: 8);
+      if (isMine) {
+        items
+          ..add(gap())
+          ..add(FaIcon(
+            message.isRead == true
+                ? FontAwesomeIcons.checkDouble
+                : FontAwesomeIcons.check,
+            key: ValueKey('receipt-${message.id}'),
+            size: 10,
+            color: message.isRead == true
+                ? const Color(0xFF60A5FA) // blue-400 (seen)
+                : const Color(0x99FFFFFF), // white/60 (sent)
+          ));
+      }
+      Widget action(String label, Color color, VoidCallback? onTap) =>
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              child: Text(label, style: TextStyle(fontSize: 10, color: color)),
             ),
-          )
-        : const SizedBox.shrink();
+          );
+      items
+        ..add(gap())
+        ..add(action('Delete for me', const Color(0x99FFFFFF), onDeleteMe));
+      if (onDeleteEveryone != null) {
+        items
+          ..add(gap())
+          ..add(action(
+              'Delete for everyone', const Color(0xFFFCA5A5), onDeleteEveryone));
+      }
+      metaRow = Padding(
+        padding: EdgeInsets.only(top: 3, right: isMine ? 2 : 0),
+        child: Wrap(
+          alignment: isMine ? WrapAlignment.end : WrapAlignment.start,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 2,
+          children: items,
+        ),
+      );
+    }
 
-    // Tap = toggle the timestamp (site parity); long-press = actions
-    // (delete for me / for everyone). Tombstones only toggle the time.
     final gesture = GestureDetector(
       onTap: onTap,
-      onLongPress: onLongPress,
       child: bubble,
     );
 
     if (isMine) {
-      // Check = sent, double-check blue-400 = seen. Tombstones carry no
-      // receipts (the row was cleared server-side).
+      // Check = sent, double-check blue-400 = seen. The receipt sits
+      // pinned to the bubble while collapsed and moves into the reveal
+      // row once expanded; tombstones carry no receipts at all.
       return Padding(
         padding: const EdgeInsets.only(bottom: 6),
         child: Column(
@@ -928,8 +994,8 @@ class _MessageBubble extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Flexible(child: gesture),
-                const SizedBox(width: 5),
-                if (!tombstone)
+                if (!tombstone && !expanded) ...[
+                  const SizedBox(width: 5),
                   Padding(
                     padding: const EdgeInsets.only(bottom: 5),
                     child: FaIcon(
@@ -943,9 +1009,10 @@ class _MessageBubble extends StatelessWidget {
                           : const Color(0x99FFFFFF), // white/60 (sent)
                     ),
                   ),
+                ],
               ],
             ),
-            timeLine,
+            if (metaRow != null) metaRow,
           ],
         ),
       );
@@ -957,7 +1024,7 @@ class _MessageBubble extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           gesture,
-          timeLine,
+          if (metaRow != null) metaRow,
         ],
       ),
     );

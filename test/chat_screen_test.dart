@@ -133,17 +133,25 @@ ChatMessage msg({
   required String message,
   bool? isRead,
   bool deleted = false,
-}) =>
-    ChatMessage(
-      id: id,
-      conversationId: 7,
-      senderId: senderId,
-      senderName: senderId == 1 ? 'me' : 'Alice',
-      message: message,
-      isRead: isRead,
-      deletedForEveryone: deleted,
-      createdAt: '2026-08-20 10:00:00',
-    );
+  Duration age = Duration.zero,
+}) {
+  // Relative createdAt (now-based): the 15-minute del-all window must
+  // stay testable; fixed ISO dates go stale.
+  final t = DateTime.now().toUtc().subtract(age);
+  String p(int n) => n.toString().padLeft(2, '0');
+  final created =
+      '${t.year}-${p(t.month)}-${p(t.day)} ${p(t.hour)}:${p(t.minute)}:${p(t.second)}';
+  return ChatMessage(
+    id: id,
+    conversationId: 7,
+    senderId: senderId,
+    senderName: senderId == 1 ? 'me' : 'Alice',
+    message: message,
+    isRead: isRead,
+    deletedForEveryone: deleted,
+    createdAt: created,
+  );
+}
 
 Finder receiptIcon(int messageId) =>
     find.byKey(ValueKey('receipt-$messageId'));
@@ -205,23 +213,28 @@ void main() {
     await tester.pumpWidget(const SizedBox()); // dispose the poll timer
   });
 
-  testWidgets('tapping a bubble toggles its timestamp', (tester) async {
-    final fake = FakeMessages()
-      ..history = [msg(id: 1, senderId: 42, message: 'secret')];
+  testWidgets('tapping a bubble toggles its reveal row (time + delete)',
+      (tester) async {
+    final m = msg(id: 1, senderId: 42, message: 'secret');
+    final fake = FakeMessages()..history = [m];
+    final expected = formatMessageTime(m.createdAt);
 
     await pumpChat(tester, fake);
     await tester.pump();
 
-    // Timestamps hidden by default (site parity).
-    expect(find.textContaining('2026'), findsNothing);
+    // Reveal row hidden by default (web parity).
+    expect(find.text(expected), findsNothing);
+    expect(find.text('Delete for me'), findsNothing);
 
     await tester.tap(find.text('secret'));
     await tester.pump();
-    expect(find.textContaining('2026'), findsOneWidget);
+    expect(find.text(expected), findsOneWidget);
+    expect(find.text('Delete for me'), findsOneWidget);
 
     await tester.tap(find.text('secret'));
     await tester.pump();
-    expect(find.textContaining('2026'), findsNothing);
+    expect(find.text(expected), findsNothing);
+    expect(find.text('Delete for me'), findsNothing);
 
     await tester.pumpWidget(const SizedBox());
   });
@@ -333,7 +346,8 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
-  testWidgets('delete for me long-press removes the bubble', (tester) async {
+  testWidgets('delete for me confirms, then removes the bubble',
+      (tester) async {
     final fake = FakeMessages()
       ..history = [
         msg(id: 1, senderId: 42, message: 'incoming'),
@@ -343,14 +357,91 @@ void main() {
     await pumpChat(tester, fake);
     await tester.pump();
 
-    await tester.longPress(find.text('mine'));
-    await tester.pumpAndSettle();
+    // Expand my bubble; the reveal row holds the delete option.
+    await tester.tap(find.text('mine'));
+    await tester.pump();
+
+    // Cancelling the dialog keeps the message.
     await tester.tap(find.text('Delete for me'));
+    await tester.pumpAndSettle();
+    expect(find.text('Delete for me?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(fake.deletedMessages, isEmpty);
+    expect(find.text('mine'), findsOneWidget);
+
+    // Confirming submits the delete.
+    await tester.tap(find.text('Delete for me'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
     await tester.pumpAndSettle();
 
     expect(fake.deletedMessages, [(2, 'me')]);
     expect(find.text('mine'), findsNothing);
     expect(find.text('incoming'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('delete for everyone: confirm flow within 15 minutes',
+      (tester) async {
+    final fake = FakeMessages()
+      ..history = [
+        msg(id: 1, senderId: 42, message: 'incoming'),
+        msg(id: 2, senderId: 1, message: 'mine', isRead: false),
+      ];
+
+    await pumpChat(tester, fake);
+    await tester.pump();
+
+    // Received bubbles never offer delete-for-everyone.
+    await tester.tap(find.text('incoming'));
+    await tester.pump();
+    expect(find.text('Delete for everyone'), findsNothing);
+
+    // Own fresh bubble offers it; cancelling keeps the message.
+    await tester.tap(find.text('mine'));
+    await tester.pump();
+    expect(find.text('Delete for everyone'), findsOneWidget);
+    await tester.tap(find.text('Delete for everyone'));
+    await tester.pumpAndSettle();
+    expect(find.text('Delete for everyone?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(fake.deletedMessages, isEmpty);
+    expect(find.text('mine'), findsOneWidget);
+
+    // Confirming turns the bubble into a tombstone.
+    await tester.tap(find.text('Delete for everyone'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    expect(fake.deletedMessages, [(2, 'everyone')]);
+    expect(find.text('mine'), findsNothing);
+    expect(find.text('You deleted this message'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets(
+      'delete for everyone hidden once the message is older than 15 minutes',
+      (tester) async {
+    final fake = FakeMessages()
+      ..history = [
+        msg(id: 2,
+            senderId: 1,
+            message: 'old mine',
+            isRead: true,
+            age: const Duration(minutes: 16)),
+      ];
+
+    await pumpChat(tester, fake);
+    await tester.pump();
+
+    await tester.tap(find.text('old mine'));
+    await tester.pump();
+    expect(find.text('Delete for everyone'), findsNothing);
+    expect(find.text('Delete for me'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox());
   });
