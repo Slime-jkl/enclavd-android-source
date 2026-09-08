@@ -49,7 +49,7 @@ class EnclavdPalette extends ThemeExtension<EnclavdPalette> {
   /// white cards.
   final Map<String, Color> rankNameColors;
 
-  /// Personality group (NT/NF/SJ/SP) accent, 600s on dark, 700s on light.
+  /// Personality group (NT/NF/SF/ST) accent, 600s on dark, 700s on light.
   final Map<String, Color> personalityGroupColors;
 
   static const dark = EnclavdPalette(
@@ -79,8 +79,8 @@ class EnclavdPalette extends ThemeExtension<EnclavdPalette> {
     personalityGroupColors: {
       'NT': Color(0xFFC026D3), // fuchsia-600
       'NF': Color(0xFFD97706), // amber-600
-      'SJ': Color(0xFFDC2626), // red-600
-      'SP': Color(0xFF2563EB), // blue-600
+      'SF': Color(0xFFDC2626), // red-600
+      'ST': Color(0xFF2563EB), // blue-600
     },
   );
 
@@ -111,8 +111,8 @@ class EnclavdPalette extends ThemeExtension<EnclavdPalette> {
     personalityGroupColors: {
       'NT': Color(0xFFA21CAF), // fuchsia-700
       'NF': Color(0xFFB45309), // amber-700
-      'SJ': Color(0xFFB91C1C), // red-700
-      'SP': Color(0xFF1D4ED8), // blue-700
+      'SF': Color(0xFFB91C1C), // red-700
+      'ST': Color(0xFF1D4ED8), // blue-700
     },
   );
 
@@ -135,11 +135,11 @@ class EnclavdPalette extends ThemeExtension<EnclavdPalette> {
   }
 
   /// Personality type -> group accent. A type like INTJ colors from its
-  /// 2nd + 4th letters (NT), matching the site's badge groups.
+  /// 2nd + 3rd letters (NT), matching the site's badge groups.
   Color? personalityColor(String? type) {
     if (type == null || type.length != 4) return null;
     final t = type.toUpperCase();
-    return personalityGroupColors[t[1] + t[3]];
+    return personalityGroupColors[t.substring(1, 3)];
   }
 
   @override
