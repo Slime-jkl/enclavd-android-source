@@ -12,7 +12,6 @@ import '../screens/profile_screen.dart';
 import '../screens/quote_settings_screen.dart';
 import '../screens/report_issue_screen.dart';
 import '../screens/settings_screen.dart';
-import '../screens/test_results_screen.dart';
 import '../theme/enclavd_theme.dart';
 import 'enclavd_avatar.dart';
 import 'personality_chip.dart';
@@ -107,11 +106,6 @@ class _UserMenuDrawerState extends State<UserMenuDrawer> {
                   onTap: () => _push(const DiaryScreen()),
                 ),
                 const _SectionLabel('Community'),
-                _MenuItem(
-                  icon: FontAwesomeIcons.chartPie,
-                  label: 'Test Results',
-                  onTap: () => _push(const TestResultsScreen()),
-                ),
                 _MenuItem(
                   icon: FontAwesomeIcons.ticket,
                   label: 'Invitations',

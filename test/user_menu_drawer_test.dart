@@ -107,7 +107,8 @@ void main() {
       expect(find.text('Your Journal'), findsOneWidget,
           reason: 'the journal has its own menu entry next to the quote');
       await scrollDrawerToBottom(tester);
-      expect(find.text('Test Results'), findsOneWidget);
+      expect(find.text('Test Results'), findsNothing,
+          reason: 'Test Results entry removed at the user request');
       expect(find.text('Invitations'), findsOneWidget);
       expect(find.text('Legal'), findsOneWidget);
       expect(find.text('Report an issue'), findsOneWidget);
