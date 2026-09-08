@@ -202,7 +202,7 @@ class TraitBar extends StatelessWidget {
             child: SizedBox(
               height: 8,
               child: ColoredBox(
-                color: const Color(0xFF6B7280), // gray-500 track
+                color: context.enclavd.cardSecondary,
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [

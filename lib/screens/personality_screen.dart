@@ -458,7 +458,7 @@ class _SynergyBar extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            const ColoredBox(color: Color(0xFF374151)), // gray-700 track
+            ColoredBox(color: context.enclavd.cardSecondary),
             FractionallySizedBox(
               alignment: Alignment.centerLeft,
               widthFactor: (percentage / 100).clamp(0.0, 1.0),
