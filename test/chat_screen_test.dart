@@ -55,11 +55,14 @@ class FakeMessages extends MessagesService {
   @override
   Future<void> block(int conversationId) async {
     blockedConversations.add(conversationId);
+    // Mirror the server: a fetch after a successful block reports the flag.
+    blockedByMeAnswer = true;
   }
 
   @override
   Future<void> unblock(int conversationId) async {
     unblockedConversations.add(conversationId);
+    blockedByMeAnswer = false;
   }
 
   @override
@@ -158,7 +161,10 @@ void main() {
         realtime: realtime,
         participantId: 42,
         participantName: 'Alice',
-        participantAvatar: '/a.png',
+        // No avatar: its network fetch never completes under the test
+        // clock, so the shimmer placeholder animates forever and any
+        // pumpAndSettle on the screen times out.
+        participantAvatar: null,
         participantPersonality: 'INTJ',
         participantIsOnline: true,
       ),
