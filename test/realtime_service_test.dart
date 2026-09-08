@@ -37,6 +37,7 @@ class RealtimeHarness {
   int pongsSent = 0;
   final List<String> feedRequests = [];
   final List<String> sseRequests = [];
+  int presenceRequests = 0; // GET /api/v1/presence (SSE-gated heartbeat)
   int feedFailures = 0; // answer the next N /feed requests with 500
   int sseFailures = 0; // answer the next N /events requests with 500
   bool keepSseOpen = false; // keep the SSE stream open (no close)
@@ -108,6 +109,11 @@ class RealtimeHarness {
             ': ping\n\n'
             'event: message_unread\n'
             'data: {"unread_count":0}\n\n');
+        await req.response.close();
+      } else if (req.uri.path == '/api/v1/presence') {
+        h.presenceRequests++;
+        req.response.headers.set('content-type', 'application/json');
+        req.response.write('{"success":true}');
         await req.response.close();
       } else {
         req.response.statusCode = HttpStatus.notFound;
@@ -434,6 +440,24 @@ void main() {
     expect(service.isSseConnected, isFalse,
         reason: 'dispose closes the stream');
 
+    await h.close();
+  });
+
+  test('presence pings only while the SSE stream is open', () async {
+    final h = await RealtimeHarness.start();
+    h.keepSseOpen = true; // stream stays open (no close)
+    final service = await buildService(h);
+
+    expect(h.presenceRequests, 0,
+        reason: 'no stream, no heartbeat');
+    unawaited(service.connectSse());
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    expect(h.presenceRequests, 1,
+        reason: 'an open notification stream pings presence once on connect');
+
+    // No pending periodic timer may survive dispose — the test framework
+    // fails on it, which is exactly the leak guard for the 60s ticker.
+    service.dispose();
     await h.close();
   });
 

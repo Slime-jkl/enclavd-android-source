@@ -81,6 +81,36 @@ class RealtimeService {
 
   void _emitSseStatus(bool connected) {
     if (!_sseStatus.isClosed) _sseStatus.add(connected);
+    // Presence heartbeat rides the live SSE (notification) channel only:
+    // a pinging client has a genuinely open stream, so the server counts
+    // it as "here now". Stops the moment the stream drops (api/v1/presence
+    // throttles to one write per minute anyway).
+    if (connected) {
+      _startPresencePing();
+    } else {
+      _stopPresencePing();
+    }
+  }
+
+  /// Server-side presence cadence; mirrors the web's SSE-gated ping.
+  static const Duration presenceInterval = Duration(seconds: 60);
+  Timer? _presenceTimer;
+
+  void _startPresencePing() {
+    if (_disposed || _presenceTimer != null) return;
+    _pingPresence(); // immediate — the stream just came up
+    _presenceTimer = Timer.periodic(presenceInterval, (_) => _pingPresence());
+  }
+
+  void _stopPresencePing() {
+    _presenceTimer?.cancel();
+    _presenceTimer = null;
+  }
+
+  /// One-way REST heartbeat; never surfaces errors — presence is
+  /// best-effort and the stream gate above already guarantees liveness.
+  void _pingPresence() {
+    _api.getJson('/api/v1/presence').catchError((_) => const <String, dynamic>{});
   }
 
   WebSocket? _ws;
@@ -458,6 +488,7 @@ class RealtimeService {
     _wsReconnectTimer?.cancel();
     _sseReconnectTimer?.cancel();
     _wsPingTimer?.cancel();
+    _stopPresencePing();
     try {
       _ws?.close();
     } catch (_) {}
