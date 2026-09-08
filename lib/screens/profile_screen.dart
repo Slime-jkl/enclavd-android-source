@@ -1044,16 +1044,16 @@ class _ProfileHeader extends StatelessWidget {
               // Bio (site: bold "Bio" label + pre-line text).
               if (profile.bio.isNotEmpty || profile.isOwn) ...[
                 const SizedBox(height: 12),
-                const Text('Bio',
+                Text('Bio',
                     style: TextStyle(
-                        color: Color(0xFFD1D5DB), // gray-300
+                        color: context.enclavd.textPrimary,
                         fontWeight: FontWeight.bold,
                         fontSize: 14)),
                 const SizedBox(height: 2),
                 Text(
                   profile.bio,
-                  style: const TextStyle(
-                      color: Color(0xFFD1D5DB), // gray-300
+                  style: TextStyle(
+                      color: context.enclavd.textPrimary,
                       fontSize: 14,
                       height: 1.3),
                 ),

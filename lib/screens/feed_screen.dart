@@ -1250,7 +1250,7 @@ class _NewPostsPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
         child: Ink(
           decoration: BoxDecoration(
-            // Primary button look: blue-500 fill, gray-900 label.
+            // Primary button look: blue fill, white label.
             color: context.enclavd.primaryButton,
             borderRadius: BorderRadius.circular(999),
             boxShadow: [

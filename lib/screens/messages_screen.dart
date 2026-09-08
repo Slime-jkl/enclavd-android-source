@@ -291,7 +291,9 @@ class _MessagesScreenState extends State<MessagesScreen> {
                   },
                 ),
           filled: true,
-          fillColor: const Color(0x0DFFFFFF), // white/[0.05]
+          fillColor: Theme.of(context).brightness == Brightness.light
+              ? const Color(0x0F111827) // gray-900/[0.06]
+              : const Color(0x0DFFFFFF), // white/[0.05]
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8), // rounded-lg
             borderSide: BorderSide(color: context.enclavd.border), // white/10
@@ -407,7 +409,9 @@ class _ConversationRow extends StatelessWidget {
       child: Container(
         // Unread rows keep the site's faint highlight (white/[0.05]).
         decoration: BoxDecoration(
-          color: unread > 0 ? const Color(0x0DFFFFFF) : Colors.transparent,
+          color: unread > 0
+              ? context.enclavd.textSecondary.withValues(alpha: 0.08)
+              : Colors.transparent,
           border: Border(bottom: BorderSide(color: context.enclavd.divider)),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -489,8 +493,8 @@ class _ConversationRow extends StatelessWidget {
                         : conversation.lastMessage,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Color(0x99FFFFFF), // text-white/60
+                    style: TextStyle(
+                      color: context.enclavd.textSecondary,
                       fontSize: 12, // text-xs
                     ),
                   ),

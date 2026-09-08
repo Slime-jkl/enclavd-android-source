@@ -584,7 +584,7 @@ class _VoteCard extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    Container(color: Colors.white.withValues(alpha: 0.07)),
+                    Container(color: context.enclavd.cardSecondary),
                     FractionallySizedBox(
                       widthFactor: pct.clamp(0.0, 100.0) / 100,
                       child: Container(color: color),

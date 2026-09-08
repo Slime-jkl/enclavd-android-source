@@ -288,11 +288,11 @@ class _IntroView extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 10),
-              const Text(
+              Text(
                 'Answer every question honestly and pick the option that '
                 'feels most like you. Your results appear instantly.',
                 style: TextStyle(
-                    color: Color(0xFFD1D5DB), // gray-300
+                    color: context.enclavd.textSecondary,
                     fontSize: 13.5,
                     height: 1.45),
               ),
@@ -387,8 +387,8 @@ class _InfoRow extends StatelessWidget {
           const SizedBox(width: 10),
           Expanded(
             child: Text(text,
-                style: const TextStyle(
-                    color: Color(0xFFD1D5DB), // gray-300
+                style: TextStyle(
+                    color: context.enclavd.textPrimary,
                     fontSize: 13,
                     height: 1.35)),
           ),
@@ -476,8 +476,8 @@ class _QuizView extends StatelessWidget {
                 child: LinearProgressIndicator(
                   value: progress,
                   minHeight: 8,
-                  backgroundColor: const Color(0xFF1F2937), // gray-800
-                  color: const Color(0xFF3B82F6), // blue-500
+                  backgroundColor: context.enclavd.cardSecondary,
+                  color: context.enclavd.primaryButton,
                 ),
               ),
             ],
@@ -498,8 +498,8 @@ class _QuizView extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(question.question,
-                        style: const TextStyle(
-                            color: Colors.white,
+                        style: TextStyle(
+                            color: context.enclavd.textPrimary,
                             fontSize: 17,
                             fontWeight: FontWeight.w600,
                             height: 1.45)),
@@ -521,7 +521,7 @@ class _QuizView extends StatelessWidget {
           width: double.infinity,
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
           decoration: BoxDecoration(
-            color: const Color(0xE6030712), // background at ~90%
+            color: context.enclavd.background,
             border: Border(top: BorderSide(color: context.enclavd.divider)),
           ),
           child: isLast
@@ -603,12 +603,10 @@ class _OptionRow extends StatelessWidget {
                 Expanded(
                   child: Text(option.label,
                       style: TextStyle(
-                        color: selected
-                            ? Colors.white
-                            : const Color(0xFFD1D5DB), // gray-300
+                        color: context.enclavd.textPrimary,
                         fontSize: 14.5,
                         fontWeight:
-                            selected ? FontWeight.w600 : FontWeight.w400,
+                            selected ? FontWeight.w600 : FontWeight.w500,
                       )),
                 ),
                 if (selected)

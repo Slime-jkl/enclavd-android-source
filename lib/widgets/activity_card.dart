@@ -41,10 +41,10 @@ class ActivityNote extends StatelessWidget {
         const SizedBox(width: 7),
         Text(
           action,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: Color(0xFFD1D5DB), // gray-300
+            color: context.enclavd.textPrimary,
           ),
         ),
         const Spacer(),

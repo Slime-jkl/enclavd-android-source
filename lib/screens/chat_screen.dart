@@ -848,7 +848,9 @@ class _ChatScreenState extends State<ChatScreen> {
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
                   filled: true,
-                  fillColor: const Color(0x0DFFFFFF), // white/[0.05]
+                  fillColor: Theme.of(context).brightness == Brightness.light
+                      ? const Color(0x0F111827) // gray-900/[0.06]
+                      : const Color(0x0DFFFFFF), // white/[0.05]
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8), // rounded-lg
                     borderSide:
@@ -923,7 +925,7 @@ class _MessageBubble extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         // Sent: rgba(30,58,138,0.8); received: white/10 over the dark
-        // list, white cards with an ink border over the light one;
+        // list, soft cards (palette card) with an ink border over light;
         // tombstones keep a faint shell so the row reads as a placeholder.
         color: isMine
             ? (tombstone ? const Color(0x661E3A8A) : const Color(0xCC1E3A8A))
@@ -931,7 +933,9 @@ class _MessageBubble extends StatelessWidget {
                 ? (light
                     ? const Color(0x0D000000) // black/[0.05]
                     : const Color(0x0AFFFFFF))
-                : (light ? Colors.white : const Color(0x1AFFFFFF))),
+                : (light
+                    ? context.enclavd.card
+                    : const Color(0x1AFFFFFF))),
         border: (!isMine && light)
             ? Border.all(color: context.enclavd.border)
             : null,

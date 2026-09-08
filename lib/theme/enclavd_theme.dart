@@ -30,23 +30,23 @@ class EnclavdPalette extends ThemeExtension<EnclavdPalette> {
   });
 
   final Color background; // page bg (gray-950 / gray-100)
-  final Color card; // card + drawer + input fill (gray-900 / white)
-  final Color cardSecondary; // chips, secondary fills (gray-800 / gray-100)
+  final Color card; // card + drawer + input fill (gray-900 / gray-50)
+  final Color cardSecondary; // chips, secondary fills (gray-800 / gray-200)
   final Color border; // card borders (gray-800 / gray-200)
   final Color divider; // hairline dividers (gray-700 / gray-200)
   final Color textPrimary; // body + headings (white / gray-900)
-  final Color textSecondary; // secondary text (gray-400 / gray-500)
+  final Color textSecondary; // secondary text (gray-400 / gray-600)
   final Color link; // links + icon accents (blue-400 / blue-600)
-  final Color primaryButton; // bg-blue-500 (same in both)
-  final Color primaryButtonHover; // donate hover (blue-400 / blue-600)
-  final Color primaryButtonText; // pay-btn text-gray-900 (same in both)
+  final Color primaryButton; // button fill (blue-500 / blue-600)
+  final Color primaryButtonHover; // donate hover (blue-400 / blue-700)
+  final Color primaryButtonText; // button label (gray-900 / white)
   final Color likeActive; // red-400 / red-500
   final Color warning; // yellow-400 / amber-700
   final Color error; // red-400 / red-600
 
   /// Rank -> name color (config/ranks.php `name_color`). The light map
   /// steps 400-level accents down to 600/700s so names keep contrast on
-  /// white cards.
+  /// light cards.
   final Map<String, Color> rankNameColors;
 
   /// Personality group (NT/NF/SF/ST) accent, 600s on dark, 700s on light.
@@ -85,17 +85,19 @@ class EnclavdPalette extends ThemeExtension<EnclavdPalette> {
   );
 
   static const light = EnclavdPalette(
+    // Cool-gray ladder mirrored from the dark stack: page gray-100,
+    // cards gray-50 (never pure white), chips/borders gray-200.
     background: Color(0xFFF3F4F6), // gray-100
-    card: Color(0xFFFFFFFF), // white
-    cardSecondary: Color(0xFFF3F4F6), // gray-100
+    card: Color(0xFFF9FAFB), // gray-50
+    cardSecondary: Color(0xFFE5E7EB), // gray-200
     border: Color(0xFFE5E7EB), // gray-200
     divider: Color(0xFFE5E7EB), // gray-200
     textPrimary: Color(0xFF111827), // gray-900
-    textSecondary: Color(0xFF6B7280), // gray-500
+    textSecondary: Color(0xFF4B5563), // gray-600
     link: Color(0xFF2563EB), // blue-600
-    primaryButton: Color(0xFF3B82F6), // blue-500
-    primaryButtonHover: Color(0xFF2563EB), // blue-600
-    primaryButtonText: Color(0xFF111827), // gray-900
+    primaryButton: Color(0xFF2563EB), // blue-600 (white label ~5:1)
+    primaryButtonHover: Color(0xFF1D4ED8), // blue-700
+    primaryButtonText: Color(0xFFFFFFFF), // white
     likeActive: Color(0xFFEF4444), // red-500
     warning: Color(0xFFB45309), // amber-700
     error: Color(0xFFDC2626), // red-600
@@ -105,7 +107,7 @@ class EnclavdPalette extends ThemeExtension<EnclavdPalette> {
       'Officer': Color(0xFF2563EB), // blue-600
       'Founding Member': Color(0xFFB45309), // amber-700
       'Labcoat': Color(0xFF374151), // gray-700
-      'Member': Color(0xFF6B7280), // gray-500
+      'Member': Color(0xFF4B5563), // gray-600
       'Blocked': Color(0xFF525252), // neutral-600
     },
     personalityGroupColors: {
@@ -252,12 +254,12 @@ ThemeData buildEnclavdTheme({bool light = false}) {
     fontFamily: 'Montserrat',
     colorScheme: light
         ? const ColorScheme.light(
-            // Dark text on the light blue (pay-btn style); FilledButton and
-            // the like derive their foreground from onPrimary.
-            primary: Color(0xFF3B82F6), // blue-500
-            onPrimary: Color(0xFF111827), // gray-900
-            secondary: Color(0xFF2563EB), // blue-600
-            surface: Color(0xFFFFFFFF), // white
+            // White label on the deeper blue-600 fill; scheme-primary
+            // widgets (FilledButton defaults, switches, checks) inherit.
+            primary: Color(0xFF2563EB), // blue-600
+            onPrimary: Color(0xFFFFFFFF), // white
+            secondary: Color(0xFF1D4ED8), // blue-700
+            surface: Color(0xFFF9FAFB), // gray-50
             error: Color(0xFFDC2626), // red-600
           )
         : const ColorScheme.dark(
