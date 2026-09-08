@@ -34,7 +34,8 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends State<ProfileScreen>
+    with SingleTickerProviderStateMixin {
   late final AppServices _services;
 
   Profile? _profile;
@@ -49,9 +50,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _postsInitialLoadDone = false;
   String? _postsError;
 
-  // Own-profile Activity tab (interaction history). Lazy: the feed only
-  // loads once the tab is first opened.
-  bool _activityTab = false;
+  // Own-profile Posts | Activity tabs (interaction history). Activity
+  // loads lazily on the first visit to its tab.
+  late final TabController _tabs;
+  int _lastTab = 0;
   bool _activityLoadDone = false;
   final List<ActivityItem> _activity = [];
   bool _activityLoading = false; // first load / refresh in flight
@@ -66,11 +68,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.initState();
     trackScreen('/profile');
     _scrollController.addListener(_onScroll);
+    _tabs = TabController(length: 2, vsync: this);
+    _tabs.addListener(_onTabChanged);
     _loadAll();
   }
 
   @override
   void dispose() {
+    _tabs.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -162,7 +167,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _onScroll() {
     final position = _scrollController.position;
     if (position.pixels < position.maxScrollExtent - 400) return;
-    if (_activityTab) {
+    if (_tabs.index == 1) {
       if (_activityLoadDone &&
           !_activityLoading &&
           !_activityLoadingMore &&
@@ -265,15 +270,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  void _selectTab(bool activity) {
-    if (activity == _activityTab) return;
-    setState(() => _activityTab = activity);
-    trackScreen(activity ? '/activity' : '/profile');
+  void _onTabChanged() {
+    final index = _tabs.index;
+    if (index == _lastTab) return;
+    _lastTab = index;
+    setState(() {}); // repaint the tab colors/underline
+    trackScreen(index == 1 ? '/activity' : '/profile');
     // Different content under the header: restart at the top.
     if (_scrollController.hasClients) {
       _scrollController.jumpTo(0);
     }
-    if (activity && !_activityLoadDone) {
+    if (index == 1 && !_activityLoadDone) {
       _loadFirstActivity();
     }
   }
@@ -483,7 +490,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildBody(Profile? profile) {
     if (_profileLoading) {
-      final activitySkeleton = (profile?.isOwn ?? false) && _activityTab;
+      final activitySkeleton = (profile?.isOwn ?? false) && _tabs.index == 1;
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(12),
@@ -508,7 +515,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
 
     final isOwn = profile?.isOwn ?? false;
-    final onActivity = isOwn && _activityTab;
+    final onActivity = isOwn && _tabs.index == 1;
     final listLength = onActivity ? _activity.length : _posts.length;
     final footer = onActivity ? _activityFooter() : _postsFooter();
     final itemCount = 2 + listLength + (footer != null ? 1 : 0);
@@ -534,9 +541,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
           // The own profile splits its history into two tabs; other
           // members keep the plain posts heading.
           if (isOwn) {
-            return _ProfileTabRow(
-              activity: onActivity,
-              onSelect: _selectTab,
+            return Container(
+              margin: const EdgeInsets.only(top: 10),
+              child: TabBar(
+                controller: _tabs,
+                dividerColor: EnclavdColors.border,
+                indicatorColor: EnclavdColors.link,
+                indicatorSize: TabBarIndicatorSize.label,
+                indicatorWeight: 3,
+                labelColor: EnclavdColors.textPrimary,
+                unselectedLabelColor: EnclavdColors.textSecondary,
+                labelStyle: const TextStyle(
+                    fontSize: 13.5, fontWeight: FontWeight.w600),
+                tabs: const [
+                  Tab(
+                    icon: FaIcon(FontAwesomeIcons.fileLines, size: 15),
+                    text: 'Posts',
+                  ),
+                  Tab(
+                    icon: FaIcon(FontAwesomeIcons.clockRotateLeft, size: 15),
+                    text: 'Activity',
+                  ),
+                ],
+              ),
             );
           }
           return const Padding(
@@ -549,12 +576,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           return footer!;
         }
         if (onActivity) {
-          final item = _activity[index - 2];
-          return ActivityCard(
-            key: ValueKey('activity-${item.type.wire}-${item.id}'),
-            item: item,
-            onTap: () => _openActivityItem(item),
-          );
+          return _activityRow(_activity[index - 2]);
         }
         return PostCard(
           // Key by post id: prevents stale like-state reuse on refresh.
@@ -566,6 +588,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
           onDeletePost: _deletePost,
         );
       },
+    );
+  }
+
+  /// One activity entry: an action strip ("You liked/commented/followed")
+  /// above the normal post card (like/comment) or member card (follow).
+  Widget _activityRow(ActivityItem item) {
+    final Widget body;
+    if (item.type == ActivityType.follow) {
+      body = ActivityFollowCard(
+        user: item.user!,
+        onTap: () => _openActivityItem(item),
+      );
+    } else {
+      final post = item.post!;
+      body = PostCard(
+        key: ValueKey(post.id),
+        post: post,
+        apiBaseUrl: AppConfig.apiBaseUrl,
+        social: _services.social,
+        onEditPost: _editPost,
+        onDeletePost: _deletePost,
+      );
+    }
+    return Column(
+      key: ValueKey('activity-${item.type.wire}-${item.id}'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
+          child: ActivityNote(item: item),
+        ),
+        body,
+        // Follow rows have no card margin of their own; keep the rhythm.
+        if (item.type == ActivityType.follow) const SizedBox(height: 22),
+      ],
     );
   }
 
@@ -678,75 +735,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     }
     return null;
-  }
-}
-
-/// Posts | Activity switcher shown on the own profile only.
-class _ProfileTabRow extends StatelessWidget {
-  const _ProfileTabRow({required this.activity, required this.onSelect});
-
-  /// True when the Activity tab is selected.
-  final bool activity;
-
-  /// Called with true for Activity, false for Posts.
-  final ValueChanged<bool> onSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(top: 12),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: EnclavdColors.border)),
-      ),
-      child: Row(
-        children: [
-          _tab('Posts', selected: !activity, onTap: () => onSelect(false)),
-          _tab('Activity', selected: activity, onTap: () => onSelect(true)),
-        ],
-      ),
-    );
-  }
-
-  Widget _tab(
-    String label, {
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                  color: selected
-                      ? EnclavdColors.textPrimary
-                      : EnclavdColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 6),
-              // Sliding blue underline on the selected tab.
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                curve: Curves.easeOut,
-                height: 3,
-                width: 26,
-                decoration: BoxDecoration(
-                  color: selected ? EnclavdColors.link : Colors.transparent,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }
 
