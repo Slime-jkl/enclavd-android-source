@@ -10,6 +10,7 @@ import 'package:enclavd/api/social_service.dart';
 import 'package:enclavd/screens/domain_thread_screen.dart';
 import 'package:enclavd/services/sound_service.dart';
 import 'package:enclavd/theme/enclavd_theme.dart';
+import 'package:enclavd/utils/db_time.dart';
 import 'package:enclavd/widgets/enclavd_avatar.dart';
 import 'package:enclavd/widgets/comment_quote_card.dart';
 import 'package:enclavd/widgets/post_card.dart'; // PostCard (must be ABSENT)
@@ -99,11 +100,13 @@ class _FakePosts extends PostsService {
       : super(ApiClient(store: _NoopStore(), apiBaseUrl: 'https://example.com'));
 }
 
+const _opCreatedAt = '2026-08-12 10:32:59';
+
 Map<String, dynamic> _postJson() => {
       'id': 218,
       'author_id': 1,
       'content': 'The OP of the thread',
-      'created_at': '2026-08-12 10:32:59',
+      'created_at': _opCreatedAt,
       'feed_score': null,
       'like_count': 1,
       'comment_count': 2,
@@ -139,6 +142,7 @@ Comment _reply(int id, String text,
       nameColor: 'text-gray-400',
       hasWarnings: warnings,
       createdAt: '5m',
+      createdAtUtc: '5m', // raw db string the time badge renders
       content: text,
       isOwner: own,
       rank: rank,
@@ -487,6 +491,49 @@ void main() {
         isTrue, reason: 'reply warnings start right of the username');
   });
 
+  testWidgets('reply body starts under the avatar; time rides the rank line',
+      (tester) async {
+    final social = _FakeSocial(replies: [_reply(1, 'First reply')]);
+    await tester.pumpWidget(wrap(DomainThreadScreen(
+      domains: _FakeDomains(_detail()),
+      postId: 218,
+      social: social,
+      posts: _FakePosts(),
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // Body text starts at the card's left edge (under the avatar), not
+    // indented under the username column.
+    final avatarLeft = tester
+        .getTopLeft(find.byWidgetPredicate(
+            (w) => w is EnclavdAvatar && w.url.contains('x.png')))
+        .dx;
+    final body = tester.getTopLeft(find.text('First reply'));
+    expect((body.dx - avatarLeft).abs() < 1.0, isTrue,
+        reason: 'reply body spans the card under the avatar');
+
+    // Reply time: on the rank badge line, above the username, near the
+    // card's right edge.
+    final time = tester.getTopLeft(find.text('5m'));
+    final badge = tester.getTopLeft(find.text('Member'));
+    final name = tester.getTopLeft(find.text('Someone'));
+    expect((time.dy - badge.dy).abs() <= 12, isTrue,
+        reason: 'reply time shares the rank badge line');
+    expect(time.dy < name.dy - 8, isTrue,
+        reason: 'reply time is above the username');
+    expect(time.dx > 600, isTrue, reason: 'reply time sits top-right');
+
+    // The OP card follows the same layout.
+    final opTime = tester.getTopLeft(find.text(relativeTime(_opCreatedAt)));
+    final opBadge = tester.getTopLeft(find.text('SysOp'));
+    final opName = tester.getTopLeft(find.text('Developer'));
+    expect((opTime.dy - opBadge.dy).abs() <= 12, isTrue,
+        reason: 'OP time shares the rank badge line');
+    expect(opTime.dy < opName.dy - 8, isTrue,
+        reason: 'OP time is above the username');
+    expect(opTime.dx > 600, isTrue, reason: 'OP time sits top-right');
+  });
+
   testWidgets('reply on another reply quotes it in the composer and on send',
       (tester) async {
     final social = _FakeSocial(replies: [
@@ -530,6 +577,12 @@ void main() {
 
   testWidgets('reply chains render as separate flat cards, all numbered',
       (tester) async {
+    // Tall viewport: full-width body cards stack high; all three must
+    // be built (no lazy disposal) so their texts stay findable.
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
     final social = _FakeSocial(replies: [
       _reply(1, 'Root reply'),
       _reply(2, 'Child reply', parent: 1),

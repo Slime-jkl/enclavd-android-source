@@ -686,51 +686,12 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Rank badge (no personality chip on domain pages),
-                    // above the username.
-                    RankBadge(rank: post.rank),
-                    const SizedBox(height: 4),
+                    // Rank line: badge left, time + own-post menu in
+                    // the card's top-right corner.
                     Row(
                       children: [
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () => _openProfile(context, post.authorId),
-                            child: Row(
-                              children: [
-                                Flexible(
-                                  child: Text(
-                                    post.username,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: post.isBlocked
-                                          ? RankColors.forRank('Blocked')
-                                          : RankColors.forRank(post.rank),
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 15,
-                                      decoration: post.isBlocked
-                                          ? TextDecoration.lineThrough
-                                          : null,
-                                      decorationColor:
-                                          RankColors.forRank('Blocked'),
-                                    ),
-                                  ),
-                                ),
-                                if (post.warningCount > 0) ...[
-                                  const SizedBox(width: 6),
-                                  const FaIcon(
-                                      FontAwesomeIcons.triangleExclamation,
-                                      color: EnclavdColors.warning,
-                                      size: 13),
-                                  Text('${post.warningCount}',
-                                      style: const TextStyle(
-                                          color: EnclavdColors.warning,
-                                          fontSize: 10)),
-                                ],
-                              ],
-                            ),
-                          ),
-                        ),
+                        RankBadge(rank: post.rank),
+                        const Spacer(),
                         Text(
                           relativeTime(post.createdAt),
                           style: const TextStyle(
@@ -788,6 +749,52 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                             ],
                           ),
                         ],
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    // Username (rank color) + warnings hugging it; no
+                    // personality chip on domain pages.
+                    Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => _openProfile(context, post.authorId),
+                            child: Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    post.username,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: post.isBlocked
+                                          ? RankColors.forRank('Blocked')
+                                          : RankColors.forRank(post.rank),
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 15,
+                                      decoration: post.isBlocked
+                                          ? TextDecoration.lineThrough
+                                          : null,
+                                      decorationColor:
+                                          RankColors.forRank('Blocked'),
+                                    ),
+                                  ),
+                                ),
+                                if (post.warningCount > 0) ...[
+                                  const SizedBox(width: 6),
+                                  const FaIcon(
+                                      FontAwesomeIcons.triangleExclamation,
+                                      color: EnclavdColors.warning,
+                                      size: 13),
+                                  Text('${post.warningCount}',
+                                      style: const TextStyle(
+                                          color: EnclavdColors.warning,
+                                          fontSize: 10)),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ],
@@ -1093,161 +1100,174 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: EnclavdColors.border),
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          GestureDetector(
-            onTap: () => _openProfile(context, reply.userId),
-            child: EnclavdAvatar(
-              size: 48,
-              url: resolveMediaUrl(widget.apiBaseUrl,
-                  avatarPath: reply.profilePictureUrl),
-              borderColor: personality,
-              square: true,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Rank badge above the username, like the OP card.
-                RankBadge(rank: reply.rank),
-                const SizedBox(height: 4),
-                Row(
+          // Header: avatar + identity block, like the OP card.
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              GestureDetector(
+                onTap: () => _openProfile(context, reply.userId),
+                child: EnclavdAvatar(
+                  size: 48,
+                  url: resolveMediaUrl(widget.apiBaseUrl,
+                      avatarPath: reply.profilePictureUrl),
+                  borderColor: personality,
+                  square: true,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => _openProfile(context, reply.userId),
-                        child: Row(
-                          children: [
-                            Flexible(
-                              child: Text(
-                                reply.username,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color:
-                                      rankColorFromCssClass(reply.nameColor),
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 13.5,
-                                ),
-                              ),
-                            ),
-                            if (reply.hasWarnings) ...[
-                              const SizedBox(width: 6),
-                              const FaIcon(
-                                  FontAwesomeIcons.triangleExclamation,
-                                  color: EnclavdColors.warning,
-                                  size: 12),
-                            ],
-                          ],
+                    // Rank line with the time in the card's top-right
+                    // corner, above the username.
+                    Row(
+                      children: [
+                        RankBadge(rank: reply.rank),
+                        const Spacer(),
+                        Text(
+                          relativeTime(reply.createdAtUtc),
+                          style: const TextStyle(
+                              color: EnclavdColors.textSecondary,
+                              fontSize: 11),
                         ),
-                      ),
+                      ],
                     ),
-                    const SizedBox(width: 6),
-                    Text(
-                      relativeTime(reply.createdAtUtc),
-                      style: const TextStyle(
-                          color: EnclavdColors.textSecondary, fontSize: 11),
+                    const SizedBox(height: 4),
+                    // Username (rank color); warnings hug the name.
+                    Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => _openProfile(context, reply.userId),
+                            child: Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    reply.username,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: rankColorFromCssClass(
+                                          reply.nameColor),
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13.5,
+                                    ),
+                                  ),
+                                ),
+                                if (reply.hasWarnings) ...[
+                                  const SizedBox(width: 6),
+                                  const FaIcon(
+                                      FontAwesomeIcons.triangleExclamation,
+                                      color: EnclavdColors.warning,
+                                      size: 12),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
-                // Quoted context renders as its own block; the reply's
-                // own text follows (read-more clamps only the reply).
-                if (_quote != null) ...[
-                  CommentQuoteCard(quote: _quote!),
-                  const SizedBox(height: 6),
-                ],
-                const SizedBox(height: 6),
-                Text.rich(
-                  TextSpan(children: _spans()),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Quoted context renders as its own block; the reply's own
+          // text follows (read-more clamps only the reply).
+          if (_quote != null) ...[
+            CommentQuoteCard(quote: _quote!),
+            const SizedBox(height: 8),
+          ],
+          Text.rich(
+            TextSpan(children: _spans()),
+            style: const TextStyle(
+                color: EnclavdColors.textPrimary,
+                fontSize: 14,
+                height: 1.4),
+          ),
+          if (_body.length > _readMoreLimit)
+            GestureDetector(
+              onTap: widget.onToggle,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 3),
+                child: Text(
+                  _expanded ? 'Show less' : 'Read more',
                   style: const TextStyle(
-                      color: EnclavdColors.textPrimary,
-                      fontSize: 14,
-                      height: 1.4),
+                    color: EnclavdColors.link,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-                if (_body.length > _readMoreLimit)
-                  GestureDetector(
-                    onTap: widget.onToggle,
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 3),
-                      child: Text(
-                        _expanded ? 'Show less' : 'Read more',
-                        style: const TextStyle(
-                          color: EnclavdColors.link,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
+              ),
+            ),
+          const SizedBox(height: 8),
+          // Footer actions: Quote-reply / Delete + reply number.
+          Row(
+            children: [
+              if (!reply.isOwner)
+                InkWell(
+                  key: Key('replyQuote-${reply.id}'),
+                  onTap: () => widget.onReply(reply),
+                  borderRadius: BorderRadius.circular(8),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(
+                        horizontal: 4, vertical: 4),
+                    child: Row(
+                      children: [
+                        FaIcon(FontAwesomeIcons.quoteLeft,
+                            size: 12, color: EnclavdColors.link),
+                        SizedBox(width: 5),
+                        Text(
+                          'Reply',
+                          style: TextStyle(
+                            color: EnclavdColors.link,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
+                      ],
                     ),
                   ),
-                const SizedBox(height: 8),
-                // Footer actions: Quote-reply / Delete + reply number.
-                Row(
-                  children: [
-                    if (!reply.isOwner)
-                      InkWell(
-                        key: Key('replyQuote-${reply.id}'),
-                        onTap: () => widget.onReply(reply),
-                        borderRadius: BorderRadius.circular(8),
-                        child: const Padding(
-                          padding: EdgeInsets.symmetric(
-                              horizontal: 4, vertical: 4),
-                          child: Row(
-                            children: [
-                              FaIcon(FontAwesomeIcons.quoteLeft,
-                                  size: 12, color: EnclavdColors.link),
-                              SizedBox(width: 5),
-                              Text(
-                                'Reply',
-                                style: TextStyle(
-                                  color: EnclavdColors.link,
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    if (reply.isOwner)
-                      InkWell(
-                        onTap: () => _confirmDelete(),
-                        borderRadius: BorderRadius.circular(8),
-                        child: const Padding(
-                          padding: EdgeInsets.symmetric(
-                              horizontal: 4, vertical: 4),
-                          child: Row(
-                            children: [
-                              FaIcon(FontAwesomeIcons.trashCan,
-                                  size: 12, color: EnclavdColors.likeActive),
-                              SizedBox(width: 5),
-                              Text(
-                                'Delete',
-                                style: TextStyle(
-                                  color: EnclavdColors.likeActive,
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    const Spacer(),
-                    Text(
-                      '#${widget.number}',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontFamily: 'monospace',
-                        color: EnclavdColors.textSecondary,
-                      ),
-                    ),
-                  ],
                 ),
-              ],
-            ),
+              if (reply.isOwner)
+                InkWell(
+                  onTap: () => _confirmDelete(),
+                  borderRadius: BorderRadius.circular(8),
+                  child: const Padding(
+                    padding: EdgeInsets.symmetric(
+                        horizontal: 4, vertical: 4),
+                    child: Row(
+                      children: [
+                        FaIcon(FontAwesomeIcons.trashCan,
+                            size: 12, color: EnclavdColors.likeActive),
+                        SizedBox(width: 5),
+                        Text(
+                          'Delete',
+                          style: TextStyle(
+                            color: EnclavdColors.likeActive,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              const Spacer(),
+              Text(
+                '#${widget.number}',
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontFamily: 'monospace',
+                  color: EnclavdColors.textSecondary,
+                ),
+              ),
+            ],
           ),
         ],
       ),
