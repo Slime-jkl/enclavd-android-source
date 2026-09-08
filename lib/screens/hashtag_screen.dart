@@ -130,8 +130,7 @@ class _HashtagScreenState extends State<HashtagScreen> {
 
   Future<void> _editPost(Post post) async {
     final saved = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(
-          builder: (_) => ComposeScreen(post: post)),
+      MaterialPageRoute(builder: (_) => ComposeScreen(post: post)),
     );
     if (saved == true && mounted) _loadFirst();
   }
@@ -150,8 +149,8 @@ class _HashtagScreenState extends State<HashtagScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Delete',
-                style: TextStyle(color: EnclavdColors.likeActive)),
+            child: Text('Delete',
+                style: TextStyle(color: context.enclavd.likeActive)),
           ),
         ],
       ),
@@ -185,7 +184,7 @@ class _HashtagScreenState extends State<HashtagScreen> {
       appBar: AppBar(title: Text('#${widget.tag}')),
       body: RefreshIndicator(
         onRefresh: _refresh,
-        color: EnclavdColors.link,
+        color: context.enclavd.link,
         child: _buildBody(),
       ),
     );
@@ -205,7 +204,7 @@ class _HashtagScreenState extends State<HashtagScreen> {
       );
     }
     if (_error != null && _posts.isEmpty) {
-return ErrorView(message: _error!, onRetry: _loadFirst);
+      return ErrorView(message: _error!, onRetry: _loadFirst);
     }
 
     final total = _lastPage?.total;
@@ -226,17 +225,17 @@ return ErrorView(message: _error!, onRetry: _loadFirst);
               textBaseline: TextBaseline.alphabetic,
               children: [
                 Text('#${widget.tag}',
-                    style: const TextStyle(
+                    style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
-                        color: EnclavdColors.link)),
+                        color: context.enclavd.link)),
                 const SizedBox(width: 8),
                 Text(
                   total == null
                       ? '${_posts.length} post${_posts.length == 1 ? '' : 's'}'
                       : '$total post${total == 1 ? '' : 's'}',
-                  style: const TextStyle(
-                      color: EnclavdColors.textSecondary, fontSize: 14),
+                  style: TextStyle(
+                      color: context.enclavd.textSecondary, fontSize: 14),
                 ),
               ],
             ),
@@ -244,16 +243,16 @@ return ErrorView(message: _error!, onRetry: _loadFirst);
         }
         if (_posts.isEmpty) {
           // Empty state (tag.php: "No posts found with this hashtag.").
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 48),
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 48),
             child: Column(
               children: [
                 FaIcon(FontAwesomeIcons.hashtag,
-                    size: 32, color: EnclavdColors.textSecondary),
-                SizedBox(height: 12),
+                    size: 32, color: context.enclavd.textSecondary),
+                const SizedBox(height: 12),
                 Text('No posts found with this hashtag.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: EnclavdColors.textSecondary)),
+                    style: TextStyle(color: context.enclavd.textSecondary)),
               ],
             ),
           );

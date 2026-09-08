@@ -12,10 +12,26 @@ class LegalScreen extends StatelessWidget {
   static const routeName = '/legal';
 
   static const _docs = [
-    (name: 'Privacy Policy', path: '/privacy_policy', icon: FontAwesomeIcons.shieldHalved),
-    (name: 'Cookie Policy', path: '/cookie_policy', icon: FontAwesomeIcons.cookieBite),
-    (name: 'Terms of Service', path: '/terms_of_service', icon: FontAwesomeIcons.fileLines),
-    (name: 'Community Guidelines', path: '/guidelines', icon: FontAwesomeIcons.peopleGroup),
+    (
+      name: 'Privacy Policy',
+      path: '/privacy_policy',
+      icon: FontAwesomeIcons.shieldHalved
+    ),
+    (
+      name: 'Cookie Policy',
+      path: '/cookie_policy',
+      icon: FontAwesomeIcons.cookieBite
+    ),
+    (
+      name: 'Terms of Service',
+      path: '/terms_of_service',
+      icon: FontAwesomeIcons.fileLines
+    ),
+    (
+      name: 'Community Guidelines',
+      path: '/guidelines',
+      icon: FontAwesomeIcons.peopleGroup
+    ),
     (name: 'CSAE', path: '/csae', icon: FontAwesomeIcons.scaleBalanced),
     (name: 'F.A.Q', path: '/faq', icon: FontAwesomeIcons.circleQuestion),
   ];
@@ -42,22 +58,22 @@ class LegalScreen extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: EnclavdColors.card,
+                color: context.enclavd.card,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: EnclavdColors.border),
+                border: Border.all(color: context.enclavd.border),
               ),
-              child: const Row(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   FaIcon(FontAwesomeIcons.scaleBalanced,
-                      color: EnclavdColors.link, size: 20),
-                  SizedBox(width: 12),
+                      color: context.enclavd.link, size: 20),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Text(
                       'Legal documentation is published on the website. '
                       'Each document opens in your browser.',
                       style: TextStyle(
-                          color: EnclavdColors.textSecondary, fontSize: 13),
+                          color: context.enclavd.textSecondary, fontSize: 13),
                     ),
                   ),
                 ],
@@ -66,25 +82,23 @@ class LegalScreen extends StatelessWidget {
             const SizedBox(height: 12),
             // Material (not Container): ListTile ink needs a Material.
             Material(
-              color: EnclavdColors.card,
+              color: context.enclavd.card,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
-                side: const BorderSide(color: EnclavdColors.border),
+                side: BorderSide(color: context.enclavd.border),
               ),
               clipBehavior: Clip.antiAlias,
               child: Column(
                 children: [
                   for (final (i, doc) in _docs.indexed) ...[
                     if (i > 0)
-                      const Divider(height: 1, color: EnclavdColors.divider),
+                      Divider(height: 1, color: context.enclavd.divider),
                     ListTile(
                       leading: FaIcon(doc.icon,
-                          color: EnclavdColors.link, size: 17),
+                          color: context.enclavd.link, size: 17),
                       title: Text(doc.name),
-                      trailing: const FaIcon(
-                          FontAwesomeIcons.arrowUpRightFromSquare,
-                          color: EnclavdColors.textSecondary,
-                          size: 14),
+                      trailing: FaIcon(FontAwesomeIcons.arrowUpRightFromSquare,
+                          color: context.enclavd.textSecondary, size: 14),
                       onTap: () => _open(context, doc.path),
                     ),
                   ],

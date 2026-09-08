@@ -105,8 +105,8 @@ class _DiaryScreenState extends State<DiaryScreen> {
       return;
     }
     if (_step == _winIndex && _win.text.trim().isEmpty) {
-      setState(() => _wizardError =
-          'Name one small win. Even a tiny one counts.');
+      setState(
+          () => _wizardError = 'Name one small win. Even a tiny one counts.');
       return;
     }
     _goTo(_step + 1);
@@ -119,8 +119,8 @@ class _DiaryScreenState extends State<DiaryScreen> {
     }
     final win = _win.text.trim();
     if (win.isEmpty) {
-      setState(() => _wizardError =
-          'Name one small win. Even a tiny one counts.');
+      setState(
+          () => _wizardError = 'Name one small win. Even a tiny one counts.');
       return;
     }
     setState(() {
@@ -145,8 +145,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
           stats: result.stats,
           recent: [
             result.entry,
-            ...?_snapshot?.recent
-                .where((e) => e.date != result.entry.date),
+            ...?_snapshot?.recent.where((e) => e.date != result.entry.date),
           ],
         );
         _lastPrestige = result.prestige;
@@ -156,7 +155,8 @@ class _DiaryScreenState extends State<DiaryScreen> {
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _wizardError = userFacingError(e, fallback: 'Could not save your entry.');
+        _wizardError =
+            userFacingError(e, fallback: 'Could not save your entry.');
       });
     }
   }
@@ -182,13 +182,13 @@ class _DiaryScreenState extends State<DiaryScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
       children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Text(
             'A private log of the daily grind. One entry a day.',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: EnclavdColors.textSecondary,
+              color: context.enclavd.textSecondary,
               fontSize: 13,
               height: 1.5,
             ),
@@ -222,16 +222,16 @@ class _DiaryScreenState extends State<DiaryScreen> {
                 const Spacer(),
                 Text(
                   'Step ${_step + 1} of $_totalSteps',
-                  style: const TextStyle(
-                      color: EnclavdColors.textSecondary, fontSize: 12),
+                  style: TextStyle(
+                      color: context.enclavd.textSecondary, fontSize: 12),
                 ),
               ],
             ),
             const SizedBox(height: 2),
             Text(
               formatDiaryDate(_snapshot!.date),
-              style: const TextStyle(
-                  color: EnclavdColors.textSecondary, fontSize: 12),
+              style:
+                  TextStyle(color: context.enclavd.textSecondary, fontSize: 12),
             ),
             const SizedBox(height: 12),
             _diaryProgress((_step + 1) / _totalSteps),
@@ -289,8 +289,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(emoji,
-            style: const TextStyle(fontSize: 34, height: 1)),
+        Text(emoji, style: const TextStyle(fontSize: 34, height: 1)),
         const SizedBox(height: 12),
         if (title != null)
           Text(title,
@@ -306,7 +305,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
               letterSpacing: 0.8,
               color: required
                   ? const Color(0xFFFBBF24)
-                  : EnclavdColors.textSecondary,
+                  : context.enclavd.textSecondary,
             ),
           ),
         ],
@@ -315,8 +314,8 @@ class _DiaryScreenState extends State<DiaryScreen> {
         if (hint != null) ...[
           const SizedBox(height: 8),
           Text(hint,
-              style: const TextStyle(
-                  color: EnclavdColors.textSecondary, fontSize: 12)),
+              style: TextStyle(
+                  color: context.enclavd.textSecondary, fontSize: 12)),
         ],
       ],
     );
@@ -326,15 +325,13 @@ class _DiaryScreenState extends State<DiaryScreen> {
     return _stepQuestion(
       '\u{26A0}\u{FE0F}',
       'Before you start',
-      const Text(
+      Text(
         'Starting a Journal is a commitment with real stakes. Every entry '
         'you lock in awards you prestige points on the site. Miss a day, '
         'and you lose prestige for every day you skip. One entry per day, '
         'and once it\'s locked in, it stays. No edits, no take-backs.',
         style: TextStyle(
-            color: EnclavdColors.textSecondary,
-            fontSize: 14,
-            height: 1.6),
+            color: context.enclavd.textSecondary, fontSize: 14, height: 1.6),
       ),
     );
   }
@@ -346,11 +343,11 @@ class _DiaryScreenState extends State<DiaryScreen> {
       Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Pick how today went, then walk through the questions. Once '
             'you hit Lock it in, it stays. Two minutes, tops.',
             style: TextStyle(
-                color: EnclavdColors.textSecondary,
+                color: context.enclavd.textSecondary,
                 fontSize: 14,
                 height: 1.6),
           ),
@@ -401,12 +398,10 @@ class _DiaryScreenState extends State<DiaryScreen> {
         decoration: BoxDecoration(
           color: selected
               ? const Color(0xFF3B82F6).withValues(alpha: 0.15)
-              : EnclavdColors.cardSecondary.withValues(alpha: 0.6),
+              : context.enclavd.cardSecondary.withValues(alpha: 0.6),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: selected
-                ? const Color(0xFF3B82F6)
-                : EnclavdColors.border,
+            color: selected ? const Color(0xFF3B82F6) : context.enclavd.border,
             width: selected ? 1.5 : 1,
           ),
         ),
@@ -421,8 +416,8 @@ class _DiaryScreenState extends State<DiaryScreen> {
                 fontWeight: FontWeight.w600,
                 letterSpacing: 0.4,
                 color: selected
-                    ? EnclavdColors.textPrimary
-                    : EnclavdColors.textSecondary,
+                    ? context.enclavd.textPrimary
+                    : context.enclavd.textSecondary,
               ),
             ),
           ],
@@ -439,10 +434,10 @@ class _DiaryScreenState extends State<DiaryScreen> {
         controller: _win,
         maxLines: 3,
         maxLength: 500,
-        decoration: const InputDecoration(
+        decoration: InputDecoration(
           hintText: 'Finished the thing you kept stalling on...',
           counterStyle:
-              TextStyle(color: EnclavdColors.textSecondary, fontSize: 11),
+              TextStyle(color: context.enclavd.textSecondary, fontSize: 11),
         ),
       ),
       tag: 'Required',
@@ -459,15 +454,14 @@ class _DiaryScreenState extends State<DiaryScreen> {
         controller: _avoided,
         maxLines: 3,
         maxLength: 1000,
-        decoration: const InputDecoration(
+        decoration: InputDecoration(
           hintText: 'The thing that keeps slipping to tomorrow...',
           counterStyle:
-              TextStyle(color: EnclavdColors.textSecondary, fontSize: 11),
+              TextStyle(color: context.enclavd.textSecondary, fontSize: 11),
         ),
       ),
       tag: 'Optional',
-      hint:
-          'Naming it makes it real. Tomorrow it\'s a decision, not a fog.',
+      hint: 'Naming it makes it real. Tomorrow it\'s a decision, not a fog.',
     );
   }
 
@@ -479,10 +473,10 @@ class _DiaryScreenState extends State<DiaryScreen> {
         controller: _tomorrow,
         maxLines: 3,
         maxLength: 1000,
-        decoration: const InputDecoration(
+        decoration: InputDecoration(
           hintText: 'A concrete action, not a vibe...',
           counterStyle:
-              TextStyle(color: EnclavdColors.textSecondary, fontSize: 11),
+              TextStyle(color: context.enclavd.textSecondary, fontSize: 11),
         ),
       ),
       tag: 'Optional',
@@ -498,10 +492,10 @@ class _DiaryScreenState extends State<DiaryScreen> {
         controller: _thought,
         maxLines: 3,
         maxLength: 1000,
-        decoration: const InputDecoration(
+        decoration: InputDecoration(
           hintText: 'The idea that kept circling back...',
           counterStyle:
-              TextStyle(color: EnclavdColors.textSecondary, fontSize: 11),
+              TextStyle(color: context.enclavd.textSecondary, fontSize: 11),
         ),
       ),
       tag: 'Optional',
@@ -548,8 +542,8 @@ class _DiaryScreenState extends State<DiaryScreen> {
             child: OutlinedButton(
               onPressed: _busy ? null : () => _goTo(_step - 1),
               style: OutlinedButton.styleFrom(
-                foregroundColor: EnclavdColors.textSecondary,
-                side: const BorderSide(color: EnclavdColors.divider),
+                foregroundColor: context.enclavd.textSecondary,
+                side: BorderSide(color: context.enclavd.divider),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8)),
                 padding:
@@ -582,14 +576,14 @@ class _DiaryScreenState extends State<DiaryScreen> {
             const SizedBox(height: 6),
             Text(
               formatDiaryDate(entry.date),
-              style: const TextStyle(
-                  color: EnclavdColors.textSecondary, fontSize: 14),
+              style:
+                  TextStyle(color: context.enclavd.textSecondary, fontSize: 14),
             ),
             const SizedBox(height: 4),
-            const Text(
+            Text(
               'See you tomorrow.',
-              style: TextStyle(
-                  color: EnclavdColors.textSecondary, fontSize: 13),
+              style:
+                  TextStyle(color: context.enclavd.textSecondary, fontSize: 13),
             ),
             if (prestige != null &&
                 (prestige.awarded > 0 || prestige.penalty > 0)) ...[
@@ -608,9 +602,7 @@ class _DiaryScreenState extends State<DiaryScreen> {
     if (p.penalty > 0) {
       text = 'Earned +${p.awarded} prestige. Lost ${p.penalty} for '
           '${p.missedDays} ${p.missedDays == 1 ? 'missed day' : 'missed days'}.';
-      color = p.net < 0
-          ? const Color(0xFFF87171)
-          : const Color(0xFF34D399);
+      color = p.net < 0 ? const Color(0xFFF87171) : const Color(0xFF34D399);
     } else {
       text = 'This entry earned you +${p.awarded} prestige.';
       color = const Color(0xFF34D399);
@@ -639,9 +631,9 @@ class _DiaryScreenState extends State<DiaryScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
         decoration: BoxDecoration(
-          color: EnclavdColors.cardSecondary,
+          color: context.enclavd.cardSecondary,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: EnclavdColors.border, width: 1.5),
+          border: Border.all(color: context.enclavd.border, width: 1.5),
         ),
         child: Column(
           children: [
@@ -655,10 +647,10 @@ class _DiaryScreenState extends State<DiaryScreen> {
             const SizedBox(height: 2),
             Text(
               label.toUpperCase(),
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 10,
                 letterSpacing: 0.8,
-                color: EnclavdColors.textSecondary,
+                color: context.enclavd.textSecondary,
               ),
             ),
           ],
@@ -674,13 +666,13 @@ class _DiaryScreenState extends State<DiaryScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Mood - last 30 days',
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 0.6,
-                color: EnclavdColors.textSecondary,
+                color: context.enclavd.textSecondary,
               ),
             ),
             const SizedBox(height: 12),
@@ -712,13 +704,12 @@ class _DiaryScreenState extends State<DiaryScreen> {
           ),
           child: Column(
             children: [
-              Text(mood.emoji,
-                  style: const TextStyle(fontSize: 18, height: 1)),
+              Text(mood.emoji, style: const TextStyle(fontSize: 18, height: 1)),
               const SizedBox(height: 4),
               Text(
                 'x$count',
-                style: const TextStyle(
-                    color: EnclavdColors.textSecondary, fontSize: 11),
+                style: TextStyle(
+                    color: context.enclavd.textSecondary, fontSize: 11),
               ),
             ],
           ),
@@ -741,18 +732,19 @@ class _DiaryScreenState extends State<DiaryScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
-              color: EnclavdColors.cardSecondary,
+              color: context.enclavd.cardSecondary,
               borderRadius: BorderRadius.circular(16),
             ),
-            child: const Column(
+            child: Column(
               children: [
-                Text('\u{1F331}', style: TextStyle(fontSize: 32, height: 1)),
-                SizedBox(height: 10),
+                const Text('\u{1F331}',
+                    style: TextStyle(fontSize: 32, height: 1)),
+                const SizedBox(height: 10),
                 Text(
                   'No entries yet. Today is a good day to start.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                      color: EnclavdColors.textSecondary, fontSize: 13),
+                      color: context.enclavd.textSecondary, fontSize: 13),
                 ),
               ],
             ),
@@ -818,18 +810,20 @@ class _DiaryFieldRow extends StatelessWidget {
             children: [
               Text(
                 label.toUpperCase(),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.7,
-                  color: EnclavdColors.textSecondary,
+                  color: context.enclavd.textSecondary,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
                 text,
-                style: const TextStyle(
-                    fontSize: 13, height: 1.55, color: EnclavdColors.textPrimary),
+                style: TextStyle(
+                    fontSize: 13,
+                    height: 1.55,
+                    color: context.enclavd.textPrimary),
               ),
             ],
           ),
@@ -879,10 +873,10 @@ class _RecentEntryTileState extends State<_RecentEntryTile> {
                       children: [
                         Text(
                           formatDiaryDate(entry.date),
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
-                            color: EnclavdColors.textSecondary,
+                            color: context.enclavd.textSecondary,
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -890,8 +884,8 @@ class _RecentEntryTileState extends State<_RecentEntryTile> {
                           entry.win,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontSize: 13, color: EnclavdColors.textPrimary),
+                          style: TextStyle(
+                              fontSize: 13, color: context.enclavd.textPrimary),
                         ),
                       ],
                     ),
@@ -900,8 +894,8 @@ class _RecentEntryTileState extends State<_RecentEntryTile> {
                   AnimatedRotation(
                     turns: _open ? 0.5 : 0,
                     duration: const Duration(milliseconds: 200),
-                    child: const FaIcon(FontAwesomeIcons.chevronDown,
-                        size: 12, color: EnclavdColors.textSecondary),
+                    child: FaIcon(FontAwesomeIcons.chevronDown,
+                        size: 12, color: context.enclavd.textSecondary),
                   ),
                 ],
               ),
@@ -940,7 +934,6 @@ class _RecentEntryTileState extends State<_RecentEntryTile> {
   }
 }
 
-
 String formatDiaryDate(String iso) {
   final m = RegExp(r'^(\d{4})-(\d{2})-(\d{2})$').firstMatch(iso);
   if (m == null) return iso;
@@ -952,8 +945,18 @@ String formatDiaryDate(String iso) {
   if (diff == 0) return 'Today';
   if (diff == 1) return 'Yesterday';
   const months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
   return '${months[d.month - 1]} ${d.day}, ${d.year}';
 }

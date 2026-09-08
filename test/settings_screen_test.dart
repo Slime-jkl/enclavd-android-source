@@ -55,6 +55,8 @@ void main() {
   setUp(() {
     SoundService.muted = true;
     MessageNotifications.instance = null;
+    // The static notifier bleeds across tests in one process; reset it.
+    ThemePrefs.lightMode.value = false;
     // Unhandled platform channels HANG in widget tests (no platform side to
     // reply), so every test gets a default handler; the keep-alive test
     // overrides it with a stateful one.
@@ -73,8 +75,10 @@ void main() {
   tearDown(() {
     SoundService.muted = false;
     MessageNotifications.instance = null;
+    ThemePrefs.lightMode.value = false;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-        .setMockMethodCallHandler(const MethodChannel('enclavd/keepalive'), null);
+        .setMockMethodCallHandler(
+            const MethodChannel('enclavd/keepalive'), null);
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(const MethodChannel('home_widget'), null);
   });
@@ -92,9 +96,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(SoundService.muted, isFalse, reason: 'sounds default ON');
-    expect(find.byType(SwitchListTile), findsNWidgets(4),
-        reason: 'sounds + message notifications + notification alerts '
-            '+ live updates while minimized');
+    expect(find.byType(SwitchListTile), findsNWidgets(5),
+        reason: 'sounds + message notifications + notification alerts + '
+            'live updates while minimized + light mode');
 
     await tester.tap(find.widgetWithText(SwitchListTile, 'Sound effects'));
     await tester.pumpAndSettle();
@@ -185,7 +189,8 @@ void main() {
         reason: 'restored from prefs');
   });
 
-  testWidgets('live-updates-while-minimized toggle defaults ON and flips '
+  testWidgets(
+      'live-updates-while-minimized toggle defaults ON and flips '
       'via the native channel', (tester) async {
     const channel = MethodChannel('enclavd/keepalive');
     final calls = <MethodCall>[];
@@ -222,12 +227,11 @@ void main() {
         isTrue,
         reason: 'keep-alive defaults ON');
 
-    await tester.tap(find.widgetWithText(
-        SwitchListTile, 'Live updates while minimized'));
+    await tester.tap(
+        find.widgetWithText(SwitchListTile, 'Live updates while minimized'));
     await tester.pumpAndSettle();
 
-    final setCalls =
-        calls.where((c) => c.method == 'setEnabled').toList();
+    final setCalls = calls.where((c) => c.method == 'setEnabled').toList();
     expect(setCalls.length, 1, reason: 'one flip -> one native call');
     expect(setCalls.single.arguments, {'enabled': false});
 
@@ -263,8 +267,7 @@ void main() {
     await tester.scrollUntilVisible(
         find.text('Notifications are blocked on this phone'), 200);
 
-    expect(find.text('Notifications are blocked on this phone'),
-        findsOneWidget,
+    expect(find.text('Notifications are blocked on this phone'), findsOneWidget,
         reason: 'toggle ON but the OS denies -> the warning must be visible');
     expect(find.text('Open settings'), findsOneWidget);
 
@@ -286,8 +289,7 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    expect(find.text('Notifications are blocked on this phone'),
-        findsNothing);
+    expect(find.text('Notifications are blocked on this phone'), findsNothing);
   });
 
   testWidgets('no warning when the user opted out (toggle OFF)',
@@ -303,8 +305,42 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
-    expect(find.text('Notifications are blocked on this phone'),
-        findsNothing,
+    expect(find.text('Notifications are blocked on this phone'), findsNothing,
         reason: 'opt-out is intentional - no nagging');
+  });
+
+  testWidgets('light mode toggle flips the live notifier and persists',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    await tester.pumpWidget(MaterialApp(
+      theme: buildEnclavdTheme(),
+      home: const SettingsScreen(),
+    ));
+    await tester.pumpAndSettle();
+
+    // The row is the first item under the Appearance section; the screen
+    // is tall enough that everything is on stage.
+    await tester.scrollUntilVisible(find.text('Light mode'), 200);
+    expect(
+        tester
+            .widget<SwitchListTile>(
+                find.widgetWithText(SwitchListTile, 'Light mode'))
+            .value,
+        isFalse,
+        reason: 'dark is the default look');
+
+    await tester.tap(find.widgetWithText(SwitchListTile, 'Light mode'));
+    await tester.pumpAndSettle();
+    expect(ThemePrefs.lightMode.value, isTrue,
+        reason: 'applies instantly via the root notifier');
+    var prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool(ThemePrefs.lightModeKey), isTrue,
+        reason: 'choice persists');
+
+    await tester.tap(find.widgetWithText(SwitchListTile, 'Light mode'));
+    await tester.pumpAndSettle();
+    expect(ThemePrefs.lightMode.value, isFalse, reason: 'toggling back');
+    prefs = await SharedPreferences.getInstance();
+    expect(prefs.getBool(ThemePrefs.lightModeKey), isFalse);
   });
 }

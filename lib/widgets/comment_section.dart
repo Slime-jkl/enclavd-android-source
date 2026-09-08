@@ -75,7 +75,7 @@ class _CommentsSectionState extends State<CommentsSection> {
     }
     if (widget.error != null) {
       return Text(widget.error!,
-          style: const TextStyle(color: EnclavdColors.textSecondary));
+          style: TextStyle(color: context.enclavd.textSecondary));
     }
     final tree = CommentTree.build(widget.comments);
     return Column(
@@ -106,12 +106,12 @@ class _CommentsSectionState extends State<CommentsSection> {
                       height: 14,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const FaIcon(FontAwesomeIcons.anglesDown,
-                      size: 13, color: EnclavdColors.link),
+                  : FaIcon(FontAwesomeIcons.anglesDown,
+                      size: 13, color: context.enclavd.link),
               label: Text(
                   widget.loadingMore ? 'Loading...' : 'Load more comments'),
               style: TextButton.styleFrom(
-                foregroundColor: EnclavdColors.link,
+                foregroundColor: context.enclavd.link,
                 textStyle:
                     const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
               ),
@@ -158,24 +158,24 @@ class CommentComposer extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
               decoration: BoxDecoration(
-                color: EnclavdColors.cardSecondary.withValues(alpha: 0.7),
+                color: context.enclavd.cardSecondary.withValues(alpha: 0.7),
                 borderRadius: BorderRadius.circular(10),
-                border: const Border(
-                    left: BorderSide(color: EnclavdColors.link, width: 3)),
+                border: Border(
+                    left: BorderSide(color: context.enclavd.link, width: 3)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const FaIcon(FontAwesomeIcons.reply,
-                      size: 12, color: EnclavdColors.link),
+                  FaIcon(FontAwesomeIcons.reply,
+                      size: 12, color: context.enclavd.link),
                   const SizedBox(width: 6),
                   Flexible(
                     child: Text(
                       'Replying to @${target.username}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: EnclavdColors.link,
+                      style: TextStyle(
+                        color: context.enclavd.link,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
@@ -185,10 +185,10 @@ class CommentComposer extends StatelessWidget {
                     InkWell(
                       onTap: onDismissReply,
                       borderRadius: BorderRadius.circular(8),
-                      child: const Padding(
-                        padding: EdgeInsets.all(6),
+                      child: Padding(
+                        padding: const EdgeInsets.all(6),
                         child: FaIcon(FontAwesomeIcons.xmark,
-                            size: 13, color: EnclavdColors.textSecondary),
+                            size: 13, color: context.enclavd.textSecondary),
                       ),
                     ),
                 ],
@@ -209,30 +209,31 @@ class CommentComposer extends StatelessWidget {
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) => onSend(),
                 // 1000-char cap enforced silently, no counter UI.
-                style: const TextStyle(
-                    fontSize: 14, color: EnclavdColors.textPrimary),
-                cursorColor: EnclavdColors.link,
-                decoration: const InputDecoration(
+                style:
+                    TextStyle(fontSize: 14, color: context.enclavd.textPrimary),
+                cursorColor: context.enclavd.link,
+                decoration: InputDecoration(
                   hintText: 'Add a comment...',
                   hintStyle: TextStyle(
-                      color: EnclavdColors.textSecondary, fontSize: 14),
+                      color: context.enclavd.textSecondary, fontSize: 14),
                   filled: true,
-                  fillColor: EnclavdColors.background,
+                  fillColor: context.enclavd.background,
                   isDense: true,
                   counterText: '',
                   contentPadding:
-                      EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(10)),
-                    borderSide: BorderSide(color: EnclavdColors.border),
+                    borderRadius: const BorderRadius.all(Radius.circular(10)),
+                    borderSide: BorderSide(color: context.enclavd.border),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(10)),
-                    borderSide: BorderSide(color: EnclavdColors.border),
+                    borderRadius: const BorderRadius.all(Radius.circular(10)),
+                    borderSide: BorderSide(color: context.enclavd.border),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(10)),
-                    borderSide: BorderSide(color: EnclavdColors.link, width: 2),
+                    borderRadius: const BorderRadius.all(Radius.circular(10)),
+                    borderSide:
+                        BorderSide(color: context.enclavd.link, width: 2),
                   ),
                 ),
               ),
@@ -246,8 +247,8 @@ class CommentComposer extends StatelessWidget {
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const FaIcon(FontAwesomeIcons.paperPlane,
-                      size: 18, color: EnclavdColors.link),
+                  : FaIcon(FontAwesomeIcons.paperPlane,
+                      size: 18, color: context.enclavd.link),
               tooltip: 'Send comment',
             ),
           ],
@@ -314,9 +315,9 @@ class CommentThread extends StatelessWidget {
           Stack(
             fit: StackFit.passthrough,
             children: [
-              const Positioned.fill(
+              Positioned.fill(
                 child: RailDrop(
-                  color: EnclavdColors.border,
+                  color: context.enclavd.border,
                   railX: 14,
                   startY: 38,
                 ),
@@ -339,7 +340,7 @@ class CommentThread extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         ThreadElbow(
-                          color: EnclavdColors.border,
+                          color: context.enclavd.border,
                           elbowY: 20, // child avatar 28 center + 6 pad
                           isLast: i == children.length - 1,
                         ),
@@ -347,8 +348,7 @@ class CommentThread extends StatelessWidget {
                           child: CommentRow(
                             key: ValueKey(children[i].id),
                             comment: children[i],
-                            replyToUsername:
-                                parentUsernames[children[i].id],
+                            replyToUsername: parentUsernames[children[i].id],
                             apiBaseUrl: apiBaseUrl,
                             onDelete: onDelete,
                             onReply: onReply,
@@ -417,6 +417,7 @@ class _CommentRowState extends State<CommentRow> {
   final List<TapGestureRecognizer> _recognizers = [];
   List<InlineSpan>? _cachedSpans;
   String? _cachedFor; // 'full' | 'short' slice the cache holds
+  Color? _cachedLinkColor; // palette the cache was tokenized with
 
   static const int _readMoreLimit = 200;
 
@@ -464,7 +465,12 @@ class _CommentRowState extends State<CommentRow> {
 
   List<InlineSpan> _spans() {
     final key = _expanded ? 'full' : 'short';
-    if (_cachedFor == key && _cachedSpans != null) return _cachedSpans!;
+    final linkColor = context.enclavd.link;
+    if (_cachedFor == key &&
+        _cachedSpans != null &&
+        _cachedLinkColor == linkColor) {
+      return _cachedSpans!;
+    }
     // Drop the previous slice's recognizers so none are orphaned.
     for (final r in _recognizers) {
       r.dispose();
@@ -473,6 +479,7 @@ class _CommentRowState extends State<CommentRow> {
     final text = _visibleContent;
     final spans = commentContentSpans(
       text,
+      linkColor: linkColor,
       onMention: (username) => _openMention(username),
       onUrl: (url) => _openUrl(url),
       recognizers: _recognizers,
@@ -482,6 +489,7 @@ class _CommentRowState extends State<CommentRow> {
     }
     _cachedSpans = spans;
     _cachedFor = key;
+    _cachedLinkColor = linkColor;
     return spans;
   }
 
@@ -509,7 +517,8 @@ class _CommentRowState extends State<CommentRow> {
 
   @override
   Widget build(BuildContext context) {
-    final personality = PersonalityColors.forType(comment.personalityType);
+    final personality =
+        context.enclavd.personalityColor(comment.personalityType);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -539,7 +548,8 @@ class _CommentRowState extends State<CommentRow> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: rankColorFromCssClass(comment.nameColor),
+                            color: context.enclavd
+                                .rankNameFromCss(comment.nameColor),
                             fontWeight: FontWeight.w600,
                             fontSize: 13,
                           ),
@@ -549,18 +559,18 @@ class _CommentRowState extends State<CommentRow> {
                     const SizedBox(width: 6),
                     Text(
                       relativeTime(comment.createdAtUtc),
-                      style: const TextStyle(
-                          color: EnclavdColors.textSecondary, fontSize: 11),
+                      style: TextStyle(
+                          color: context.enclavd.textSecondary, fontSize: 11),
                     ),
                     if (!comment.isOwner) ...[
                       const SizedBox(width: 6),
                       GestureDetector(
                         onTap: () => widget.onReply(comment),
                         behavior: HitTestBehavior.opaque,
-                        child: const Padding(
-                          padding: EdgeInsets.all(2),
+                        child: Padding(
+                          padding: const EdgeInsets.all(2),
                           child: FaIcon(FontAwesomeIcons.reply,
-                              size: 13, color: EnclavdColors.textSecondary),
+                              size: 13, color: context.enclavd.textSecondary),
                         ),
                       ),
                     ],
@@ -568,8 +578,8 @@ class _CommentRowState extends State<CommentRow> {
                       const SizedBox(width: 6),
                       GestureDetector(
                         onTap: () => _confirmDelete(),
-                        child: const FaIcon(FontAwesomeIcons.trashCan,
-                            size: 14, color: EnclavdColors.textSecondary),
+                        child: FaIcon(FontAwesomeIcons.trashCan,
+                            size: 14, color: context.enclavd.textSecondary),
                       ),
                     ],
                   ],
@@ -583,8 +593,8 @@ class _CommentRowState extends State<CommentRow> {
                     padding: const EdgeInsets.only(bottom: 2),
                     child: Text(
                       'Replying to @$target',
-                      style: const TextStyle(
-                        color: EnclavdColors.link,
+                      style: TextStyle(
+                        color: context.enclavd.link,
                         fontSize: 11.5,
                         fontWeight: FontWeight.w600,
                       ),
@@ -592,8 +602,8 @@ class _CommentRowState extends State<CommentRow> {
                   ),
                 Text.rich(
                   TextSpan(children: _spans()),
-                  style: const TextStyle(
-                      color: EnclavdColors.textPrimary, fontSize: 14),
+                  style: TextStyle(
+                      color: context.enclavd.textPrimary, fontSize: 14),
                 ),
                 if (_body.length > _readMoreLimit)
                   GestureDetector(
@@ -602,8 +612,8 @@ class _CommentRowState extends State<CommentRow> {
                       padding: const EdgeInsets.only(top: 2),
                       child: Text(
                         _expanded ? 'Show less' : 'Read more',
-                        style: const TextStyle(
-                          color: EnclavdColors.link,
+                        style: TextStyle(
+                          color: context.enclavd.link,
                           fontSize: 12.5,
                           fontWeight: FontWeight.w600,
                         ),

@@ -54,7 +54,8 @@ class _PersonalityScreenState extends State<PersonalityScreen> {
   PersonalityService get _personalityService =>
       widget.service ?? _services!.personality;
 
-  SiteConfigService? get _configService => widget.config ?? _services?.siteConfig;
+  SiteConfigService? get _configService =>
+      widget.config ?? _services?.siteConfig;
 
   @override
   void initState() {
@@ -135,7 +136,9 @@ class _PersonalityScreenState extends State<PersonalityScreen> {
     if (_loading) {
       return const Center(
         child: SizedBox(
-            width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 2)),
       );
     }
     if (_noType) return const _NoTypeView();
@@ -174,9 +177,7 @@ class _PersonalityView extends StatelessWidget {
           const SizedBox(height: 20),
         ],
         // Personality type badge
-        Center(
-            child:
-                PersonalityTypeBadge(type: personality.personalityType)),
+        Center(child: PersonalityTypeBadge(type: personality.personalityType)),
         const SizedBox(height: 20),
         // Type card: title + description + strengths areas
         PersonalityInfoCard(
@@ -250,10 +251,10 @@ class _SynergyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final myColor = PersonalityColors.forType(compat.myType) ??
-        EnclavdColors.textSecondary;
-    final theirColor = PersonalityColors.forType(compat.theirType) ??
-        EnclavdColors.textSecondary;
+    final myColor = context.enclavd.personalityColor(compat.myType) ??
+        context.enclavd.textSecondary;
+    final theirColor = context.enclavd.personalityColor(compat.theirType) ??
+        context.enclavd.textSecondary;
     final percentage = showBar ? compat.percentage : null;
     final showColumns = viewer != null && profile != null;
     return Container(
@@ -261,15 +262,15 @@ class _SynergyCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: EnclavdColors.border),
+        border: Border.all(color: context.enclavd.border),
         // Each half tinted by its member's type color, meeting mid-card.
         gradient: LinearGradient(
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
           colors: [
-            _tint(myColor),
-            EnclavdColors.card,
-            _tint(theirColor),
+            _tint(context, myColor),
+            context.enclavd.card,
+            _tint(context, theirColor),
           ],
         ),
       ),
@@ -280,8 +281,8 @@ class _SynergyCard extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                    child: _IdentityColumn(
-                        person: viewer!, type: compat.myType)),
+                    child:
+                        _IdentityColumn(person: viewer!, type: compat.myType)),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   child: _TypeMatch(
@@ -301,11 +302,11 @@ class _SynergyCard extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Synergy',
+                Text('Synergy',
                     style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w700,
-                        color: EnclavdColors.textPrimary)),
+                        color: context.enclavd.textPrimary)),
                 Text('$percentage%',
                     style: TextStyle(
                         fontSize: 22,
@@ -350,8 +351,8 @@ class _SynergyCard extends StatelessWidget {
   }
 
   // Type color blended over the card so the gradient stays readable.
-  static Color _tint(Color c) =>
-      Color.alphaBlend(c.withValues(alpha: 0.16), EnclavdColors.card);
+  Color _tint(BuildContext context, Color c) =>
+      Color.alphaBlend(c.withValues(alpha: 0.16), context.enclavd.card);
 }
 
 /*
@@ -367,9 +368,9 @@ class _IdentityColumn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final typeColor = PersonalityColors.forType(type);
+    final typeColor = context.enclavd.personalityColor(type);
     final blocked = person.rank == 'Blocked';
-    final rankColor = RankColors.forRank(person.rank);
+    final rankColor = context.enclavd.rankName(person.rank);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -382,7 +383,7 @@ class _IdentityColumn extends StatelessWidget {
           size: 56,
           url: resolveMediaUrl(AppConfig.apiBaseUrl,
               avatarPath: person.profilePictureUrl),
-          borderColor: typeColor ?? EnclavdColors.border,
+          borderColor: typeColor ?? context.enclavd.border,
         ),
         const SizedBox(height: 8),
         Text(
@@ -428,13 +429,13 @@ class _TypeMatch extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(left.toUpperCase(), style: base.copyWith(color: leftColor)),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 5),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 5),
           child: Text('\u00D7', // x (U+00D7, kept ASCII in source)
               style: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
-                  color: EnclavdColors.textSecondary)),
+                  color: context.enclavd.textSecondary)),
         ),
         Text(right.toUpperCase(), style: base.copyWith(color: rightColor)),
       ],
@@ -514,8 +515,8 @@ class _ReasonBlock extends StatelessWidget {
               FaIcon(icon, size: 13, color: iconColor),
               const SizedBox(width: 8),
               Text(heading,
-                  style:
-                      const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w600, fontSize: 14)),
             ],
           ),
           const SizedBox(height: 8),
@@ -524,13 +525,13 @@ class _ReasonBlock extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Padding(
-                  padding: EdgeInsets.only(right: 8),
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
                   child: Text('\u2022', // bullet (kept ASCII in source)
                       style: TextStyle(
                           fontSize: 13.5,
                           height: 1.4,
-                          color: EnclavdColors.textSecondary)),
+                          color: context.enclavd.textSecondary)),
                 ),
                 Expanded(
                   child: Text(reasons[i],
@@ -550,22 +551,22 @@ class _NoTypeView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(
+    return Center(
       child: Padding(
-        padding: EdgeInsets.all(24),
+        padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             FaIcon(FontAwesomeIcons.brain,
-                size: 40, color: EnclavdColors.textSecondary),
-            SizedBox(height: 14),
-            Text('No personality type yet',
+                size: 40, color: context.enclavd.textSecondary),
+            const SizedBox(height: 14),
+            const Text('No personality type yet',
                 style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-            SizedBox(height: 6),
+            const SizedBox(height: 6),
             Text(
               'This member has not taken the personality test.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: EnclavdColors.textSecondary),
+              style: TextStyle(color: context.enclavd.textSecondary),
             ),
           ],
         ),

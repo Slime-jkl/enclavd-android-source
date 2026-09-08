@@ -100,7 +100,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Widget _buildBody() {
     if (_error != null) {
-return ErrorView(message: _error!, onRetry: _load);
+      return ErrorView(message: _error!, onRetry: _load);
     }
     final items = _items;
     if (items == null) {
@@ -108,21 +108,23 @@ return ErrorView(message: _error!, onRetry: _load);
         child: Padding(
           padding: EdgeInsets.all(24),
           child: SizedBox(
-              width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.5)),
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2.5)),
         ),
       );
     }
     if (items.isEmpty) {
       // Site empty state: fa-bell-slash + "No notifications yet".
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             FaIcon(FontAwesomeIcons.bellSlash,
-                color: EnclavdColors.textSecondary, size: 28),
-            SizedBox(height: 10),
+                color: context.enclavd.textSecondary, size: 28),
+            const SizedBox(height: 10),
             Text('No notifications yet',
-                style: TextStyle(color: EnclavdColors.textSecondary)),
+                style: TextStyle(color: context.enclavd.textSecondary)),
           ],
         ),
       );
@@ -152,26 +154,36 @@ class _NotificationRow extends StatelessWidget {
   final AppNotification notification;
   final VoidCallback onTap;
 
-  static const Map<String, (FaIconData, Color)> _typeIcons = {
-    'post-like': (FontAwesomeIcons.heart, EnclavdColors.likeActive),
-    'post-comment': (FontAwesomeIcons.comment, EnclavdColors.link),
-    'comment-mention': (FontAwesomeIcons.at, Color(0xFFC084FC)),
-    'follow': (FontAwesomeIcons.userPlus, Color(0xFF34D399)),
-    'user-management': (FontAwesomeIcons.shieldHalved, Color(0xFFFACC15)),
-  };
-
   @override
   Widget build(BuildContext context) {
     final n = notification;
     final unread = !n.read;
-    final (icon, iconColor) = _typeIcons[n.contentType] ??
-        (FontAwesomeIcons.bell, EnclavdColors.textSecondary);
+    // Fixed accent colors step one tone darker on light so they keep
+    // contrast on white cards.
+    final light = Theme.of(context).brightness == Brightness.light;
+    final (icon, iconColor) = switch (n.contentType) {
+      'post-like' => (FontAwesomeIcons.heart, context.enclavd.likeActive),
+      'post-comment' => (FontAwesomeIcons.comment, context.enclavd.link),
+      'comment-mention' => (
+          FontAwesomeIcons.at,
+          light ? const Color(0xFF9333EA) : const Color(0xFFC084FC)
+        ),
+      'follow' => (
+          FontAwesomeIcons.userPlus,
+          light ? const Color(0xFF059669) : const Color(0xFF34D399)
+        ),
+      'user-management' => (
+          FontAwesomeIcons.shieldHalved,
+          light ? const Color(0xFFD97706) : const Color(0xFFFACC15)
+        ),
+      _ => (FontAwesomeIcons.bell, context.enclavd.textSecondary),
+    };
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
       child: Material(
         color: unread
             ? const Color(0x1A3B82F6) // site: bg-blue-500/10
-            : EnclavdColors.card,
+            : context.enclavd.card,
         borderRadius: BorderRadius.circular(14),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -202,9 +214,10 @@ class _NotificationRow extends StatelessWidget {
                           color: iconColor,
                           shape: BoxShape.circle,
                           border:
-                              Border.all(color: EnclavdColors.card, width: 2),
+                              Border.all(color: context.enclavd.card, width: 2),
                         ),
-                        child: FaIcon(icon, size: 9, color: EnclavdColors.card),
+                        child:
+                            FaIcon(icon, size: 9, color: context.enclavd.card),
                       ),
                     ),
                   ],
@@ -222,8 +235,8 @@ class _NotificationRow extends StatelessWidget {
                               n.message,
                               style: TextStyle(
                                 color: unread
-                                    ? EnclavdColors.textPrimary
-                                    : EnclavdColors.textSecondary,
+                                    ? context.enclavd.textPrimary
+                                    : context.enclavd.textSecondary,
                                 fontWeight:
                                     unread ? FontWeight.w600 : FontWeight.w400,
                                 fontSize: 14,
@@ -233,9 +246,9 @@ class _NotificationRow extends StatelessWidget {
                           const SizedBox(width: 8),
                           Text(
                             _relative(n.createdAt),
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 11,
-                                color: EnclavdColors.textSecondary),
+                                color: context.enclavd.textSecondary),
                           ),
                         ],
                       ),
@@ -245,15 +258,16 @@ class _NotificationRow extends StatelessWidget {
                           padding: const EdgeInsets.all(8),
                           width: double.infinity,
                           decoration: BoxDecoration(
-                            color: EnclavdColors.cardSecondary,
+                            color: context.enclavd.cardSecondary,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             '"${_preview(n)}"',
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontSize: 12, color: EnclavdColors.textSecondary),
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: context.enclavd.textSecondary),
                           ),
                         ),
                       if (unread) ...[
@@ -262,8 +276,8 @@ class _NotificationRow extends StatelessWidget {
                         Container(
                           width: 6,
                           height: 6,
-                          decoration: const BoxDecoration(
-                            color: EnclavdColors.link,
+                          decoration: BoxDecoration(
+                            color: context.enclavd.link,
                             shape: BoxShape.circle,
                           ),
                         ),

@@ -46,7 +46,8 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
       setState(() => _results = results);
     } catch (_) {
       if (!mounted) return;
-      setState(() => _error = 'Search failed. Check your connection and retry.');
+      setState(
+          () => _error = 'Search failed. Check your connection and retry.');
     }
   }
 
@@ -59,9 +60,8 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
     }
     // Posts and comments deep-link to the post (site parity).
     Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => PostDetailScreen(postId: r.type == 'comment'
-          ? r.postId
-          : r.id),
+      builder: (_) =>
+          PostDetailScreen(postId: r.type == 'comment' ? r.postId : r.id),
     ));
   }
 
@@ -75,7 +75,7 @@ class _SearchResultsScreenState extends State<SearchResultsScreen> {
 
   Widget _buildBody() {
     if (_error != null) {
-return ErrorView(message: _error!, onRetry: _load);
+      return ErrorView(message: _error!, onRetry: _load);
     }
     final results = _results;
     if (results == null) {
@@ -98,11 +98,11 @@ return ErrorView(message: _error!, onRetry: _load);
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const FaIcon(FontAwesomeIcons.magnifyingGlass,
-                color: EnclavdColors.textSecondary, size: 28),
+            FaIcon(FontAwesomeIcons.magnifyingGlass,
+                color: context.enclavd.textSecondary, size: 28),
             const SizedBox(height: 10),
             Text('No results for "${widget.query}"',
-                style: const TextStyle(color: EnclavdColors.textSecondary)),
+                style: TextStyle(color: context.enclavd.textSecondary)),
           ],
         ),
       );
@@ -147,11 +147,11 @@ class _SectionHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
       child: Text(
         label.toUpperCase(),
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w600,
           letterSpacing: 1.1,
-          color: EnclavdColors.textSecondary,
+          color: context.enclavd.textSecondary,
         ),
       ),
     );
@@ -167,7 +167,7 @@ class _ResultRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final r = result;
-    final personality = PersonalityColors.forType(r.personalityType);
+    final personality = context.enclavd.personalityColor(r.personalityType);
     return InkWell(
       onTap: onTap,
       child: Padding(
@@ -180,7 +180,7 @@ class _ResultRow extends StatelessWidget {
               url: r.avatar.startsWith('/')
                   ? '${AppConfig.apiBaseUrl}${r.avatar}'
                   : r.avatar,
-              borderColor: personality ?? EnclavdColors.border,
+              borderColor: personality ?? context.enclavd.border,
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -196,8 +196,8 @@ class _ResultRow extends StatelessWidget {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: r.rank == 'Blocked'
-                                ? RankColors.forRank('Blocked')
-                                : RankColors.forRank(r.rank),
+                                ? context.enclavd.rankName('Blocked')
+                                : context.enclavd.rankName(r.rank),
                             fontWeight: FontWeight.w600,
                             fontSize: 15,
                           ),
@@ -231,15 +231,17 @@ class _Subtitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final r = result;
-    const secondary = TextStyle(
-        fontSize: 13, color: EnclavdColors.textSecondary, height: 1.35);
+    final secondary = TextStyle(
+        fontSize: 13, color: context.enclavd.textSecondary, height: 1.35);
     switch (r.type) {
       case 'user':
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (r.content.isNotEmpty)
-              Text(r.content, maxLines: 2, overflow: TextOverflow.ellipsis,
+              Text(r.content,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: secondary),
             const SizedBox(height: 2),
             Text('${r.stats['posts'] ?? 0} posts', style: secondary),
@@ -249,24 +251,24 @@ class _Subtitle extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(r.content, maxLines: 3, overflow: TextOverflow.ellipsis,
-                style: secondary),
+            Text(r.content,
+                maxLines: 3, overflow: TextOverflow.ellipsis, style: secondary),
             const SizedBox(height: 3),
             Row(
               children: [
-                const FaIcon(FontAwesomeIcons.heart,
-                    size: 11, color: EnclavdColors.textSecondary),
+                FaIcon(FontAwesomeIcons.heart,
+                    size: 11, color: context.enclavd.textSecondary),
                 const SizedBox(width: 4),
                 Text('${r.stats['likes'] ?? 0}',
-                    style: const TextStyle(
-                        fontSize: 12, color: EnclavdColors.textSecondary)),
+                    style: TextStyle(
+                        fontSize: 12, color: context.enclavd.textSecondary)),
                 const SizedBox(width: 12),
-                const FaIcon(FontAwesomeIcons.comment,
-                    size: 11, color: EnclavdColors.textSecondary),
+                FaIcon(FontAwesomeIcons.comment,
+                    size: 11, color: context.enclavd.textSecondary),
                 const SizedBox(width: 4),
                 Text('${r.stats['comments'] ?? 0}',
-                    style: const TextStyle(
-                        fontSize: 12, color: EnclavdColors.textSecondary)),
+                    style: TextStyle(
+                        fontSize: 12, color: context.enclavd.textSecondary)),
               ],
             ),
           ],
@@ -275,16 +277,16 @@ class _Subtitle extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(r.content, maxLines: 3, overflow: TextOverflow.ellipsis,
-                style: secondary),
+            Text(r.content,
+                maxLines: 3, overflow: TextOverflow.ellipsis, style: secondary),
             if (r.postContent.isNotEmpty) ...[
               const SizedBox(height: 3),
               Text('On: ${r.postContent}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 12,
-                      color: EnclavdColors.textSecondary,
+                      color: context.enclavd.textSecondary,
                       fontStyle: FontStyle.italic)),
             ],
           ],

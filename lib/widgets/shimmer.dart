@@ -33,13 +33,17 @@ class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final light = Theme.of(context).brightness == Brightness.light;
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
         // Gentle opacity pulse between the two tones.
         final t = _controller.value;
-        final base = widget.baseColor ?? const Color(0xFF1A2333); // gray-850
-        final highlight = widget.highlightColor ?? const Color(0xFF232F44);
+        // Dark pair: gray-850 tones; light pair: slate-300 -> slate-200.
+        final base = widget.baseColor ??
+            (light ? const Color(0xFFCBD5E1) : const Color(0xFF1A2333));
+        final highlight = widget.highlightColor ??
+            (light ? const Color(0xFFE2E8F0) : const Color(0xFF232F44));
         final color = Color.lerp(base, highlight, (t * 2).clamp(0.0, 1.0))!;
         return ColorFiltered(
           colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
@@ -73,7 +77,7 @@ class ShimmerBox extends StatelessWidget {
         width: width,
         height: height,
         decoration: BoxDecoration(
-          color: EnclavdColors.cardSecondary,
+          color: context.enclavd.cardSecondary,
           shape: shape,
           borderRadius: shape == BoxShape.circle
               ? null

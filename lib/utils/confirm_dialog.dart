@@ -21,8 +21,8 @@ Future<bool> confirmDelete(
         ),
         TextButton(
           onPressed: () => Navigator.of(dialogContext).pop(true),
-          child: const Text('Delete',
-              style: TextStyle(color: EnclavdColors.likeActive)),
+          child: Text('Delete',
+              style: TextStyle(color: context.enclavd.likeActive)),
         ),
       ],
     ),

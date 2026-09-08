@@ -18,8 +18,7 @@ class QuoteHelpScreen extends StatelessWidget {
             _Tldr(
               icon: FontAwesomeIcons.quoteLeft,
               title: 'One quote a day',
-              body:
-                  'A new quote every morning - on the widget, the '
+              body: 'A new quote every morning - on the widget, the '
                   'notification, and the website. No repeats until you\u2019ve '
                   'seen them all.',
             ),
@@ -35,8 +34,7 @@ class QuoteHelpScreen extends StatelessWidget {
             _Tldr(
               icon: FontAwesomeIcons.tags,
               title: 'It learns',
-              body:
-                  'Every quote has themes. Liking one pushes its themes up; '
+              body: 'Every quote has themes. Liking one pushes its themes up; '
                   'disliking pushes them down. Rate a few and the picks get '
                   'smarter.',
             ),
@@ -44,24 +42,21 @@ class QuoteHelpScreen extends StatelessWidget {
             _Tldr(
               icon: FontAwesomeIcons.houseChimney,
               title: 'The widget',
-              body:
-                  'Add it from your launcher. Tap the card to open these '
+              body: 'Add it from your launcher. Tap the card to open these '
                   'settings. Resize it - the quote grows with it.',
             ),
             SizedBox(height: 8),
             _Tldr(
               icon: FontAwesomeIcons.bell,
               title: 'The notification',
-              body:
-                  'Once a day, random time between 6 am and 8 pm. Skipped '
+              body: 'Once a day, random time between 6 am and 8 pm. Skipped '
                   'while the widget is on your home screen.',
             ),
             SizedBox(height: 8),
             _Tldr(
               icon: FontAwesomeIcons.arrowRotateRight,
               title: 'Turn it off',
-              body:
-                  'Master switch at the top of the Quote of the day screen.',
+              body: 'Master switch at the top of the Quote of the day screen.',
             ),
             SizedBox(height: 16),
           ],
@@ -87,14 +82,14 @@ class _Tldr extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: EnclavdColors.card,
+        color: context.enclavd.card,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: EnclavdColors.border),
+        border: Border.all(color: context.enclavd.border),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          FaIcon(icon, color: EnclavdColors.link, size: 18),
+          FaIcon(icon, color: context.enclavd.link, size: 18),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -110,8 +105,10 @@ class _Tldr extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   body,
-                  style: const TextStyle(
-                      fontSize: 13, height: 1.4, color: EnclavdColors.textSecondary),
+                  style: TextStyle(
+                      fontSize: 13,
+                      height: 1.4,
+                      color: context.enclavd.textSecondary),
                 ),
               ],
             ),

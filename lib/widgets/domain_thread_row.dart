@@ -12,7 +12,6 @@ import '../utils/domain_icons.dart';
 import 'enclavd_avatar.dart';
 import 'shimmer.dart'; // ShimmerBox
 
-
 class DomainThreadRow extends StatefulWidget {
   const DomainThreadRow({
     super.key,
@@ -77,7 +76,7 @@ class _DomainThreadRowState extends State<DomainThreadRow> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       child: Material(
-        color: EnclavdColors.card,
+        color: context.enclavd.card,
         borderRadius: BorderRadius.circular(16),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -94,7 +93,8 @@ class _DomainThreadRowState extends State<DomainThreadRow> {
                       size: 24,
                       url: resolveMediaUrl(AppConfig.apiBaseUrl,
                           avatarPath: post.profilePictureUrl),
-                      borderColor: PersonalityColors.forType(post.personalityType),
+                      borderColor: context.enclavd
+                          .personalityColor(post.personalityType),
                       square: true,
                     ),
                     const SizedBox(width: 8),
@@ -107,8 +107,8 @@ class _DomainThreadRowState extends State<DomainThreadRow> {
                           fontSize: 12.5,
                           fontWeight: FontWeight.w600,
                           color: post.isBlocked
-                              ? RankColors.forRank('Blocked')
-                              : RankColors.forRank(post.rank),
+                              ? context.enclavd.rankName('Blocked')
+                              : context.enclavd.rankName(post.rank),
                         ),
                       ),
                     ),
@@ -124,11 +124,11 @@ class _DomainThreadRowState extends State<DomainThreadRow> {
                   title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 14.5,
                     fontWeight: FontWeight.w600,
                     height: 1.3,
-                    color: EnclavdColors.textPrimary,
+                    color: context.enclavd.textPrimary,
                   ),
                 ),
                 if (body.isNotEmpty) ...[
@@ -137,15 +137,15 @@ class _DomainThreadRowState extends State<DomainThreadRow> {
                     body,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12.5,
                       height: 1.35,
-                      color: EnclavdColors.textSecondary,
+                      color: context.enclavd.textSecondary,
                     ),
                   ),
                 ],
                 const SizedBox(height: 8),
-                const Divider(height: 1, color: EnclavdColors.border),
+                Divider(height: 1, color: context.enclavd.border),
                 const SizedBox(height: 8),
                 // Footer: like + replies | last reply.
                 Row(
@@ -160,15 +160,15 @@ class _DomainThreadRowState extends State<DomainThreadRow> {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const FaIcon(FontAwesomeIcons.comment,
-                            size: 14, color: EnclavdColors.textSecondary),
+                        FaIcon(FontAwesomeIcons.comment,
+                            size: 14, color: context.enclavd.textSecondary),
                         const SizedBox(width: 5),
                         Text(
                           '${post.commentCount}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12.5,
                             fontWeight: FontWeight.w600,
-                            color: EnclavdColors.textSecondary,
+                            color: context.enclavd.textSecondary,
                           ),
                         ),
                       ],
@@ -194,18 +194,16 @@ class _DomainThreadRowState extends State<DomainThreadRow> {
     final blocked = thread.lastReplyActive == 'false';
     return Text.rich(
       TextSpan(
-        style: const TextStyle(
-            fontSize: 11, color: EnclavdColors.textSecondary),
+        style: TextStyle(fontSize: 11, color: context.enclavd.textSecondary),
         children: [
-          TextSpan(
-              text: 'Last reply ${relativeTime(thread.lastReplyAt!)} @'),
+          TextSpan(text: 'Last reply ${relativeTime(thread.lastReplyAt!)} @'),
           TextSpan(
             text: thread.lastReplyUsername!,
             style: TextStyle(
               fontWeight: FontWeight.w600,
               color: blocked
-                  ? RankColors.forRank('Blocked')
-                  : RankColors.forRank(thread.lastReplyRank ?? 'Member'),
+                  ? context.enclavd.rankName('Blocked')
+                  : context.enclavd.rankName(thread.lastReplyRank ?? 'Member'),
             ),
           ),
         ],
@@ -232,7 +230,7 @@ class _LikeButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color =
-        liked ? EnclavdColors.likeActive : EnclavdColors.textSecondary;
+        liked ? context.enclavd.likeActive : context.enclavd.textSecondary;
     return InkWell(
       onTap: busy ? null : onTap,
       borderRadius: BorderRadius.circular(8),
@@ -269,9 +267,9 @@ class _DomainBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: EnclavdColors.cardSecondary,
+        color: context.enclavd.cardSecondary,
         borderRadius: BorderRadius.circular(7),
-        border: Border.all(color: EnclavdColors.border),
+        border: Border.all(color: context.enclavd.border),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -287,10 +285,10 @@ class _DomainBadge extends StatelessWidget {
               thread.domainName,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
-                color: EnclavdColors.textSecondary,
+                color: context.enclavd.textSecondary,
               ),
             ),
           ),
@@ -320,18 +318,18 @@ class DomainThreadRowSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       child: Material(
-        color: EnclavdColors.card,
-        borderRadius: BorderRadius.all(Radius.circular(16)),
+        color: context.enclavd.card,
+        borderRadius: const BorderRadius.all(Radius.circular(16)),
         clipBehavior: Clip.antiAlias,
         child: Padding(
-          padding: EdgeInsets.all(12),
+          padding: const EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
+              const Row(
                 children: [
                   ShimmerBox(width: 24, height: 24, borderRadius: 7),
                   SizedBox(width: 8),
@@ -340,14 +338,14 @@ class DomainThreadRowSkeleton extends StatelessWidget {
                   ShimmerBox(width: 70, height: 18, borderRadius: 7),
                 ],
               ),
-              SizedBox(height: 10),
-              ShimmerBox(width: double.infinity, height: 13),
-              SizedBox(height: 6),
-              ShimmerBox(width: 190, height: 13),
-              SizedBox(height: 10),
-              Divider(height: 1, color: EnclavdColors.border),
-              SizedBox(height: 10),
-              Row(
+              const SizedBox(height: 10),
+              const ShimmerBox(width: double.infinity, height: 13),
+              const SizedBox(height: 6),
+              const ShimmerBox(width: 190, height: 13),
+              const SizedBox(height: 10),
+              Divider(height: 1, color: context.enclavd.border),
+              const SizedBox(height: 10),
+              const Row(
                 children: [
                   ShimmerBox(width: 42, height: 14),
                   SizedBox(width: 18),

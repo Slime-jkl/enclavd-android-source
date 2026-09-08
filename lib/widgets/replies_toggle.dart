@@ -36,12 +36,12 @@ class RepliesToggle extends StatelessWidget {
                     ? FontAwesomeIcons.chevronUp
                     : FontAwesomeIcons.chevronDown,
                 size: 11,
-                color: EnclavdColors.link),
+                color: context.enclavd.link),
             const SizedBox(width: 6),
             Text(
               label,
-              style: const TextStyle(
-                color: EnclavdColors.link,
+              style: TextStyle(
+                color: context.enclavd.link,
                 fontSize: 12.5,
                 fontWeight: FontWeight.w600,
               ),

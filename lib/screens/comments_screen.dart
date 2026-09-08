@@ -109,8 +109,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
       _commentsError = null;
     });
     try {
-      final page =
-          await widget.social.listComments(_post.id); // page 1, DESC
+      final page = await widget.social.listComments(_post.id); // page 1, DESC
       if (!mounted) return;
       setState(() {
         _comments = page.comments;
@@ -152,11 +151,9 @@ class _CommentsScreenState extends State<CommentsScreen> {
   void _replyToComment(Comment comment) {
     final current = _commentController.text.trim();
     final mention = '@${comment.username} ';
-    _commentController.text = current.isEmpty
-        ? mention
-        : '$current $mention';
-    _commentController.selection = TextSelection.collapsed(
-        offset: _commentController.text.length);
+    _commentController.text = current.isEmpty ? mention : '$current $mention';
+    _commentController.selection =
+        TextSelection.collapsed(offset: _commentController.text.length);
     setState(() => _replyTarget = comment);
     _commentFocus.requestFocus();
   }
@@ -204,7 +201,8 @@ class _CommentsScreenState extends State<CommentsScreen> {
     while (grew) {
       grew = false;
       for (final c in _comments) {
-        if (c.parentCommentId != null && toDrop.contains(c.parentCommentId) &&
+        if (c.parentCommentId != null &&
+            toDrop.contains(c.parentCommentId) &&
             !toDrop.contains(c.id)) {
           toDrop.add(c.id);
           grew = true;
@@ -220,8 +218,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
       _commentCount -= 1; // optimistic; server total corrects on success
     });
     try {
-      final newCount =
-          await widget.social.deleteComment(comment.id, _post.id);
+      final newCount = await widget.social.deleteComment(comment.id, _post.id);
       if (!mounted) return;
       setState(() => _commentCount = newCount);
     } catch (_) {
@@ -252,20 +249,21 @@ class _CommentsScreenState extends State<CommentsScreen> {
           children: [
             _TopBar(commentCount: _commentCount, onClose: _close),
             _PostHeader(post: _post, apiBaseUrl: widget.apiBaseUrl),
-            const Divider(height: 1, color: EnclavdColors.divider),
+            Divider(height: 1, color: context.enclavd.divider),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                 children: [
-                  if (_comments.isEmpty && !_commentsLoading &&
+                  if (_comments.isEmpty &&
+                      !_commentsLoading &&
                       _commentsError == null)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24),
                       child: Center(
                         child: Text('No comments yet - start the discussion.',
                             style: TextStyle(
                                 fontSize: 13,
-                                color: EnclavdColors.textSecondary)),
+                                color: context.enclavd.textSecondary)),
                       ),
                     ),
                   CommentsSection(
@@ -285,10 +283,10 @@ class _CommentsScreenState extends State<CommentsScreen> {
             // Pinned composer: always within reach of the keyboard.
             Container(
               padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
-              decoration: const BoxDecoration(
-                color: EnclavdColors.card,
+              decoration: BoxDecoration(
+                color: context.enclavd.card,
                 border: Border(
-                    top: BorderSide(color: EnclavdColors.border, width: 1)),
+                    top: BorderSide(color: context.enclavd.border, width: 1)),
               ),
               child: CommentComposer(
                 controller: _commentController,
@@ -321,29 +319,29 @@ class _TopBar extends StatelessWidget {
         children: [
           IconButton(
             onPressed: onClose,
-            icon: const FaIcon(FontAwesomeIcons.chevronDown,
-                size: 18, color: EnclavdColors.textPrimary),
+            icon: FaIcon(FontAwesomeIcons.chevronDown,
+                size: 18, color: context.enclavd.textPrimary),
             tooltip: 'Close',
           ),
           const SizedBox(width: 4),
-          const Text(
+          Text(
             'Comments',
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w700,
-              color: EnclavdColors.textPrimary,
+              color: context.enclavd.textPrimary,
             ),
           ),
           const Spacer(),
-          const FaIcon(FontAwesomeIcons.comments,
-              size: 14, color: EnclavdColors.textSecondary),
+          FaIcon(FontAwesomeIcons.comments,
+              size: 14, color: context.enclavd.textSecondary),
           const SizedBox(width: 6),
           Text(
             '$commentCount',
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: EnclavdColors.textSecondary),
+                color: context.enclavd.textSecondary),
           ),
         ],
       ),
@@ -366,6 +364,7 @@ class _PostHeader extends StatefulWidget {
 class _PostHeaderState extends State<_PostHeader> {
   final List<TapGestureRecognizer> _recognizers = [];
   List<InlineSpan>? _cachedSpans;
+  Color? _cachedLinkColor; // palette the cache was tokenized with
   bool _expanded = false;
 
   Post get post => widget.post;
@@ -388,8 +387,8 @@ class _PostHeaderState extends State<_PostHeader> {
       TextSpan(children: _spans()),
       maxLines: collapsed ? 4 : null,
       overflow: collapsed ? TextOverflow.ellipsis : null,
-      style: const TextStyle(
-          color: EnclavdColors.textPrimary, fontSize: 14, height: 1.45),
+      style: TextStyle(
+          color: context.enclavd.textPrimary, fontSize: 14, height: 1.45),
     );
     return [
       if (needs && _expanded)
@@ -425,14 +424,24 @@ class _PostHeaderState extends State<_PostHeader> {
   }
 
   List<InlineSpan> _spans() {
-    if (_cachedSpans != null) return _cachedSpans!;
+    final linkColor = context.enclavd.link;
+    if (_cachedSpans != null && _cachedLinkColor == linkColor) {
+      return _cachedSpans!;
+    }
+    // Drop the previous round's recognizers so none are orphaned.
+    for (final r in _recognizers) {
+      r.dispose();
+    }
+    _recognizers.clear();
     final spans = postContentSpans(
       post.content,
+      linkColor: linkColor,
       onHashtag: (tag) => _openHashtag(tag),
       onUrl: (url) => _openUrl(url),
       recognizers: _recognizers,
     );
     _cachedSpans = spans;
+    _cachedLinkColor = linkColor;
     return spans;
   }
 
@@ -461,7 +470,7 @@ class _PostHeaderState extends State<_PostHeader> {
 
   @override
   Widget build(BuildContext context) {
-    final personality = PersonalityColors.forType(post.personalityType);
+    final personality = context.enclavd.personalityColor(post.personalityType);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
       child: Column(
@@ -492,8 +501,8 @@ class _PostHeaderState extends State<_PostHeader> {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: post.isBlocked
-                              ? RankColors.forRank('Blocked')
-                              : RankColors.forRank(post.rank),
+                              ? context.enclavd.rankName('Blocked')
+                              : context.enclavd.rankName(post.rank),
                           fontWeight: FontWeight.w700,
                           fontSize: 14,
                           decoration: post.isBlocked
@@ -505,8 +514,8 @@ class _PostHeaderState extends State<_PostHeader> {
                     const SizedBox(height: 2),
                     Text(
                       relativeTime(post.createdAt),
-                      style: const TextStyle(
-                          color: EnclavdColors.textSecondary, fontSize: 11.5),
+                      style: TextStyle(
+                          color: context.enclavd.textSecondary, fontSize: 11.5),
                     ),
                   ],
                 ),

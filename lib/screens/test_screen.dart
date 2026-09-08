@@ -66,7 +66,9 @@ class _TestScreenState extends State<TestScreen> {
       if (!mounted) return;
       setState(() {
         _phase = _Phase.error;
-        _error = e.status == 401 ? 'Session expired. Please log in again.' : e.message;
+        _error = e.status == 401
+            ? 'Session expired. Please log in again.'
+            : e.message;
       });
     } catch (_) {
       if (!mounted) return;
@@ -118,7 +120,8 @@ class _TestScreenState extends State<TestScreen> {
       setState(() => _submitting = false);
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(content: Text('Could not submit the test.')));
+        ..showSnackBar(
+            const SnackBar(content: Text('Could not submit the test.')));
     }
   }
 
@@ -141,11 +144,11 @@ class _TestScreenState extends State<TestScreen> {
         centerTitle: true,
       ),
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF0B1628), EnclavdColors.background],
+            colors: [const Color(0xFF0B1628), context.enclavd.background],
           ),
         ),
         child: SafeArea(child: _buildBody()),
@@ -176,17 +179,16 @@ class _TestScreenState extends State<TestScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const FaIcon(FontAwesomeIcons.cloudArrowDown,
-                    size: 34, color: EnclavdColors.textSecondary),
+                FaIcon(FontAwesomeIcons.cloudArrowDown,
+                    size: 34, color: context.enclavd.textSecondary),
                 const SizedBox(height: 12),
                 Text(_error ?? 'Something went wrong.',
                     textAlign: TextAlign.center,
-                    style:
-                        const TextStyle(color: EnclavdColors.textSecondary)),
+                    style: TextStyle(color: context.enclavd.textSecondary)),
                 const SizedBox(height: 16),
                 FilledButton(
                   style: FilledButton.styleFrom(
-                      backgroundColor: EnclavdColors.primaryButton),
+                      backgroundColor: context.enclavd.primaryButton),
                   onPressed: _load,
                   child: const Text('Try again'),
                 ),
@@ -226,12 +228,12 @@ class _IntroView extends StatelessWidget {
             width: 88,
             height: 88,
             decoration: BoxDecoration(
-              color: EnclavdColors.link.withValues(alpha: 0.12),
+              color: context.enclavd.link.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
-            child: const Center(
+            child: Center(
               child: FaIcon(FontAwesomeIcons.brain,
-                  size: 38, color: EnclavdColors.link),
+                  size: 38, color: context.enclavd.link),
             ),
           ),
         ),
@@ -242,14 +244,12 @@ class _IntroView extends StatelessWidget {
           style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 6),
-        const Text(
+        Text(
           '40 questions that reveal how you think, decide and connect - '
           'and how you fit into the Enclavd community.',
           textAlign: TextAlign.center,
           style: TextStyle(
-              color: EnclavdColors.textSecondary,
-              fontSize: 14,
-              height: 1.45),
+              color: context.enclavd.textSecondary, fontSize: 14, height: 1.45),
         ),
         const SizedBox(height: 24),
         const Row(
@@ -260,9 +260,7 @@ class _IntroView extends StatelessWidget {
                 label: 'Questions'),
             SizedBox(width: 10),
             _StatChip(
-                icon: FontAwesomeIcons.clock,
-                value: '15-20',
-                label: 'Minutes'),
+                icon: FontAwesomeIcons.clock, value: '15-20', label: 'Minutes'),
             SizedBox(width: 10),
             _StatChip(
                 icon: FontAwesomeIcons.lock, value: 'No', label: 'Retakes'),
@@ -272,25 +270,25 @@ class _IntroView extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(18),
           decoration: BoxDecoration(
-            color: EnclavdColors.card,
+            color: context.enclavd.card,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: EnclavdColors.border),
+            border: Border.all(color: context.enclavd.border),
           ),
-          child: const Column(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
                   FaIcon(FontAwesomeIcons.circleInfo,
-                      color: EnclavdColors.link, size: 16),
-                  SizedBox(width: 8),
-                  Text('About this test',
-                      style: TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w700)),
+                      color: context.enclavd.link, size: 16),
+                  const SizedBox(width: 8),
+                  const Text('About this test',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                 ],
               ),
-              SizedBox(height: 10),
-              Text(
+              const SizedBox(height: 10),
+              const Text(
                 'Answer every question honestly and pick the option that '
                 'feels most like you. Your results appear instantly.',
                 style: TextStyle(
@@ -298,18 +296,18 @@ class _IntroView extends StatelessWidget {
                     fontSize: 13.5,
                     height: 1.45),
               ),
-              SizedBox(height: 12),
-              _InfoRow(
+              const SizedBox(height: 12),
+              const _InfoRow(
                 icon: FontAwesomeIcons.checkDouble,
                 color: Color(0xFF4ADE80),
                 text: 'Results appear immediately after you submit',
               ),
               _InfoRow(
                 icon: FontAwesomeIcons.clock,
-                color: EnclavdColors.link,
+                color: context.enclavd.link,
                 text: 'Estimated time: 15-20 minutes',
               ),
-              _InfoRow(
+              const _InfoRow(
                 icon: FontAwesomeIcons.lock,
                 color: Color(0xFFFACC15),
                 text: 'Cannot be retaken once submitted',
@@ -320,10 +318,10 @@ class _IntroView extends StatelessWidget {
         const SizedBox(height: 24),
         FilledButton.icon(
           style: FilledButton.styleFrom(
-            backgroundColor: EnclavdColors.primaryButton,
+            backgroundColor: context.enclavd.primaryButton,
             padding: const EdgeInsets.symmetric(vertical: 15),
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             textStyle:
                 const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),
@@ -351,20 +349,20 @@ class _StatChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12),
         decoration: BoxDecoration(
-          color: EnclavdColors.card,
+          color: context.enclavd.card,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: EnclavdColors.border),
+          border: Border.all(color: context.enclavd.border),
         ),
         child: Column(
           children: [
-            FaIcon(icon, size: 15, color: EnclavdColors.link),
+            FaIcon(icon, size: 15, color: context.enclavd.link),
             const SizedBox(height: 6),
             Text(value,
                 style:
                     const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
             Text(label,
-                style: const TextStyle(
-                    fontSize: 11, color: EnclavdColors.textSecondary)),
+                style: TextStyle(
+                    fontSize: 11, color: context.enclavd.textSecondary)),
           ],
         ),
       ),
@@ -412,10 +410,12 @@ class _Option {
 const _kOptions = [
   _Option('strongly_agree', 'Strongly Agree', FontAwesomeIcons.checkDouble,
       Color(0xFF22C55E)), // green-500
-  _Option('agree', 'Agree', FontAwesomeIcons.check, Color(0xFF4ADE80)), // green-400
+  _Option(
+      'agree', 'Agree', FontAwesomeIcons.check, Color(0xFF4ADE80)), // green-400
   _Option('neutral', 'Neutral', FontAwesomeIcons.scaleBalanced,
       Color(0xFF9CA3AF)), // gray-400
-  _Option('disagree', 'Disagree', FontAwesomeIcons.xmark, Color(0xFFF87171)), // red-400
+  _Option('disagree', 'Disagree', FontAwesomeIcons.xmark,
+      Color(0xFFF87171)), // red-400
   _Option('strongly_disagree', 'Strongly Disagree',
       FontAwesomeIcons.circleXmark, Color(0xFFEF4444)), // red-500
 ];
@@ -445,8 +445,8 @@ class _QuizView extends StatelessWidget {
     final question = questions[current];
     final selected = answers[question.id];
     final isLast = current == total - 1;
-    final progress = ((current + (selected != null ? 1 : 0)) / total)
-        .clamp(0.0, 1.0);
+    final progress =
+        ((current + (selected != null ? 1 : 0)) / total).clamp(0.0, 1.0);
 
     return Column(
       children: [
@@ -459,15 +459,15 @@ class _QuizView extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text('Question ${current + 1} of $total',
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: EnclavdColors.textSecondary)),
+                          color: context.enclavd.textSecondary)),
                   Text('${(progress * 100).round()}%',
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: EnclavdColors.link)),
+                          color: context.enclavd.link)),
                 ],
               ),
               const SizedBox(height: 8),
@@ -490,9 +490,9 @@ class _QuizView extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: EnclavdColors.card,
+                  color: context.enclavd.card,
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: EnclavdColors.border),
+                  border: Border.all(color: context.enclavd.border),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -520,9 +520,9 @@ class _QuizView extends StatelessWidget {
         Container(
           width: double.infinity,
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
-          decoration: const BoxDecoration(
-            color: Color(0xE6030712), // background at ~90%
-            border: Border(top: BorderSide(color: EnclavdColors.divider)),
+          decoration: BoxDecoration(
+            color: const Color(0xE6030712), // background at ~90%
+            border: Border(top: BorderSide(color: context.enclavd.divider)),
           ),
           child: isLast
               ? FilledButton.icon(
@@ -534,9 +534,7 @@ class _QuizView extends StatelessWidget {
                     textStyle: const TextStyle(
                         fontSize: 15, fontWeight: FontWeight.w600),
                   ),
-                  onPressed: (selected == null || submitting)
-                      ? null
-                      : onSubmit,
+                  onPressed: (selected == null || submitting) ? null : onSubmit,
                   icon: submitting
                       ? const SizedBox(
                           width: 16,
@@ -548,7 +546,7 @@ class _QuizView extends StatelessWidget {
                 )
               : FilledButton.icon(
                   style: FilledButton.styleFrom(
-                    backgroundColor: EnclavdColors.primaryButton,
+                    backgroundColor: context.enclavd.primaryButton,
                     padding: const EdgeInsets.symmetric(vertical: 15),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
@@ -583,13 +581,13 @@ class _OptionRow extends StatelessWidget {
       child: Material(
         color: selected
             ? const Color(0x333B82F6) // blue-500/20 (site .selected)
-            : EnclavdColors.cardSecondary.withValues(alpha: 0.55),
+            : context.enclavd.cardSecondary.withValues(alpha: 0.55),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
           side: BorderSide(
             color: selected
-                ? EnclavdColors.link // blue-400 selected ring
-                : EnclavdColors.border,
+                ? context.enclavd.link // blue-400 selected ring
+                : context.enclavd.border,
             width: selected ? 1.5 : 1,
           ),
         ),
@@ -597,8 +595,7 @@ class _OptionRow extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
             child: Row(
               children: [
                 FaIcon(option.icon, color: option.color, size: 17),
@@ -615,8 +612,8 @@ class _OptionRow extends StatelessWidget {
                       )),
                 ),
                 if (selected)
-                  const FaIcon(FontAwesomeIcons.circleCheck,
-                      color: EnclavdColors.link, size: 16),
+                  FaIcon(FontAwesomeIcons.circleCheck,
+                      color: context.enclavd.link, size: 16),
               ],
             ),
           ),

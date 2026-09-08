@@ -58,7 +58,7 @@ class _AuthPasswordFieldState extends State<AuthPasswordField> {
           icon: FaIcon(
             _obscure ? FontAwesomeIcons.eye : FontAwesomeIcons.eyeSlash,
             size: 18,
-            color: EnclavdColors.textSecondary,
+            color: context.enclavd.textSecondary,
           ),
         ),
       ),

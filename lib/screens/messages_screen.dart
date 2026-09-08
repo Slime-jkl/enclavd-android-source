@@ -156,8 +156,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
         final services = await AppServices.create();
         await services.apiClient.clearSession();
         if (mounted) {
-          Navigator.of(context)
-              .pushNamedAndRemoveUntil('/login', (_) => false);
+          Navigator.of(context).pushNamedAndRemoveUntil('/login', (_) => false);
         }
       }
     } catch (_) {
@@ -251,12 +250,11 @@ class _MessagesScreenState extends State<MessagesScreen> {
         top: false,
         child: Column(
           children: [
-            if (_conversations.isNotEmpty && _loadedOnce)
-              _buildSearchField(),
+            if (_conversations.isNotEmpty && _loadedOnce) _buildSearchField(),
             Expanded(
               child: RefreshIndicator(
                 onRefresh: _loadConversations,
-                color: EnclavdColors.link,
+                color: context.enclavd.link,
                 child: _buildBody(),
               ),
             ),
@@ -272,22 +270,21 @@ class _MessagesScreenState extends State<MessagesScreen> {
       child: TextField(
         controller: _search,
         onChanged: (value) => setState(() => _query = value),
-        style: const TextStyle(
-            color: EnclavdColors.textPrimary, fontSize: 14),
+        style: TextStyle(color: context.enclavd.textPrimary, fontSize: 14),
         decoration: InputDecoration(
           hintText: 'Search conversations',
           hintStyle: TextStyle(
-              color: EnclavdColors.textSecondary.withValues(alpha: 0.7)),
+              color: context.enclavd.textSecondary.withValues(alpha: 0.7)),
           isDense: true,
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-          prefixIcon: const FieldIcon(FontAwesomeIcons.magnifyingGlass,
-              size: 15, color: EnclavdColors.textSecondary),
+          prefixIcon: FieldIcon(FontAwesomeIcons.magnifyingGlass,
+              size: 15, color: context.enclavd.textSecondary),
           suffixIcon: _query.isEmpty
               ? null
               : IconButton(
-                  icon: const Icon(Icons.close,
-                      size: 17, color: EnclavdColors.textSecondary),
+                  icon: Icon(Icons.close,
+                      size: 17, color: context.enclavd.textSecondary),
                   onPressed: () {
                     _search.clear();
                     setState(() => _query = '');
@@ -297,12 +294,11 @@ class _MessagesScreenState extends State<MessagesScreen> {
           fillColor: const Color(0x0DFFFFFF), // white/[0.05]
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8), // rounded-lg
-            borderSide:
-                const BorderSide(color: EnclavdColors.border), // white/10
+            borderSide: BorderSide(color: context.enclavd.border), // white/10
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: EnclavdColors.link, width: 2),
+            borderSide: BorderSide(color: context.enclavd.link, width: 2),
           ),
         ),
       ),
@@ -327,28 +323,30 @@ class _MessagesScreenState extends State<MessagesScreen> {
     if (_conversations.isEmpty) {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        children: const [
-          SizedBox(height: 140),
+        children: [
+          const SizedBox(height: 140),
           FaIcon(FontAwesomeIcons.paperPlane,
-              color: EnclavdColors.textSecondary, size: 56),
-          SizedBox(height: 16),
+              color: context.enclavd.textSecondary, size: 56),
+          const SizedBox(height: 16),
           Text(
             'No conversations yet',
             textAlign: TextAlign.center,
             style: TextStyle(
-                color: EnclavdColors.textPrimary,
+                color: context.enclavd.textPrimary,
                 fontSize: 17,
                 fontWeight: FontWeight.w600),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: 40),
+            padding: const EdgeInsets.symmetric(horizontal: 40),
             child: Text(
               'Open a member\u2019s profile and tap Message to start a '
               'conversation.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                  color: EnclavdColors.textSecondary, fontSize: 13, height: 1.4),
+                  color: context.enclavd.textSecondary,
+                  fontSize: 13,
+                  height: 1.4),
             ),
           ),
         ],
@@ -359,22 +357,22 @@ class _MessagesScreenState extends State<MessagesScreen> {
       // The inbox has rows but the search matched none.
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        children: const [
-          SizedBox(height: 160),
+        children: [
+          const SizedBox(height: 160),
           Text(
             'No conversations found',
             textAlign: TextAlign.center,
             style: TextStyle(
-                color: EnclavdColors.textPrimary,
+                color: context.enclavd.textPrimary,
                 fontSize: 15,
                 fontWeight: FontWeight.w600),
           ),
-          SizedBox(height: 6),
+          const SizedBox(height: 6),
           Text(
             'Try a different name.',
             textAlign: TextAlign.center,
-            style: TextStyle(
-                color: EnclavdColors.textSecondary, fontSize: 13),
+            style:
+                TextStyle(color: context.enclavd.textSecondary, fontSize: 13),
           ),
         ],
       );
@@ -395,7 +393,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
 }
 
 class _ConversationRow extends StatelessWidget {
-  const _ConversationRow({super.key, required this.conversation, required this.onTap});
+  const _ConversationRow(
+      {super.key, required this.conversation, required this.onTap});
 
   final Conversation conversation;
   final VoidCallback onTap;
@@ -409,8 +408,7 @@ class _ConversationRow extends StatelessWidget {
         // Unread rows keep the site's faint highlight (white/[0.05]).
         decoration: BoxDecoration(
           color: unread > 0 ? const Color(0x0DFFFFFF) : Colors.transparent,
-          border:
-              const Border(bottom: BorderSide(color: EnclavdColors.divider)),
+          border: Border(bottom: BorderSide(color: context.enclavd.divider)),
         ),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
@@ -423,7 +421,7 @@ class _ConversationRow extends StatelessWidget {
                   url: resolveAvatarUrl(
                       AppConfig.apiBaseUrl, conversation.participantAvatar),
                   // Site ring: border-white/[0.1] (no personality color).
-                  borderColor: EnclavdColors.border,
+                  borderColor: context.enclavd.border,
                 ),
                 Positioned(
                   bottom: 0,
@@ -437,7 +435,7 @@ class _ConversationRow extends StatelessWidget {
                           ? const Color(0xFF22C55E) // bg-green-500
                           : const Color(0xFF6B7280), // bg-gray-500
                       border: Border.all(
-                          color: EnclavdColors.background, // border-gray-900
+                          color: context.enclavd.background, // border-gray-900
                           width: 2),
                     ),
                   ),
@@ -455,8 +453,8 @@ class _ConversationRow extends StatelessWidget {
                         child: Text(
                           conversation.participantName,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: EnclavdColors.textPrimary,
+                          style: TextStyle(
+                            color: context.enclavd.textPrimary,
                             fontSize: 14, // text-sm
                             fontWeight: FontWeight.w600, // font-semibold
                           ),
@@ -513,8 +511,8 @@ class _ConversationRowSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: EnclavdColors.divider)),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: context.enclavd.divider)),
       ),
       child: const Row(
         children: [
@@ -545,9 +543,9 @@ class ShimmerCircle extends StatelessWidget {
     return Container(
       width: 40,
       height: 40,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: EnclavdColors.cardSecondary,
+        color: context.enclavd.cardSecondary,
       ),
     );
   }
@@ -565,7 +563,7 @@ class ShimmerBar extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: EnclavdColors.cardSecondary,
+        color: context.enclavd.cardSecondary,
         borderRadius: BorderRadius.circular(4),
       ),
     );

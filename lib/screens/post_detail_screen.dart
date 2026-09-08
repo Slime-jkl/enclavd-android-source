@@ -94,8 +94,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Delete',
-                style: TextStyle(color: EnclavdColors.likeActive)),
+            child: Text('Delete',
+                style: TextStyle(color: context.enclavd.likeActive)),
           ),
         ],
       ),
@@ -133,7 +133,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   Widget _buildBody() {
     final error = _error;
     if (error != null) {
-return ErrorView(message: error, onRetry: _load);
+      return ErrorView(message: error, onRetry: _load);
     }
     final post = _post;
     if (_loading || post == null) {

@@ -20,7 +20,7 @@ void main() {
 
       final field = tester.widget<TextField>(find.byType(TextField));
       // The text is visible directly (no color: transparent trick).
-      expect(field.style?.color, EnclavdColors.textPrimary);
+      expect(field.style?.color, EnclavdPalette.dark.textPrimary);
       expect(field.controller?.text, 'hello world');
     });
 

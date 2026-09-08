@@ -87,18 +87,18 @@ class _FollowsScreenState extends State<FollowsScreen>
               ),
               Text(
                 '@${widget.username}',
-                style: const TextStyle(
-                    fontSize: 12.5, color: EnclavdColors.textSecondary),
+                style: TextStyle(
+                    fontSize: 12.5, color: context.enclavd.textSecondary),
               ),
             ],
           ),
         ),
         bottom: TabBar(
           controller: _tab,
-          indicatorColor: EnclavdColors.link,
+          indicatorColor: context.enclavd.link,
           indicatorSize: TabBarIndicatorSize.label,
-          labelColor: EnclavdColors.textPrimary,
-          unselectedLabelColor: EnclavdColors.textSecondary,
+          labelColor: context.enclavd.textPrimary,
+          unselectedLabelColor: context.enclavd.textSecondary,
           tabs: const [
             Tab(text: 'Followers'),
             Tab(text: 'Following'),
@@ -306,7 +306,7 @@ class _RelationListState extends State<_RelationList>
     if (_users.isEmpty) {
       return RefreshIndicator(
         onRefresh: _loadFirst,
-        color: EnclavdColors.link,
+        color: context.enclavd.link,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
@@ -314,14 +314,14 @@ class _RelationListState extends State<_RelationList>
               padding: const EdgeInsets.only(top: 120, bottom: 40),
               child: Column(
                 children: [
-                  const FaIcon(FontAwesomeIcons.userGroup,
-                      size: 40, color: EnclavdColors.textSecondary),
+                  FaIcon(FontAwesomeIcons.userGroup,
+                      size: 40, color: context.enclavd.textSecondary),
                   const SizedBox(height: 12),
                   Text(
                     _emptyText,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        color: EnclavdColors.textSecondary, fontSize: 14),
+                    style: TextStyle(
+                        color: context.enclavd.textSecondary, fontSize: 14),
                   ),
                 ],
               ),
@@ -332,7 +332,7 @@ class _RelationListState extends State<_RelationList>
     }
     return RefreshIndicator(
       onRefresh: _loadFirst,
-      color: EnclavdColors.link,
+      color: context.enclavd.link,
       child: ListView.separated(
         controller: _scroll,
         physics: const AlwaysScrollableScrollPhysics(),
@@ -351,8 +351,9 @@ class _RelationListState extends State<_RelationList>
             user: user,
             busy: _busyId == user.id,
             onTap: user.isOwn ? null : () => _openUser(user),
-            onToggle:
-                (user.isOwn || user.isBlocked) ? null : () => _toggleFollow(user),
+            onToggle: (user.isOwn || user.isBlocked)
+                ? null
+                : () => _toggleFollow(user),
           );
         },
       ),
@@ -384,16 +385,15 @@ class _UserRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final blocked = user.isBlocked;
     final nameColor = blocked
-        ? RankColors.forRank('Blocked')
-        : RankColors.forRank(user.rank);
-    final personality = PersonalityColors.forType(user.personalityType);
-    final subtitle =
-        user.fullName.isNotEmpty ? user.fullName : user.bio;
+        ? context.enclavd.rankName('Blocked')
+        : context.enclavd.rankName(user.rank);
+    final personality = context.enclavd.personalityColor(user.personalityType);
+    final subtitle = user.fullName.isNotEmpty ? user.fullName : user.bio;
     return Material(
-      color: EnclavdColors.card,
+      color: context.enclavd.card,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: EnclavdColors.border),
+        side: BorderSide(color: context.enclavd.border),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -406,7 +406,7 @@ class _UserRow extends StatelessWidget {
                 size: 44,
                 url: resolveMediaUrl(AppConfig.apiBaseUrl,
                     avatarPath: user.profilePictureUrl),
-                borderColor: personality ?? EnclavdColors.border,
+                borderColor: personality ?? context.enclavd.border,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -423,9 +423,8 @@ class _UserRow extends StatelessWidget {
                             style: TextStyle(
                               color: nameColor,
                               fontWeight: FontWeight.w600,
-                              decoration: blocked
-                                  ? TextDecoration.lineThrough
-                                  : null,
+                              decoration:
+                                  blocked ? TextDecoration.lineThrough : null,
                               decorationColor: nameColor,
                             ),
                           ),
@@ -442,8 +441,9 @@ class _UserRow extends StatelessWidget {
                         subtitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            color: EnclavdColors.textSecondary, fontSize: 12.5),
+                        style: TextStyle(
+                            color: context.enclavd.textSecondary,
+                            fontSize: 12.5),
                       ),
                     ],
                   ],
@@ -451,10 +451,10 @@ class _UserRow extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               if (user.isOwn)
-                const Text(
+                Text(
                   'You',
                   style: TextStyle(
-                      color: EnclavdColors.textSecondary,
+                      color: context.enclavd.textSecondary,
                       fontSize: 13,
                       fontWeight: FontWeight.w500),
                 )
@@ -493,24 +493,24 @@ class _FollowButton extends StatelessWidget {
         style: TextButton.styleFrom(
           foregroundColor:
               following ? const Color(0xFFD1D5DB) : Colors.white, // gray-300
-          backgroundColor:
-              following ? const Color(0xFF030712) : EnclavdColors.primaryButton,
+          backgroundColor: following
+              ? const Color(0xFF030712)
+              : context.enclavd.primaryButton,
           disabledForegroundColor:
               following ? const Color(0xFF6B7280) : Colors.white70,
           disabledBackgroundColor: following
               ? const Color(0xFF030712).withValues(alpha: 0.6)
-              : EnclavdColors.primaryButton.withValues(alpha: 0.6),
+              : context.enclavd.primaryButton.withValues(alpha: 0.6),
           padding: const EdgeInsets.symmetric(horizontal: 14),
           minimumSize: const Size(0, 30),
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8),
             side: following
-                ? const BorderSide(color: EnclavdColors.border)
+                ? BorderSide(color: context.enclavd.border)
                 : BorderSide.none,
           ),
-          textStyle:
-              const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+          textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
         ),
         child: Text(label),
       ),
@@ -526,7 +526,7 @@ class _UserRowSkeleton extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: EnclavdColors.card,
+        color: context.enclavd.card,
         borderRadius: BorderRadius.circular(14),
       ),
       child: const Row(

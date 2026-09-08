@@ -19,10 +19,9 @@ class CommentQuoteCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(10, 7, 10, 7),
       decoration: BoxDecoration(
-        color: EnclavdColors.cardSecondary.withValues(alpha: 0.6),
+        color: context.enclavd.cardSecondary.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(10),
-        border: const Border(
-            left: BorderSide(color: EnclavdColors.link, width: 3)),
+        border: Border(left: BorderSide(color: context.enclavd.link, width: 3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -30,8 +29,8 @@ class CommentQuoteCard extends StatelessWidget {
         children: [
           Text(
             'Replying to @${quote.target}',
-            style: const TextStyle(
-              color: EnclavdColors.link,
+            style: TextStyle(
+              color: context.enclavd.link,
               fontSize: 11.5,
               fontWeight: FontWeight.w700,
             ),
@@ -41,8 +40,8 @@ class CommentQuoteCard extends StatelessWidget {
             collapsed,
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-                fontSize: 12, color: EnclavdColors.textSecondary),
+            style:
+                TextStyle(fontSize: 12, color: context.enclavd.textSecondary),
           ),
         ],
       ),

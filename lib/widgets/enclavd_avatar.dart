@@ -41,9 +41,9 @@ class EnclavdAvatar extends StatelessWidget {
         decoration: BoxDecoration(
           shape: square ? BoxShape.rectangle : BoxShape.circle,
           borderRadius: square ? radius : null,
-          color: EnclavdColors.cardSecondary,
+          color: context.enclavd.cardSecondary,
           border: Border.all(
-            color: borderColor ?? EnclavdColors.border,
+            color: borderColor ?? context.enclavd.border,
             width: 2,
           ),
         ),

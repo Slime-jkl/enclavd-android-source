@@ -141,8 +141,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     _loadNav();
     _checkNewArticles();
     // SSE updates badges instantly; the 30s poll covers a dead stream.
-    _unreadTimer =
-        Timer.periodic(const Duration(seconds: 30), (_) {
+    _unreadTimer = Timer.periodic(const Duration(seconds: 30), (_) {
       if (_services?.realtime.isSseConnected ?? false) {
         // DIAGNOSTIC: poll must not run while the stream is live (zombie tell).
         debugPrint('FS: poll skipped (sse connected)');
@@ -215,8 +214,8 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     final services = _services;
     if (services == null) return;
     Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => SearchResultsScreen(
-          search: services.search, query: query),
+      builder: (_) =>
+          SearchResultsScreen(search: services.search, query: query),
     ));
   }
 
@@ -254,9 +253,8 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
             if (!cfg.maintenance.allowedRanks.contains(me.rank)) {
               if (_maintenanceGateHandled) return;
               _maintenanceGateHandled = true;
-              Navigator.of(context)
-                  .pushNamedAndRemoveUntil(
-                      MaintenanceScreen.routeName, (_) => false);
+              Navigator.of(context).pushNamedAndRemoveUntil(
+                  MaintenanceScreen.routeName, (_) => false);
               return;
             }
             setState(() => _maintenance = cfg.maintenance);
@@ -626,15 +624,14 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
         // The lowest pending post fits inside the loaded window already.
         if (tail != null && feedRankCompare(pending.last, tail) <= 0) break;
         if (cursor == null || !cursor.hasMore) break; // feed fully loaded
-        cursor = await services.feed
-            .nextPage(cursor, limit: AppConfig.feedPageSize);
+        cursor =
+            await services.feed.nextPage(cursor, limit: AppConfig.feedPageSize);
         if (!mounted) return;
         pages.add(cursor);
         loaded = feedMergeRanked(loaded, cursor.posts);
       }
       if (!mounted) return;
-      if (loaded.isNotEmpty &&
-          feedRankCompare(pending.last, loaded.last) > 0) {
+      if (loaded.isNotEmpty && feedRankCompare(pending.last, loaded.last) > 0) {
         // Cap hit with posts still below the window: keep the window we
         // gained (contiguous ranked rows are never wasted) and leave the
         // pill up - a later tap or scroll reaches the rest.
@@ -731,8 +728,8 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Delete',
-                style: TextStyle(color: EnclavdColors.likeActive)),
+            child: Text('Delete',
+                style: TextStyle(color: context.enclavd.likeActive)),
           ),
         ],
       ),
@@ -789,17 +786,17 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                     size: 32,
                     url: me.avatarUrl(AppConfig.apiBaseUrl),
                     borderColor:
-                        PersonalityColors.forType(me.personalityType),
+                        context.enclavd.personalityColor(me.personalityType),
                   )
                 : Container(
                     width: 32,
                     height: 32,
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: EnclavdColors.cardSecondary,
+                      color: context.enclavd.cardSecondary,
                     ),
-                    child: const FaIcon(FontAwesomeIcons.user,
-                        size: 15, color: EnclavdColors.textSecondary),
+                    child: FaIcon(FontAwesomeIcons.user,
+                        size: 15, color: context.enclavd.textSecondary),
                   ),
           ),
         ),
@@ -823,19 +820,21 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                   textInputAction: TextInputAction.search,
                   onSubmitted: _submitSearch,
                   onTapOutside: (_) => _closeSearch(),
-                  style: const TextStyle(
-                      fontSize: 15, color: EnclavdColors.textPrimary),
-                  cursorColor: EnclavdColors.link,
+                  style: TextStyle(
+                      fontSize: 15, color: context.enclavd.textPrimary),
+                  cursorColor: context.enclavd.link,
                   decoration: InputDecoration(
                     hintText: 'Search posts, people, comments...',
-                    hintStyle: const TextStyle(
-                        color: EnclavdColors.textSecondary, fontSize: 15),
+                    hintStyle: TextStyle(
+                        color: context.enclavd.textSecondary, fontSize: 15),
                     isDense: true,
                     // Bar look: subtle fill, close X inside the field.
                     filled: true,
-                    fillColor: Colors.white.withValues(alpha: 0.08),
-                    contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
+                    fillColor: Theme.of(context).brightness == Brightness.light
+                        ? const Color(0x0F111827) // gray-900/[0.06]
+                        : Colors.white.withValues(alpha: 0.08),
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                       borderSide: BorderSide.none,
@@ -843,20 +842,28 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                     suffixIcon: IconButton(
                       onPressed: _closeSearch,
                       tooltip: 'Close search',
-                      icon: const FaIcon(FontAwesomeIcons.xmark,
-                          size: 16, color: Colors.white),
+                      icon: FaIcon(FontAwesomeIcons.xmark,
+                          size: 16,
+                          color:
+                              Theme.of(context).brightness == Brightness.light
+                                  ? context.enclavd.textSecondary
+                                  : Colors.white),
                     ),
                   ),
                 )
-              : Image.asset('assets/images/enclavd-logo-white.png',
-                  height: 22, key: const ValueKey('header-logo')),
+              : Image.asset(
+                  Theme.of(context).brightness == Brightness.light
+                      ? 'assets/images/enclavd-logo-dark.png'
+                      : 'assets/images/enclavd-logo-white.png',
+                  height: 22,
+                  key: const ValueKey('header-logo')),
         ),
         actions: [
           // Search button expands into the inline field above.
           if (!_searching)
             IconButton(
-              icon: const FaIcon(FontAwesomeIcons.magnifyingGlass,
-                  size: 20, color: EnclavdColors.textSecondary),
+              icon: FaIcon(FontAwesomeIcons.magnifyingGlass,
+                  size: 20, color: context.enclavd.textSecondary),
               tooltip: 'Search',
               onPressed: _openSearch,
             ),
@@ -866,8 +873,8 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
               clipBehavior: Clip.none,
               children: [
                 IconButton(
-                  icon: const FaIcon(FontAwesomeIcons.bell,
-                      size: 22, color: EnclavdColors.textSecondary),
+                  icon: FaIcon(FontAwesomeIcons.bell,
+                      size: 22, color: context.enclavd.textSecondary),
                   tooltip: 'Notifications',
                   onPressed: _openNotifications,
                 ),
@@ -903,8 +910,8 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
               clipBehavior: Clip.none,
               children: [
                 IconButton(
-                  icon: const FaIcon(FontAwesomeIcons.paperPlane,
-                      size: 22, color: EnclavdColors.textSecondary),
+                  icon: FaIcon(FontAwesomeIcons.paperPlane,
+                      size: 22, color: context.enclavd.textSecondary),
                   tooltip: 'Messages',
                   onPressed: _openMessages,
                 ),
@@ -945,8 +952,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
       body: Column(
         children: [
           // Maintenance banner for allowed ranks.
-          if (_maintenance != null)
-            _MaintenanceBanner(config: _maintenance!),
+          if (_maintenance != null) _MaintenanceBanner(config: _maintenance!),
           Expanded(
             child: IndexedStack(
               index: _navIndex,
@@ -955,7 +961,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                   switch (tab.url) {
                     '' => RefreshIndicator(
                         onRefresh: _refresh,
-                        color: EnclavdColors.link,
+                        color: context.enclavd.link,
                         child: _buildBody(),
                       ),
                     'articles' => _articlesTabBuilt && _services != null
@@ -978,22 +984,21 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
         ],
       ),
       // The composer FAB is feed-only.
-      floatingActionButton:
-          _navIndex < tabs.length && tabs[_navIndex].url == ''
-              ? FloatingActionButton(
-                  onPressed: _openComposer,
-                  backgroundColor: EnclavdColors.primaryButton,
-                  foregroundColor: EnclavdColors.primaryButtonText,
-                  tooltip: 'Create post',
-                  child: const FaIcon(FontAwesomeIcons.pen, size: 20),
-                )
-              : null,
+      floatingActionButton: _navIndex < tabs.length && tabs[_navIndex].url == ''
+          ? FloatingActionButton(
+              onPressed: _openComposer,
+              backgroundColor: context.enclavd.primaryButton,
+              foregroundColor: context.enclavd.primaryButtonText,
+              tooltip: 'Create post',
+              child: const FaIcon(FontAwesomeIcons.pen, size: 20),
+            )
+          : null,
       // Bottom nav driven by the server's nav rules.
       bottomNavigationBar: NavigationBar(
-        backgroundColor: EnclavdColors.background,
+        backgroundColor: context.enclavd.background,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        indicatorColor: EnclavdColors.primaryButton.withValues(alpha: 0.35),
+        indicatorColor: context.enclavd.primaryButton.withValues(alpha: 0.35),
         selectedIndex: _navIndex,
         onDestinationSelected: (index) {
           if (index < 0 || index >= tabs.length) return;
@@ -1037,21 +1042,27 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
         return _updatesIcon(selected: selected);
       case 'domain':
         return FaIcon(FontAwesomeIcons.globe,
-            color: selected ? EnclavdColors.link : EnclavdColors.textSecondary);
+            color: selected
+                ? context.enclavd.link
+                : context.enclavd.textSecondary);
       case 'vote':
         // FA6 vote-yea glyph; the site's nav config carries no vote icon.
         return FaIcon(FontAwesomeIcons.checkToSlot,
-            color: selected ? EnclavdColors.link : EnclavdColors.textSecondary);
+            color: selected
+                ? context.enclavd.link
+                : context.enclavd.textSecondary);
       default: // '' = home, plus any future known page
         return FaIcon(FontAwesomeIcons.barsStaggered,
-            color: selected ? EnclavdColors.link : EnclavdColors.textSecondary);
+            color: selected
+                ? context.enclavd.link
+                : context.enclavd.textSecondary);
     }
   }
 
   Widget _updatesIcon({required bool selected}) {
     final icon = FaIcon(
       FontAwesomeIcons.newspaper,
-      color: selected ? EnclavdColors.link : EnclavdColors.textSecondary,
+      color: selected ? context.enclavd.link : context.enclavd.textSecondary,
     );
     if (!_hasNewArticles) return icon;
     return Stack(
@@ -1138,8 +1149,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
           child: IgnorePointer(
             ignoring: !_showNewPostsPill,
             child: AnimatedSlide(
-              offset:
-                  _showNewPostsPill ? Offset.zero : const Offset(0, -0.5),
+              offset: _showNewPostsPill ? Offset.zero : const Offset(0, -0.5),
               duration: const Duration(milliseconds: 250),
               curve: Curves.easeOut,
               child: AnimatedOpacity(
@@ -1167,7 +1177,10 @@ int feedMaxPostId(Iterable<Post> posts, int floor) =>
 /// newly fetched page posts not already on screen.
 List<Post> feedAppendPosts(List<Post> current, List<Post> incoming) {
   final known = {for (final p in current) p.id};
-  return [for (final p in incoming) if (!known.contains(p.id)) p];
+  return [
+    for (final p in incoming)
+      if (!known.contains(p.id)) p
+  ];
 }
 
 /// Server feed order: (feed_score, id) DESC - negative when [a] ranks
@@ -1228,7 +1241,8 @@ class _NewPostsPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = count == 1 ? '\u{2B07} 1 new post' : '\u{2B07} $count new posts';
+    final label =
+        count == 1 ? '\u{2B07} 1 new post' : '\u{2B07} $count new posts';
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -1237,7 +1251,7 @@ class _NewPostsPill extends StatelessWidget {
         child: Ink(
           decoration: BoxDecoration(
             // Primary button look: blue-500 fill, gray-900 label.
-            color: EnclavdColors.primaryButton,
+            color: context.enclavd.primaryButton,
             borderRadius: BorderRadius.circular(999),
             boxShadow: [
               BoxShadow(
@@ -1250,8 +1264,8 @@ class _NewPostsPill extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
           child: Text(
             label,
-            style: const TextStyle(
-              color: EnclavdColors.primaryButtonText,
+            style: TextStyle(
+              color: context.enclavd.primaryButtonText,
               fontWeight: FontWeight.w600,
               fontSize: 14,
             ),
@@ -1273,9 +1287,9 @@ class _PersonalityTestBanner extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: EnclavdColors.card,
+        color: context.enclavd.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: EnclavdColors.border),
+        border: Border.all(color: context.enclavd.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1285,12 +1299,12 @@ class _PersonalityTestBanner extends StatelessWidget {
               width: 52,
               height: 52,
               decoration: BoxDecoration(
-                color: EnclavdColors.warning.withValues(alpha: 0.1),
+                color: context.enclavd.warning.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Center(
+              child: Center(
                 child: FaIcon(FontAwesomeIcons.triangleExclamation,
-                    color: EnclavdColors.warning, size: 24),
+                    color: context.enclavd.warning, size: 24),
               ),
             ),
           ),
@@ -1301,12 +1315,12 @@ class _PersonalityTestBanner extends StatelessWidget {
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             'Complete the personality test to unlock personalized '
             'recommendations and all restricted account features.',
             textAlign: TextAlign.center,
             style: TextStyle(
-                color: EnclavdColors.textSecondary,
+                color: context.enclavd.textSecondary,
                 fontSize: 13,
                 height: 1.4),
           ),
@@ -1314,7 +1328,7 @@ class _PersonalityTestBanner extends StatelessWidget {
           FilledButton(
             onPressed: onTakeTest,
             style: FilledButton.styleFrom(
-              backgroundColor: EnclavdColors.primaryButton,
+              backgroundColor: context.enclavd.primaryButton,
               padding: const EdgeInsets.symmetric(vertical: 12),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10)),
@@ -1336,7 +1350,7 @@ class _MaintenanceBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const amber = EnclavdColors.warning;
+    final amber = context.enclavd.warning;
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
@@ -1349,8 +1363,7 @@ class _MaintenanceBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const FaIcon(FontAwesomeIcons.screwdriverWrench,
-              size: 14, color: amber),
+          FaIcon(FontAwesomeIcons.screwdriverWrench, size: 14, color: amber),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -1361,10 +1374,10 @@ class _MaintenanceBanner extends StatelessWidget {
                   style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 2),
-                const Text(
+                Text(
                   'The site is currently in maintenance mode.',
                   style: TextStyle(
-                      fontSize: 11.5, color: EnclavdColors.textSecondary),
+                      fontSize: 11.5, color: context.enclavd.textSecondary),
                 ),
                 if (config.reason.isNotEmpty || config.estTime.isNotEmpty) ...[
                   const SizedBox(height: 4),
@@ -1373,8 +1386,8 @@ class _MaintenanceBanner extends StatelessWidget {
                       if (config.reason.isNotEmpty) 'Reason: ${config.reason}',
                       if (config.estTime.isNotEmpty) 'Ends: ${config.estTime}',
                     ].join('  -  '),
-                    style: const TextStyle(
-                        fontSize: 11, color: EnclavdColors.textSecondary),
+                    style: TextStyle(
+                        fontSize: 11, color: context.enclavd.textSecondary),
                   ),
                 ],
               ],

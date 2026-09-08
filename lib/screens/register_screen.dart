@@ -101,6 +101,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       // Defensive, like every other launcher call.
     }
   }
+
   Future<(AuthService, SiteConfigService)> _services() async {
     final services = (widget.auth == null || widget.siteConfig == null)
         ? await AppServices.create()
@@ -113,9 +114,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _loadConfig() async {
     try {
-      final config = await (widget.siteConfig ??
-              (await AppServices.create()).siteConfig)
-          .fetch();
+      final config =
+          await (widget.siteConfig ?? (await AppServices.create()).siteConfig)
+              .fetch();
       if (!mounted) return;
       setState(() {
         _invitationRequired = config.isInvitationRequired;
@@ -204,8 +205,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           );
         } else {
-          Navigator.of(context)
-              .pushReplacementNamed(LoginScreen.routeName);
+          Navigator.of(context).pushReplacementNamed(LoginScreen.routeName);
         }
         return;
       }
@@ -231,9 +231,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   Future<void> _pickBirthdate() async {
-    final initial = _birthdate != null
-        ? DateTime.tryParse(_birthdate!)
-        : null;
+    final initial = _birthdate != null ? DateTime.tryParse(_birthdate!) : null;
     final picked = await showDatePicker(
       context: context,
       initialDate: initial ?? DateTime(2000, 1, 1),
@@ -242,8 +240,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
       helpText: 'Date of birth',
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
-          datePickerTheme: const DatePickerThemeData(
-            backgroundColor: EnclavdColors.card,
+          datePickerTheme: DatePickerThemeData(
+            backgroundColor: context.enclavd.card,
             surfaceTintColor: Colors.transparent,
           ),
         ),
@@ -252,8 +250,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
     if (picked == null || !mounted) return;
     setState(() {
-      _birthdate =
-          '${picked.year.toString().padLeft(4, '0')}-'
+      _birthdate = '${picked.year.toString().padLeft(4, '0')}-'
           '${picked.month.toString().padLeft(2, '0')}-'
           '${picked.day.toString().padLeft(2, '0')}';
     });
@@ -307,7 +304,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!mounted) return;
     final picked = await showModalBottomSheet<_GeoCountry>(
       context: context,
-      backgroundColor: EnclavdColors.card,
+      backgroundColor: context.enclavd.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -333,7 +330,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (!mounted) return;
     final picked = await showModalBottomSheet<_GeoCity>(
       context: context,
-      backgroundColor: EnclavdColors.card,
+      backgroundColor: context.enclavd.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -354,16 +351,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
   ) {
     return Text.rich(
       TextSpan(
-        style: const TextStyle(
-            fontSize: 14, color: EnclavdColors.textPrimary),
+        style: TextStyle(fontSize: 14, color: context.enclavd.textPrimary),
         children: [
           TextSpan(text: prefix),
           TextSpan(
             text: linkText,
-            style: const TextStyle(
-              color: EnclavdColors.link,
+            style: TextStyle(
+              color: context.enclavd.link,
               decoration: TextDecoration.underline,
-              decorationColor: EnclavdColors.link,
+              decorationColor: context.enclavd.link,
             ),
             recognizer: recognizer,
           ),
@@ -387,15 +383,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
         decoration: InputDecoration(
           labelText: label,
           prefixIcon: FieldIcon(icon),
-          suffixIcon: const FieldIcon(FontAwesomeIcons.chevronDown,
-              size: 14, color: EnclavdColors.textSecondary),
+          suffixIcon: FieldIcon(FontAwesomeIcons.chevronDown,
+              size: 14, color: context.enclavd.textSecondary),
         ),
         child: Text(
           empty ? (hint ?? 'Select') : value,
           style: TextStyle(
             color: empty
-                ? EnclavdColors.textSecondary
-                : EnclavdColors.textPrimary,
+                ? context.enclavd.textSecondary
+                : context.enclavd.textPrimary,
             fontSize: 15,
           ),
         ),
@@ -407,11 +403,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        // Navy hero only over the dark theme; light mode goes flat so the
+        // form stays readable.
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF0B1628), EnclavdColors.background],
+            colors: Theme.of(context).brightness == Brightness.light
+                ? [context.enclavd.background, context.enclavd.background]
+                : [const Color(0xFF0B1628), context.enclavd.background],
           ),
         ),
         child: SafeArea(
@@ -437,13 +437,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     .pushReplacementNamed(
                                         LoginScreen.routeName),
                                 tooltip: 'Back to login',
-                                icon: const FaIcon(
-                                    FontAwesomeIcons.arrowLeft, size: 20),
+                                icon: const FaIcon(FontAwesomeIcons.arrowLeft,
+                                    size: 20),
                               ),
                             ),
                             Center(
                               child: Image.asset(
-                                'assets/images/enclavd-logo-white.png',
+                                Theme.of(context).brightness == Brightness.light
+                                    ? 'assets/images/enclavd-logo-dark.png'
+                                    : 'assets/images/enclavd-logo-white.png',
                                 height: 42,
                                 errorBuilder: (_, __, ___) =>
                                     const SizedBox(height: 42),
@@ -457,11 +459,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   fontSize: 26, fontWeight: FontWeight.w700),
                             ),
                             const SizedBox(height: 6),
-                            const Text(
+                            Text(
                               'Join the Enclavd network',
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                  color: EnclavdColors.textSecondary,
+                                  color: context.enclavd.textSecondary,
                                   fontSize: 14),
                             ),
                             const SizedBox(height: 28),
@@ -476,8 +478,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 labelText: 'Username *',
                                 hintText: 'Choose a username',
                                 errorText: _fieldErrors['username'],
-                                prefixIcon: const FieldIcon(
-                                    FontAwesomeIcons.user),
+                                prefixIcon:
+                                    const FieldIcon(FontAwesomeIcons.user),
                               ),
                               onChanged: (_) => _clearFieldError('username'),
                               validator: (v) {
@@ -499,8 +501,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 labelText: 'Email address *',
                                 hintText: 'you@example.com',
                                 errorText: _fieldErrors['email'],
-                                prefixIcon: const FieldIcon(
-                                    FontAwesomeIcons.envelope),
+                                prefixIcon:
+                                    const FieldIcon(FontAwesomeIcons.envelope),
                               ),
                               onChanged: (_) => _clearFieldError('email'),
                               validator: (v) {
@@ -549,15 +551,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                   labelText: 'Invitation Code *',
                                   hintText: 'Enter your invitation code',
                                   errorText: _fieldErrors['invitation'],
-                                  prefixIcon: const FieldIcon(
-                                      FontAwesomeIcons.ticket),
+                                  prefixIcon:
+                                      const FieldIcon(FontAwesomeIcons.ticket),
                                 ),
                                 onChanged: (_) =>
                                     _clearFieldError('invitation'),
-                                validator: (_) =>
-                                    _invitation.text.trim().isEmpty
-                                        ? 'An invitation code is required to join'
-                                        : null,
+                                validator: (_) => _invitation.text
+                                        .trim()
+                                        .isEmpty
+                                    ? 'An invitation code is required to join'
+                                    : null,
                               ),
                             ],
                             const SizedBox(height: 16),
@@ -573,8 +576,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               initialValue: _gender,
                               decoration: const InputDecoration(
                                 labelText: 'Gender',
-                                prefixIcon: FieldIcon(
-                                    FontAwesomeIcons.venusMars),
+                                prefixIcon:
+                                    FieldIcon(FontAwesomeIcons.venusMars),
                               ),
                               items: const [
                                 DropdownMenuItem(
@@ -618,8 +621,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 'Privacy Policy',
                                 _privacyTap,
                               ),
-                              controlAffinity:
-                                  ListTileControlAffinity.leading,
+                              controlAffinity: ListTileControlAffinity.leading,
                               contentPadding: EdgeInsets.zero,
                             ),
                             CheckboxListTile(
@@ -633,8 +635,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 'Terms of Service',
                                 _termsTap,
                               ),
-                              controlAffinity:
-                                  ListTileControlAffinity.leading,
+                              controlAffinity: ListTileControlAffinity.leading,
                               contentPadding: EdgeInsets.zero,
                             ),
                             if (_checkboxError != null)
@@ -660,17 +661,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ),
                                 child: Row(
                                   children: [
-                                    const FaIcon(
-                                        FontAwesomeIcons.shieldHalved,
-                                        size: 16,
-                                        color: Color(0xFFFCD34D)),
+                                    const FaIcon(FontAwesomeIcons.shieldHalved,
+                                        size: 16, color: Color(0xFFFCD34D)),
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: Text(
                                         _rl?.captchaQuestion ??
                                             'Security question',
-                                        style:
-                                            const TextStyle(fontSize: 13),
+                                        style: const TextStyle(fontSize: 13),
                                       ),
                                     ),
                                   ],
@@ -684,8 +682,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 onFieldSubmitted: (_) => _submit(),
                                 decoration: const InputDecoration(
                                   labelText: 'Answer',
-                                  prefixIcon:
-                                      FieldIcon(FontAwesomeIcons.key),
+                                  prefixIcon: FieldIcon(FontAwesomeIcons.key),
                                 ),
                                 validator: (_) =>
                                     (_rl?.captchaRequired ?? false) &&
@@ -709,9 +706,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             const SizedBox(height: 16),
                             TextButton(
                               onPressed: () {
-                                Navigator.of(context)
-                                    .pushReplacementNamed(
-                                        LoginScreen.routeName);
+                                Navigator.of(context).pushReplacementNamed(
+                                    LoginScreen.routeName);
                               },
                               child: const Text('Sign in instead'),
                             ),
@@ -780,20 +776,17 @@ class _GeoPickerSheetState extends State<_GeoPickerSheet> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: TextField(
                 autofocus: true,
-                style: const TextStyle(color: EnclavdColors.textPrimary),
+                style: TextStyle(color: context.enclavd.textPrimary),
                 decoration: InputDecoration(
                   hintText: 'Search country',
-                  hintStyle:
-                      const TextStyle(color: EnclavdColors.textSecondary),
-                  prefixIcon: const FieldIcon(
-                      FontAwesomeIcons.magnifyingGlass,
-                      size: 14,
-                      color: EnclavdColors.textSecondary),
+                  hintStyle: TextStyle(color: context.enclavd.textSecondary),
+                  prefixIcon: FieldIcon(FontAwesomeIcons.magnifyingGlass,
+                      size: 14, color: context.enclavd.textSecondary),
                   filled: true,
-                  fillColor: EnclavdColors.cardSecondary,
+                  fillColor: context.enclavd.cardSecondary,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: EnclavdColors.border),
+                    borderSide: BorderSide(color: context.enclavd.border),
                   ),
                 ),
                 onChanged: (v) => setState(() => _query = v),
@@ -801,10 +794,10 @@ class _GeoPickerSheetState extends State<_GeoPickerSheet> {
             ),
             Expanded(
               child: filtered.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Text('No matches found',
-                          style: TextStyle(
-                              color: EnclavdColors.textSecondary)))
+                          style:
+                              TextStyle(color: context.enclavd.textSecondary)))
                   : ListView.builder(
                       itemCount: filtered.length,
                       itemBuilder: (context, i) {
@@ -841,7 +834,8 @@ class _CityPickerSheetState extends State<_CityPickerSheet> {
   Widget build(BuildContext context) {
     final filtered = widget.cities
         .where((c) =>
-            _query.isEmpty || c.name.toLowerCase().contains(_query.toLowerCase()))
+            _query.isEmpty ||
+            c.name.toLowerCase().contains(_query.toLowerCase()))
         .toList();
     return SafeArea(
       child: SizedBox(
@@ -852,20 +846,17 @@ class _CityPickerSheetState extends State<_CityPickerSheet> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: TextField(
                 autofocus: true,
-                style: const TextStyle(color: EnclavdColors.textPrimary),
+                style: TextStyle(color: context.enclavd.textPrimary),
                 decoration: InputDecoration(
                   hintText: 'Search city',
-                  hintStyle:
-                      const TextStyle(color: EnclavdColors.textSecondary),
-                  prefixIcon: const FieldIcon(
-                      FontAwesomeIcons.magnifyingGlass,
-                      size: 14,
-                      color: EnclavdColors.textSecondary),
+                  hintStyle: TextStyle(color: context.enclavd.textSecondary),
+                  prefixIcon: FieldIcon(FontAwesomeIcons.magnifyingGlass,
+                      size: 14, color: context.enclavd.textSecondary),
                   filled: true,
-                  fillColor: EnclavdColors.cardSecondary,
+                  fillColor: context.enclavd.cardSecondary,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: EnclavdColors.border),
+                    borderSide: BorderSide(color: context.enclavd.border),
                   ),
                 ),
                 onChanged: (v) => setState(() => _query = v),
@@ -873,10 +864,10 @@ class _CityPickerSheetState extends State<_CityPickerSheet> {
             ),
             Expanded(
               child: filtered.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Text('No matches found',
-                          style: TextStyle(
-                              color: EnclavdColors.textSecondary)))
+                          style:
+                              TextStyle(color: context.enclavd.textSecondary)))
                   : ListView.builder(
                       itemCount: filtered.length,
                       itemBuilder: (context, i) {

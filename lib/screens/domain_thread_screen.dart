@@ -221,8 +221,8 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
   void _dismissQuote() => setState(() => _quoting = null);
 
   String _quotePrefix(Comment q) {
-    final stripped = q.content.replaceAllMapped(
-        RegExp(r'@([A-Za-z0-9_]+)'), (m) => m.group(1)!);
+    final stripped = q.content
+        .replaceAllMapped(RegExp(r'@([A-Za-z0-9_]+)'), (m) => m.group(1)!);
     final collapsed = stripped.replaceAll(RegExp(r'\s+'), ' ').trim();
     final clamped = collapsed.length > 160
         ? '${collapsed.substring(0, 160)}...'
@@ -274,7 +274,8 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
     while (grew) {
       grew = false;
       for (final c in _replies) {
-        if (c.parentCommentId != null && toDrop.contains(c.parentCommentId) &&
+        if (c.parentCommentId != null &&
+            toDrop.contains(c.parentCommentId) &&
             !toDrop.contains(c.id)) {
           toDrop.add(c.id);
           grew = true;
@@ -286,8 +287,7 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
 
   Future<void> _deleteReply(Comment comment) async {
     try {
-      final newCount =
-          await _social.deleteComment(comment.id, widget.postId);
+      final newCount = await _social.deleteComment(comment.id, widget.postId);
       if (!mounted) return;
       setState(() {
         _dropSubtree(comment.id);
@@ -346,8 +346,8 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Delete',
-                style: TextStyle(color: EnclavdColors.likeActive)),
+            child: Text('Delete',
+                style: TextStyle(color: context.enclavd.likeActive)),
           ),
         ],
       ),
@@ -387,10 +387,10 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
               child: Center(
                 child: Text(
                   '#${_post!.id}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontFamily: 'monospace',
-                    color: EnclavdColors.textSecondary,
+                    color: context.enclavd.textSecondary,
                   ),
                 ),
               ),
@@ -432,9 +432,9 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
           Container(
             margin: const EdgeInsets.only(bottom: 12),
             decoration: BoxDecoration(
-              color: EnclavdColors.card,
+              color: context.enclavd.card,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: EnclavdColors.border),
+              border: Border.all(color: context.enclavd.border),
             ),
             child: _ReplyComposer(
               controller: _replyController,
@@ -445,8 +445,7 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
               onDismissQuote: _dismissQuote,
             ),
           ),
-        _RepliesHeader(
-            count: post.commentCount, onReply: _toggleComposer),
+        _RepliesHeader(count: post.commentCount, onReply: _toggleComposer),
         if (_repliesLoading)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 10),
@@ -459,25 +458,23 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(_repliesError!,
-                    style: const TextStyle(
-                        fontSize: 12.5,
-                        color: EnclavdColors.textSecondary)),
+                    style: TextStyle(
+                        fontSize: 12.5, color: context.enclavd.textSecondary)),
                 TextButton(
                   onPressed: _loadReplies,
-                  child: const Text('Retry',
-                      style: TextStyle(fontSize: 12.5)),
+                  child: const Text('Retry', style: TextStyle(fontSize: 12.5)),
                 ),
               ],
             ),
           )
         else if (_replies.isEmpty)
           // Site empty state (domain_comment_list: "No replies yet.").
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 20),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20),
             child: Center(
               child: Text('No replies yet - start the discussion.',
                   style: TextStyle(
-                      fontSize: 13, color: EnclavdColors.textSecondary)),
+                      fontSize: 13, color: context.enclavd.textSecondary)),
             ),
           )
         else ...[
@@ -506,9 +503,8 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
               onReply: _quoteReply,
               expanded: _replies[i].id == _expandedReplyId,
               onToggle: () => setState(() {
-                _expandedReplyId = _expandedReplyId == _replies[i].id
-                    ? null
-                    : _replies[i].id;
+                _expandedReplyId =
+                    _expandedReplyId == _replies[i].id ? null : _replies[i].id;
               }),
             ),
           if (_replyPages > 1)
@@ -558,6 +554,7 @@ class _ForumPostCardState extends State<_ForumPostCard> {
   final List<TapGestureRecognizer> _recognizers = [];
   List<InlineSpan>? _cachedSpans;
   String? _cachedContent;
+  Color? _cachedLinkColor; // palette the cache was tokenized with
 
   Post get post => widget.post;
 
@@ -587,7 +584,10 @@ class _ForumPostCardState extends State<_ForumPostCard> {
 
   List<InlineSpan> _spans() {
     final content = post.content;
-    if (_cachedContent == content && _cachedSpans != null) {
+    final linkColor = context.enclavd.link;
+    if (_cachedContent == content &&
+        _cachedSpans != null &&
+        _cachedLinkColor == linkColor) {
       return _cachedSpans!;
     }
     for (final r in _recognizers) {
@@ -596,12 +596,14 @@ class _ForumPostCardState extends State<_ForumPostCard> {
     _recognizers.clear();
     final spans = postContentSpans(
       content,
+      linkColor: linkColor,
       onHashtag: (tag) => _openHashtag(tag),
       onUrl: (url) => _openUrl(url),
       recognizers: _recognizers,
     );
     _cachedSpans = spans;
     _cachedContent = content;
+    _cachedLinkColor = linkColor;
     return spans;
   }
 
@@ -655,14 +657,14 @@ class _ForumPostCardState extends State<_ForumPostCard> {
 
   @override
   Widget build(BuildContext context) {
-    final personality = PersonalityColors.forType(post.personalityType);
+    final personality = context.enclavd.personalityColor(post.personalityType);
     return Container(
       margin: const EdgeInsets.only(bottom: 4),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: EnclavdColors.card,
+        color: context.enclavd.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: EnclavdColors.border),
+        border: Border.all(color: context.enclavd.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -694,8 +696,8 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                         const Spacer(),
                         Text(
                           relativeTime(post.createdAt),
-                          style: const TextStyle(
-                              color: EnclavdColors.textSecondary,
+                          style: TextStyle(
+                              color: context.enclavd.textSecondary,
                               fontSize: 11.5),
                         ),
                         if (post.isOwner &&
@@ -703,15 +705,15 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                                 widget.onDeletePost != null)) ...[
                           const SizedBox(width: 2),
                           PopupMenuButton<String>(
-                            icon: const FaIcon(FontAwesomeIcons.ellipsis,
-                                size: 15,
-                                color: EnclavdColors.textSecondary),
+                            icon: FaIcon(FontAwesomeIcons.ellipsis,
+                                size: 15, color: context.enclavd.textSecondary),
                             padding: EdgeInsets.zero,
                             style: IconButton.styleFrom(
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                 minimumSize: Size.zero),
                             onSelected: (value) {
-                              if (value == 'edit' && widget.onEditPost != null) {
+                              if (value == 'edit' &&
+                                  widget.onEditPost != null) {
                                 widget.onEditPost!(post);
                               }
                               if (value == 'delete' &&
@@ -721,28 +723,28 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                             },
                             itemBuilder: (context) => [
                               if (widget.onEditPost != null)
-                                const PopupMenuItem(
+                                PopupMenuItem(
                                   value: 'edit',
                                   child: Row(
                                     children: [
                                       FaIcon(FontAwesomeIcons.pen,
                                           size: 14,
-                                          color: EnclavdColors.textSecondary),
-                                      SizedBox(width: 8),
-                                      Text('Edit Post'),
+                                          color: context.enclavd.textSecondary),
+                                      const SizedBox(width: 8),
+                                      const Text('Edit Post'),
                                     ],
                                   ),
                                 ),
                               if (widget.onDeletePost != null)
-                                const PopupMenuItem(
+                                PopupMenuItem(
                                   value: 'delete',
                                   child: Row(
                                     children: [
                                       FaIcon(FontAwesomeIcons.trashCan,
                                           size: 14,
-                                          color: EnclavdColors.textSecondary),
-                                      SizedBox(width: 8),
-                                      Text('Delete Post'),
+                                          color: context.enclavd.textSecondary),
+                                      const SizedBox(width: 8),
+                                      const Text('Delete Post'),
                                     ],
                                   ),
                                 ),
@@ -768,27 +770,25 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
                                       color: post.isBlocked
-                                          ? RankColors.forRank('Blocked')
-                                          : RankColors.forRank(post.rank),
+                                          ? context.enclavd.rankName('Blocked')
+                                          : context.enclavd.rankName(post.rank),
                                       fontWeight: FontWeight.w700,
                                       fontSize: 15,
                                       decoration: post.isBlocked
                                           ? TextDecoration.lineThrough
                                           : null,
                                       decorationColor:
-                                          RankColors.forRank('Blocked'),
+                                          context.enclavd.rankName('Blocked'),
                                     ),
                                   ),
                                 ),
                                 if (post.warningCount > 0) ...[
                                   const SizedBox(width: 6),
-                                  const FaIcon(
-                                      FontAwesomeIcons.triangleExclamation,
-                                      color: EnclavdColors.warning,
-                                      size: 13),
+                                  FaIcon(FontAwesomeIcons.triangleExclamation,
+                                      color: context.enclavd.warning, size: 13),
                                   Text('${post.warningCount}',
-                                      style: const TextStyle(
-                                          color: EnclavdColors.warning,
+                                      style: TextStyle(
+                                          color: context.enclavd.warning,
                                           fontSize: 10)),
                                 ],
                               ],
@@ -806,8 +806,8 @@ class _ForumPostCardState extends State<_ForumPostCard> {
           // Forums don't clamp the OP's content.
           Text.rich(
             TextSpan(children: _spans()),
-            style: const TextStyle(
-                color: EnclavdColors.textPrimary,
+            style: TextStyle(
+                color: context.enclavd.textPrimary,
                 fontSize: 14.5,
                 height: 1.45),
           ),
@@ -816,7 +816,7 @@ class _ForumPostCardState extends State<_ForumPostCard> {
             PostImage(post: post, apiBaseUrl: widget.apiBaseUrl),
           ],
           const SizedBox(height: 14),
-          const Divider(height: 1, color: EnclavdColors.divider),
+          Divider(height: 1, color: context.enclavd.divider),
           const SizedBox(height: 10),
           // Action row: like (plain toggle) + comment count.
           Row(
@@ -833,8 +833,8 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                         FontAwesomeIcons.heart,
                         size: 16,
                         color: _liked
-                            ? EnclavdColors.likeActive
-                            : EnclavdColors.textSecondary,
+                            ? context.enclavd.likeActive
+                            : context.enclavd.textSecondary,
                       ),
                       const SizedBox(width: 6),
                       Text(
@@ -843,8 +843,8 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                           color: _liked
-                              ? EnclavdColors.likeActive
-                              : EnclavdColors.textPrimary,
+                              ? context.enclavd.likeActive
+                              : context.enclavd.textPrimary,
                         ),
                       ),
                     ],
@@ -852,23 +852,22 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                 ),
               ),
               const SizedBox(width: 18),
-              const FaIcon(FontAwesomeIcons.comments,
-                  size: 15, color: EnclavdColors.textSecondary),
+              FaIcon(FontAwesomeIcons.comments,
+                  size: 15, color: context.enclavd.textSecondary),
               const SizedBox(width: 6),
               Text(
                 '${post.commentCount}',
-                style: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w600),
+                style:
+                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
               ),
               const Spacer(),
-              if (post.lastReplyAt != null &&
-                  post.lastReplyUsername != null)
+              if (post.lastReplyAt != null && post.lastReplyUsername != null)
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 190),
                   child: Text.rich(
                     TextSpan(
-                      style: const TextStyle(
-                          fontSize: 11, color: EnclavdColors.textSecondary),
+                      style: TextStyle(
+                          fontSize: 11, color: context.enclavd.textSecondary),
                       children: [
                         TextSpan(
                             text:
@@ -878,9 +877,9 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
                             color: post.lastReplyActive == 'false'
-                                ? RankColors.forRank('Blocked')
-                                : RankColors.forRank(
-                                    post.lastReplyRank ?? 'Member'),
+                                ? context.enclavd.rankName('Blocked')
+                                : context.enclavd
+                                    .rankName(post.lastReplyRank ?? 'Member'),
                           ),
                         ),
                       ],
@@ -916,16 +915,15 @@ class _RepliesHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(6, 0, 6, 8),
       child: Row(
         children: [
-          const FaIcon(FontAwesomeIcons.reply,
-              size: 13, color: EnclavdColors.link),
+          FaIcon(FontAwesomeIcons.reply, size: 13, color: context.enclavd.link),
           const SizedBox(width: 8),
           Text(
             count == 1 ? '1 Reply' : '$count Replies',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.6,
-              color: EnclavdColors.textSecondary,
+              color: context.enclavd.textSecondary,
             ),
           ),
           const Spacer(),
@@ -936,25 +934,24 @@ class _RepliesHeader extends StatelessWidget {
             onTap: onReply,
             borderRadius: BorderRadius.circular(8),
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
               decoration: BoxDecoration(
-                color: EnclavdColors.cardSecondary,
+                color: context.enclavd.cardSecondary,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: EnclavdColors.border),
+                border: Border.all(color: context.enclavd.border),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   FaIcon(FontAwesomeIcons.reply,
-                      size: 11, color: EnclavdColors.link),
-                  SizedBox(width: 6),
+                      size: 11, color: context.enclavd.link),
+                  const SizedBox(width: 6),
                   Text(
                     'Reply',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: EnclavdColors.link,
+                      color: context.enclavd.link,
                     ),
                   ),
                 ],
@@ -1000,6 +997,7 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
   final List<TapGestureRecognizer> _recognizers = [];
   List<InlineSpan>? _cachedSpans;
   String? _cachedFor; // 'full' | 'short' slice the cache holds
+  Color? _cachedLinkColor; // palette the cache was tokenized with
 
   static const int _readMoreLimit = 200;
   bool get _expanded => widget.expanded;
@@ -1026,8 +1024,7 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
   }
 
   CommentQuote? _parsedQuote;
-  CommentQuote? get _quote =>
-      _parsedQuote ??= parseCommentQuote(reply.content);
+  CommentQuote? get _quote => _parsedQuote ??= parseCommentQuote(reply.content);
 
   /// The part after any quote prefix; read-more clamps THIS, never the
   /// quoted block.
@@ -1045,7 +1042,12 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
 
   List<InlineSpan> _spans() {
     final key = _expanded ? 'full' : 'short';
-    if (_cachedFor == key && _cachedSpans != null) return _cachedSpans!;
+    final linkColor = context.enclavd.link;
+    if (_cachedFor == key &&
+        _cachedSpans != null &&
+        _cachedLinkColor == linkColor) {
+      return _cachedSpans!;
+    }
     for (final r in _recognizers) {
       r.dispose();
     }
@@ -1053,6 +1055,7 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
     final text = _visibleContent;
     final spans = commentContentSpans(
       text,
+      linkColor: linkColor,
       onMention: (username) => _openMention(username),
       onUrl: (url) => _openUrl(url),
       recognizers: _recognizers,
@@ -1062,6 +1065,7 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
     }
     _cachedSpans = spans;
     _cachedFor = key;
+    _cachedLinkColor = linkColor;
     return spans;
   }
 
@@ -1091,14 +1095,14 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
 
   @override
   Widget build(BuildContext context) {
-    final personality = PersonalityColors.forType(reply.personalityType);
+    final personality = context.enclavd.personalityColor(reply.personalityType);
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: EnclavdColors.card,
+        color: context.enclavd.card,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: EnclavdColors.border),
+        border: Border.all(color: context.enclavd.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1130,8 +1134,8 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                         const Spacer(),
                         Text(
                           relativeTime(reply.createdAtUtc),
-                          style: const TextStyle(
-                              color: EnclavdColors.textSecondary,
+                          style: TextStyle(
+                              color: context.enclavd.textSecondary,
                               fontSize: 11),
                         ),
                       ],
@@ -1151,8 +1155,8 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
-                                      color: rankColorFromCssClass(
-                                          reply.nameColor),
+                                      color: context.enclavd
+                                          .rankNameFromCss(reply.nameColor),
                                       fontWeight: FontWeight.w600,
                                       fontSize: 13.5,
                                     ),
@@ -1160,10 +1164,8 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                                 ),
                                 if (reply.hasWarnings) ...[
                                   const SizedBox(width: 6),
-                                  const FaIcon(
-                                      FontAwesomeIcons.triangleExclamation,
-                                      color: EnclavdColors.warning,
-                                      size: 12),
+                                  FaIcon(FontAwesomeIcons.triangleExclamation,
+                                      color: context.enclavd.warning, size: 12),
                                 ],
                               ],
                             ),
@@ -1185,10 +1187,8 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
           ],
           Text.rich(
             TextSpan(children: _spans()),
-            style: const TextStyle(
-                color: EnclavdColors.textPrimary,
-                fontSize: 14,
-                height: 1.4),
+            style: TextStyle(
+                color: context.enclavd.textPrimary, fontSize: 14, height: 1.4),
           ),
           if (_body.length > _readMoreLimit)
             GestureDetector(
@@ -1197,8 +1197,8 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                 padding: const EdgeInsets.only(top: 3),
                 child: Text(
                   _expanded ? 'Show less' : 'Read more',
-                  style: const TextStyle(
-                    color: EnclavdColors.link,
+                  style: TextStyle(
+                    color: context.enclavd.link,
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
                   ),
@@ -1214,18 +1214,18 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                   key: Key('replyQuote-${reply.id}'),
                   onTap: () => widget.onReply(reply),
                   borderRadius: BorderRadius.circular(8),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(
-                        horizontal: 4, vertical: 4),
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                     child: Row(
                       children: [
                         FaIcon(FontAwesomeIcons.quoteLeft,
-                            size: 12, color: EnclavdColors.link),
-                        SizedBox(width: 5),
+                            size: 12, color: context.enclavd.link),
+                        const SizedBox(width: 5),
                         Text(
                           'Reply',
                           style: TextStyle(
-                            color: EnclavdColors.link,
+                            color: context.enclavd.link,
                             fontSize: 12.5,
                             fontWeight: FontWeight.w600,
                           ),
@@ -1238,18 +1238,18 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                 InkWell(
                   onTap: () => _confirmDelete(),
                   borderRadius: BorderRadius.circular(8),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(
-                        horizontal: 4, vertical: 4),
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                     child: Row(
                       children: [
                         FaIcon(FontAwesomeIcons.trashCan,
-                            size: 12, color: EnclavdColors.likeActive),
-                        SizedBox(width: 5),
+                            size: 12, color: context.enclavd.likeActive),
+                        const SizedBox(width: 5),
                         Text(
                           'Delete',
                           style: TextStyle(
-                            color: EnclavdColors.likeActive,
+                            color: context.enclavd.likeActive,
                             fontSize: 12.5,
                             fontWeight: FontWeight.w600,
                           ),
@@ -1261,10 +1261,10 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
               const Spacer(),
               Text(
                 '#${widget.number}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
                   fontFamily: 'monospace',
-                  color: EnclavdColors.textSecondary,
+                  color: context.enclavd.textSecondary,
                 ),
               ),
             ],
@@ -1308,70 +1308,70 @@ class _ReplyComposer extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-            if (quote != null) ...[
-              _QuoteBanner(quote: quote!, onDismiss: onDismissQuote),
-              const SizedBox(height: 6),
-            ],
-            Row(
-              // Stays aligned with the input's center as it grows.
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: controller,
-                    focusNode: focusNode,
-                    minLines: 1,
-                    maxLines: 4,
-                    maxLength: 1000,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => onSend(),
-                    style: const TextStyle(
-                        fontSize: 14, color: EnclavdColors.textPrimary),
-                    cursorColor: EnclavdColors.link,
-                    // 1000-char cap enforced silently, no counter.
-                    decoration: const InputDecoration(
-                      hintText: 'Reply...',
-                      hintStyle: TextStyle(
-                          color: EnclavdColors.textSecondary, fontSize: 14),
-                      filled: true,
-                      fillColor: EnclavdColors.background,
-                      isDense: true,
-                      counterText: '',
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.all(Radius.circular(10)),
-                        borderSide: BorderSide(color: EnclavdColors.border),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.all(Radius.circular(10)),
-                        borderSide: BorderSide(color: EnclavdColors.border),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.all(Radius.circular(10)),
-                        borderSide:
-                            BorderSide(color: EnclavdColors.link, width: 2),
-                      ),
+          if (quote != null) ...[
+            _QuoteBanner(quote: quote!, onDismiss: onDismissQuote),
+            const SizedBox(height: 6),
+          ],
+          Row(
+            // Stays aligned with the input's center as it grows.
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  minLines: 1,
+                  maxLines: 4,
+                  maxLength: 1000,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => onSend(),
+                  style: TextStyle(
+                      fontSize: 14, color: context.enclavd.textPrimary),
+                  cursorColor: context.enclavd.link,
+                  // 1000-char cap enforced silently, no counter.
+                  decoration: InputDecoration(
+                    hintText: 'Reply...',
+                    hintStyle: TextStyle(
+                        color: context.enclavd.textSecondary, fontSize: 14),
+                    filled: true,
+                    fillColor: context.enclavd.background,
+                    isDense: true,
+                    counterText: '',
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(
+                      borderRadius: const BorderRadius.all(Radius.circular(10)),
+                      borderSide: BorderSide(color: context.enclavd.border),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: const BorderRadius.all(Radius.circular(10)),
+                      borderSide: BorderSide(color: context.enclavd.border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: const BorderRadius.all(Radius.circular(10)),
+                      borderSide:
+                          BorderSide(color: context.enclavd.link, width: 2),
                     ),
                   ),
                 ),
-                const SizedBox(width: 4),
-                IconButton(
-                  onPressed: sending ? null : onSend,
-                  icon: sending
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const FaIcon(FontAwesomeIcons.paperPlane,
-                          size: 18, color: EnclavdColors.link),
-                  tooltip: 'Send reply',
-                ),
-              ],
-            ),
-          ],
-        ),
+              ),
+              const SizedBox(width: 4),
+              IconButton(
+                onPressed: sending ? null : onSend,
+                icon: sending
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : FaIcon(FontAwesomeIcons.paperPlane,
+                        size: 18, color: context.enclavd.link),
+                tooltip: 'Send reply',
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1388,15 +1388,14 @@ class _QuoteBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
       decoration: BoxDecoration(
-        color: EnclavdColors.cardSecondary.withValues(alpha: 0.6),
+        color: context.enclavd.cardSecondary.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(10),
-        border: const Border(
-            left: BorderSide(color: EnclavdColors.link, width: 3)),
+        border: Border(left: BorderSide(color: context.enclavd.link, width: 3)),
       ),
       child: Row(
         children: [
-          const FaIcon(FontAwesomeIcons.quoteLeft,
-              size: 13, color: EnclavdColors.link),
+          FaIcon(FontAwesomeIcons.quoteLeft,
+              size: 13, color: context.enclavd.link),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -1404,10 +1403,10 @@ class _QuoteBanner extends StatelessWidget {
               children: [
                 Text(
                   'Replying to @${quote.username}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: EnclavdColors.link,
+                    color: context.enclavd.link,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -1415,8 +1414,8 @@ class _QuoteBanner extends StatelessWidget {
                   collapsed,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontSize: 12, color: EnclavdColors.textSecondary),
+                  style: TextStyle(
+                      fontSize: 12, color: context.enclavd.textSecondary),
                 ),
               ],
             ),
@@ -1425,10 +1424,10 @@ class _QuoteBanner extends StatelessWidget {
             InkWell(
               onTap: onDismiss,
               borderRadius: BorderRadius.circular(8),
-              child: const Padding(
-                padding: EdgeInsets.all(6),
+              child: Padding(
+                padding: const EdgeInsets.all(6),
                 child: FaIcon(FontAwesomeIcons.xmark,
-                    size: 14, color: EnclavdColors.textSecondary),
+                    size: 14, color: context.enclavd.textSecondary),
               ),
             ),
         ],

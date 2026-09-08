@@ -9,7 +9,8 @@ import 'package:enclavd/widgets/rank_badge.dart';
 
 class _FakeVotes extends VotesService {
   _FakeVotes(this.data)
-      : super(ApiClient(store: _NoopStore(), apiBaseUrl: 'https://example.com'));
+      : super(
+            ApiClient(store: _NoopStore(), apiBaseUrl: 'https://example.com'));
 
   VotesData data;
   int voteCalls = 0;
@@ -212,10 +213,10 @@ void main() {
 
     await _pump(tester, service);
 
-    FaIcon iconIn(Finder button) =>
-        tester.widget<FaIcon>(find.descendant(of: button, matching: find.byType(FaIcon)));
+    FaIcon iconIn(Finder button) => tester.widget<FaIcon>(
+        find.descendant(of: button, matching: find.byType(FaIcon)));
     expect(iconIn(find.widgetWithText(FilledButton, 'Submit Vote')).color,
-        EnclavdColors.primaryButtonText);
+        EnclavdPalette.dark.primaryButtonText);
 
     // After voting the icon swaps to rotate (Change Vote), still dark.
     await tester.tap(find.byKey(const ValueKey('vote-1-option-1')));
@@ -225,7 +226,7 @@ void main() {
     await tester.pump();
 
     expect(iconIn(find.widgetWithText(FilledButton, 'Change Vote')).color,
-        EnclavdColors.primaryButtonText);
+        EnclavdPalette.dark.primaryButtonText);
   });
 
   testWidgets('empty-state icons are centered in their circles',

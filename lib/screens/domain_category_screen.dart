@@ -170,7 +170,7 @@ class _DomainCategoryScreenState extends State<DomainCategoryScreen> {
       );
     }
     if (_error != null && _threads.isEmpty) {
-return ErrorView(message: _error!, onRetry: _loadFirst);
+      return ErrorView(message: _error!, onRetry: _loadFirst);
     }
     if (_threads.isEmpty) {
       // Site empty state (category view: "No discussions in this category
@@ -180,15 +180,15 @@ return ErrorView(message: _error!, onRetry: _loadFirst);
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
           _CategoryHeader(category: _category),
-          const Padding(
-            padding: EdgeInsets.all(32),
+          Padding(
+            padding: const EdgeInsets.all(32),
             child: Column(
               children: [
                 FaIcon(FontAwesomeIcons.comments,
-                    color: EnclavdColors.textSecondary, size: 28),
-                SizedBox(height: 10),
+                    color: context.enclavd.textSecondary, size: 28),
+                const SizedBox(height: 10),
                 Text('No discussions in this category yet',
-                    style: TextStyle(color: EnclavdColors.textSecondary)),
+                    style: TextStyle(color: context.enclavd.textSecondary)),
               ],
             ),
           ),
@@ -197,7 +197,7 @@ return ErrorView(message: _error!, onRetry: _loadFirst);
     }
     return RefreshIndicator(
       onRefresh: _loadFirst,
-      color: EnclavdColors.link,
+      color: context.enclavd.link,
       child: ListView.builder(
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
@@ -258,20 +258,19 @@ class _CategoryHeader extends StatelessWidget {
               children: [
                 Text(
                   category.name,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 19,
                     fontWeight: FontWeight.w700,
                     letterSpacing: -0.2,
-                    color: EnclavdColors.textPrimary,
+                    color: context.enclavd.textPrimary,
                   ),
                 ),
                 if (category.description != null) ...[
                   const SizedBox(height: 3),
                   Text(
                     category.description!,
-                    style: const TextStyle(
-                        fontSize: 12.5,
-                        color: EnclavdColors.textSecondary),
+                    style: TextStyle(
+                        fontSize: 12.5, color: context.enclavd.textSecondary),
                   ),
                 ],
               ],

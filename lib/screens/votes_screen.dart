@@ -33,8 +33,6 @@ class _VotesScreenState extends State<VotesScreen> {
   int? _submittingId;
   bool _ranksOpen = false;
 
-  static const _accent = EnclavdColors.link;
-
   @override
   void initState() {
     super.initState();
@@ -135,7 +133,7 @@ class _VotesScreenState extends State<VotesScreen> {
     }
     return RefreshIndicator(
       onRefresh: _load,
-      color: EnclavdColors.link,
+      color: context.enclavd.link,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -214,60 +212,61 @@ class _HowVotingWorks extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: EnclavdColors.card,
+        color: context.enclavd.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: EnclavdColors.border),
+        border: Border.all(color: context.enclavd.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
               FaIcon(FontAwesomeIcons.circleInfo,
-                  size: 14, color: EnclavdColors.warning),
-              SizedBox(width: 9),
-              Text(
+                  size: 14, color: context.enclavd.warning),
+              const SizedBox(width: 9),
+              const Text(
                 'How Voting Works',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
               ),
             ],
           ),
           const SizedBox(height: 10),
-          const Text(
+          Text(
             'Vote on upcoming features. One vote per feature, changeable '
             'until the voting period ends.',
             style: TextStyle(
-                fontSize: 13, color: EnclavdColors.textSecondary, height: 1.5),
+                fontSize: 13,
+                color: context.enclavd.textSecondary,
+                height: 1.5),
           ),
           const SizedBox(height: 12),
           // The viewer's own weight, stat-chip style.
           Container(
             width: double.infinity,
-            padding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: _VotesScreenState._accent.withValues(alpha: 0.08),
+              color: context.enclavd.link.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                  color: _VotesScreenState._accent.withValues(alpha: 0.25)),
+                  color: context.enclavd.link.withValues(alpha: 0.25)),
             ),
             child: Row(
               children: [
-                const FaIcon(FontAwesomeIcons.weightHanging,
-                    size: 13, color: _VotesScreenState._accent),
+                FaIcon(FontAwesomeIcons.weightHanging,
+                    size: 13, color: context.enclavd.link),
                 const SizedBox(width: 9),
-                const Text(
+                Text(
                   'Your voting power',
                   style: TextStyle(
-                      fontSize: 13, color: EnclavdColors.textSecondary),
+                      fontSize: 13, color: context.enclavd.textSecondary),
                 ),
                 const Spacer(),
                 Text(
                   'x$votingPower',
-                  style: const TextStyle(
+                  style: TextStyle(
                       fontSize: 13.5,
                       fontWeight: FontWeight.w800,
-                      color: _VotesScreenState._accent),
+                      color: context.enclavd.link),
                 ),
               ],
             ),
@@ -280,10 +279,9 @@ class _HowVotingWorks extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 10),
               child: Row(
                 children: [
-                  const Text(
+                  Text(
                     'View Rank Voting Powers',
-                    style: TextStyle(
-                        fontSize: 13, color: EnclavdColors.link),
+                    style: TextStyle(fontSize: 13, color: context.enclavd.link),
                   ),
                   const Spacer(),
                   FaIcon(
@@ -291,7 +289,7 @@ class _HowVotingWorks extends StatelessWidget {
                         ? FontAwesomeIcons.chevronUp
                         : FontAwesomeIcons.chevronDown,
                     size: 12,
-                    color: EnclavdColors.textSecondary,
+                    color: context.enclavd.textSecondary,
                   ),
                 ],
               ),
@@ -334,7 +332,7 @@ class _SectionHeader extends StatelessWidget {
       child: Row(
         children: [
           // Bare icon: a tinted chip read as clutter next to the title.
-          FaIcon(icon, size: 15, color: EnclavdColors.link),
+          FaIcon(icon, size: 15, color: context.enclavd.link),
           const SizedBox(width: 10),
           Text(
             title,
@@ -364,14 +362,15 @@ class _EmptyState extends StatelessWidget {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: EnclavdColors.cardSecondary.withValues(alpha: 0.6),
+              color: context.enclavd.cardSecondary.withValues(alpha: 0.6),
             ),
-            child: FaIcon(icon, size: 22, color: EnclavdColors.textSecondary),
+            child: FaIcon(icon, size: 22, color: context.enclavd.textSecondary),
           ),
           const SizedBox(height: 12),
           Text(
             text,
-            style: const TextStyle(fontSize: 13, color: EnclavdColors.textSecondary),
+            style:
+                TextStyle(fontSize: 13, color: context.enclavd.textSecondary),
           ),
         ],
       ),
@@ -403,9 +402,9 @@ class _VoteCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: EnclavdColors.card,
+        color: context.enclavd.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: EnclavdColors.border),
+        border: Border.all(color: context.enclavd.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -418,9 +417,7 @@ class _VoteCard extends StatelessWidget {
                 child: Text(
                   vote.title,
                   style: const TextStyle(
-                      fontSize: 16.5,
-                      fontWeight: FontWeight.w700,
-                      height: 1.3),
+                      fontSize: 16.5, fontWeight: FontWeight.w700, height: 1.3),
                 ),
               ),
               if (vote.completed) ...[
@@ -439,34 +436,34 @@ class _VoteCard extends StatelessWidget {
           if (vote.description.isNotEmpty) ...[
             Text(
               vote.description,
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 13.5,
-                  color: EnclavdColors.textSecondary,
+                  color: context.enclavd.textSecondary,
                   height: 1.5),
             ),
             const SizedBox(height: 14),
           ],
           for (var i = 0; i < vote.options.length; i++)
-            _optionRow(i, myVote),
+            _optionRow(context, i, myVote),
           if (!vote.completed) ...[
             const SizedBox(height: 14),
-            _voteButton(myVote),
+            _voteButton(context, myVote),
           ],
           const SizedBox(height: 16),
-          const Divider(height: 1, color: EnclavdColors.divider),
+          Divider(height: 1, color: context.enclavd.divider),
           const SizedBox(height: 12),
-          _creatorRow(),
+          _creatorRow(context),
         ],
       ),
     );
   }
 
-  Widget _creatorRow() {
+  Widget _creatorRow(BuildContext context) {
     return Row(
       children: [
-        const Text('Created by',
-            style:
-                TextStyle(fontSize: 11.5, color: EnclavdColors.textSecondary)),
+        Text('Created by',
+            style: TextStyle(
+                fontSize: 11.5, color: context.enclavd.textSecondary)),
         const SizedBox(width: 8),
         InkWell(
           onTap: onCreatorTap,
@@ -482,8 +479,7 @@ class _VoteCard extends StatelessWidget {
               const SizedBox(width: 7),
               Text(
                 vote.creatorUsername,
-                style:
-                    const TextStyle(fontSize: 13, color: EnclavdColors.link),
+                style: TextStyle(fontSize: 13, color: context.enclavd.link),
               ),
             ],
           ),
@@ -494,14 +490,14 @@ class _VoteCard extends StatelessWidget {
     );
   }
 
-  Widget _optionRow(int i, int? myVote) {
-    const accent = _VotesScreenState._accent;
+  Widget _optionRow(BuildContext context, int i, int? myVote) {
+    final accent = context.enclavd.link;
     final isSelected = selected == i; // pending selection
     final isMine = myVote == i; // current vote
     final highlighted = isSelected || isMine;
     final tappable = onSelect != null && !submitting;
-    final color = domainColorFromHex(
-        i < vote.colors.length ? vote.colors[i] : '#a855f7');
+    final color =
+        domainColorFromHex(i < vote.colors.length ? vote.colors[i] : '#a855f7');
     final pct = vote.pct(i);
     return InkWell(
       key: ValueKey('vote-${vote.id}-option-$i'),
@@ -513,7 +509,7 @@ class _VoteCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: highlighted
               ? accent.withValues(alpha: 0.10)
-              : EnclavdColors.cardSecondary.withValues(alpha: 0.55),
+              : context.enclavd.cardSecondary.withValues(alpha: 0.55),
           borderRadius: BorderRadius.circular(12),
           border: highlighted
               ? Border.all(color: accent.withValues(alpha: 0.35))
@@ -525,8 +521,8 @@ class _VoteCard extends StatelessWidget {
               children: [
                 // Radio-style indicator -> check once it's the viewer's vote.
                 if (isMine)
-                  const FaIcon(FontAwesomeIcons.circleCheck,
-                      size: 16, color: _VotesScreenState._accent)
+                  FaIcon(FontAwesomeIcons.circleCheck,
+                      size: 16, color: context.enclavd.link)
                 else
                   Container(
                     width: 16,
@@ -537,7 +533,7 @@ class _VoteCard extends StatelessWidget {
                         width: 2,
                         color: isSelected
                             ? accent
-                            : EnclavdColors.textSecondary
+                            : context.enclavd.textSecondary
                                 .withValues(alpha: 0.55),
                       ),
                     ),
@@ -546,7 +542,7 @@ class _VoteCard extends StatelessWidget {
                             child: Container(
                               width: 6,
                               height: 6,
-                              decoration: const BoxDecoration(
+                              decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 color: accent,
                               ),
@@ -572,8 +568,8 @@ class _VoteCard extends StatelessWidget {
                     ),
                     Text(
                       '${vote.counts[i]} votes',
-                      style: const TextStyle(
-                          fontSize: 10.5, color: EnclavdColors.textSecondary),
+                      style: TextStyle(
+                          fontSize: 10.5, color: context.enclavd.textSecondary),
                     ),
                   ],
                 ),
@@ -601,14 +597,14 @@ class _VoteCard extends StatelessWidget {
               const SizedBox(height: 7),
               Row(
                 children: [
-                  const FaIcon(FontAwesomeIcons.circleCheck,
-                      size: 11, color: _VotesScreenState._accent),
+                  FaIcon(FontAwesomeIcons.circleCheck,
+                      size: 11, color: context.enclavd.link),
                   const SizedBox(width: 5),
                   Expanded(
                     child: Text(
                       _myVoteLabel(),
-                      style: const TextStyle(
-                          fontSize: 11, color: _VotesScreenState._accent),
+                      style:
+                          TextStyle(fontSize: 11, color: context.enclavd.link),
                     ),
                   ),
                 ],
@@ -626,29 +622,28 @@ class _VoteCard extends StatelessWidget {
     return time.isEmpty ? 'Your current vote' : 'Your current vote - $time';
   }
 
-  Widget _voteButton(int? myVote) {
+  Widget _voteButton(BuildContext context, int? myVote) {
     return FilledButton.icon(
       onPressed: submitting ? null : onSubmit,
       style: FilledButton.styleFrom(
-        backgroundColor: EnclavdColors.primaryButton,
+        backgroundColor: context.enclavd.primaryButton,
         minimumSize: const Size.fromHeight(46),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
       ),
       icon: submitting
-          ? const SizedBox(
+          ? SizedBox(
               width: 16,
               height: 16,
               child: CircularProgressIndicator(
-                  strokeWidth: 2, color: EnclavdColors.primaryButtonText),
+                  strokeWidth: 2, color: context.enclavd.primaryButtonText),
             )
           : FaIcon(
               myVote != null
                   ? FontAwesomeIcons.rotate
                   : FontAwesomeIcons.circleCheck,
               size: 14,
-              color: EnclavdColors.primaryButtonText, // matches the label
+              color: context.enclavd.primaryButtonText, // matches the label
             ),
       label: Text(submitting
           ? 'Submitting...'
@@ -678,8 +673,8 @@ class _StatusPill extends StatelessWidget {
         vote.status.isEmpty
             ? 'Ended'
             : vote.status[0].toUpperCase() + vote.status.substring(1),
-        style: TextStyle(
-            fontSize: 11, fontWeight: FontWeight.w600, color: color),
+        style:
+            TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color),
       ),
     );
   }
@@ -696,19 +691,19 @@ class _EndChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 5),
       decoration: BoxDecoration(
-        color: EnclavdColors.cardSecondary.withValues(alpha: 0.7),
+        color: context.enclavd.cardSecondary.withValues(alpha: 0.7),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const FaIcon(FontAwesomeIcons.clock,
-              size: 10.5, color: EnclavdColors.textSecondary),
+          FaIcon(FontAwesomeIcons.clock,
+              size: 10.5, color: context.enclavd.textSecondary),
           const SizedBox(width: 6),
           Text(
             '$label ${formatMessageTime(vote.endDate)}',
-            style: const TextStyle(
-                fontSize: 11.5, color: EnclavdColors.textSecondary),
+            style:
+                TextStyle(fontSize: 11.5, color: context.enclavd.textSecondary),
           ),
         ],
       ),
@@ -724,18 +719,18 @@ class _Donut extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (vote.totalVotes <= 0) {
-      return const SizedBox(
+      return SizedBox(
         width: 120,
         height: 110,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             FaIcon(FontAwesomeIcons.chartPie,
-                size: 26, color: EnclavdColors.textSecondary),
-            SizedBox(height: 8),
+                size: 26, color: context.enclavd.textSecondary),
+            const SizedBox(height: 8),
             Text('No votes yet',
                 style: TextStyle(
-                    fontSize: 12, color: EnclavdColors.textSecondary)),
+                    fontSize: 12, color: context.enclavd.textSecondary)),
           ],
         ),
       );
@@ -751,12 +746,12 @@ class _Donut extends StatelessWidget {
             children: [
               Text(
                 '${vote.totalVotes}',
-                style: const TextStyle(
-                    fontSize: 20, fontWeight: FontWeight.w800),
+                style:
+                    const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
               ),
-              const Text('votes',
+              Text('votes',
                   style: TextStyle(
-                      fontSize: 11, color: EnclavdColors.textSecondary)),
+                      fontSize: 11, color: context.enclavd.textSecondary)),
             ],
           ),
         ),

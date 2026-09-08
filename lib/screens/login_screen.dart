@@ -208,11 +208,15 @@ class _LoginScreenState extends State<LoginScreen> {
     final captchaNeeded = _rl?.captchaRequired ?? false;
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        // Navy hero only over the dark theme; light mode goes flat so the
+        // form stays readable.
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF0B1628), EnclavdColors.background],
+            colors: Theme.of(context).brightness == Brightness.light
+                ? [context.enclavd.background, context.enclavd.background]
+                : [const Color(0xFF0B1628), context.enclavd.background],
           ),
         ),
         child: SafeArea(
@@ -234,7 +238,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           children: [
                             Center(
                               child: Image.asset(
-                                'assets/images/enclavd-logo-white.png',
+                                Theme.of(context).brightness == Brightness.light
+                                    ? 'assets/images/enclavd-logo-dark.png'
+                                    : 'assets/images/enclavd-logo-white.png',
                                 height: 42,
                                 errorBuilder: (_, __, ___) =>
                                     const SizedBox(height: 42),
@@ -248,11 +254,11 @@ class _LoginScreenState extends State<LoginScreen> {
                                   fontSize: 26, fontWeight: FontWeight.w700),
                             ),
                             const SizedBox(height: 6),
-                            const Text(
+                            Text(
                               'Sign in to continue to Enclavd',
                               textAlign: TextAlign.center,
                               style: TextStyle(
-                                  color: EnclavdColors.textSecondary,
+                                  color: context.enclavd.textSecondary,
                                   fontSize: 14),
                             ),
                             const SizedBox(height: 32),
@@ -276,13 +282,12 @@ class _LoginScreenState extends State<LoginScreen> {
                               decoration: const InputDecoration(
                                 labelText: 'Email address',
                                 hintText: 'you@example.com',
-                                prefixIcon: FieldIcon(
-                                    FontAwesomeIcons.envelope),
+                                prefixIcon:
+                                    FieldIcon(FontAwesomeIcons.envelope),
                               ),
-                              validator: (v) =>
-                                  (v == null || v.trim().isEmpty)
-                                      ? 'Enter your email'
-                                      : null,
+                              validator: (v) => (v == null || v.trim().isEmpty)
+                                  ? 'Enter your email'
+                                  : null,
                               onFieldSubmitted: (_) =>
                                   _passwordFocus.requestFocus(),
                             ),
@@ -311,17 +316,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                                 child: Row(
                                   children: [
-                                    const FaIcon(
-                                        FontAwesomeIcons.shieldHalved,
-                                        size: 16,
-                                        color: Color(0xFFFCD34D)),
+                                    const FaIcon(FontAwesomeIcons.shieldHalved,
+                                        size: 16, color: Color(0xFFFCD34D)),
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: Text(
                                         _rl?.captchaQuestion ??
                                             'Security question',
-                                        style:
-                                            const TextStyle(fontSize: 13),
+                                        style: const TextStyle(fontSize: 13),
                                       ),
                                     ),
                                   ],
@@ -334,8 +336,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 textInputAction: TextInputAction.done,
                                 decoration: const InputDecoration(
                                   labelText: 'Answer',
-                                  prefixIcon:
-                                      FieldIcon(FontAwesomeIcons.key),
+                                  prefixIcon: FieldIcon(FontAwesomeIcons.key),
                                 ),
                                 validator: (_) => captchaNeeded &&
                                         _captcha.text.trim().isEmpty
@@ -349,8 +350,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               children: [
                                 Checkbox(
                                   value: _rememberMe,
-                                  onChanged: (v) => setState(
-                                      () => _rememberMe = v ?? false),
+                                  onChanged: (v) =>
+                                      setState(() => _rememberMe = v ?? false),
                                 ),
                                 const Text('Remember me'),
                               ],
@@ -361,25 +362,25 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ? null
                                   : _submit,
                               child: _busy
-                                  ? const SizedBox(
+                                  ? SizedBox(
                                       width: 20,
                                       height: 20,
                                       child: CircularProgressIndicator(
                                           strokeWidth: 2,
-                                          color:
-                                              EnclavdColors.primaryButtonText),
+                                          color: context
+                                              .enclavd.primaryButtonText),
                                     )
-                                  : const Row(
+                                  : Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         FaIcon(
                                             FontAwesomeIcons
                                                 .arrowRightToBracket,
                                             size: 15,
-                                            color:
-                                                EnclavdColors.primaryButtonText),
-                                        SizedBox(width: 8),
-                                        Text('Login'),
+                                            color: context
+                                                .enclavd.primaryButtonText),
+                                        const SizedBox(width: 8),
+                                        const Text('Login'),
                                       ],
                                     ),
                             ),
@@ -388,9 +389,8 @@ class _LoginScreenState extends State<LoginScreen> {
                             const SizedBox(height: 16),
                             TextButton(
                               onPressed: () {
-                                Navigator.of(context)
-                                    .pushReplacementNamed(
-                                        RegisterScreen.routeName);
+                                Navigator.of(context).pushReplacementNamed(
+                                    RegisterScreen.routeName);
                               },
                               child: const Text(
                                   "Don't have an account? Create one"),

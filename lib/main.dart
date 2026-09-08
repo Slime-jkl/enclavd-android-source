@@ -54,15 +54,15 @@ import 'theme/enclavd_theme.dart';
 /// now. [args] carries the UnifiedPush background flag: with
 /// `--unifiedpush-bg`, main() binds the push callbacks and does NOT build
 /// the UI.
-void main(List<String> args) {
+Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   // In-app error channel -> Grafana/Loki (mirror only, never Plausible).
   // Fire-and-forget with a null-safe guard: a dead monitoring stack, or
   // an error before AppServices.create, changes nothing the user sees.
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
-    AnalyticsService.instance?.error(details.exceptionAsString(),
-        stack: details.stack?.toString());
+    AnalyticsService.instance
+        ?.error(details.exceptionAsString(), stack: details.stack?.toString());
   };
   WidgetsBinding.instance.platformDispatcher.onError = (error, stack) {
     AnalyticsService.instance?.error(error.toString(), stack: stack.toString());
@@ -86,13 +86,16 @@ void main(List<String> args) {
     unawaited(DailyQuoteService.refreshWidgetIfStale());
     // Widget rate taps: register the headless callback that records the
     // rating; it wakes its own isolate even when the app is killed.
-    unawaited(HomeWidget.registerInteractivityCallback(
-        quoteWidgetRateCallback));
+    unawaited(
+        HomeWidget.registerInteractivityCallback(quoteWidgetRateCallback));
     // Widget data can go stale in the background (Doze may delay the
     // daily slot for hours); every foreground return is a cheap,
     // date-gated catch-up.
     WidgetsBinding.instance.addObserver(_QuoteResumeRefresh());
   }
+  // Read the stored brightness before the first frame so a light-mode
+  // user never sees a dark flash.
+  await ThemePrefs.init();
   runApp(const EnclavdApp());
 }
 
@@ -113,8 +116,8 @@ class QuoteDeepLink {
     final nav = navigatorKey.currentState;
     if (nav != null && nav.mounted) {
       pending = false;
-      nav.push(MaterialPageRoute<void>(
-          builder: (_) => const QuoteSettingsScreen()));
+      nav.push(
+          MaterialPageRoute<void>(builder: (_) => const QuoteSettingsScreen()));
     }
   }
 
@@ -135,11 +138,27 @@ class _QuoteResumeRefresh with WidgetsBindingObserver {
 /// Simple service container - no DI framework, constructor injection only.
 class AppServices {
   AppServices._(
-      this.apiClient, this.auth, this.feed, this.social, this.profile,
-      this.posts, this.messages, this.notifications, this.search,
-      this.realtime, this.messageAlerts, this.articles, this.domains,
-      this.results, this.invitations, this.reports, this.personalityTest,
-      this.personality, this.siteConfig, this.votes, this.diary,
+      this.apiClient,
+      this.auth,
+      this.feed,
+      this.social,
+      this.profile,
+      this.posts,
+      this.messages,
+      this.notifications,
+      this.search,
+      this.realtime,
+      this.messageAlerts,
+      this.articles,
+      this.domains,
+      this.results,
+      this.invitations,
+      this.reports,
+      this.personalityTest,
+      this.personality,
+      this.siteConfig,
+      this.votes,
+      this.diary,
       this.activity);
 
   final ApiClient apiClient;
@@ -277,28 +296,33 @@ class EnclavdApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Enclavd',
-      debugShowCheckedModeBanner: false,
-      navigatorKey: navigatorKey,
-      navigatorObservers: [AnalyticsRouteObserver()],
-      theme: buildEnclavdTheme(),
-      // microdot off
-      // builder: (context, child) => Stack(
-      //   children: [
-      //     if (child != null) child,
-      //     const MicrodotOverlay(),
-      //   ],
-      // ),
-      home: const SplashScreen(),
-      routes: {
-        LoginScreen.routeName: (_) => const LoginScreen(),
-        RegisterScreen.routeName: (_) => const RegisterScreen(),
-        FeedScreen.routeName: (_) => const FeedScreen(),
-        BanScreen.routeName: (_) => const BanScreen(),
-        MaintenanceScreen.routeName: (_) => const MaintenanceScreen(),
-        VerifyEmailScreen.routeName: (_) => const VerifyEmailScreen(),
-      },
+    return ValueListenableBuilder<bool>(
+      valueListenable: ThemePrefs.lightMode,
+      builder: (context, lightMode, child) => MaterialApp(
+        title: 'Enclavd',
+        debugShowCheckedModeBanner: false,
+        navigatorKey: navigatorKey,
+        navigatorObservers: [AnalyticsRouteObserver()],
+        // A different ThemeData instance per brightness makes every
+        // Theme.of()/palette read repaint as soon as the switch flips.
+        theme: buildEnclavdTheme(light: lightMode),
+        // microdot off
+        // builder: (context, child) => Stack(
+        //   children: [
+        //     if (child != null) child,
+        //     const MicrodotOverlay(),
+        //   ],
+        // ),
+        home: const SplashScreen(),
+        routes: {
+          LoginScreen.routeName: (_) => const LoginScreen(),
+          RegisterScreen.routeName: (_) => const RegisterScreen(),
+          FeedScreen.routeName: (_) => const FeedScreen(),
+          BanScreen.routeName: (_) => const BanScreen(),
+          MaintenanceScreen.routeName: (_) => const MaintenanceScreen(),
+          VerifyEmailScreen.routeName: (_) => const VerifyEmailScreen(),
+        },
+      ),
     );
   }
 }

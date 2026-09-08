@@ -4,6 +4,7 @@ import 'package:home_widget/home_widget.dart';
 import '../api/api_client.dart';
 import '../api/auth_service.dart';
 import '../main.dart';
+import '../theme/enclavd_theme.dart';
 import '../widgets/error_view.dart';
 import 'ban_screen.dart';
 import 'feed_screen.dart';
@@ -81,8 +82,8 @@ class _SplashScreenState extends State<SplashScreen> {
     QuoteDeepLink.consume();
     final nav = navigatorKey.currentState;
     if (nav != null && nav.mounted) {
-      nav.push(MaterialPageRoute<void>(
-          builder: (_) => const QuoteSettingsScreen()));
+      nav.push(
+          MaterialPageRoute<void>(builder: (_) => const QuoteSettingsScreen()));
     }
   }
 
@@ -92,20 +93,28 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final light = Theme.of(context).brightness == Brightness.light;
     return Scaffold(
       body: _error == null
           ? Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Image.asset('assets/images/default-logo.png', height: 72),
+                  // default-logo.png is the white mark; its dark square
+                  // twin ships under the quote-widget name.
+                  Image.asset(
+                    light
+                        ? 'assets/images/quote-widget-logo-dark.png'
+                        : 'assets/images/default-logo.png',
+                    height: 72,
+                  ),
                   const SizedBox(height: 16),
                   const Text('Enclavd',
                       style:
                           TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
-                  const Text('Loading...',
-                      style: TextStyle(color: Color(0xFF9CA3AF))),
+                  Text('Loading...',
+                      style: TextStyle(color: context.enclavd.textSecondary)),
                 ],
               ),
             )
