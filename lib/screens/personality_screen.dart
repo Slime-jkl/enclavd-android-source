@@ -323,7 +323,12 @@ class _SynergyCard extends StatelessWidget {
             icon: FontAwesomeIcons.circlePlus,
             iconColor: const Color(0xFF4ADE80), // green-400
             heading: 'Strengths',
-            body: compat.proReason,
+            reasons: [
+              compat.proReason,
+              if (compat.myType != compat.theirType &&
+                  compat.theirProReason.isNotEmpty)
+                compat.theirProReason,
+            ],
           ),
           const SizedBox(height: 10),
           _ReasonBlock(
@@ -332,7 +337,12 @@ class _SynergyCard extends StatelessWidget {
             icon: FontAwesomeIcons.circleExclamation,
             iconColor: const Color(0xFFF87171), // red-400
             heading: 'Challenges',
-            body: compat.consReason,
+            reasons: [
+              compat.consReason,
+              if (compat.myType != compat.theirType &&
+                  compat.theirConsReason.isNotEmpty)
+                compat.theirConsReason,
+            ],
           ),
         ],
       ),
@@ -474,7 +484,7 @@ class _ReasonBlock extends StatelessWidget {
     required this.icon,
     required this.iconColor,
     required this.heading,
-    required this.body,
+    required this.reasons,
   });
 
   final Color background;
@@ -482,7 +492,9 @@ class _ReasonBlock extends StatelessWidget {
   final FaIconData icon;
   final Color iconColor;
   final String heading;
-  final String body;
+
+  /// One bullet per side of the pair (viewer's take, then the member's).
+  final List<String> reasons;
 
   @override
   Widget build(BuildContext context) {
@@ -506,9 +518,27 @@ class _ReasonBlock extends StatelessWidget {
                       const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
             ],
           ),
-          const SizedBox(height: 6),
-          Text(body,
-              style: const TextStyle(fontSize: 13.5, height: 1.4)),
+          const SizedBox(height: 8),
+          for (var i = 0; i < reasons.length; i++) ...[
+            if (i > 0) const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.only(right: 8),
+                  child: Text('\u2022', // bullet (kept ASCII in source)
+                      style: TextStyle(
+                          fontSize: 13.5,
+                          height: 1.4,
+                          color: EnclavdColors.textSecondary)),
+                ),
+                Expanded(
+                  child: Text(reasons[i],
+                      style: const TextStyle(fontSize: 13.5, height: 1.4)),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
