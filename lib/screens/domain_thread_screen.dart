@@ -686,43 +686,48 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Identity row: rank badge (personality tags are
-                    // hidden on domain pages) + active warnings, above
-                    // the username.
-                    Row(
-                      children: [
-                        RankBadge(rank: post.rank),
-                        if (post.warningCount > 0) ...[
-                          const SizedBox(width: 6),
-                          const FaIcon(FontAwesomeIcons.triangleExclamation,
-                              color: EnclavdColors.warning, size: 13),
-                          Text('${post.warningCount}',
-                              style: const TextStyle(
-                                  color: EnclavdColors.warning, fontSize: 10)),
-                        ],
-                      ],
-                    ),
+                    // Rank badge (no personality chip on domain pages),
+                    // above the username.
+                    RankBadge(rank: post.rank),
                     const SizedBox(height: 4),
                     Row(
                       children: [
                         Expanded(
                           child: GestureDetector(
                             onTap: () => _openProfile(context, post.authorId),
-                            child: Text(
-                              post.username,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: post.isBlocked
-                                    ? RankColors.forRank('Blocked')
-                                    : RankColors.forRank(post.rank),
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                                decoration: post.isBlocked
-                                    ? TextDecoration.lineThrough
-                                    : null,
-                                decorationColor:
-                                    RankColors.forRank('Blocked'),
-                              ),
+                            child: Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    post.username,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: post.isBlocked
+                                          ? RankColors.forRank('Blocked')
+                                          : RankColors.forRank(post.rank),
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 15,
+                                      decoration: post.isBlocked
+                                          ? TextDecoration.lineThrough
+                                          : null,
+                                      decorationColor:
+                                          RankColors.forRank('Blocked'),
+                                    ),
+                                  ),
+                                ),
+                                if (post.warningCount > 0) ...[
+                                  const SizedBox(width: 6),
+                                  const FaIcon(
+                                      FontAwesomeIcons.triangleExclamation,
+                                      color: EnclavdColors.warning,
+                                      size: 13),
+                                  Text('${post.warningCount}',
+                                      style: const TextStyle(
+                                          color: EnclavdColors.warning,
+                                          fontSize: 10)),
+                                ],
+                              ],
                             ),
                           ),
                         ),
@@ -1106,31 +1111,37 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Identity row above the username, like the OP card.
-                Row(
-                  children: [
-                    RankBadge(rank: reply.rank),
-                    if (reply.hasWarnings) ...[
-                      const SizedBox(width: 6),
-                      const FaIcon(FontAwesomeIcons.triangleExclamation,
-                          color: EnclavdColors.warning, size: 12),
-                    ],
-                  ],
-                ),
+                // Rank badge above the username, like the OP card.
+                RankBadge(rank: reply.rank),
                 const SizedBox(height: 4),
                 Row(
                   children: [
                     Expanded(
                       child: GestureDetector(
                         onTap: () => _openProfile(context, reply.userId),
-                        child: Text(
-                          reply.username,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: rankColorFromCssClass(reply.nameColor),
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13.5,
-                          ),
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                reply.username,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color:
+                                      rankColorFromCssClass(reply.nameColor),
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13.5,
+                                ),
+                              ),
+                            ),
+                            if (reply.hasWarnings) ...[
+                              const SizedBox(width: 6),
+                              const FaIcon(
+                                  FontAwesomeIcons.triangleExclamation,
+                                  color: EnclavdColors.warning,
+                                  size: 12),
+                            ],
+                          ],
                         ),
                       ),
                     ),

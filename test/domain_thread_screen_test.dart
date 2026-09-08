@@ -127,7 +127,8 @@ DomainThreadDetail _detail() => DomainThreadDetail.fromJson({
     });
 
 Comment _reply(int id, String text,
-        {bool own = false, String rank = 'Member', int? parent}) =>
+        {bool own = false, String rank = 'Member', int? parent,
+        bool warnings = false}) =>
     Comment(
       id: id,
       postId: 218,
@@ -136,7 +137,7 @@ Comment _reply(int id, String text,
       profilePictureUrl: '/public/avatars/x.png',
       personalityType: null,
       nameColor: 'text-gray-400',
-      hasWarnings: false,
+      hasWarnings: warnings,
       createdAt: '5m',
       content: text,
       isOwner: own,
@@ -444,6 +445,46 @@ void main() {
     expect(avatarOf('dev.png').square, isTrue,
         reason: 'forum avatars are squared with rounded corners');
     expect(avatarOf('x.png').square, isTrue);
+  });
+
+  testWidgets('active warnings hug the username, not the rank line',
+      (tester) async {
+    final postJson = _postJson()..['warning_count'] = 2;
+    final detail = DomainThreadDetail.fromJson({
+      'success': true,
+      'post': postJson,
+      'breadcrumb': const [
+        {'id': 1, 'name': 'General', 'slug': 'general', 'parent': null},
+      ],
+    });
+    final social =
+        _FakeSocial(replies: [_reply(1, 'First reply', warnings: true)]);
+    await tester.pumpWidget(wrap(DomainThreadScreen(
+      domains: _FakeDomains(detail),
+      postId: 218,
+      social: social,
+      posts: _FakePosts(),
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final icons = findFa(FontAwesomeIcons.triangleExclamation);
+    expect(icons, findsNWidgets(2)); // OP (icon + count) and the reply
+
+    // Warnings share the username's line (rank line is above it) and
+    // start right after the username text on both card kinds.
+    final opWarn = tester.getTopLeft(icons.at(0));
+    final opName = tester.getTopLeft(find.text('Developer'));
+    expect(opWarn.dy >= opName.dy - 1 && opWarn.dy <= opName.dy + 10, isTrue,
+        reason: 'OP warnings sit on the username line');
+    expect(opWarn.dx >= tester.getTopRight(find.text('Developer')).dx - 1,
+        isTrue, reason: 'OP warnings start right of the username');
+    final replyWarn = tester.getTopLeft(icons.at(1));
+    final replyName = tester.getTopLeft(find.text('Someone'));
+    expect(replyWarn.dy >= replyName.dy - 1 &&
+            replyWarn.dy <= replyName.dy + 10,
+        isTrue, reason: 'reply warnings sit on the username line');
+    expect(replyWarn.dx >= tester.getTopRight(find.text('Someone')).dx - 1,
+        isTrue, reason: 'reply warnings start right of the username');
   });
 
   testWidgets('reply on another reply quotes it in the composer and on send',
