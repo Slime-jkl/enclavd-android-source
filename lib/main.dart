@@ -1,11 +1,12 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart' show FlutterError, kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:home_widget/home_widget.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
 
+import 'api/activity_service.dart';
 import 'api/api_client.dart';
 import 'api/articles_service.dart';
 import 'api/auth_service.dart';
@@ -46,7 +47,8 @@ import 'services/realtime_service.dart';
 import 'services/social_notification_source.dart';
 import 'services/social_notifications.dart';
 import 'theme/enclavd_theme.dart';
-import 'widgets/microdot_overlay.dart';
+// microdot off
+// import 'widgets/microdot_overlay.dart';
 
 /// Enclavd native app (Flutter). Only the Android APK is built by CI for
 /// now. [args] carries the UnifiedPush background flag: with
@@ -54,6 +56,18 @@ import 'widgets/microdot_overlay.dart';
 /// the UI.
 void main(List<String> args) {
   WidgetsFlutterBinding.ensureInitialized();
+  // In-app error channel -> Grafana/Loki (mirror only, never Plausible).
+  // Fire-and-forget with a null-safe guard: a dead monitoring stack, or
+  // an error before AppServices.create, changes nothing the user sees.
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    AnalyticsService.instance?.error(details.exceptionAsString(),
+        stack: details.stack?.toString());
+  };
+  WidgetsBinding.instance.platformDispatcher.onError = (error, stack) {
+    AnalyticsService.instance?.error(error.toString(), stack: stack.toString());
+    return false; // keep the framework's default unhandled-error handling
+  };
   if (args.contains('--unifiedpush-bg')) {
     UnifiedPushTransport.runBackground();
     return;
@@ -125,7 +139,8 @@ class AppServices {
       this.posts, this.messages, this.notifications, this.search,
       this.realtime, this.messageAlerts, this.articles, this.domains,
       this.results, this.invitations, this.reports, this.personalityTest,
-      this.personality, this.siteConfig, this.votes, this.diary);
+      this.personality, this.siteConfig, this.votes, this.diary,
+      this.activity);
 
   final ApiClient apiClient;
   final AuthService auth;
@@ -148,6 +163,7 @@ class AppServices {
   final SiteConfigService siteConfig;
   final VotesService votes;
   final DiaryService diary;
+  final ActivityService activity;
 
   /// The most recently created container - the one the app is actively
   /// using. Singletons must resolve against THIS: on a cold start the
@@ -227,7 +243,8 @@ class AppServices {
         PersonalityService(api),
         SiteConfigService(api),
         VotesService(api),
-        DiaryService(api));
+        DiaryService(api),
+        ActivityService(api));
     current = services;
     // Background push: resolve the best transport for this build/device
     // (FCM -> Unified Push -> 15-minute polling) and register the token,
@@ -240,13 +257,16 @@ class AppServices {
     unawaited(DailyQuoteService.refreshWidgetIfStale());
     // Self-hosted Plausible analytics: ONLY release builds of the
     // play/fdroid flavors report; debug/dev must never pollute the
-    // production dashboard.
+    // production dashboard. The mirror endpoint lands the same events in
+    // Grafana/Loki via the site bridge; it must never block or break the
+    // app, so it shares the fire-and-forget path and a short timeout.
     AnalyticsService.instance = (kDebugMode || AppConfig.isDev)
         ? null
         : AnalyticsService(
             endpoint: AppConfig.analyticsEndpoint,
             domain: AppConfig.analyticsDomain,
             userAgent: AppConfig.analyticsUserAgent,
+            mirrorEndpoint: AppConfig.appEventsEndpoint,
           );
     return services;
   }
@@ -263,14 +283,13 @@ class EnclavdApp extends StatelessWidget {
       navigatorKey: navigatorKey,
       navigatorObservers: [AnalyticsRouteObserver()],
       theme: buildEnclavdTheme(),
-      // The site's microdot.php port: a faint user-id watermark tiled
-      // over EVERY screen while logged in, above the Navigator.
-      builder: (context, child) => Stack(
-        children: [
-          if (child != null) child,
-          const MicrodotOverlay(),
-        ],
-      ),
+      // microdot off
+      // builder: (context, child) => Stack(
+      //   children: [
+      //     if (child != null) child,
+      //     const MicrodotOverlay(),
+      //   ],
+      // ),
       home: const SplashScreen(),
       routes: {
         LoginScreen.routeName: (_) => const LoginScreen(),

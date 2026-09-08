@@ -126,6 +126,8 @@ class PersonalityCompatibility {
     required this.theirType,
     required this.proReason,
     required this.consReason,
+    this.theirProReason = '',
+    this.theirConsReason = '',
     this.percentage,
   });
 
@@ -133,6 +135,12 @@ class PersonalityCompatibility {
   final String theirType;
   final String proReason;
   final String consReason;
+
+  // The member's own row of the pair matrix (reverse lookup), so both
+  // takes on the pair show: my row above and the member's row here. Old
+  // servers leave them empty.
+  final String theirProReason;
+  final String theirConsReason;
 
   /// 0-100 synergy score
   final int? percentage;
@@ -143,6 +151,8 @@ class PersonalityCompatibility {
         theirType: json['their_type'] as String? ?? '',
         proReason: json['pro_reason'] as String? ?? '',
         consReason: json['cons_reason'] as String? ?? '',
+        theirProReason: json['their_pro_reason'] as String? ?? '',
+        theirConsReason: json['their_cons_reason'] as String? ?? '',
         percentage: (json['percentage'] as num?)?.toInt(),
       );
 }

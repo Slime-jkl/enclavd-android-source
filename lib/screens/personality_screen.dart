@@ -11,15 +11,15 @@ import '../services/analytics_service.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/enclavd_avatar.dart';
 import '../widgets/error_view.dart';
-import '../widgets/personality_chip.dart';
 import '../widgets/personality_widgets.dart';
 import '../widgets/rank_badge.dart';
 
 /* ===view personality screen===
-Pushed from a member profile. Opens with a between us card (both
-identities with the synergy score and the strengths/challenges reasons),
-then the member's type results exactly like the results screen (badge
-pill, type card, trait percentages). The score + bar follow the
+Pushed from a member profile. Opens with a between us card (each member
+as rank + avatar + username with the type x type between them, the
+synergy score + bar under the row, then the strengths/challenges
+reasons), then the member's type results exactly like the results screen
+(badge pill, type card, trait percentages). The score + bar follow the
 site config -> synergy_bar feature flag so the site can switch them off
 without an app update.
 */
@@ -229,10 +229,11 @@ class _PersonalityView extends StatelessWidget {
 }
 
 /*
- * The between-us hero: both members as real identities (avatar, rank,
-   username, type chip) with the synergy score + bar between them, then
-   the strengths/challenges reasons. Falls back to score-only when an old
-   server sends no identities.
+ * The between-us hero: both members as real identities (rank above the
+   avatar, then the username) with the big type x type between them, the
+   synergy score + bar under the row, then the strengths/challenges
+   reasons. Falls back to score-only when an old server sends no
+   identities.
    */
 class _SynergyCard extends StatelessWidget {
   const _SynergyCard({
@@ -275,33 +276,44 @@ class _SynergyCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: showColumns
-                ? [
-                    Expanded(
-                        child: _IdentityColumn(
-                            person: viewer!, type: compat.myType)),
-                    if (percentage != null)
-                      _PercentColumn(percentage: percentage)
-                    else
-                      const SizedBox(width: 8),
-                    Expanded(
-                        child: _IdentityColumn(
-                            person: profile!, type: compat.theirType)),
-                  ]
-                : [
-                    Expanded(
-                      child: percentage != null
-                          ? Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              child: _PercentColumn(percentage: percentage),
-                            )
-                          : const SizedBox.shrink(),
-                    ),
-                  ],
-          ),
+          if (showColumns)
+            Row(
+              children: [
+                Expanded(
+                    child: _IdentityColumn(
+                        person: viewer!, type: compat.myType)),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: _TypeMatch(
+                    left: compat.myType,
+                    right: compat.theirType,
+                    leftColor: myColor,
+                    rightColor: theirColor,
+                  ),
+                ),
+                Expanded(
+                    child: _IdentityColumn(
+                        person: profile!, type: compat.theirType)),
+              ],
+            ),
           if (percentage != null) ...[
             const SizedBox(height: 14),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Synergy',
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: EnclavdColors.textPrimary)),
+                Text('$percentage%',
+                    style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: _bandColor(percentage))),
+              ],
+            ),
+            const SizedBox(height: 8),
             _SynergyBar(percentage: percentage),
           ],
           const SizedBox(height: 16),
@@ -311,7 +323,12 @@ class _SynergyCard extends StatelessWidget {
             icon: FontAwesomeIcons.circlePlus,
             iconColor: const Color(0xFF4ADE80), // green-400
             heading: 'Strengths',
-            body: compat.proReason,
+            reasons: [
+              compat.proReason,
+              if (compat.myType != compat.theirType &&
+                  compat.theirProReason.isNotEmpty)
+                compat.theirProReason,
+            ],
           ),
           const SizedBox(height: 10),
           _ReasonBlock(
@@ -320,7 +337,12 @@ class _SynergyCard extends StatelessWidget {
             icon: FontAwesomeIcons.circleExclamation,
             iconColor: const Color(0xFFF87171), // red-400
             heading: 'Challenges',
-            body: compat.consReason,
+            reasons: [
+              compat.consReason,
+              if (compat.myType != compat.theirType &&
+                  compat.theirConsReason.isNotEmpty)
+                compat.theirConsReason,
+            ],
           ),
         ],
       ),
@@ -333,8 +355,9 @@ class _SynergyCard extends StatelessWidget {
 }
 
 /*
- * One participant: avatar with the type ring, rank-colored username,
-   then the rank badge + type chip (wrapped so long ranks never clip).
+ * One participant: rank badge above the avatar, then the rank-colored
+   username (the site's column order). Long ranks scale down to fit, so
+   they never clip the card.
    */
 class _IdentityColumn extends StatelessWidget {
   const _IdentityColumn({required this.person, required this.type});
@@ -350,6 +373,11 @@ class _IdentityColumn extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: RankBadge(rank: person.rank),
+        ),
+        const SizedBox(height: 8),
         EnclavdAvatar(
           size: 56,
           url: resolveMediaUrl(AppConfig.apiBaseUrl,
@@ -370,50 +398,45 @@ class _IdentityColumn extends StatelessWidget {
             decorationColor: rankColor,
           ),
         ),
-        const SizedBox(height: 6),
-        Wrap(
-          alignment: WrapAlignment.center,
-          spacing: 4,
-          runSpacing: 4,
-          children: [
-            RankBadge(rank: person.rank),
-            if (type.isNotEmpty) PersonalityChip(type: type),
-          ],
-        ),
       ],
     );
   }
 }
 
-/* The big score between the two avatars. */
-class _PercentColumn extends StatelessWidget {
-  const _PercentColumn({required this.percentage});
+/*
+ * The type x type in the card's middle: each member's letters in their
+   own type color, centered between the two identity columns.
+   */
+class _TypeMatch extends StatelessWidget {
+  const _TypeMatch({
+    required this.left,
+    required this.right,
+    required this.leftColor,
+    required this.rightColor,
+  });
 
-  final int percentage;
+  final String left;
+  final String right;
+  final Color leftColor;
+  final Color rightColor;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    const base = TextStyle(
+        fontSize: 26, fontWeight: FontWeight.w800, letterSpacing: 0.5);
+    return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          '$percentage%',
-          style: TextStyle(
-            fontSize: 26,
-            fontWeight: FontWeight.w800,
-            color: _bandColor(percentage),
-          ),
+        Text(left.toUpperCase(), style: base.copyWith(color: leftColor)),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 5),
+          child: Text('\u00D7', // x (U+00D7, kept ASCII in source)
+              style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: EnclavdColors.textSecondary)),
         ),
-        const SizedBox(height: 2),
-        const Text(
-          'Synergy',
-          style: TextStyle(
-            fontSize: 10.5,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.8,
-            color: EnclavdColors.textSecondary,
-          ),
-        ),
+        Text(right.toUpperCase(), style: base.copyWith(color: rightColor)),
       ],
     );
   }
@@ -461,7 +484,7 @@ class _ReasonBlock extends StatelessWidget {
     required this.icon,
     required this.iconColor,
     required this.heading,
-    required this.body,
+    required this.reasons,
   });
 
   final Color background;
@@ -469,7 +492,9 @@ class _ReasonBlock extends StatelessWidget {
   final FaIconData icon;
   final Color iconColor;
   final String heading;
-  final String body;
+
+  /// One bullet per side of the pair (viewer's take, then the member's).
+  final List<String> reasons;
 
   @override
   Widget build(BuildContext context) {
@@ -493,9 +518,27 @@ class _ReasonBlock extends StatelessWidget {
                       const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
             ],
           ),
-          const SizedBox(height: 6),
-          Text(body,
-              style: const TextStyle(fontSize: 13.5, height: 1.4)),
+          const SizedBox(height: 8),
+          for (var i = 0; i < reasons.length; i++) ...[
+            if (i > 0) const SizedBox(height: 8),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.only(right: 8),
+                  child: Text('\u2022', // bullet (kept ASCII in source)
+                      style: TextStyle(
+                          fontSize: 13.5,
+                          height: 1.4,
+                          color: EnclavdColors.textSecondary)),
+                ),
+                Expanded(
+                  child: Text(reasons[i],
+                      style: const TextStyle(fontSize: 13.5, height: 1.4)),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );

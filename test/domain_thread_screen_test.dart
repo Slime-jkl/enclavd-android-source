@@ -10,6 +10,7 @@ import 'package:enclavd/api/social_service.dart';
 import 'package:enclavd/screens/domain_thread_screen.dart';
 import 'package:enclavd/services/sound_service.dart';
 import 'package:enclavd/theme/enclavd_theme.dart';
+import 'package:enclavd/utils/db_time.dart';
 import 'package:enclavd/widgets/enclavd_avatar.dart';
 import 'package:enclavd/widgets/comment_quote_card.dart';
 import 'package:enclavd/widgets/post_card.dart'; // PostCard (must be ABSENT)
@@ -99,11 +100,13 @@ class _FakePosts extends PostsService {
       : super(ApiClient(store: _NoopStore(), apiBaseUrl: 'https://example.com'));
 }
 
+const _opCreatedAt = '2026-08-12 10:32:59';
+
 Map<String, dynamic> _postJson() => {
       'id': 218,
       'author_id': 1,
       'content': 'The OP of the thread',
-      'created_at': '2026-08-12 10:32:59',
+      'created_at': _opCreatedAt,
       'feed_score': null,
       'like_count': 1,
       'comment_count': 2,
@@ -127,7 +130,8 @@ DomainThreadDetail _detail() => DomainThreadDetail.fromJson({
     });
 
 Comment _reply(int id, String text,
-        {bool own = false, String rank = 'Member', int? parent}) =>
+        {bool own = false, String rank = 'Member', int? parent,
+        bool warnings = false}) =>
     Comment(
       id: id,
       postId: 218,
@@ -136,8 +140,9 @@ Comment _reply(int id, String text,
       profilePictureUrl: '/public/avatars/x.png',
       personalityType: null,
       nameColor: 'text-gray-400',
-      hasWarnings: false,
+      hasWarnings: warnings,
       createdAt: '5m',
+      createdAtUtc: '5m', // raw db string the time badge renders
       content: text,
       isOwner: own,
       rank: rank,
@@ -428,6 +433,14 @@ void main() {
     expect(find.byType(PostCard), findsNothing);
     expect(find.text('SysOp'), findsOneWidget);
     expect(find.text('Member'), findsOneWidget);
+    // Rank badge sits ABOVE the username on both the OP and every
+    // reply card (the two-line identity block they share).
+    expect(tester.getTopLeft(find.text('SysOp')).dy <
+            tester.getTopLeft(find.text('Developer')).dy,
+        isTrue, reason: 'OP rank badge above its username');
+    expect(tester.getTopLeft(find.text('Member')).dy <
+            tester.getTopLeft(find.text('Someone')).dy,
+        isTrue, reason: 'reply rank badge above its username');
     EnclavdAvatar avatarOf(String urlPart) => tester.widget<EnclavdAvatar>(
         find.byWidgetPredicate(
             (w) => w is EnclavdAvatar && w.url.contains(urlPart)));
@@ -436,6 +449,89 @@ void main() {
     expect(avatarOf('dev.png').square, isTrue,
         reason: 'forum avatars are squared with rounded corners');
     expect(avatarOf('x.png').square, isTrue);
+  });
+
+  testWidgets('active warnings hug the username, not the rank line',
+      (tester) async {
+    final postJson = _postJson()..['warning_count'] = 2;
+    final detail = DomainThreadDetail.fromJson({
+      'success': true,
+      'post': postJson,
+      'breadcrumb': const [
+        {'id': 1, 'name': 'General', 'slug': 'general', 'parent': null},
+      ],
+    });
+    final social =
+        _FakeSocial(replies: [_reply(1, 'First reply', warnings: true)]);
+    await tester.pumpWidget(wrap(DomainThreadScreen(
+      domains: _FakeDomains(detail),
+      postId: 218,
+      social: social,
+      posts: _FakePosts(),
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final icons = findFa(FontAwesomeIcons.triangleExclamation);
+    expect(icons, findsNWidgets(2)); // OP (icon + count) and the reply
+
+    // Warnings share the username's line (rank line is above it) and
+    // start right after the username text on both card kinds.
+    final opWarn = tester.getTopLeft(icons.at(0));
+    final opName = tester.getTopLeft(find.text('Developer'));
+    expect(opWarn.dy >= opName.dy - 1 && opWarn.dy <= opName.dy + 10, isTrue,
+        reason: 'OP warnings sit on the username line');
+    expect(opWarn.dx >= tester.getTopRight(find.text('Developer')).dx - 1,
+        isTrue, reason: 'OP warnings start right of the username');
+    final replyWarn = tester.getTopLeft(icons.at(1));
+    final replyName = tester.getTopLeft(find.text('Someone'));
+    expect(replyWarn.dy >= replyName.dy - 1 &&
+            replyWarn.dy <= replyName.dy + 10,
+        isTrue, reason: 'reply warnings sit on the username line');
+    expect(replyWarn.dx >= tester.getTopRight(find.text('Someone')).dx - 1,
+        isTrue, reason: 'reply warnings start right of the username');
+  });
+
+  testWidgets('reply body starts under the avatar; time rides the rank line',
+      (tester) async {
+    final social = _FakeSocial(replies: [_reply(1, 'First reply')]);
+    await tester.pumpWidget(wrap(DomainThreadScreen(
+      domains: _FakeDomains(_detail()),
+      postId: 218,
+      social: social,
+      posts: _FakePosts(),
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // Body text starts at the card's left edge (under the avatar), not
+    // indented under the username column.
+    final avatarLeft = tester
+        .getTopLeft(find.byWidgetPredicate(
+            (w) => w is EnclavdAvatar && w.url.contains('x.png')))
+        .dx;
+    final body = tester.getTopLeft(find.text('First reply'));
+    expect((body.dx - avatarLeft).abs() < 1.0, isTrue,
+        reason: 'reply body spans the card under the avatar');
+
+    // Reply time: on the rank badge line, above the username, near the
+    // card's right edge.
+    final time = tester.getTopLeft(find.text('5m'));
+    final badge = tester.getTopLeft(find.text('Member'));
+    final name = tester.getTopLeft(find.text('Someone'));
+    expect((time.dy - badge.dy).abs() <= 12, isTrue,
+        reason: 'reply time shares the rank badge line');
+    expect(time.dy < name.dy - 8, isTrue,
+        reason: 'reply time is above the username');
+    expect(time.dx > 600, isTrue, reason: 'reply time sits top-right');
+
+    // The OP card follows the same layout.
+    final opTime = tester.getTopLeft(find.text(relativeTime(_opCreatedAt)));
+    final opBadge = tester.getTopLeft(find.text('SysOp'));
+    final opName = tester.getTopLeft(find.text('Developer'));
+    expect((opTime.dy - opBadge.dy).abs() <= 12, isTrue,
+        reason: 'OP time shares the rank badge line');
+    expect(opTime.dy < opName.dy - 8, isTrue,
+        reason: 'OP time is above the username');
+    expect(opTime.dx > 600, isTrue, reason: 'OP time sits top-right');
   });
 
   testWidgets('reply on another reply quotes it in the composer and on send',
@@ -481,6 +577,12 @@ void main() {
 
   testWidgets('reply chains render as separate flat cards, all numbered',
       (tester) async {
+    // Tall viewport: full-width body cards stack high; all three must
+    // be built (no lazy disposal) so their texts stay findable.
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
     final social = _FakeSocial(replies: [
       _reply(1, 'Root reply'),
       _reply(2, 'Child reply', parent: 1),

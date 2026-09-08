@@ -24,12 +24,46 @@ class FakeMessages extends MessagesService {
   int nextMessageId = 100;
   final List<String> sentTexts = [];
   int unreadAnswer = 0;
+  bool hasMoreAnswer = false;
+  bool blockedByMeAnswer = false;
+  bool blockedByThemAnswer = false;
+  final List<(int, String)> deletedMessages = [];
+  final List<int> blockedConversations = [];
+  final List<int> unblockedConversations = [];
 
   @override
   Future<List<Conversation>> conversations() async => inbox;
 
   @override
-  Future<List<ChatMessage>> messages(int conversationId) async => history;
+  Future<ThreadPage> messages(
+    int conversationId, {
+    int? beforeId,
+    int limit = 30,
+  }) async =>
+      ThreadPage(
+        messages: history,
+        hasMore: hasMoreAnswer,
+        blockedByMe: blockedByMeAnswer,
+        blockedByThem: blockedByThemAnswer,
+      );
+
+  @override
+  Future<void> deleteMessage(int messageId, {required String scope}) async {
+    deletedMessages.add((messageId, scope));
+  }
+
+  @override
+  Future<void> block(int conversationId) async {
+    blockedConversations.add(conversationId);
+    // Mirror the server: a fetch after a successful block reports the flag.
+    blockedByMeAnswer = true;
+  }
+
+  @override
+  Future<void> unblock(int conversationId) async {
+    unblockedConversations.add(conversationId);
+    blockedByMeAnswer = false;
+  }
 
   @override
   Future<void> markRead(int conversationId) async {
@@ -98,16 +132,26 @@ ChatMessage msg({
   required int senderId,
   required String message,
   bool? isRead,
-}) =>
-    ChatMessage(
-      id: id,
-      conversationId: 7,
-      senderId: senderId,
-      senderName: senderId == 1 ? 'me' : 'Alice',
-      message: message,
-      isRead: isRead,
-      createdAt: '2026-08-20 10:00:00',
-    );
+  bool deleted = false,
+  Duration age = Duration.zero,
+}) {
+  // Relative createdAt (now-based): the 15-minute del-all window must
+  // stay testable; fixed ISO dates go stale.
+  final t = DateTime.now().toUtc().subtract(age);
+  String p(int n) => n.toString().padLeft(2, '0');
+  final created =
+      '${t.year}-${p(t.month)}-${p(t.day)} ${p(t.hour)}:${p(t.minute)}:${p(t.second)}';
+  return ChatMessage(
+    id: id,
+    conversationId: 7,
+    senderId: senderId,
+    senderName: senderId == 1 ? 'me' : 'Alice',
+    message: message,
+    isRead: isRead,
+    deletedForEveryone: deleted,
+    createdAt: created,
+  );
+}
 
 Finder receiptIcon(int messageId) =>
     find.byKey(ValueKey('receipt-$messageId'));
@@ -125,7 +169,10 @@ void main() {
         realtime: realtime,
         participantId: 42,
         participantName: 'Alice',
-        participantAvatar: '/a.png',
+        // No avatar: its network fetch never completes under the test
+        // clock, so the shimmer placeholder animates forever and any
+        // pumpAndSettle on the screen times out.
+        participantAvatar: null,
         participantPersonality: 'INTJ',
         participantIsOnline: true,
       ),
@@ -166,23 +213,28 @@ void main() {
     await tester.pumpWidget(const SizedBox()); // dispose the poll timer
   });
 
-  testWidgets('tapping a bubble toggles its timestamp', (tester) async {
-    final fake = FakeMessages()
-      ..history = [msg(id: 1, senderId: 42, message: 'secret')];
+  testWidgets('tapping a bubble toggles its reveal row (time + delete)',
+      (tester) async {
+    final m = msg(id: 1, senderId: 42, message: 'secret');
+    final fake = FakeMessages()..history = [m];
+    final expected = formatMessageTime(m.createdAt);
 
     await pumpChat(tester, fake);
     await tester.pump();
 
-    // Timestamps hidden by default (site parity).
-    expect(find.textContaining('2026'), findsNothing);
+    // Reveal row hidden by default (web parity).
+    expect(find.text(expected), findsNothing);
+    expect(find.text('Delete for me'), findsNothing);
 
     await tester.tap(find.text('secret'));
     await tester.pump();
-    expect(find.textContaining('2026'), findsOneWidget);
+    expect(find.text(expected), findsOneWidget);
+    expect(find.text('Delete for me'), findsOneWidget);
 
     await tester.tap(find.text('secret'));
     await tester.pump();
-    expect(find.textContaining('2026'), findsNothing);
+    expect(find.text(expected), findsNothing);
+    expect(find.text('Delete for me'), findsNothing);
 
     await tester.pumpWidget(const SizedBox());
   });
@@ -231,6 +283,165 @@ void main() {
 
     expect(find.text('Alice'), findsOneWidget);
     expect(find.text('- online'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('tombstone renders a placeholder, no receipt icon',
+      (tester) async {
+    final fake = FakeMessages()
+      ..history = [
+        msg(id: 1, senderId: 42, message: 'gone', deleted: true),
+        msg(id: 2, senderId: 1, message: 'kept', isRead: false),
+      ];
+
+    await pumpChat(tester, fake);
+    await tester.pump();
+
+    expect(find.text('This message was deleted'), findsOneWidget);
+    expect(find.text('gone'), findsNothing);
+    // Tombstones carry no sent/seen receipts.
+    expect(receiptIcon(1), findsNothing);
+    expect(receiptIcon(2), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('blocked chat shows the banner and disables the composer',
+      (tester) async {
+    final fake = FakeMessages()
+      ..history = [msg(id: 1, senderId: 42, message: 'hi')]
+      ..blockedByMeAnswer = true;
+
+    await pumpChat(tester, fake);
+    await tester.pump();
+
+    expect(find.text('Alice'), findsOneWidget);
+    expect(find.text('- blocked'), findsOneWidget);
+    expect(find.textContaining('You blocked'), findsOneWidget);
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.enabled, isFalse);
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('block button flips state via the service', (tester) async {
+    final fake = FakeMessages()
+      ..history = [msg(id: 1, senderId: 42, message: 'hi')];
+
+    await pumpChat(tester, fake);
+    await tester.pump();
+
+    await tester.tap(find.byKey(const ValueKey('block-button')));
+    await tester.pump(); // dialog
+    await tester.tap(find.text('OK'));
+    await tester.pump(); // block future
+    await tester.pump();
+
+    expect(fake.blockedConversations, [7]);
+    expect(find.text('- blocked'), findsOneWidget);
+    expect(fake.blockedByMeAnswer, isTrue, reason: 'fake flag untouched');
+    // UI state comes from the service response, not the fake's answer.
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('delete for me confirms, then removes the bubble',
+      (tester) async {
+    final fake = FakeMessages()
+      ..history = [
+        msg(id: 1, senderId: 42, message: 'incoming'),
+        msg(id: 2, senderId: 1, message: 'mine', isRead: false),
+      ];
+
+    await pumpChat(tester, fake);
+    await tester.pump();
+
+    // Expand my bubble; the reveal row holds the delete option.
+    await tester.tap(find.text('mine'));
+    await tester.pump();
+
+    // Cancelling the dialog keeps the message.
+    await tester.tap(find.text('Delete for me'));
+    await tester.pumpAndSettle();
+    expect(find.text('Delete for me?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(fake.deletedMessages, isEmpty);
+    expect(find.text('mine'), findsOneWidget);
+
+    // Confirming submits the delete.
+    await tester.tap(find.text('Delete for me'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+
+    expect(fake.deletedMessages, [(2, 'me')]);
+    expect(find.text('mine'), findsNothing);
+    expect(find.text('incoming'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('delete for everyone: confirm flow within 15 minutes',
+      (tester) async {
+    final fake = FakeMessages()
+      ..history = [
+        msg(id: 1, senderId: 42, message: 'incoming'),
+        msg(id: 2, senderId: 1, message: 'mine', isRead: false),
+      ];
+
+    await pumpChat(tester, fake);
+    await tester.pump();
+
+    // Received bubbles never offer delete-for-everyone.
+    await tester.tap(find.text('incoming'));
+    await tester.pump();
+    expect(find.text('Delete for everyone'), findsNothing);
+
+    // Own fresh bubble offers it; cancelling keeps the message.
+    await tester.tap(find.text('mine'));
+    await tester.pump();
+    expect(find.text('Delete for everyone'), findsOneWidget);
+    await tester.tap(find.text('Delete for everyone'));
+    await tester.pumpAndSettle();
+    expect(find.text('Delete for everyone?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(fake.deletedMessages, isEmpty);
+    expect(find.text('mine'), findsOneWidget);
+
+    // Confirming turns the bubble into a tombstone.
+    await tester.tap(find.text('Delete for everyone'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    expect(fake.deletedMessages, [(2, 'everyone')]);
+    expect(find.text('mine'), findsNothing);
+    expect(find.text('You deleted this message'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets(
+      'delete for everyone hidden once the message is older than 15 minutes',
+      (tester) async {
+    final fake = FakeMessages()
+      ..history = [
+        msg(id: 2,
+            senderId: 1,
+            message: 'old mine',
+            isRead: true,
+            age: const Duration(minutes: 16)),
+      ];
+
+    await pumpChat(tester, fake);
+    await tester.pump();
+
+    await tester.tap(find.text('old mine'));
+    await tester.pump();
+    expect(find.text('Delete for everyone'), findsNothing);
+    expect(find.text('Delete for me'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox());
   });

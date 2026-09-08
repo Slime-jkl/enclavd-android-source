@@ -84,6 +84,13 @@ class AppConfig {
       'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 '
       '(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36';
 
+  /// Mirror endpoint for the same analytics events: the site's
+  /// api/v1/app_events bridge forwards them into Grafana/Loki
+  /// (service_name=android-app). Anonymous, fire-and-forget, rate
+  /// limited server-side; the app never waits on it.
+  static const String appEventsEndpoint =
+      'https://enclavd.com/api/v1/app_events';
+
   static const int feedPageSize = 10; // matches api/v1 default limit range
   static const int feedFetchBeyond = 2; // pages fetched ahead of the fold
 

@@ -102,6 +102,16 @@ jobs:
       - name: Resolve dependencies
         run: flutter pub get
 
+      # Raw FaIcon in a decoration slot paints its glyph at the slot's
+      # top-left (FaIcon is a bare RichText, unlike Icon which centers)
+      # -> the classic offset/clipped field icon. FieldIcon centers.
+      - name: Field icons must use FieldIcon
+        run: |
+          if grep -rnE 'prefixIcon: (const )?FaIcon|suffixIcon: (const )?FaIcon' lib/; then
+            echo 'Raw FaIcon as prefix/suffixIcon: wrap it in FieldIcon (lib/widgets/field_icon.dart).'
+            exit 1
+          fi
+
       - name: Static analysis (flutter analyze)
         run: flutter analyze --fatal-infos
 

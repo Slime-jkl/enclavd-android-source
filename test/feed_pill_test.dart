@@ -114,4 +114,111 @@ void main() {
       expect(feedAppendPosts(current, [post(6)]), isEmpty);
     });
   });
+
+  group('feedRankCompare', () {
+    test('higher score ranks above', () {
+      expect(feedRankCompare(scored(1, 4.0), scored(2, 3.0)), isNegative);
+      expect(feedRankCompare(scored(2, 3.0), scored(1, 4.0)), isPositive);
+    });
+
+    test('equal scores break by higher id (server tie-break)', () {
+      expect(feedRankCompare(scored(20, 5.0), scored(10, 5.0)), isNegative);
+    });
+
+    test('null score ranks below every real score', () {
+      expect(feedRankCompare(scored(1, 1.0), scored(2, null)), isNegative);
+      expect(feedRankCompare(scored(2, null), scored(1, 1.0)), isPositive);
+    });
+
+    test('both null still tie-break by higher id', () {
+      expect(feedRankCompare(scored(9, null), scored(8, null)), isNegative);
+    });
+  });
+
+  group('feedMergeRanked', () {
+    test('empty current adopts the incoming sequence', () {
+      expect(
+        feedMergeRanked(const [], [scored(30, 3.0), scored(10, 1.0)])
+            .map((p) => p.id),
+        [30, 10],
+      );
+    });
+
+    test('new top post lands above the ranked list, not on a fake top',
+        () {
+      final current = [scored(30, 3.0), scored(20, 2.0), scored(10, 1.0)];
+      expect(
+        feedMergeRanked(current, [scored(40, 4.0)]).map((p) => p.id),
+        [40, 30, 20, 10],
+      );
+    });
+
+    test('a buried new post slots into the middle', () {
+      final current = [scored(30, 3.0), scored(20, 2.0), scored(10, 1.0)];
+      expect(
+        feedMergeRanked(current, [scored(25, 2.5)]).map((p) => p.id),
+        [30, 25, 20, 10],
+      );
+    });
+
+    test('a below-fold new post appends at the tail', () {
+      final current = [scored(30, 3.0), scored(20, 2.0), scored(10, 1.0)];
+      expect(
+        feedMergeRanked(current, [scored(5, 0.5)]).map((p) => p.id),
+        [30, 20, 10, 5],
+      );
+    });
+
+    test('interleaved batches keep the whole list sorted', () {
+      final current = [scored(60, 6.0), scored(40, 4.0), scored(20, 2.0)];
+      final incoming = [scored(50, 5.0), scored(30, 3.0), scored(10, 1.0)];
+      expect(
+        feedMergeRanked(current, incoming).map((p) => p.id),
+        [60, 50, 40, 30, 20, 10],
+      );
+    });
+
+    test('a boundary duplicate re-returned by the cursor is kept once', () {
+      final current = [scored(30, 3.0), scored(20, 2.0), scored(10, 1.0)];
+      // The extension page re-opens at the old frontier (float cursor
+      // drift): it re-returns the tail row 10 before the new rows.
+      expect(
+        feedMergeRanked(current, [scored(10, 1.0), scored(5, 0.5)])
+            .map((p) => p.id),
+        [30, 20, 10, 5],
+      );
+    });
+
+    test('never re-orders the current list when nothing fits above', () {
+      final current = [scored(30, 3.0), scored(20, 2.0), scored(10, 1.0)];
+      expect(feedMergeRanked(current, const []).map((p) => p.id),
+          [30, 20, 10]);
+    });
+  });
+}
+
+/// Explicit score + relative timestamp, independent of the shared helper.
+Post scored(int id, double? score) => Post(
+      id: id,
+      content: 'p$id',
+      createdAt: _utcStamp(),
+      feedScore: score,
+      likeCount: 0,
+      commentCount: 0,
+      userLiked: false,
+      warningCount: 0,
+      username: 'u$id',
+      profilePictureUrl: '/assets/default-avatar.png',
+      personalityType: null,
+      isActive: 'true',
+      rank: 'Member',
+      image: null,
+    );
+
+/// 'Y-m-d H:i:s' in UTC, relative to now (fixed dates go stale).
+String _utcStamp() {
+  final t = DateTime.now().toUtc();
+  String two(int v) => v.toString().padLeft(2, '0');
+  return '${t.year}-${two(t.month)}-${two(t.day)} '
+      '${two(t.hour)}:${two(t.minute)}:${two(t.second)}';
 }

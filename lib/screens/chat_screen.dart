@@ -45,6 +45,9 @@ class ChatScreen extends StatefulWidget {
   /// Reconcile/fallback cadence while the thread is open (WS is primary).
   static const Duration pollInterval = Duration(seconds: 15);
 
+  /// History window size (site parity: 30 per page).
+  static const int windowSize = 30;
+
   @override
   State<ChatScreen> createState() => _ChatScreenState();
 }
@@ -58,14 +61,28 @@ class _ChatScreenState extends State<ChatScreen> {
   String? _error;
   bool _sending = false;
   Timer? _pollTimer;
+  Timer? _sweepTimer;
   StreamSubscription<RealtimeEvent>? _realtimeSub;
 
   int _maxInboundId = 0;
+
+  // History paging: the thread opens on the newest window; older pages
+  // load when the reader scrolls to the top.
+  bool _hasMore = false;
+  bool _loadingOlder = false;
+  int? _oldestId;
+
+  // Block state vs the other participant (either side blocks => frozen).
+  bool _blockedByMe = false;
+  bool _blockedByThem = false;
+  bool _busyBlock = false;
 
   bool _typingPingSent = false;
   Timer? _typingStopTimer;
 
   bool _otherTyping = false;
+
+  bool get _blocked => _blockedByMe || _blockedByThem;
 
   @override
   void initState() {
@@ -75,6 +92,11 @@ class _ChatScreenState extends State<ChatScreen> {
     MessageNotifications.instance?.setMessagesOpen(true);
     _load();
     _pollTimer = Timer.periodic(ChatScreen.pollInterval, (_) => _poll());
+    // Web parity: the del-all option dies with its 15-minute window, so
+    // an expanded fresh bubble loses the button once the window lapses.
+    _sweepTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      _sweepExpiredDeletes();
+    });
     _realtimeSub = widget.realtime.events.listen(_onRealtime);
     widget.realtime.join(widget.conversationId);
   }
@@ -83,6 +105,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void dispose() {
     MessageNotifications.instance?.setMessagesOpen(false);
     _pollTimer?.cancel();
+    _sweepTimer?.cancel();
     _typingStopTimer?.cancel();
     _realtimeSub?.cancel();
     // The site's blur handler stops the ping on leaving.
@@ -106,6 +129,10 @@ class _ChatScreenState extends State<ChatScreen> {
         if (mounted && typing != _otherTyping) {
           setState(() => _otherTyping = typing);
         }
+      case 'message_deleted':
+        _onLiveDeleted(event);
+      case 'conversation_blocked':
+        _onLiveBlocked(event);
     }
   }
 
@@ -141,6 +168,38 @@ class _ChatScreenState extends State<ChatScreen> {
     _markReadIfNeeded([live]);
   }
 
+  // The other participant deleted a message for everyone: swap the
+  // bubble for the tombstone. (The actor's own sockets are excluded from
+  // the fan-out, so this only ever touches inbound messages here.)
+  void _onLiveDeleted(RealtimeEvent event) {
+    final messageId = event.messageId;
+    if (messageId == null || messageId <= 0) return;
+    final index = _messages.indexWhere((m) => m.id == messageId);
+    if (index < 0 || !mounted) return;
+    final m = _messages[index];
+    setState(() {
+      _messages[index] = ChatMessage(
+        id: m.id,
+        conversationId: m.conversationId,
+        senderId: m.senderId,
+        senderName: m.senderName,
+        message: '',
+        isRead: true,
+        deletedForEveryone: true,
+        createdAt: m.createdAt,
+      );
+    });
+  }
+
+  // Block state flipped on the other side (the blocker's own UI already
+  // updated from its request response; the fan-out excludes the actor).
+  void _onLiveBlocked(RealtimeEvent event) {
+    final actorId = event.actorId;
+    if (actorId == null || actorId == widget.myUserId) return;
+    if (!mounted) return;
+    setState(() => _blockedByThem = event.blocked);
+  }
+
   void _onLiveRead(RealtimeEvent event) {
     final readerId = event.readerId;
     if (readerId == null || readerId == widget.myUserId) return;
@@ -159,6 +218,7 @@ class _ChatScreenState extends State<ChatScreen> {
             senderName: m.senderName,
             message: m.message,
             isRead: true,
+            deletedForEveryone: m.deletedForEveryone,
             createdAt: m.createdAt,
           );
         }
@@ -172,15 +232,19 @@ class _ChatScreenState extends State<ChatScreen> {
       _error = null;
     });
     try {
-      final history = await widget.messages.messages(widget.conversationId);
+      final page = await widget.messages.messages(widget.conversationId);
       if (!mounted) return;
       setState(() {
         _messages
           ..clear()
-          ..addAll(history);
+          ..addAll(page.messages);
+        _hasMore = page.hasMore;
+        _oldestId = page.messages.isEmpty ? null : page.messages.first.id;
+        _blockedByMe = page.blockedByMe;
+        _blockedByThem = page.blockedByThem;
         _loading = false;
       });
-      _markReadIfNeeded(history);
+      _markReadIfNeeded(page.messages);
     } on ApiException catch (e) {
       if (!mounted) return;
       setState(() {
@@ -222,17 +286,58 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _poll() async {
     try {
-      final fresh = await widget.messages.messages(widget.conversationId);
+      final page = await widget.messages.messages(widget.conversationId);
       if (!mounted) return;
       final countBefore = _messages.length;
-      final merged = _merge(fresh);
-      if (merged.length == countBefore && !_receiptsChanged(merged)) return;
-      setState(() => _messages
-        ..clear()
-        ..addAll(merged));
-      if (merged.length > countBefore) _markReadIfNeeded(fresh);
+      final merged = _merge(page.messages);
+      final flagsChanged = page.blockedByMe != _blockedByMe ||
+          page.blockedByThem != _blockedByThem;
+      if (merged.length == countBefore &&
+          !_receiptsChanged(merged) &&
+          !flagsChanged) {
+        return;
+      }
+      setState(() {
+        _messages
+          ..clear()
+          ..addAll(merged);
+        _blockedByMe = page.blockedByMe;
+        _blockedByThem = page.blockedByThem;
+      });
+      // Older-page state is owned by the load/load-older cursors; the
+      // poll only reconciles the newest window and receipts.
+      if (merged.length > countBefore) _markReadIfNeeded(page.messages);
     } catch (_) {
       // Silent.
+    }
+  }
+
+  // One older window (before the oldest loaded id), appended at the top
+  // of the thread. Reverse list: the top IS the oldest end.
+  Future<void> _loadOlder() async {
+    if (_loadingOlder || !_hasMore) return;
+    final beforeId = _oldestId;
+    if (beforeId == null) return;
+    setState(() => _loadingOlder = true);
+    try {
+      final page = await widget.messages.messages(
+        widget.conversationId,
+        beforeId: beforeId,
+      );
+      if (!mounted) return;
+      setState(() {
+        if (page.messages.isEmpty) {
+          _hasMore = false;
+        } else {
+          _messages.insertAll(0, page.messages); // older ids sort first
+          _oldestId = page.messages.first.id;
+          _hasMore = page.hasMore;
+        }
+        _loadingOlder = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _loadingOlder = false);
     }
   }
 
@@ -240,6 +345,9 @@ class _ChatScreenState extends State<ChatScreen> {
     if (merged.length != _messages.length) return true;
     for (var i = 0; i < merged.length; i++) {
       if (merged[i].isRead != _messages[i].isRead) return true;
+      if (merged[i].deletedForEveryone != _messages[i].deletedForEveryone) {
+        return true;
+      }
     }
     return false;
   }
@@ -255,7 +363,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Future<void> _send() async {
     final text = _input.text.trim();
-    if (text.isEmpty || _sending) return;
+    if (text.isEmpty || _sending || _blocked) return;
     _input.clear();
     _stopTypingPing(); // sending, no longer typing
     setState(() => _sending = true);
@@ -293,6 +401,154 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
+  // ── Delete for me / for everyone ───────────────────────────────────
+  // Both scopes confirm in a dialog first (web parity); nothing hits
+  // the api until the user confirms.
+  Future<void> _deleteMessage(ChatMessage message, String scope) async {
+    final ok = scope == 'everyone'
+        ? await _confirm(
+            'Delete for everyone?',
+            'This removes the message for both of you. This cannot be undone.',
+            confirmLabel: 'Delete',
+            destructive: true,
+          )
+        : await _confirm(
+            'Delete for me?',
+            'This hides the message from your view only. The other person can still see it.',
+            confirmLabel: 'Delete',
+            destructive: true,
+          );
+    if (ok != true || !mounted) return;
+    try {
+      await widget.messages.deleteMessage(message.id, scope: scope);
+    } on ApiException catch (e) {
+      if (mounted) _toast(e.message);
+      return;
+    } catch (_) {
+      if (mounted) _toast('Could not delete the message. Please try again.');
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      final index = _messages.indexWhere((m) => m.id == message.id);
+      if (index < 0) return;
+      if (scope == 'everyone') {
+        // The server keeps a tombstone; mirror it in place.
+        _messages[index] = ChatMessage(
+          id: message.id,
+          conversationId: message.conversationId,
+          senderId: message.senderId,
+          senderName: message.senderName,
+          message: '',
+          isRead: true,
+          deletedForEveryone: true,
+          createdAt: message.createdAt,
+        );
+      } else {
+        _messages.removeAt(index);
+      }
+    });
+  }
+
+  // Del-for-everyone rides along only while the 15-minute window is
+  // open (the server enforces the same limit on the api).
+  bool _canDeleteEveryone(ChatMessage message) {
+    if (!message.isFrom(widget.myUserId) || message.deletedForEveryone) {
+      return false;
+    }
+    final created = parseDbTime(message.createdAt);
+    return created != null &&
+        DateTime.now().toUtc().difference(created) <=
+            const Duration(minutes: 15);
+  }
+
+  // Rebuild when an expanded fresh bubble's del-all window lapses so
+  // the option disappears without waiting for the next poll.
+  void _sweepExpiredDeletes() {
+    if (!mounted || _visibleTimes.isEmpty) return;
+    final now = DateTime.now().toUtc();
+    for (final m in _messages) {
+      if (!_visibleTimes.contains(m.id) ||
+          !m.isFrom(widget.myUserId) ||
+          m.deletedForEveryone) {
+        continue;
+      }
+      final created = parseDbTime(m.createdAt);
+      if (created != null &&
+          now.difference(created) > const Duration(minutes: 15)) {
+        setState(() {});
+        return;
+      }
+    }
+  }
+
+  // ── Block / unblock ───────────────────────────────────────────────
+  Future<void> _toggleBlock() async {
+    if (_busyBlock) return;
+    final name = widget.participantName.isEmpty ? 'this user' : widget.participantName;
+    final blocking = !_blockedByMe;
+    final ok = await _confirm(
+      blocking ? 'Block $name?' : 'Unblock $name?',
+      blocking
+          ? 'They will not be able to send you messages until you unblock.'
+          : 'Messages will work again once unblocked.',
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _busyBlock = true);
+    try {
+      if (blocking) {
+        await widget.messages.block(widget.conversationId);
+      } else {
+        await widget.messages.unblock(widget.conversationId);
+      }
+      if (!mounted) return;
+      setState(() {
+        _blockedByMe = blocking;
+        _busyBlock = false;
+      });
+      if (blocking) {
+        _toast('$name is blocked');
+      } else {
+        _toast('$name is unblocked');
+      }
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() => _busyBlock = false);
+      _toast(e.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _busyBlock = false);
+      _toast('Could not ${blocking ? 'block' : 'unblock'} $name.');
+    }
+  }
+
+  Future<bool?> _confirm(String title, String body,
+      {String confirmLabel = 'OK', bool destructive = false}) {
+    return showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: EnclavdColors.card,
+        title: Text(title, style: const TextStyle(color: EnclavdColors.textPrimary)),
+        content: Text(body, style: const TextStyle(color: EnclavdColors.textSecondary)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancel',
+                style: TextStyle(color: EnclavdColors.textSecondary)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(confirmLabel,
+                style: TextStyle(
+                    color: destructive
+                        ? const Color(0xFFF87171)
+                        : EnclavdColors.link)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _toast(String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -310,6 +566,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final name = widget.participantName;
+    final blocked = _blocked;
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 0,
@@ -345,12 +602,16 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                     const SizedBox(height: 1),
                     Text(
-                      widget.participantIsOnline ? '- online' : '- offline',
+                      blocked
+                          ? '- blocked'
+                          : (widget.participantIsOnline ? '- online' : '- offline'),
                       style: TextStyle(
                         fontSize: 12,
-                        color: widget.participantIsOnline
-                            ? const Color(0xFF4ADE80) // green-400
-                            : const Color(0xFF9CA3AF), // gray-400
+                        color: blocked
+                            ? const Color(0xFFF87171)
+                            : (widget.participantIsOnline
+                                ? const Color(0xFF4ADE80) // green-400
+                                : const Color(0xFF9CA3AF)), // gray-400
                       ),
                     ),
                   ],
@@ -359,17 +620,58 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            key: const ValueKey('block-button'),
+            tooltip: _blockedByMe ? 'Unblock user' : 'Block user',
+            onPressed: _busyBlock ? null : _toggleBlock,
+            icon: FaIcon(
+              _blockedByMe
+                  ? FontAwesomeIcons.userCheck
+                  : FontAwesomeIcons.userSlash,
+              size: 18,
+              color: _blockedByMe
+                  ? const Color(0xFFF87171)
+                  : EnclavdColors.textSecondary,
+            ),
+          ),
+        ],
       ),
       body: SafeArea(
         // Gesture-nav phones draw under the system bar; the input bar clears it.
         top: false,
         child: Column(
           children: [
+            if (blocked) _buildBlockedBanner(),
             Expanded(child: _buildThread()),
             _buildTypingIndicator(),
             _buildInputBar(),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildBlockedBanner() {
+    final name =
+        widget.participantName.isEmpty ? 'this user' : widget.participantName;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+      color: const Color(0x1FEF4444), // red-500/12
+      child: Row(
+        children: [
+          const FaIcon(FontAwesomeIcons.ban, size: 13, color: Color(0xFFFCA5A5)),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              _blockedByMe
+                  ? 'You blocked $name. Messages are paused until you unblock.'
+                  : "You can't send messages to $name.",
+              style: const TextStyle(fontSize: 12.5, color: Color(0xFFFCA5A5)),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -387,33 +689,70 @@ class _ChatScreenState extends State<ChatScreen> {
       // Fresh conversation: no history yet.
       return const SizedBox.shrink();
     }
-    return ListView.builder(
-      reverse: true, // index 0 = newest; a reader at the bottom stays pinned
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      itemCount: _messages.length,
-      itemBuilder: (context, index) {
-        // Key by message id so merges never reuse a bubble's element
-        // for another message.
-        final message = _messages[_messages.length - 1 - index];
-        return _MessageBubble(
-          key: ValueKey(message.id),
-          message: message,
-          isMine: message.isFrom(widget.myUserId),
-          showTime: _visibleTimes.contains(message.id),
-          onTap: () {
-            setState(() {
-              if (!_visibleTimes.add(message.id)) {
-                _visibleTimes.remove(message.id);
-              }
-            });
-          },
-        );
+    return NotificationListener<ScrollNotification>(
+      onNotification: (notification) {
+        // Reverse list: offset 0 is the newest message at the bottom;
+        // the top (oldest end) is maxScrollExtent. Load one window early.
+        final metrics = notification.metrics;
+        if (metrics.maxScrollExtent > 0 &&
+            metrics.pixels >= metrics.maxScrollExtent - 120) {
+          _loadOlder();
+        }
+        return false;
       },
+      child: ListView.builder(
+        reverse: true, // index 0 = newest; a reader at the bottom stays pinned
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        itemCount: _messages.length + (_loadingOlder ? 1 : 0),
+        itemBuilder: (context, index) {
+          if (index >= _messages.length) {
+            // Older-page fetch in flight (rendered at the top end).
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 14),
+              child: Center(
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                      strokeWidth: 2, color: EnclavdColors.link),
+                ),
+              ),
+            );
+          }
+          // Key by message id so merges never reuse a bubble's element
+          // for another message.
+          final message = _messages[_messages.length - 1 - index];
+          final isMine = message.isFrom(widget.myUserId);
+          return _MessageBubble(
+            key: ValueKey(message.id),
+            message: message,
+            isMine: isMine,
+            expanded: _visibleTimes.contains(message.id),
+            // Click toggles the reveal row (web parity); tombstones have
+            // nothing to reveal, so they do not toggle.
+            onTap: message.deletedForEveryone
+                ? null
+                : () {
+                    setState(() {
+                      if (!_visibleTimes.add(message.id)) {
+                        _visibleTimes.remove(message.id);
+                      }
+                    });
+                  },
+            onDeleteMe: message.deletedForEveryone
+                ? null
+                : () => _deleteMessage(message, 'me'),
+            onDeleteEveryone: _canDeleteEveryone(message)
+                ? () => _deleteMessage(message, 'everyone')
+                : null,
+          );
+        },
+      ),
     );
   }
 
   void _onInputChanged(String _) {
-    if (_input.text.trim().isNotEmpty && !_typingPingSent) {
+    if (_input.text.trim().isNotEmpty && !_typingPingSent && !_blocked) {
       _typingPingSent = true;
       widget.realtime.sendTyping(widget.conversationId, true);
     }
@@ -446,68 +785,74 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildInputBar() {
+    final blocked = _blocked;
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       decoration: const BoxDecoration(
         color: Color(0x4D000000), // black/30 (site bg-black/[0.3])
         border: Border(top: BorderSide(color: EnclavdColors.divider)),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _input,
-              enabled: !_loading,
-              minLines: 1,
-              maxLines: 4,
-              textInputAction: TextInputAction.send,
-              onChanged: _onInputChanged,
-              onSubmitted: (_) => _send(),
-              // No autofillHints: they detach the IME on Android.
-              style: const TextStyle(
-                  color: EnclavdColors.textPrimary, fontSize: 15),
-              decoration: InputDecoration(
-                hintText: 'Type your message...',
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 11),
-                filled: true,
-                fillColor: const Color(0x0DFFFFFF), // white/[0.05]
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8), // rounded-lg
-                  borderSide:
-                      const BorderSide(color: EnclavdColors.border), // white/10
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide:
-                      const BorderSide(color: EnclavdColors.link, width: 2),
+      child: Opacity(
+        opacity: blocked ? 0.55 : 1,
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _input,
+                enabled: !_loading && !blocked,
+                minLines: 1,
+                maxLines: 4,
+                textInputAction: TextInputAction.send,
+                onChanged: _onInputChanged,
+                onSubmitted: (_) => _send(),
+                // No autofillHints: they detach the IME on Android.
+                style: const TextStyle(
+                    color: EnclavdColors.textPrimary, fontSize: 15),
+                decoration: InputDecoration(
+                  hintText: blocked
+                      ? 'Messages paused'
+                      : 'Type your message...',
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 11),
+                  filled: true,
+                  fillColor: const Color(0x0DFFFFFF), // white/[0.05]
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8), // rounded-lg
+                    borderSide:
+                        const BorderSide(color: EnclavdColors.border), // white/10
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide:
+                        const BorderSide(color: EnclavdColors.link, width: 2),
+                  ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 8),
-          // Send button: icon-only paper-plane.
-          SizedBox(
-            width: 44,
-            height: 44,
-            child: ElevatedButton(
-              key: const ValueKey('send-button'),
-              onPressed: (_sending || _loading) ? null : _send,
-              style: ElevatedButton.styleFrom(
-                padding: EdgeInsets.zero,
-                backgroundColor: EnclavdColors.primaryButton,
-                foregroundColor: EnclavdColors.primaryButtonText,
-                disabledBackgroundColor:
-                    EnclavdColors.primaryButton.withValues(alpha: 0.5),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+            const SizedBox(width: 8),
+            // Send button: icon-only paper-plane.
+            SizedBox(
+              width: 44,
+              height: 44,
+              child: ElevatedButton(
+                key: const ValueKey('send-button'),
+                onPressed: (_sending || _loading || blocked) ? null : _send,
+                style: ElevatedButton.styleFrom(
+                  padding: EdgeInsets.zero,
+                  backgroundColor: EnclavdColors.primaryButton,
+                  foregroundColor: EnclavdColors.primaryButtonText,
+                  disabledBackgroundColor:
+                      EnclavdColors.primaryButton.withValues(alpha: 0.5),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
+                child: const FaIcon(FontAwesomeIcons.paperPlane, size: 17),
               ),
-              child: const FaIcon(FontAwesomeIcons.paperPlane, size: 17),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -518,26 +863,37 @@ class _MessageBubble extends StatelessWidget {
     super.key,
     required this.message,
     required this.isMine,
-    required this.showTime,
-    required this.onTap,
+    required this.expanded,
+    this.onTap,
+    this.onDeleteMe,
+    this.onDeleteEveryone,
   });
 
   final ChatMessage message;
   final bool isMine;
-  final bool showTime;
-  final VoidCallback onTap;
+
+  /// The click-to-reveal row (time + delete options) is visible.
+  final bool expanded;
+  final VoidCallback? onTap;
+  final VoidCallback? onDeleteMe;
+  final VoidCallback? onDeleteEveryone;
 
   @override
   Widget build(BuildContext context) {
     final maxWidth = MediaQuery.of(context).size.width * 0.7; // site max-w 70%
+    final tombstone = message.deletedForEveryone;
+    final bubbleText = tombstone
+        ? (isMine ? 'You deleted this message' : 'This message was deleted')
+        : message.message;
     final bubble = Container(
       constraints: BoxConstraints(maxWidth: maxWidth),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        // Sent: rgba(30,58,138,0.8); received: rgba(255,255,255,0.1).
+        // Sent: rgba(30,58,138,0.8); received: rgba(255,255,255,0.1);
+        // tombstones keep a faint shell so the row reads as a placeholder.
         color: isMine
-            ? const Color(0xCC1E3A8A)
-            : const Color(0x1AFFFFFF),
+            ? (tombstone ? const Color(0x661E3A8A) : const Color(0xCC1E3A8A))
+            : (tombstone ? const Color(0x0AFFFFFF) : const Color(0x1AFFFFFF)),
         borderRadius: BorderRadius.only(
           // Site: 1.5rem with the sender-side corner 0.5rem.
           topLeft: Radius.circular(isMine ? 24 : 8),
@@ -547,32 +903,116 @@ class _MessageBubble extends StatelessWidget {
         ),
       ),
       child: Text(
-        message.message,
+        bubbleText,
         style: TextStyle(
           color: isMine
-              ? Colors.white
-              : const Color(0xFFE2E8F0), // slate-200 (site received text)
+              ? (tombstone
+                  ? const Color(0x80FFFFFF)
+                  : Colors.white)
+              : (tombstone
+                  ? const Color(0x66E2E8F0)
+                  : const Color(0xFFE2E8F0)), // slate-200 (site received text)
           fontSize: 15,
           height: 1.3,
+          fontStyle: tombstone ? FontStyle.italic : FontStyle.normal,
         ),
       ),
     );
 
-    final timeLine = showTime
-        ? Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Text(
-              formatMessageTime(message.createdAt),
-              style: const TextStyle(
-                fontSize: 10, // 0.625rem (site .message-time)
-                color: Color(0x99FFFFFF), // white/60
-              ),
+    // Reveal-on-click row (web .message-meta): the datetime sits on its
+    // own line (with the receipt for sent messages) and the delete
+    // options render BELOW it as small icon buttons, spaced so they
+    // cannot be mis-tapped. Tombstones reveal nothing.
+    Widget? metaRow;
+    if (expanded && !tombstone) {
+      final timeLine = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(formatMessageTime(message.createdAt),
+              style:
+                  const TextStyle(fontSize: 10, color: Color(0x99FFFFFF))),
+          if (isMine) ...[
+            const SizedBox(width: 8),
+            FaIcon(
+              message.isRead == true
+                  ? FontAwesomeIcons.checkDouble
+                  : FontAwesomeIcons.check,
+              key: ValueKey('receipt-${message.id}'),
+              size: 10,
+              color: message.isRead == true
+                  ? const Color(0xFF60A5FA) // blue-400 (seen)
+                  : const Color(0x99FFFFFF), // white/60 (sent)
             ),
-          )
-        : const SizedBox.shrink();
+          ],
+        ],
+      );
+
+      final actionChildren = <Widget>[];
+      void addAction(String label, Color color, VoidCallback? onTap) {
+        if (onTap == null) return;
+        if (actionChildren.isNotEmpty) {
+          actionChildren.add(const SizedBox(width: 10));
+        }
+        actionChildren.add(GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: const Color(0x26FFFFFF)), // white/15
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FaIcon(FontAwesomeIcons.trash, size: 10, color: color),
+                const SizedBox(width: 5),
+                Text(label,
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        height: 1.2,
+                        color: color)),
+              ],
+            ),
+          ),
+        ));
+      }
+
+      addAction('Delete for me', const Color(0xCCFFFFFF), onDeleteMe);
+      addAction(
+          'Delete for everyone', const Color(0xFFFCA5A5), onDeleteEveryone);
+
+      metaRow = Padding(
+        padding: EdgeInsets.only(top: 3, right: isMine ? 2 : 0),
+        child: Column(
+          crossAxisAlignment:
+              isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            timeLine,
+            if (actionChildren.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: actionChildren,
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+
+    final gesture = GestureDetector(
+      onTap: onTap,
+      child: bubble,
+    );
 
     if (isMine) {
-      // Check = sent, double-check blue-400 = seen.
+      // Check = sent, double-check blue-400 = seen. The receipt sits
+      // pinned to the bubble while collapsed and moves into the reveal
+      // row once expanded; tombstones carry no receipts at all.
       return Padding(
         padding: const EdgeInsets.only(bottom: 6),
         child: Column(
@@ -582,24 +1022,26 @@ class _MessageBubble extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.end,
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Flexible(child: GestureDetector(onTap: onTap, child: bubble)),
-                const SizedBox(width: 5),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 5),
-                  child: FaIcon(
-                    message.isRead == true
-                        ? FontAwesomeIcons.checkDouble
-                        : FontAwesomeIcons.check,
-                    key: ValueKey('receipt-${message.id}'),
-                    size: 11,
-                    color: message.isRead == true
-                        ? const Color(0xFF60A5FA) // blue-400 (seen)
-                        : const Color(0x99FFFFFF), // white/60 (sent)
+                Flexible(child: gesture),
+                if (!tombstone && !expanded) ...[
+                  const SizedBox(width: 5),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 5),
+                    child: FaIcon(
+                      message.isRead == true
+                          ? FontAwesomeIcons.checkDouble
+                          : FontAwesomeIcons.check,
+                      key: ValueKey('receipt-${message.id}'),
+                      size: 11,
+                      color: message.isRead == true
+                          ? const Color(0xFF60A5FA) // blue-400 (seen)
+                          : const Color(0x99FFFFFF), // white/60 (sent)
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
-            timeLine,
+            if (metaRow != null) metaRow,
           ],
         ),
       );
@@ -610,8 +1052,8 @@ class _MessageBubble extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          GestureDetector(onTap: onTap, child: bubble),
-          timeLine,
+          gesture,
+          if (metaRow != null) metaRow,
         ],
       ),
     );

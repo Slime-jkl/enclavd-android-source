@@ -67,28 +67,27 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   List<SuggestedUser> _suggestions = [];
   int? _suggestionsBusyId;
 
-  // New-posts pill: a refresh offers newer posts, never auto-inserts them.
+  // New-posts pill
+
   int _seenMaxId = 0;
   bool _showNewPostsPill = false;
   int _newPostCount = 0;
 
-  // Unread messages badge (site header: paper-plane icon + red count).
+  // Unread messages badge
   int _unreadMessages = 0;
   Timer? _unreadTimer;
 
-  // Unread NOTIFICATIONS badge (site header: bell icon + red count).
+  // Unread notifications badge
   int _notifUnread = 0;
   StreamSubscription<RealtimeEvent>? _realtimeSub;
   StreamSubscription<bool>? _sseStatusSub;
 
-  // Header search: expands into an inline field, Enter -> results screen.
+  // search: expands into an inline field
   bool _searching = false;
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocus = FocusNode();
 
-  // New-articles dot on the Updates bottom-nav tab: true while the newest
-  // article id is ahead of the id stored at the last visit (launch check
-  // + resume; cleared when the Updates tab is opened).
+  // New-articles dot on the Updates bottom-nav tab
   bool _hasNewArticles = false;
 
   // Nav pages switch in place under one header + bottom nav; bodies build
@@ -494,6 +493,11 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
         _posts.addAll(feedAppendPosts(_posts, page.posts));
         _lastPage = page;
         _loading = false;
+        // Loaded posts are seen: raise the threshold so a refresh that
+        // drops them from the first page never re-offers them via the
+        // pill (the old code only tracked first-page maxima, so a post
+        // read deep on page 3 came back as "new" on the next pull).
+        _seenMaxId = feedMaxPostId(page.posts, _seenMaxId);
       });
     } on ApiException {
       if (!mounted) return;
@@ -511,6 +515,10 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
       SoundService.instance.action();
       return;
     }
+    // One list mutation at a time: a pull during a load-more or a pill
+    // merge would race the replace below (the pull simply re-runs later).
+    if (_loading) return;
+    _loading = true;
     // Delta check for the pill only: newer posts are offered, never
     // auto-inserted.
     FeedPage? delta;
@@ -555,6 +563,10 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
           Navigator.of(context)
               .pushNamedAndRemoveUntil(LoginScreen.routeName, (_) => false);
         }
+      } else if (_posts.isNotEmpty) {
+        // The old list stays (a failed refresh never blanks the feed),
+        // but a silent no-op reads as "refresh did nothing" - say so.
+        _toast("Couldn't refresh. Check your connection.");
       }
     } catch (_) {
       if (!mounted) return;
@@ -563,6 +575,9 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
         _initialLoadDone = true;
         if (_posts.isEmpty) _error = 'Failed to load the feed.';
       });
+      if (_posts.isNotEmpty) {
+        _toast("Couldn't refresh. Check your connection.");
+      }
     }
     // Site's action_sound on an explicit refresh.
     SoundService.instance.action();
@@ -570,7 +585,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
 
   Future<void> _loadNewPosts() async {
     final services = _services;
-    if (services == null) return;
+    if (services == null || _loading) return;
     FeedPage? delta;
     try {
       delta = await services.feed
@@ -580,10 +595,10 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     }
     if (!mounted) return;
     if (delta == null) return; // keep the pill; the next refresh retries
-    // Every current post has id <= _seenMaxId, so the delta never overlaps.
+    final onList = {for (final p in _posts) p.id};
     final fresh = [
       for (final p in delta.posts)
-        if (p.id > _seenMaxId) p,
+        if (p.id > _seenMaxId && !onList.contains(p.id)) p,
     ];
     if (fresh.isEmpty) {
       setState(() {
@@ -592,12 +607,86 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
       });
       return;
     }
-    setState(() {
-      _posts.insertAll(0, fresh);
-      _seenMaxId = feedMaxPostId(fresh, _seenMaxId);
-      _showNewPostsPill = false;
-      _newPostCount = 0;
-    });
+    // The new posts land at their TRUE ranked slots, never on a fake top
+    // above the ranking: fetch keyset pages until the loaded window
+    // covers the lowest new post, then merge. The list stays a
+    // contiguous (feed_score, id) DESC prefix, so a later refresh shows
+    // exactly the same order and nothing visibly re-shuffles.
+    _loading = true;
+    final pending = [...fresh]..sort(feedRankCompare);
+    try {
+      final pages = <FeedPage>[];
+      var cursor = _lastPage;
+      // Bounded: a post ranked absurdly deep is not worth 6+ back-to-back
+      // fetches (capped at 5 pages per tap).
+      var guard = 0;
+      var loaded = _posts;
+      while (guard++ < 5) {
+        final tail = loaded.isEmpty ? null : loaded.last;
+        // The lowest pending post fits inside the loaded window already.
+        if (tail != null && feedRankCompare(pending.last, tail) <= 0) break;
+        if (cursor == null || !cursor.hasMore) break; // feed fully loaded
+        cursor = await services.feed
+            .nextPage(cursor, limit: AppConfig.feedPageSize);
+        if (!mounted) return;
+        pages.add(cursor);
+        loaded = feedMergeRanked(loaded, cursor.posts);
+      }
+      if (!mounted) return;
+      if (loaded.isNotEmpty &&
+          feedRankCompare(pending.last, loaded.last) > 0) {
+        // Cap hit with posts still below the window: keep the window we
+        // gained (contiguous ranked rows are never wasted) and leave the
+        // pill up - a later tap or scroll reaches the rest.
+        setState(() {
+          _posts
+            ..clear()
+            ..addAll(loaded);
+          if (pages.isNotEmpty) _lastPage = pages.last;
+          _loading = false;
+          _seenMaxId = feedMaxPostId(loaded, _seenMaxId);
+        });
+        return;
+      }
+      final merged = feedMergeRanked(loaded, pending);
+      final newIds = {for (final p in fresh) p.id};
+      var topNew = -1;
+      for (var i = 0; i < merged.length; i++) {
+        if (newIds.contains(merged[i].id)) {
+          topNew = i;
+          break;
+        }
+      }
+      setState(() {
+        _posts
+          ..clear()
+          ..addAll(merged);
+        if (pages.isNotEmpty) _lastPage = pages.last;
+        _loading = false;
+        _showNewPostsPill = false;
+        _newPostCount = 0;
+        // Everything displayed counts as seen (the web marks a card seen
+        // the moment it is in the DOM).
+        _seenMaxId = feedMaxPostId(merged, _seenMaxId);
+      });
+      // New content landed in the top region: take the user there. When
+      // it sits below the fold their position is kept instead.
+      if (topNew >= 0 &&
+          topNew < 10 &&
+          _scrollController.hasClients &&
+          _scrollController.offset > 200) {
+        _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    } catch (_) {
+      // A mid-extend fetch failed: nothing was merged, the pill stays,
+      // and the next refresh offers the posts again.
+      if (!mounted) return;
+      setState(() => _loading = false);
+    }
   }
 
   void _jumpToTopAndRefresh() {
@@ -1081,6 +1170,43 @@ List<Post> feedAppendPosts(List<Post> current, List<Post> incoming) {
   return [for (final p in incoming) if (!known.contains(p.id)) p];
 }
 
+/// Server feed order: (feed_score, id) DESC - negative when [a] ranks
+/// above [b]. Null scores rank below every real score (defensive; the
+/// feed API always ships a score).
+int feedRankCompare(Post a, Post b) {
+  final sa = a.feedScore;
+  final sb = b.feedScore;
+  if (sa != null && sb != null && sa != sb) return sb.compareTo(sa);
+  if (sa == null && sb != null) return 1;
+  if (sb == null && sa != null) return -1;
+  return b.id.compareTo(a.id);
+}
+
+/// Merge [incoming] into the loaded ranked list so the result stays one
+/// coherent (feed_score, id) DESC sequence - the exact order a ranked
+/// first page produces. Duplicate ids (a keyset page re-returning a
+/// boundary row) are kept once.
+List<Post> feedMergeRanked(List<Post> current, List<Post> incoming) {
+  final result = <Post>[];
+  final seen = <int>{};
+  var i = 0;
+  var j = 0;
+  while (i < current.length || j < incoming.length) {
+    final Post next;
+    if (i >= current.length) {
+      next = incoming[j++];
+    } else if (j >= incoming.length) {
+      next = current[i++];
+    } else {
+      next = feedRankCompare(current[i], incoming[j]) <= 0
+          ? current[i++]
+          : incoming[j++];
+    }
+    if (seen.add(next.id)) result.add(next);
+  }
+  return result;
+}
+
 /// Delta posts genuinely new: never shown (id > [seenMaxId]) and not on screen.
 List<Post> pillEligiblePosts(
   List<Post> delta,
@@ -1110,12 +1236,8 @@ class _NewPostsPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(999),
         child: Ink(
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [
-                Color(0xFF2563EB), // site blue-600
-                Color(0xFF7C3AED), // site purple-600
-              ],
-            ),
+            // Primary button look: blue-500 fill, gray-900 label.
+            color: EnclavdColors.primaryButton,
             borderRadius: BorderRadius.circular(999),
             boxShadow: [
               BoxShadow(
@@ -1129,7 +1251,7 @@ class _NewPostsPill extends StatelessWidget {
           child: Text(
             label,
             style: const TextStyle(
-              color: Colors.white,
+              color: EnclavdColors.primaryButtonText,
               fontWeight: FontWeight.w600,
               fontSize: 14,
             ),
