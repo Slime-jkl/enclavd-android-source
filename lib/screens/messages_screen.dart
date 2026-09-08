@@ -13,6 +13,7 @@ import '../services/realtime_service.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/enclavd_avatar.dart';
 import '../widgets/error_view.dart';
+import '../widgets/field_icon.dart';
 import 'chat_screen.dart';
 import '../services/analytics_service.dart';
 
@@ -280,7 +281,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
           isDense: true,
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-          prefixIcon: const FaIcon(FontAwesomeIcons.magnifyingGlass,
+          prefixIcon: const FieldIcon(FontAwesomeIcons.magnifyingGlass,
               size: 15, color: EnclavdColors.textSecondary),
           suffixIcon: _query.isEmpty
               ? null
