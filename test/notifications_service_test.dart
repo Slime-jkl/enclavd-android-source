@@ -174,7 +174,7 @@ void main() {
       });
     }
 
-    test('list() sends ?list=1 and parses the bundles', () async {
+    test('list() sends ?list=1&limit=5 and parses the bundles', () async {
       final seen = <String>[];
       await serve((req) async {
         seen.add(req.uri.toString());
@@ -187,10 +187,51 @@ void main() {
       });
 
       final items = await NotificationsService(api).list();
-      expect(seen, ['/api/v1/notifications?list=1']);
+      expect(seen, ['/api/v1/notifications?list=1&limit=5']);
       expect(items, hasLength(2));
       expect(items.first.message, contains('alice'));
       expect(items.last.contentType, 'follow');
+    });
+
+    test('fetch() pages 20 at a time and walks back with before_id',
+        () async {
+      final seen = <String>[];
+      await serve((req) async {
+        seen.add(req.uri.query);
+        req.response.headers.contentType = ContentType.json;
+        req.response.write(jsonEncode({
+          'success': true,
+          'notifications': [_bundle(id: 100)],
+          'has_more': true,
+          'last_id': 100,
+        }));
+        await req.response.close();
+      });
+
+      final service = NotificationsService(api);
+      final first = await service.fetch();
+      expect(first.items, hasLength(1));
+      expect(first.hasMore, isTrue);
+      expect(first.lastId, 100);
+
+      final second = await service.fetch(beforeId: first.lastId);
+      expect(second.items, hasLength(1));
+      expect(seen, ['list=1&limit=20', 'list=1&limit=20&before_id=100']);
+    });
+
+    test('a server without paging stops at the first page', () async {
+      await serve((req) async {
+        req.response.headers.contentType = ContentType.json;
+        req.response.write(jsonEncode({
+          'success': true,
+          'notifications': [_bundle(id: 7)],
+        }));
+        await req.response.close();
+      });
+
+      final page = await NotificationsService(api).fetch();
+      expect(page.hasMore, isFalse);
+      expect(page.lastId, 7, reason: 'the oldest row id is the fallback cursor');
     });
 
     test('unreadCount() hits the bare endpoint', () async {

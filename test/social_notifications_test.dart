@@ -72,7 +72,7 @@ class FakeNotifications extends NotificationsService {
   int markAllReadCalls = 0;
 
   @override
-  Future<List<AppNotification>> list() async {
+  Future<List<AppNotification>> list({int limit = 5}) async {
     if (failFetch) throw Exception('boom');
     return answer;
   }

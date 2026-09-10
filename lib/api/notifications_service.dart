@@ -115,25 +115,56 @@ class AppNotification {
   }
 }
 
+/// One page of notification bundles, newest first. [lastId] is the page's
+/// oldest bundle id - the next page's `before_id`. [hasMore] is false once
+/// the server runs out (an older server that predates paging sends neither
+/// field, so the list simply stops at the first page).
+class NotificationPage {
+  const NotificationPage({
+    required this.items,
+    this.hasMore = false,
+    this.lastId = 0,
+  });
+
+  final List<AppNotification> items;
+  final bool hasMore;
+  final int lastId;
+}
+
 /// The notification drawer over api/v1: GET ?list=1 -> {notifications
-/// (newest 5, read = min_read), csrf_token}; GET -> {unread_count}
-/// (guests: 0); POST {action:'mark_all_read'} (JSON + CSRF). The list
-/// endpoint is READ-ONLY - the user-facing app marks read, never the
-/// worker.
+/// (paged, read = min_read), has_more, last_id, csrf_token}; GET ->
+/// {unread_count} (guests: 0); POST {action:'mark_all_read'} (JSON +
+/// CSRF). The list endpoint is READ-ONLY - the user-facing app marks
+/// read, never the worker.
 class NotificationsService {
   NotificationsService(this._api);
 
   final ApiClient _api;
 
-  /// The newest notification bundles (LIMIT 5, per-post grouping).
-  Future<List<AppNotification>> list() async {
-    final json = await _api.getJson('/api/v1/notifications',
-        query: <String, String>{'list': '1'});
+  /// The newest bundles the device alerts on (the live ping + background
+  /// worker path): 5 is the alert budget - a burst of OS notifications is
+  /// not a list. The drawer pages itself with [fetch].
+  Future<List<AppNotification>> list({int limit = 5}) async =>
+      (await fetch(limit: limit)).items;
+
+  /// One page of bundles, newest first. [beforeId] walks BACKWARDS: pass
+  /// the previous page's [NotificationPage.lastId] for the next 20.
+  Future<NotificationPage> fetch({int beforeId = 0, int limit = 20}) async {
+    final query = <String, String>{'list': '1', 'limit': '$limit'};
+    if (beforeId > 0) query['before_id'] = '$beforeId';
+    final json = await _api.getJson('/api/v1/notifications', query: query);
     final raw = json['notifications'] as List<dynamic>? ?? const [];
-    return [
+    final items = [
       for (final n in raw)
         if (n is Map<String, dynamic>) AppNotification.fromJson(n),
     ];
+    final hasMoreFlag = json['has_more'];
+    return NotificationPage(
+      items: items,
+      hasMore: hasMoreFlag == true || hasMoreFlag == 1,
+      lastId: (json['last_id'] as num?)?.toInt() ??
+          (items.isEmpty ? 0 : items.last.id),
+    );
   }
 
   /// Total unread notifications (the header badge count).

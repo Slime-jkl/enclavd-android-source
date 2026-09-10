@@ -37,6 +37,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   List<AppNotification>? _items; // null = loading
   String? _error;
   StreamSubscription<RealtimeEvent>? _realtimeSub;
+  final ScrollController _scroll = ScrollController();
+  int _lastId = 0; // oldest bundle on screen: the next page's cursor
+  bool _hasMore = false;
+  bool _loadingMore = false;
 
   @override
   void initState() {
@@ -44,6 +48,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     trackScreen('/notifications');
     // The drawer is open, so the live path must not also pop a notification.
     SocialNotifications.instance?.setDrawerOpen(true);
+    _scroll.addListener(_onScroll);
     _load();
     // The same SSE ping that lights the bell refreshes the open drawer.
     _realtimeSub = widget.realtime.events.listen((event) {
@@ -55,26 +60,61 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   void dispose() {
     SocialNotifications.instance?.setDrawerOpen(false);
     _realtimeSub?.cancel();
+    _scroll.dispose();
     super.dispose();
+  }
+
+  /// Reaching the bottom pulls the next 20; the list runs all the way back
+  /// to the member's oldest notification.
+  void _onScroll() {
+    if (!_scroll.hasClients || _loadingMore || !_hasMore) return;
+    final position = _scroll.position;
+    if (position.pixels >= position.maxScrollExtent - 400) {
+      unawaited(_loadMore());
+    }
   }
 
   Future<void> _load({bool silent = false}) async {
     if (!silent) setState(() => _error = null);
     try {
-      final items = await widget.notifications.list();
+      final page = await widget.notifications.fetch();
       if (!mounted) return;
       setState(() {
-        _items = items;
+        _items = page.items;
+        _lastId = page.lastId;
+        _hasMore = page.hasMore;
         _error = null;
       });
       // Mark-read is fire-and-forget; the server state catches up.
       unawaited(widget.notifications.markAllRead());
       // The alerts are on screen now: their tray copies are stale, so drop
       // them the same way a swipe would.
-      unawaited(SocialNotifications.instance?.clearTray(items));
+      unawaited(SocialNotifications.instance?.clearTray(page.items));
     } catch (e) {
       if (!mounted || silent) return;
       setState(() => _error = 'Could not load notifications.');
+    }
+  }
+
+  /// Appends the next page. A failure keeps what is already on screen; the
+  /// next scroll retries it.
+  Future<void> _loadMore() async {
+    final loaded = _items;
+    if (loaded == null || _loadingMore || !_hasMore) return;
+    setState(() => _loadingMore = true);
+    try {
+      final page = await widget.notifications.fetch(beforeId: _lastId);
+      if (!mounted) return;
+      setState(() {
+        _items = [...loaded, ...page.items];
+        if (page.lastId > 0) _lastId = page.lastId;
+        _hasMore = page.hasMore;
+        _loadingMore = false;
+      });
+      unawaited(widget.notifications.markAllRead());
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingMore = false);
     }
   }
 
@@ -160,11 +200,25 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return RefreshIndicator(
       onRefresh: () => _load(),
       child: ListView.separated(
+        controller: _scroll,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(vertical: 6),
-        itemCount: items.length,
+        // One extra slot while older pages remain: a loading row.
+        itemCount: items.length + (_hasMore ? 1 : 0),
         separatorBuilder: (_, __) => const SizedBox(height: 2),
         itemBuilder: (context, index) {
+          if (index >= items.length) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 14),
+              child: Center(
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            );
+          }
           final n = items[index];
           return _NotificationRow(
             notification: n,
@@ -212,6 +266,18 @@ class _NotificationRow extends StatelessWidget {
           FontAwesomeIcons.shieldHalved,
           light ? const Color(0xFFD97706) : const Color(0xFFFACC15)
         ),
+      'warning' => (
+          FontAwesomeIcons.triangleExclamation,
+          light ? const Color(0xFFD97706) : const Color(0xFFFBBF24)
+        ),
+      'announcement' => (
+          FontAwesomeIcons.bullhorn,
+          light ? const Color(0xFF2563EB) : const Color(0xFF60A5FA)
+        ),
+      'post-domain' => (
+          FontAwesomeIcons.diagramProject,
+          light ? const Color(0xFF2563EB) : const Color(0xFF60A5FA)
+        ),
       _ => (FontAwesomeIcons.bell, context.enclavd.textSecondary),
     };
     return Padding(
@@ -229,34 +295,9 @@ class _NotificationRow extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    EnclavdAvatar(
-                      size: 40,
-                      url: n.avatarUrl(AppConfig.apiBaseUrl),
-                    ),
-                    // Type chip on the avatar corner.
-                    Positioned(
-                      right: -4,
-                      bottom: -4,
-                      // alignment REQUIRED: tight constraints otherwise
-                      // paint the glyph off-center.
-                      child: Container(
-                        width: 18,
-                        height: 18,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: iconColor,
-                          shape: BoxShape.circle,
-                          border:
-                              Border.all(color: context.enclavd.card, width: 2),
-                        ),
-                        child:
-                            FaIcon(icon, size: 9, color: context.enclavd.card),
-                      ),
-                    ),
-                  ],
+                EnclavdAvatar(
+                  size: 40,
+                  url: n.avatarUrl(AppConfig.apiBaseUrl),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -266,6 +307,13 @@ class _NotificationRow extends StatelessWidget {
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // The type icon LEADS the message; the avatar
+                          // stays bare (no corner badge).
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: FaIcon(icon, size: 13, color: iconColor),
+                          ),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               n.message,
