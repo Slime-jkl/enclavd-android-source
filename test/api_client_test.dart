@@ -35,12 +35,18 @@ class Harness {
     Future<void> Function(HttpRequest req) handler, {
     List<SessionCookie> seedCookies = const [],
     SessionStore? store,
+    Duration? requestTimeout,
+    Duration? uploadTimeout,
+    int? retries,
   }) async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     final effectiveStore = store ?? MemorySessionStore(seedCookies);
     final api = ApiClient(
       store: effectiveStore,
       apiBaseUrl: 'http://127.0.0.1:${server.port}',
+      requestTimeout: requestTimeout,
+      uploadTimeout: uploadTimeout,
+      retries: retries,
       httpClientFactory: () {
         final c = HttpClient();
         c.userAgent = 'EnclavdNative/1.0';
@@ -291,6 +297,87 @@ void main() {
 
     await h.client.postForm('/form', {'a': 'b'});
     expect(formLen, greaterThan(0));
+
+    await h.close();
+  });
+
+  // A server that sends the response HEADERS and then goes quiet - the
+  // exact shape of a dropped mobile connection: nothing throws, the body
+  // never arrives, and before the deadline existed the caller waited
+  // forever (blank screens that "worked on the next try").
+  Future<void> stall(HttpRequest req) async {
+    req.response.statusCode = 200;
+    req.response.headers.contentType = ContentType.json;
+    req.response.write('{"partial":');
+    await req.response.flush();
+  }
+
+  test('stalled response body fails instead of hanging, and a GET retries',
+      () async {
+    final h = await Harness.start(
+      (req) async => stall(req),
+      requestTimeout: const Duration(milliseconds: 250),
+      retries: 2,
+    );
+
+    // GET: every attempt stalls, so the budget is spent and the caller gets
+    // the friendly connection error - never an unresolved future.
+    await expectLater(
+      h.client.getJson('/api/v1/posts?post_id=7'),
+      throwsA(isA<ApiException>().having((e) => e.message, 'message',
+          'No network. Check your connection and try again.')),
+    ).timeout(const Duration(seconds: 10));
+    expect(h.requests.length, 3); // 1 try + 2 retries
+
+    await h.close();
+  });
+
+  test('a GET that stalls once succeeds on the retry (same request)', () async {
+    var attempts = 0;
+    final h = await Harness.start(
+      (req) async {
+        attempts++;
+        if (attempts == 1) {
+          await stall(req); // dead first connection
+          return;
+        }
+        Harness.respond(req, body: '{"success":true,"post":{"id":7}}');
+      },
+      requestTimeout: const Duration(milliseconds: 250),
+      retries: 2,
+    );
+
+    final json = await h.client.getJson('/api/v1/posts?post_id=7')
+        .timeout(const Duration(seconds: 10));
+    expect(json['success'], isTrue);
+    expect((json['post'] as Map)['id'], 7);
+    expect(attempts, 2);
+
+    await h.close();
+  });
+
+  test('a POST is never retried (a stalled one just fails)', () async {
+    final h = await Harness.start(
+      (req) async {
+        // The CSRF scrape is a GET and may retry; the write itself must not.
+        if (req.uri.path == '/feed') {
+          Harness.respond(req,
+              body: '<meta name="csrf-token" content="csrf123">');
+          return;
+        }
+        await stall(req);
+      },
+      requestTimeout: const Duration(milliseconds: 250),
+      uploadTimeout: const Duration(milliseconds: 250),
+      retries: 2,
+    );
+
+    await expectLater(
+      h.client.postJson('/api/v1/posts', {'action': 'delete', 'post_id': 7}),
+      throwsA(isA<ApiException>()),
+    ).timeout(const Duration(seconds: 10));
+    // One write attempt only: a retried POST would duplicate an action.
+    expect(h.requests.where((r) => r.method == 'POST').length, 1);
 
     await h.close();
   });

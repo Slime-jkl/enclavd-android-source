@@ -116,16 +116,19 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
   PostsService get _posts => widget.posts ?? _services!.posts;
 
   Future<void> _load() async {
-    // Tests inject both services; skip the AppServices dance then.
-    if (widget.social == null || widget.posts == null) {
-      _services ??= AppServices.current ?? await AppServices.create();
-    }
     if (!mounted) return;
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
+      // Tests inject both services; skip the AppServices dance then.
+      // Bounded: a container build that never returns has to land in the
+      // error state with a retry, not leave the skeleton up forever.
+      if (widget.social == null || widget.posts == null) {
+        _services ??= AppServices.current ??
+            await AppServices.create().timeout(AppConfig.receiveTimeout);
+      }
       final detail = await widget.domains.thread(widget.postId);
       if (!mounted) return;
       setState(() {

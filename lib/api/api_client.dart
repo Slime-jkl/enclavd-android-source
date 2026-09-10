@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/app_config.dart';
@@ -111,14 +112,32 @@ class ApiClient {
     required this.store,
     HttpClient Function()? httpClientFactory,
     String? apiBaseUrl,
+    Duration? requestTimeout,
+    Duration? uploadTimeout,
+    int? retries,
   })  : _httpClientFactory = httpClientFactory ?? _defaultHttpClient,
-        _apiBaseUrl = apiBaseUrl ?? AppConfig.apiBaseUrl {
+        _apiBaseUrl = apiBaseUrl ?? AppConfig.apiBaseUrl,
+        _requestTimeout = requestTimeout ?? AppConfig.receiveTimeout,
+        _uploadTimeout = uploadTimeout ?? AppConfig.uploadTimeout,
+        _retries = retries ?? AppConfig.httpClientRetries {
     assert(!_apiBaseUrl.endsWith('/'), 'apiBaseUrl must not end with /');
   }
 
   final SessionStore store;
   final HttpClient Function() _httpClientFactory;
   final String _apiBaseUrl;
+
+  /// Deadline for ONE attempt, whole round trip including the body read.
+  final Duration _requestTimeout;
+
+  /// Same, for requests that carry a body: an upload legitimately takes
+  /// longer than a GET, so it gets the looser deadline.
+  final Duration _uploadTimeout;
+
+  /// Extra attempts for a failed GET (idempotent). POSTs never retry.
+  final int _retries;
+
+  static const Duration _retryDelay = Duration(milliseconds: 400);
 
   /// The API root this client talks to (used by services for URL building).
   String get apiBaseUrl => _apiBaseUrl;
@@ -327,9 +346,21 @@ class ApiClient {
     return _csrfToken;
   }
 
-  /// Core exchange: builds the request, sends the jar, captures Set-Cookie.
-  /// Redirects are followed only for GETs; form POSTs pass false so the
-  /// 302 Location header survives to the caller.
+  /// Bounded, self-retrying exchange: builds the request, sends the jar,
+  /// captures Set-Cookie. Form POSTs pass followRedirects false so the 302
+  /// Location survives to the caller (the login/register outcome signal).
+  ///
+  /// Every attempt is capped by [_requestTimeout] for the WHOLE round trip
+  /// (headers AND body), and a GET gets [_retries] fresh attempts on a new
+  /// socket.
+  ///
+  /// Why: a response whose headers arrive but whose body never finishes - a
+  /// dropped mobile connection, a NAT mapping that went away - used to hang
+  /// the caller forever. Nothing threw, so nothing was reported, and the
+  /// screens awaiting the fetch sat on their loading skeleton with no error
+  /// and no retry: "opens blank, then works on the next try". A new attempt
+  /// usually lands on a healthy connection, so the retry is what the user
+  /// sees instead of the empty screen.
   Future<RawResponse> _exchange({
     required String method,
     required String path,
@@ -341,95 +372,132 @@ class ApiClient {
     bool followRedirects = true,
     int hop = 0,
   }) async {
+    final attempts = method == 'GET' ? _retries + 1 : 1;
+    final deadline = method == 'GET' ? _requestTimeout : _uploadTimeout;
+    for (var attempt = 1; ; attempt++) {
+      final client = _httpClientFactory();
+      try {
+        return await _exchangeOnce(
+          client: client,
+          method: method,
+          path: path,
+          query: query,
+          formFields: formFields,
+          headers: headers,
+          jsonBody: jsonBody,
+          multipart: multipart,
+          hop: hop,
+        ).timeout(deadline);
+      } on SocketException {
+        if (attempt >= attempts) break;
+      } on HttpException {
+        if (attempt >= attempts) break;
+      } on TimeoutException {
+        if (attempt >= attempts) break;
+      } finally {
+        // Closed here, not in _exchangeOnce: an attempt that ran out of
+        // time must lose its socket before the retry opens another one.
+        client.close(force: true);
+      }
+      debugPrint('api: retry $attempt/$attempts $method $path');
+      await Future<void>.delayed(_retryDelay);
+    }
+    // Friendly, non-technical: raw socket messages leak internals.
+    throw const ApiException('No network. Check your connection and try again.');
+  }
+
+  /// One round trip on [client]. Transport errors are left to the caller
+  /// ([_exchange]) to judge; business errors (too many redirects) throw here.
+  Future<RawResponse> _exchangeOnce({
+    required HttpClient client,
+    required String method,
+    required String path,
+    Map<String, String>? query,
+    Map<String, String>? formFields,
+    Map<String, String>? headers,
+    Map<String, dynamic>? jsonBody,
+    bool multipart = false,
+    int hop = 0,
+  }) async {
     if (hop > AppConfig.maxRedirects) {
       throw const ApiException('Too many redirects');
     }
 
     final uri = _uriFor(path, query);
-    final client = _httpClientFactory();
-    try {
-      final request = await client.openUrl(method, uri);
-      request.followRedirects = false;
-      if (_jar.isNotEmpty) {
-        request.headers.set(
-          AppConfig.hdrCookie,
-          _jar.map((c) => '${c.name}=${c.value}').join('; '),
+    final request = await client.openUrl(method, uri);
+    request.followRedirects = false;
+    if (_jar.isNotEmpty) {
+      request.headers.set(
+        AppConfig.hdrCookie,
+        _jar.map((c) => '${c.name}=${c.value}').join('; '),
+      );
+    }
+    headers?.forEach(request.headers.set);
+    if (formFields != null) {
+      if (multipart) {
+        final boundary = 'enclavd_${DateTime.now().microsecondsSinceEpoch}';
+        request.headers.contentType = ContentType(
+          'multipart',
+          'form-data',
+          parameters: {'boundary': boundary},
         );
-      }
-      headers?.forEach(request.headers.set);
-      if (formFields != null) {
-        if (multipart) {
-          final boundary = 'enclavd_${DateTime.now().microsecondsSinceEpoch}';
-          request.headers.contentType = ContentType(
-            'multipart',
-            'form-data',
-            parameters: {'boundary': boundary},
-          );
-          final body = _buildMultipartBody(formFields, boundary);
-          request.contentLength = body.length;
-          request.add(body);
-        } else {
-          request.headers.contentType = ContentType(
-              'application', 'x-www-form-urlencoded',
-              charset: 'utf-8');
-          // Explicit Content-Length: without it dart:io sends chunked,
-          // and PHP-FPM does not deliver large chunked bodies intact -
-          // json_decode/api_input() sees an empty body and the endpoint
-          // answers "Unknown action". (Reproduced Aug 2026: 16MB chunked
-          // -> 400; same body with Content-Length -> 200.)
-          final encoded = const UrlQueryEncoder().encode(formFields);
-          request.contentLength = utf8.encode(encoded).length;
-          request.write(encoded);
-        }
-      }
-      if (jsonBody != null) {
-        final encoded = jsonEncode(jsonBody);
+        final body = _buildMultipartBody(formFields, boundary);
+        request.contentLength = body.length;
+        request.add(body);
+      } else {
+        request.headers.contentType = ContentType(
+            'application', 'x-www-form-urlencoded',
+            charset: 'utf-8');
+        // Explicit Content-Length: without it dart:io sends chunked,
+        // and PHP-FPM does not deliver large chunked bodies intact -
+        // json_decode/api_input() sees an empty body and the endpoint
+        // answers "Unknown action". (Reproduced Aug 2026: 16MB chunked
+        // -> 400; same body with Content-Length -> 200.)
+        final encoded = const UrlQueryEncoder().encode(formFields);
         request.contentLength = utf8.encode(encoded).length;
         request.write(encoded);
       }
-
-      final response = await request.close().timeout(AppConfig.receiveTimeout);
-      // Capture Set-Cookie (multiple may be present); keep only name=value.
-      final setCookies = <SessionCookie>[];
-      for (final raw
-          in response.headers[HttpHeaders.setCookieHeader] ?? <String>[]) {
-        final pair = raw.split(';').first;
-        final eq = pair.indexOf('=');
-        if (eq > 0) {
-          setCookies.add(SessionCookie(
-            name: pair.substring(0, eq).trim(),
-            value: pair.substring(eq + 1).trim(),
-          ));
-        }
-      }
-      if (setCookies.isNotEmpty) {
-        final changed = _mergeCookies(setCookies);
-        if (changed) {
-          // Persist immediately so a valid session survives app restarts.
-          await store.save(_jar);
-        }
-      }
-
-      final body = await response.transform(utf8.decoder).join();
-      final location = response.headers.value('location');
-      final status = response.statusCode;
-
-      return RawResponse(
-        status: status,
-        setCookies: setCookies,
-        location: location,
-        body: body,
-      );
-    } on SocketException {
-      // Friendly, non-technical: raw socket messages leak internals.
-      throw const ApiException('No network. Check your connection and try again.');
-    } on HttpException {
-      throw const ApiException('No network. Check your connection and try again.');
-    } on TimeoutException {
-      throw const ApiException('No network. Check your connection and try again.');
-    } finally {
-      client.close(force: true);
     }
+    if (jsonBody != null) {
+      final encoded = jsonEncode(jsonBody);
+      request.contentLength = utf8.encode(encoded).length;
+      request.write(encoded);
+    }
+
+    // First byte still gets its own (tighter) deadline, so a POST that
+    // never reaches a server fails in receiveTimeout, not uploadTimeout.
+    final response = await request.close().timeout(AppConfig.receiveTimeout);
+    // Capture Set-Cookie (multiple may be present); keep only name=value.
+    final setCookies = <SessionCookie>[];
+    for (final raw
+        in response.headers[HttpHeaders.setCookieHeader] ?? <String>[]) {
+      final pair = raw.split(';').first;
+      final eq = pair.indexOf('=');
+      if (eq > 0) {
+        setCookies.add(SessionCookie(
+          name: pair.substring(0, eq).trim(),
+          value: pair.substring(eq + 1).trim(),
+        ));
+      }
+    }
+    if (setCookies.isNotEmpty) {
+      final changed = _mergeCookies(setCookies);
+      if (changed) {
+        // Persist immediately so a valid session survives app restarts.
+        await store.save(_jar);
+      }
+    }
+
+    final body = await response.transform(utf8.decoder).join();
+    final location = response.headers.value('location');
+    final status = response.statusCode;
+
+    return RawResponse(
+      status: status,
+      setCookies: setCookies,
+      location: location,
+      body: body,
+    );
   }
 
   /// Same-host redirect target for a response, or null when it should not
