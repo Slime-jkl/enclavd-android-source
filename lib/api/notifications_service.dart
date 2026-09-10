@@ -1,5 +1,9 @@
 import 'api_client.dart';
 
+/// The screen a tapped notification row opens. The screen itself resolves
+/// the comment to land on from the notice's own ids.
+enum NotificationTarget { none, profile, post, comments, thread }
+
 /// One notification bundle from GET /api/v1/notifications?list=1.
 /// Post likes/comments group per (type, post) with the newest actor +
 /// distinct actor count ("Alice & 3 others liked your post"); every other
@@ -11,6 +15,8 @@ class AppNotification {
     required this.message,
     required this.contentType,
     required this.contentId,
+    required this.commentId,
+    required this.isDomain,
     required this.fromUserId,
     required this.fromUsername,
     required this.fromUserAvatar,
@@ -26,6 +32,15 @@ class AppNotification {
   final String message; // e.g. "Alice & 3 others liked your post"
   final String contentType; // post-like | post-comment | comment-mention | follow | user-management | ...
   final int contentId; // post id for post-attached types, else 0
+
+  /// The comment this notice is about (0 for a like / follow). A bundle's
+  /// row is its NEWEST one, so a bundled "X & 6 others commented" points at
+  /// the LAST comment - which is where a tap should land.
+  final int commentId;
+
+  /// The post lives in a forum thread: taps open the thread, not the
+  /// feed-style comments.
+  final bool isDomain;
   final int fromUserId;
   final String fromUsername;
   final String fromUserAvatar; // root-relative ("/public/avatars/...")
@@ -46,6 +61,19 @@ class AppNotification {
       contentType == 'post-activity' ||
       contentType == 'comment-reply' ||
       contentType == 'comment-mention';
+
+  /// Whether the notice can be opened ON a comment; a like cannot.
+  bool get hasComment => commentId > 0;
+
+  /// Where a tap on this row lands. A comment notice opens the comments
+  /// (feed post) or the thread (domain post) ON the comment; a like stops
+  /// at the post; anything else the drawer does not route.
+  NotificationTarget get tapTarget {
+    if (contentType == 'follow') return NotificationTarget.profile;
+    if (!isPostAttached) return NotificationTarget.none;
+    if (isDomain) return NotificationTarget.thread;
+    return hasComment ? NotificationTarget.comments : NotificationTarget.post;
+  }
 
   /// Maps to the Android notification id: the POST id for post-attached
   /// types (a new like on the same post REPLACES the older notification),
@@ -71,6 +99,8 @@ class AppNotification {
       message: json['message'] as String? ?? '',
       contentType: json['content_type'] as String? ?? '',
       contentId: (json['content_id'] as num?)?.toInt() ?? 0,
+      commentId: (json['comment_id'] as num?)?.toInt() ?? 0,
+      isDomain: json['is_domain'] as bool? ?? false,
       fromUserId: (json['from_user_id'] as num?)?.toInt() ?? 0,
       fromUsername: json['from_username'] as String? ?? '',
       fromUserAvatar: json['from_user_avatar'] as String? ??

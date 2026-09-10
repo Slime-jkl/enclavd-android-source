@@ -2,7 +2,6 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
 
 import '../api/api_client.dart'; // friendlyErrorText
-import '../api/feed_service.dart'; // Post
 import '../api/social_service.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/comment_section.dart';
@@ -14,27 +13,45 @@ import '../widgets/comment_section.dart';
 class CommentsScreen extends StatefulWidget {
   const CommentsScreen({
     super.key,
-    required this.post,
+    required this.postId,
+    this.initialCount = 0,
     required this.social,
     required this.apiBaseUrl,
+    this.highlightCommentId,
   });
 
-  final Post post;
+  final int postId;
+
+  /// The count the caller already knows (a feed card); the first page
+  /// corrects it.
+  final int initialCount;
+
   final SocialService social;
   final String apiBaseUrl;
+
+  /// Comment to land on - a notification tap: the list pages forward until
+  /// it is loaded, then scrolls to it and tints it.
+  final int? highlightCommentId;
 
   /// Zoom-in route: the page scales + fades in from the card, and
   /// reverses (zoom-out) when the back button closes it.
   static Route<int> route({
-    required Post post,
+    required int postId,
+    int initialCount = 0,
     required SocialService social,
     required String apiBaseUrl,
+    int? highlightCommentId,
   }) {
     return PageRouteBuilder<int>(
       transitionDuration: const Duration(milliseconds: 340),
       reverseTransitionDuration: const Duration(milliseconds: 280),
-      pageBuilder: (_, __, ___) =>
-          CommentsScreen(post: post, social: social, apiBaseUrl: apiBaseUrl),
+      pageBuilder: (_, __, ___) => CommentsScreen(
+        postId: postId,
+        initialCount: initialCount,
+        social: social,
+        apiBaseUrl: apiBaseUrl,
+        highlightCommentId: highlightCommentId,
+      ),
       transitionsBuilder: (_, animation, __, child) {
         final curved = CurvedAnimation(
           parent: animation,
@@ -74,16 +91,16 @@ class _CommentsScreenState extends State<CommentsScreen> {
   bool _commentsHasMore = false;
   bool _commentsLoadingMore = false;
 
-  int _commentCount;
+  int _commentCount = 0;
 
-  _CommentsScreenState() : _commentCount = 0;
-
-  Post get _post => widget.post;
+  /// How many extra pages the highlight seek may pull before giving up: a
+  /// stale target (deleted comment) must not page through the whole thread.
+  static const int _highlightMaxPages = 6;
 
   @override
   void initState() {
     super.initState();
-    _commentCount = _post.commentCount;
+    _commentCount = widget.initialCount;
     _loadComments();
   }
 
@@ -100,7 +117,8 @@ class _CommentsScreenState extends State<CommentsScreen> {
       _commentsError = null;
     });
     try {
-      final page = await widget.social.listComments(_post.id); // page 1, DESC
+      // page 1, DESC
+      final page = await widget.social.listComments(widget.postId);
       if (!mounted) return;
       setState(() {
         _comments = page.comments;
@@ -114,6 +132,29 @@ class _CommentsScreenState extends State<CommentsScreen> {
         _commentsLoading = false;
         _commentsError = 'Could not load comments.';
       });
+      return;
+    }
+    // Outside the fetch's try: a seek that comes up empty must not blank a
+    // list that loaded fine.
+    await _seekHighlight();
+  }
+
+  /// Pages forward until the comment a notification pointed at is loaded
+  /// (it is usually in the first page; a busy post can push it back), so
+  /// the list can scroll to it.
+  Future<void> _seekHighlight() async {
+    final target = widget.highlightCommentId;
+    if (target == null) return;
+    var pages = 0;
+    while (mounted &&
+        pages < _highlightMaxPages &&
+        _commentsHasMore &&
+        !_comments.any((c) => c.id == target)) {
+      pages++;
+      final before = _comments.length;
+      await _loadMoreComments();
+      // A failed or empty page must not spin this loop.
+      if (_comments.length == before) return;
     }
   }
 
@@ -122,7 +163,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
     setState(() => _commentsLoadingMore = true);
     try {
       final page = await widget.social.listComments(
-        _post.id,
+        widget.postId,
         offset: _comments.length,
       );
       if (!mounted) return;
@@ -161,7 +202,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
     });
     try {
       final (comment, newCount) = await widget.social.createComment(
-        _post.id,
+        widget.postId,
         content,
         parentCommentId: _replyTarget?.id,
       );
@@ -209,7 +250,8 @@ class _CommentsScreenState extends State<CommentsScreen> {
       _commentCount -= 1; // optimistic; server total corrects on success
     });
     try {
-      final newCount = await widget.social.deleteComment(comment.id, _post.id);
+      final newCount =
+          await widget.social.deleteComment(comment.id, widget.postId);
       if (!mounted) return;
       setState(() => _commentCount = newCount);
     } catch (_) {
@@ -266,6 +308,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
                     onDelete: _deleteComment,
                     onReply: _replyToComment,
                     apiBaseUrl: widget.apiBaseUrl,
+                    highlightId: widget.highlightCommentId,
                   ),
                 ],
               ),

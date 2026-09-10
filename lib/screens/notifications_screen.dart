@@ -6,12 +6,15 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../api/messages_service.dart'; // parseDbTime (DB UTC wall-clock)
 import '../api/notifications_service.dart';
 import '../config/app_config.dart';
+import '../main.dart'; // AppServices (tap routing needs the session)
 import '../services/realtime_service.dart';
 import '../services/social_notifications.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/error_view.dart';
 import '../utils/html_entities.dart';
 import '../widgets/enclavd_avatar.dart';
+import 'comments_screen.dart';
+import 'domain_thread_screen.dart';
 import 'post_detail_screen.dart';
 import 'profile_screen.dart';
 import '../services/analytics_service.dart';
@@ -75,23 +78,43 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
+  /// Routes a tapped row to the screen the notice is about.
+  ///
+  /// A comment notice lands ON the comment: the forum thread for a domain
+  /// post, the full-screen comments for a feed post. A like has no comment
+  /// to land on, so it stops at the post itself.
   void _openNotification(AppNotification n) {
-    switch (n.contentType) {
-      case 'follow':
+    final services = AppServices.current;
+    switch (n.tapTarget) {
+      case NotificationTarget.none:
+        return; // user-management: site parity (the row links nowhere)
+      case NotificationTarget.profile:
         Navigator.of(context).push(MaterialPageRoute<void>(
           builder: (_) => ProfileScreen(userId: n.fromUserId),
         ));
-      case 'post-like':
-      case 'post-comment':
-      case 'post-activity':
-      case 'comment-reply':
-      case 'comment-mention':
-        // The site's /feed/post/<id> permalink as a native screen.
+      case NotificationTarget.post:
         Navigator.of(context).push(MaterialPageRoute<void>(
           builder: (_) => PostDetailScreen(postId: n.contentId),
         ));
-      default:
-        break; // user-management: site parity (the row links nowhere)
+      case NotificationTarget.comments:
+        if (services == null) return; // no session: nothing to open
+        // The comments screen loads its own list, so it opens at once.
+        Navigator.of(context).push(CommentsScreen.route(
+          postId: n.contentId,
+          social: services.social,
+          apiBaseUrl: AppConfig.apiBaseUrl,
+          highlightCommentId: n.commentId,
+        ));
+      case NotificationTarget.thread:
+        if (services == null) return;
+        // The thread screen loads its own OP + replies.
+        Navigator.of(context).push(MaterialPageRoute<void>(
+          builder: (_) => DomainThreadScreen(
+            domains: services.domains,
+            postId: n.contentId,
+            highlightReplyId: n.hasComment ? n.commentId : null,
+          ),
+        ));
     }
   }
 

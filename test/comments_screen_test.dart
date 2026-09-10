@@ -90,6 +90,12 @@ Map<String, dynamic> _postJson() => {
 
 Post _post() => Post.fromJson(_postJson());
 
+/// The row tint the highlight paints (site: bg-blue-500/10).
+Finder _highlightTint() => find.byWidgetPredicate((w) =>
+    w is Container &&
+    w.decoration is BoxDecoration &&
+    (w.decoration! as BoxDecoration).color == const Color(0x1A3B82F6));
+
 Comment _comment(int id, String text, {int? parent, bool own = false}) =>
     Comment(
       id: id,
@@ -124,7 +130,8 @@ void main() {
       _comment(2, 'Child reply', parent: 1),
     ]);
     await tester.pumpWidget(wrap(CommentsScreen(
-      post: _post(),
+      postId: _post().id,
+      initialCount: _post().commentCount,
       social: social,
       apiBaseUrl: 'https://example.com',
     )));
@@ -152,6 +159,42 @@ void main() {
     expect(find.text('1 reply'), findsOneWidget);
   });
 
+  testWidgets('the comment a notification landed on is revealed and tinted',
+      (tester) async {
+    final social = _FakeSocial(comments: [
+      _comment(1, 'Root comment'),
+      _comment(2, 'Child reply', parent: 1),
+      _comment(3, 'Another root'),
+    ]);
+    await tester.pumpWidget(wrap(CommentsScreen(
+      postId: _post().id,
+      initialCount: _post().commentCount,
+      social: social,
+      apiBaseUrl: 'https://example.com',
+      highlightCommentId: 2,
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // A nested reply: its group opens itself so the row is on screen.
+    expect(find.text('Child reply'), findsOneWidget);
+    expect(find.text('Replying to @Someone'), findsOneWidget);
+    // Exactly one row wears the tint, and it is the target's.
+    expect(_highlightTint(), findsOneWidget);
+  });
+
+  testWidgets('nothing is tinted without a target', (tester) async {
+    final social = _FakeSocial(comments: [_comment(1, 'Root comment')]);
+    await tester.pumpWidget(wrap(CommentsScreen(
+      postId: _post().id,
+      initialCount: _post().commentCount,
+      social: social,
+      apiBaseUrl: 'https://example.com',
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(_highlightTint(), findsNothing);
+  });
+
   testWidgets('long post stays out of the way of the thread and composer',
       (tester) async {
     // Regression: the post preview used to sit above the thread and, with a
@@ -159,7 +202,8 @@ void main() {
     final social = _FakeSocial(comments: [_comment(1, 'Root comment')]);
     final post = Post.fromJson(_postJson()..['content'] = 'word ' * 200);
     await tester.pumpWidget(wrap(CommentsScreen(
-      post: post,
+      postId: post.id,
+      initialCount: post.commentCount,
       social: social,
       apiBaseUrl: 'https://example.com',
     )));
@@ -178,7 +222,8 @@ void main() {
       _comment(2, 'Child reply', parent: 1),
     ]);
     await tester.pumpWidget(wrap(CommentsScreen(
-      post: _post(),
+      postId: _post().id,
+      initialCount: _post().commentCount,
       social: social,
       apiBaseUrl: 'https://example.com',
     )));
@@ -213,7 +258,8 @@ void main() {
       _comment(2, long, parent: 1),
     ]);
     await tester.pumpWidget(wrap(CommentsScreen(
-      post: _post(),
+      postId: _post().id,
+      initialCount: _post().commentCount,
       social: social,
       apiBaseUrl: 'https://example.com',
     )));
@@ -286,7 +332,8 @@ void main() {
       (tester) async {
     final social = _FakeSocial(comments: [_comment(1, 'Root comment')]);
     await tester.pumpWidget(wrap(CommentsScreen(
-      post: _post(),
+      postId: _post().id,
+      initialCount: _post().commentCount,
       social: social,
       apiBaseUrl: 'https://example.com',
     )));
@@ -334,7 +381,8 @@ void main() {
               onPressed: () async {
                 popped = await Navigator.of(context).push<int>(
                   CommentsScreen.route(
-                    post: _post(),
+                    postId: _post().id,
+                    initialCount: _post().commentCount,
                     social: social,
                     apiBaseUrl: 'https://example.com',
                   ),

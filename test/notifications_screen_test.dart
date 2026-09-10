@@ -83,6 +83,8 @@ AppNotification _bundle(int id) => AppNotification(
       message: 'alice liked your post',
       contentType: 'post-like',
       contentId: 5,
+      commentId: 0,
+      isDomain: false,
       fromUserId: 7,
       fromUsername: 'alice',
       fromUserAvatar: '/public/avatars/alice.png',

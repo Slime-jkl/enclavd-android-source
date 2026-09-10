@@ -37,6 +37,7 @@ class DomainThreadScreen extends StatefulWidget {
     this.breadcrumbName,
     this.social,
     this.posts,
+    this.highlightReplyId,
   });
 
   final DomainsService domains;
@@ -47,6 +48,10 @@ class DomainThreadScreen extends StatefulWidget {
 
   final SocialService? social;
   final PostsService? posts;
+
+  /// Reply to land on - a notification tap: the thread pages back until it
+  /// is loaded, then scrolls to it and tints it.
+  final int? highlightReplyId;
 
   @override
   State<DomainThreadScreen> createState() => _DomainThreadScreenState();
@@ -73,6 +78,31 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
   bool _jumpToRepliesEnd = false;
 
   int? _expandedReplyId;
+
+  /// Addresses the highlighted reply for the scroll-into-view pass.
+  final GlobalKey _highlightKey = GlobalKey();
+  bool _highlightScrolled = false;
+
+  /// How many pages the highlight seek may walk back through: later replies
+  /// can push the target off the newest page, but a deleted one must not
+  /// walk the whole thread.
+  static const int _highlightMaxPages = 3;
+
+  /// Scrolls the reply list onto the highlighted reply once it has laid out.
+  void _scheduleHighlightScroll() {
+    if (_highlightScrolled || widget.highlightReplyId == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _highlightKey.currentContext;
+      if (!mounted || ctx == null) return;
+      _highlightScrolled = true;
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+        alignment: 0.15,
+      );
+    });
+  }
 
   /// Scrolls the reply list to its newest row once the frame that
   /// changed its content has laid out.
@@ -157,8 +187,28 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
   /// Initial reply load: the newest (last) page, scrolled to its end so
   /// the latest reply is in view on busy threads.
   Future<void> _loadReplies() async {
-    _jumpToRepliesEnd = true;
+    // With a target to land on, the highlight's scroll is the only motion.
+    _jumpToRepliesEnd = widget.highlightReplyId == null;
     await _fetchReplyPage(0);
+    await _seekHighlight();
+  }
+
+  /// The reply a notification pointed at can be pushed off the newest page
+  /// by later replies: step back until it loads, then scroll onto it.
+  Future<void> _seekHighlight() async {
+    final target = widget.highlightReplyId;
+    if (target == null) return;
+    var tries = 0;
+    while (mounted &&
+        tries < _highlightMaxPages &&
+        _replyPage > 1 &&
+        !_replies.any((r) => r.id == target)) {
+      tries++;
+      final before = _replies.length;
+      await _fetchReplyPage(_replyPage - 1);
+      if (_replies.length == before) return; // a failed fetch: stop here
+    }
+    _scheduleHighlightScroll();
   }
 
   /// Fetches one grouped reply page (0 = newest) and swaps the list
@@ -186,8 +236,10 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
         _replyBusy = false;
         _repliesLoading = false;
         _post = _withCommentCount(post, result.total);
-        // freshly loaded newest page shows its tail first.
-        if (result.page == result.pages) _jumpToRepliesEnd = true;
+        // A freshly loaded newest page shows its tail first.
+        if (result.page == result.pages && widget.highlightReplyId == null) {
+          _jumpToRepliesEnd = true;
+        }
       });
       _scheduleRepliesEndJump();
     } catch (_) {
@@ -399,6 +451,9 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
   }
 
   Widget _buildBody() {
+    // The highlighted reply may already be loaded: get the scroll in as
+    // soon as it has a layout.
+    _scheduleHighlightScroll();
     final error = _error;
     if (error != null) {
       return ErrorView(message: error, onRetry: _load);
@@ -492,13 +547,17 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
           // so the first row of page N is at (N - 1) * 20 + 1.
           for (var i = 0; i < _replies.length; i++)
             _ForumReplyCard(
-              key: ValueKey(_replies[i].id),
+              // The target takes the GlobalKey the scroll resolves.
+              key: _replies[i].id == widget.highlightReplyId
+                  ? _highlightKey
+                  : ValueKey(_replies[i].id),
               reply: _replies[i],
               number: (_replyPage - 1) * _repliesPerPage + i + 1,
               apiBaseUrl: AppConfig.apiBaseUrl,
               onDelete: _deleteReply,
               onReply: _quoteReply,
               expanded: _replies[i].id == _expandedReplyId,
+              highlighted: _replies[i].id == widget.highlightReplyId,
               onToggle: () => setState(() {
                 _expandedReplyId =
                     _expandedReplyId == _replies[i].id ? null : _replies[i].id;
@@ -971,6 +1030,7 @@ class _ForumReplyCard extends StatefulWidget {
     required this.onReply,
     required this.expanded,
     required this.onToggle,
+    this.highlighted = false,
   });
 
   final Comment reply;
@@ -985,6 +1045,9 @@ class _ForumReplyCard extends StatefulWidget {
   final bool expanded;
 
   final VoidCallback onToggle;
+
+  /// Tinted: this is the reply the screen was opened on.
+  final bool highlighted;
 
   @override
   State<_ForumReplyCard> createState() => _ForumReplyCardState();
@@ -1119,9 +1182,18 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: context.enclavd.card,
+        // The reply a notification landed on wears the tint + the accent
+        // border; every other card keeps the plain border.
+        color: widget.highlighted
+            ? Color.alphaBlend(
+                const Color(0x1A3B82F6), context.enclavd.card)
+            : context.enclavd.card,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: context.enclavd.border),
+        border: Border.all(
+          color: widget.highlighted
+              ? context.enclavd.link
+              : context.enclavd.border,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

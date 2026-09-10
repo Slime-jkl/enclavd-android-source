@@ -160,6 +160,14 @@ Comment _reply(int id, String text,
       parentExcerpt: parentExcerpt,
     );
 
+/// The reply-card tint a highlight paints (site: bg-blue-500/10 over card).
+Finder _highlightedCard() => find.byWidgetPredicate((w) =>
+    w is Container &&
+    w.decoration is BoxDecoration &&
+    (w.decoration! as BoxDecoration).color ==
+        Color.alphaBlend(
+            const Color(0x1A3B82F6), EnclavdPalette.dark.card));
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -415,6 +423,57 @@ void main() {
     expect(find.text('Show less'), findsOneWidget);
     expect(find.text(long1), findsNothing);
     expect(find.text(long2), findsOneWidget);
+  });
+
+  testWidgets('the reply a notification landed on is paged back to and tinted',
+      (tester) async {
+    tester.view.physicalSize = const Size(800, 3800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    // 45 replies -> 3 pages (20/20/5). The target sits on page 2 (#31), one
+    // page back from the newest, so the thread has to walk back to it.
+    final social = _FakeSocial(replies: [
+      for (var n = 1; n <= 45; n++) _reply(n, 'Reply $n'),
+    ]);
+    await tester.pumpWidget(wrap(DomainThreadScreen(
+      domains: _FakeDomains(_detail()),
+      postId: 218,
+      social: social,
+      posts: _FakePosts(),
+      highlightReplyId: 31,
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(social.pageRequests, [0, 2],
+        reason: 'the newest page first, then one page back');
+    expect(find.text('Reply 31'), findsOneWidget);
+    expect(find.text('Page 2 of 3'), findsNWidgets(2));
+    expect(_highlightedCard(), findsOneWidget,
+        reason: 'the landed-on reply wears the tint');
+  });
+
+  testWidgets('a target already on the newest page needs no extra fetch',
+      (tester) async {
+    // Tall viewport so the newest page's rows are all built and findable.
+    tester.view.physicalSize = const Size(800, 3800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final social = _FakeSocial(replies: [
+      for (var n = 1; n <= 45; n++) _reply(n, 'Reply $n'),
+    ]);
+    await tester.pumpWidget(wrap(DomainThreadScreen(
+      domains: _FakeDomains(_detail()),
+      postId: 218,
+      social: social,
+      posts: _FakePosts(),
+      highlightReplyId: 44,
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(social.pageRequests, [0]);
+    expect(_highlightedCard(), findsOneWidget);
   });
 
   testWidgets('opens on the newest page and pages back through replies',

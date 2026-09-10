@@ -21,6 +21,8 @@ Map<String, dynamic> _bundle({
   int id = 12,
   String type = 'post-like',
   int contentId = 5,
+  int commentId = 0,
+  bool isDomain = false,
   bool read = false,
   String username = 'alice',
   int actors = 3,
@@ -29,6 +31,8 @@ Map<String, dynamic> _bundle({
 }) =>
     {
       'id': id,
+      'comment_id': commentId,
+      'is_domain': isDomain,
       'message': actors > 1
           ? '$username & ${actors - 1} others liked your post'
           : '$username liked your post',
@@ -95,6 +99,38 @@ void main() {
     expect(n.read, isTrue);
     expect(n.isPostAttached, isTrue);
     expect(n.groupId, 5);
+  });
+
+  test('a comment notice carries the comment to land on', () {
+    // Bundled: the row is the group's NEWEST, so this is the last comment.
+    final n = AppNotification.fromJson(
+        _bundle(id: 9, type: 'post-comment', commentId: 477, actors: 7));
+    expect(n.commentId, 477);
+    expect(n.hasComment, isTrue);
+    expect(n.tapTarget, NotificationTarget.comments,
+        reason: 'a feed post opens its comments ON the comment');
+  });
+
+  test('a domain post opens the thread instead', () {
+    final n = AppNotification.fromJson(
+        _bundle(type: 'comment-mention', commentId: 31, isDomain: true));
+    expect(n.isDomain, isTrue);
+    expect(n.tapTarget, NotificationTarget.thread);
+  });
+
+  test('a like carries no comment and stops at the post', () {
+    final n = AppNotification.fromJson(_bundle(type: 'post-like'));
+    expect(n.commentId, 0);
+    expect(n.hasComment, isFalse);
+    expect(n.tapTarget, NotificationTarget.post);
+  });
+
+  test('follow opens the profile; unrooted types open nothing', () {
+    expect(AppNotification.fromJson(_bundle(type: 'follow')).tapTarget,
+        NotificationTarget.profile);
+    expect(
+        AppNotification.fromJson(_bundle(type: 'user-management')).tapTarget,
+        NotificationTarget.none);
   });
 
   test('comment-reply rides the post like the other comment notices', () {

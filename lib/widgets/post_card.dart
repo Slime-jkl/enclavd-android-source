@@ -164,7 +164,8 @@ class _PostCardState extends State<PostCard> {
     }
     final newCount = await Navigator.of(context).push<int>(
       CommentsScreen.route(
-        post: widget.post,
+        postId: widget.post.id,
+        initialCount: widget.post.commentCount,
         social: widget.social,
         apiBaseUrl: widget.apiBaseUrl,
       ),

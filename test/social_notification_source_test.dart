@@ -12,6 +12,8 @@ AppNotification _bundle({
   int id = 12,
   String type = 'post-like',
   int contentId = 5,
+  int commentId = 0,
+  bool isDomain = false,
   bool read = false,
 }) =>
     AppNotification(
@@ -19,6 +21,8 @@ AppNotification _bundle({
       message: 'alice liked your post',
       contentType: type,
       contentId: contentId,
+      commentId: commentId,
+      isDomain: isDomain,
       fromUserId: 7,
       fromUsername: 'alice',
       fromUserAvatar: '/public/avatars/alice.png',
@@ -175,6 +179,8 @@ extension on AppNotification {
         message: message,
         contentType: contentType,
         contentId: contentId,
+        commentId: commentId,
+        isDomain: isDomain,
         fromUserId: fromUserId,
         fromUsername: fromUsername,
         fromUserAvatar: fromUserAvatar,
