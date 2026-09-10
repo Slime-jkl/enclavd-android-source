@@ -18,16 +18,16 @@ class ErrorView extends StatelessWidget {
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 56),
       children: [
-        const Center(
+        Center(
           child: FaIcon(FontAwesomeIcons.cloudArrowDown,
-              size: 56, color: EnclavdColors.textSecondary),
+              size: 56, color: context.enclavd.textSecondary),
         ),
         const SizedBox(height: 18),
         Text(
           message,
           textAlign: TextAlign.center,
-          style: const TextStyle(
-            color: EnclavdColors.textSecondary,
+          style: TextStyle(
+            color: context.enclavd.textSecondary,
             fontSize: 14,
             height: 1.45,
           ),
@@ -37,9 +37,9 @@ class ErrorView extends StatelessWidget {
           child: TextButton(
             onPressed: onRetry,
             style: TextButton.styleFrom(
-              foregroundColor: EnclavdColors.link,
-              textStyle: const TextStyle(
-                  fontSize: 14, fontWeight: FontWeight.w600),
+              foregroundColor: context.enclavd.link,
+              textStyle:
+                  const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
             ),
             child: const Text('Try again'),
           ),

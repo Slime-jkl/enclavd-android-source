@@ -92,6 +92,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await BackgroundKeepAlive.setEnabled(enabled);
   }
 
+  Future<void> _toggleLightMode(bool enabled) async {
+    await ThemePrefs.setLightMode(enabled);
+  }
+
   String get _deliveryModeText {
     final mode = PushManager.instance?.activeLabel;
     if (mode != null && mode != PushManager.fallbackLabel) {
@@ -116,10 +120,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             // Material (not Container): ListTile ink splashes need a
             // Material ancestor, and a plain colored Container hides them.
             Material(
-              color: EnclavdColors.card,
+              color: context.enclavd.card,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
-                side: const BorderSide(color: EnclavdColors.border),
+                side: BorderSide(color: context.enclavd.border),
               ),
               clipBehavior: Clip.antiAlias,
               child: sounds == null
@@ -135,9 +139,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   : SwitchListTile(
                       value: sounds,
                       onChanged: _toggleSounds,
-                      activeTrackColor: EnclavdColors.primaryButton,
-                      secondary: const FaIcon(FontAwesomeIcons.volumeHigh,
-                          color: EnclavdColors.link, size: 18),
+                      activeTrackColor: context.enclavd.primaryButton,
+                      secondary: FaIcon(FontAwesomeIcons.volumeHigh,
+                          color: context.enclavd.link, size: 18),
                       title: const Text('Sound effects'),
                       subtitle: const Text(
                           'Like and action sounds, like on the website'),
@@ -145,10 +149,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 10),
             Material(
-              color: EnclavdColors.card,
+              color: context.enclavd.card,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
-                side: const BorderSide(color: EnclavdColors.border),
+                side: BorderSide(color: context.enclavd.border),
               ),
               clipBehavior: Clip.antiAlias,
               child: notifications == null
@@ -164,9 +168,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   : SwitchListTile(
                       value: notifications,
                       onChanged: _toggleNotifications,
-                      activeTrackColor: EnclavdColors.primaryButton,
-                      secondary: const FaIcon(FontAwesomeIcons.paperPlane,
-                          color: EnclavdColors.link, size: 18),
+                      activeTrackColor: context.enclavd.primaryButton,
+                      secondary: FaIcon(FontAwesomeIcons.paperPlane,
+                          color: context.enclavd.link, size: 18),
                       title: const Text('Message notifications'),
                       subtitle: const Text(
                           'Device notifications with quick reply when '
@@ -175,10 +179,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 10),
             Material(
-              color: EnclavdColors.card,
+              color: context.enclavd.card,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
-                side: const BorderSide(color: EnclavdColors.border),
+                side: BorderSide(color: context.enclavd.border),
               ),
               clipBehavior: Clip.antiAlias,
               child: _socialNotificationsEnabled == null
@@ -194,9 +198,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   : SwitchListTile(
                       value: _socialNotificationsEnabled!,
                       onChanged: _toggleSocialNotifications,
-                      activeTrackColor: EnclavdColors.primaryButton,
-                      secondary: const FaIcon(FontAwesomeIcons.bell,
-                          color: EnclavdColors.link, size: 18),
+                      activeTrackColor: context.enclavd.primaryButton,
+                      secondary: FaIcon(FontAwesomeIcons.bell,
+                          color: context.enclavd.link, size: 18),
                       title: const Text('Notification alerts'),
                       subtitle: const Text(
                           'Likes, comments and mentions, like on the website'),
@@ -204,10 +208,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const SizedBox(height: 10),
             Material(
-              color: EnclavdColors.card,
+              color: context.enclavd.card,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
-                side: const BorderSide(color: EnclavdColors.border),
+                side: BorderSide(color: context.enclavd.border),
               ),
               clipBehavior: Clip.antiAlias,
               child: _keepAliveEnabled == null
@@ -223,9 +227,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   : SwitchListTile(
                       value: _keepAliveEnabled!,
                       onChanged: _toggleKeepAlive,
-                      activeTrackColor: EnclavdColors.primaryButton,
-                      secondary: const FaIcon(FontAwesomeIcons.bolt,
-                          color: EnclavdColors.link, size: 18),
+                      activeTrackColor: context.enclavd.primaryButton,
+                      secondary: FaIcon(FontAwesomeIcons.bolt,
+                          color: context.enclavd.link, size: 18),
                       title: const Text('Live updates while minimized'),
                       subtitle: const Text(
                           'Keep notifications and messages flowing while '
@@ -239,18 +243,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
             if (notifications == true && _osBlocked == true) ...[
               const SizedBox(height: 10),
               Material(
-                color: EnclavdColors.card,
+                color: context.enclavd.card,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
-                  side: const BorderSide(color: EnclavdColors.warning),
+                  side: BorderSide(color: context.enclavd.warning),
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(14, 6, 6, 6),
                   child: Row(
                     children: [
-                      const FaIcon(FontAwesomeIcons.triangleExclamation,
-                          color: EnclavdColors.warning, size: 16),
+                      FaIcon(FontAwesomeIcons.triangleExclamation,
+                          color: context.enclavd.warning, size: 16),
                       const SizedBox(width: 10),
                       const Expanded(
                         child: Text(
@@ -259,13 +263,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ),
                       TextButton(
-                        onPressed: () =>
-                            MessageNotifications.instance
-                                ?.openOsNotificationSettings(),
-                        child: const Text('Open settings',
+                        onPressed: () => MessageNotifications.instance
+                            ?.openOsNotificationSettings(),
+                        child: Text('Open settings',
                             style: TextStyle(
-                                fontSize: 13,
-                                color: EnclavdColors.link)),
+                                fontSize: 13, color: context.enclavd.link)),
                       ),
                     ],
                   ),
@@ -273,17 +275,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ],
             const SizedBox(height: 10),
-            // Read-only status row: delivery is auto-resolved at startup.
+            const _SectionLabel('Appearance'),
+            const SizedBox(height: 6),
             Material(
-              color: EnclavdColors.card,
+              color: context.enclavd.card,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
-                side: const BorderSide(color: EnclavdColors.border),
+                side: BorderSide(color: context.enclavd.border),
+              ),
+              clipBehavior: Clip.antiAlias,
+              // Theme switch applies instantly, so read the live value.
+              child: ValueListenableBuilder<bool>(
+                valueListenable: ThemePrefs.lightMode,
+                builder: (context, lightMode, _) => SwitchListTile(
+                  value: lightMode,
+                  onChanged: _toggleLightMode,
+                  activeTrackColor: context.enclavd.primaryButton,
+                  secondary: FaIcon(FontAwesomeIcons.sun,
+                      color: context.enclavd.link, size: 18),
+                  title: const Text('Light mode'),
+                  subtitle: const Text('A light color scheme for bright '
+                      'environments'),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            // Read-only status row: delivery is auto-resolved at startup.
+            Material(
+              color: context.enclavd.card,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(color: context.enclavd.border),
               ),
               clipBehavior: Clip.antiAlias,
               child: ListTile(
-                leading: const FaIcon(FontAwesomeIcons.towerBroadcast,
-                    color: EnclavdColors.link, size: 18),
+                leading: FaIcon(FontAwesomeIcons.towerBroadcast,
+                    color: context.enclavd.link, size: 18),
                 title: const Text('Push delivery'),
                 subtitle: Text(_deliveryModeText,
                     style: const TextStyle(fontSize: 12.5)),
@@ -305,8 +332,8 @@ class _SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(
-        color: EnclavdColors.textSecondary,
+      style: TextStyle(
+        color: context.enclavd.textSecondary,
         fontSize: 12,
         fontWeight: FontWeight.w600,
         letterSpacing: 0.4,

@@ -91,11 +91,11 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
     final resendVisible = widget.email.isNotEmpty;
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF0B1628), EnclavdColors.background],
+            colors: [const Color(0xFF0B1628), context.enclavd.background],
           ),
         ),
         child: SafeArea(
@@ -113,12 +113,12 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                         width: 84,
                         height: 84,
                         decoration: BoxDecoration(
-                          color: EnclavdColors.link.withValues(alpha: 0.12),
+                          color: context.enclavd.link.withValues(alpha: 0.12),
                           shape: BoxShape.circle,
                         ),
-                        child: const Center(
+                        child: Center(
                           child: FaIcon(FontAwesomeIcons.envelopeCircleCheck,
-                              size: 38, color: EnclavdColors.link),
+                              size: 38, color: context.enclavd.link),
                         ),
                       ),
                     ),
@@ -126,33 +126,32 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                     const Text(
                       'Verify your email',
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                          fontSize: 24, fontWeight: FontWeight.w700),
+                      style:
+                          TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 12),
-                    const Text(
+                    Text(
                       'We sent a confirmation link to your email address. '
                       'Click it to activate your account, then come back '
                       'here to sign in.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                          color: EnclavdColors.textSecondary,
+                          color: context.enclavd.textSecondary,
                           fontSize: 14,
                           height: 1.45),
                     ),
                     const SizedBox(height: 8),
-                    const Text(
+                    Text(
                       'Don\'t forget to check your spam folder.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                          color: EnclavdColors.textSecondary,
+                          color: context.enclavd.textSecondary,
                           fontSize: 13,
                           height: 1.45),
                     ),
                     if (_status != null) ...[
                       const SizedBox(height: 20),
-                      _StatusBanner(
-                          message: _status!, isError: _statusIsError),
+                      _StatusBanner(message: _status!, isError: _statusIsError),
                     ],
                     const SizedBox(height: 28),
                     ElevatedButton(
@@ -169,8 +168,8 @@ class _VerifyEmailScreenState extends State<VerifyEmailScreen> {
                             ? const SizedBox(
                                 width: 20,
                                 height: 20,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2),
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
                               )
                             : Text(_cooldown > 0
                                 ? 'Resend email (${_fmt(_cooldown)})'

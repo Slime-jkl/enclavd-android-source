@@ -188,7 +188,7 @@ void main() {
       await pump(_post(likeCount: 2, commentCount: 1));
       expect(find.text('Liked by 2'), findsOneWidget);
       expect(tester.widget<FaIcon>(heart()).color,
-          EnclavdColors.textSecondary);
+          EnclavdPalette.dark.textSecondary);
 
       // Pull-to-refresh returns the same id with server-fresh numbers.
       await pump(_post(likeCount: 5, userLiked: true, commentCount: 3));
@@ -197,7 +197,8 @@ void main() {
       expect(find.text('Liked by 2'), findsNothing);
       expect(find.text('3'), findsOneWidget,
           reason: 'fresh comment count adopted after refresh');
-      expect(tester.widget<FaIcon>(heart()).color, EnclavdColors.likeActive,
+      expect(
+          tester.widget<FaIcon>(heart()).color, EnclavdPalette.dark.likeActive,
           reason: 'fresh liked state adopted after refresh');
 
       // Another refresh: someone unliked meanwhile.
@@ -205,7 +206,7 @@ void main() {
       expect(find.text('Liked by 4'), findsOneWidget);
       expect(find.text('Liked by 5'), findsNothing);
       expect(tester.widget<FaIcon>(heart()).color,
-          EnclavdColors.textSecondary,
+          EnclavdPalette.dark.textSecondary,
           reason: 'fresh unliked state adopted after refresh');
     });
   });
@@ -250,8 +251,8 @@ void main() {
 
 // The expand hint is uniquely size 13 (FaIconData can't be compared to the
 // resolved IconData; the analyzer flags the ==).
-Finder expandHint() => find.byWidgetPredicate(
-    (w) => w is FaIcon && w.size == 13 && w.color == Colors.white);
+  Finder expandHint() => find.byWidgetPredicate(
+      (w) => w is FaIcon && w.size == 13 && w.color == Colors.white);
 
   group('save image to device', () {
     testWidgets('long-press on the post image offers Save to device',
@@ -289,8 +290,7 @@ Finder expandHint() => find.byWidgetPredicate(
       await pumpPost(
           tester, _post(content: 'watch https://youtu.be/dQw4w9WgXcQ here'));
 
-      expect(
-          find.byKey(const Key('youtube-play-button')), findsOneWidget,
+      expect(find.byKey(const Key('youtube-play-button')), findsOneWidget,
           reason: 'resting play button on the embed card');
       expect(find.byType(AspectRatio), findsOneWidget,
           reason: '16:9 embed frame');
@@ -335,8 +335,8 @@ Finder expandHint() => find.byWidgetPredicate(
       expect(find.textContaining('charted this to', findRichText: true),
           findsOneWidget,
           reason: 'promotion banner text');
-      expect(find.textContaining('@BigMod', findRichText: true),
-          findsOneWidget);
+      expect(
+          find.textContaining('@BigMod', findRichText: true), findsOneWidget);
       expect(find.text('View in Domains (3 replies)'), findsOneWidget);
     });
 

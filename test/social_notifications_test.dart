@@ -12,7 +12,9 @@ class FakeNotifier implements LocalNotifier {
   int? lastNotificationId;
   String? lastTitle;
   String? lastBody;
+  String? lastPayload;
   int permissionRequests = 0;
+  final List<int> cancelled = <int>[];
 
   @override
   Future<void> initialize() async {}
@@ -25,6 +27,13 @@ class FakeNotifier implements LocalNotifier {
 
   @override
   Future<bool> openAppNotificationSettings() async => true;
+
+  @override
+  Future<void> cancelNotification(int notificationId) async =>
+      cancelled.add(notificationId);
+
+  @override
+  Future<String?> launchPayload() async => null;
 
   @override
   Future<void> showMessageNotification({
@@ -40,11 +49,13 @@ class FakeNotifier implements LocalNotifier {
     required int notificationId,
     required String title,
     required String body,
+    required String payload,
   }) async {
     shown++;
     lastNotificationId = notificationId;
     lastTitle = title;
     lastBody = body;
+    lastPayload = payload;
   }
 }
 
@@ -61,7 +72,7 @@ class FakeNotifications extends NotificationsService {
   int markAllReadCalls = 0;
 
   @override
-  Future<List<AppNotification>> list() async {
+  Future<List<AppNotification>> list({int limit = 5}) async {
     if (failFetch) throw Exception('boom');
     return answer;
   }
@@ -86,6 +97,8 @@ AppNotification _bundle(int id) => AppNotification(
       message: 'alice liked your post',
       contentType: 'post-like',
       contentId: 5,
+      commentId: 0,
+      isDomain: false,
       fromUserId: 7,
       fromUsername: 'alice',
       fromUserAvatar: '/public/avatars/alice.png',
@@ -127,6 +140,8 @@ void main() {
     expect(notifier.lastNotificationId,
         SocialNotificationSource.notificationIdOffset + 5);
     expect(notifier.lastTitle, 'alice liked your post');
+    expect(notifier.lastPayload, 'n:13',
+        reason: 'the newest bundle: what a swipe reports back');
 
     // Same bundles again (SSE ping + poll + worker tick): no re-show.
     await service.handleNotificationPing();
@@ -168,6 +183,40 @@ void main() {
         reason: 're-enabling re-requests the OS permission');
     await service.handleNotificationPing();
     expect(notifier.shown, 1);
+  });
+
+  test('opening the drawer drops the tray copies of the alerts', () async {
+    final notifier = FakeNotifier();
+    final service = buildService(notifier, FakeNotifications());
+
+    await service.clearTray([_bundle(12), _bundle(13)]);
+    expect(notifier.cancelled, [
+      SocialNotificationSource.notificationIdOffset + 5,
+      SocialNotificationSource.notificationIdOffset + 5,
+    ], reason: 'both bundles ride the same post id, so the same tray entry');
+
+    // A standalone follow: its own bundle id, not the post's.
+    await service.clearTray([
+      const AppNotification(
+        id: 21,
+        message: 'bob followed you',
+        contentType: 'follow',
+        contentId: 0,
+        commentId: 0,
+        isDomain: false,
+        fromUserId: 8,
+        fromUsername: 'bob',
+        fromUserAvatar: '/assets/default-avatar.png',
+        actorCount: 1,
+        read: true,
+        createdAt: '2026-08-21 09:30:00',
+        other: '',
+        postPreviewContent: '',
+        postPreviewImage: '',
+      ),
+    ]);
+    expect(notifier.cancelled.last,
+        SocialNotificationSource.notificationIdOffset + 21);
   });
 
   test('a failed fetch is silent and the next ping retries', () async {

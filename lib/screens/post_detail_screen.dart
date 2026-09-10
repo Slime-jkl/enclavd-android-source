@@ -34,12 +34,26 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   }
 
   Future<void> _load() async {
-    final services = _services ??= await AppServices.create();
-    if (!mounted) return;
     setState(() {
       _loading = true;
       _error = null;
     });
+    if (_services == null) {
+      try {
+        // Bounded: a container build that never returns has to land in the
+        // error state with a retry, not leave the skeleton up forever.
+        _services =
+            await AppServices.create().timeout(AppConfig.receiveTimeout);
+      } catch (_) {
+        if (!mounted) return;
+        setState(() {
+          _loading = false;
+          _error = 'Could not load the post.';
+        });
+        return;
+      }
+    }
+    final services = _services!;
     try {
       final post = await services.feed.fetchPost(widget.postId);
       if (!mounted) return;
@@ -94,8 +108,8 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Delete',
-                style: TextStyle(color: EnclavdColors.likeActive)),
+            child: Text('Delete',
+                style: TextStyle(color: context.enclavd.likeActive)),
           ),
         ],
       ),
@@ -133,7 +147,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   Widget _buildBody() {
     final error = _error;
     if (error != null) {
-return ErrorView(message: error, onRetry: _load);
+      return ErrorView(message: error, onRetry: _load);
     }
     final post = _post;
     if (_loading || post == null) {

@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../api/api_client.dart';
 import '../api/notifications_service.dart';
 import '../utils/html_entities.dart';
+import 'dismissed_notifications.dart';
 import 'notification_source.dart';
 import 'social_notifications.dart';
 
@@ -88,6 +89,9 @@ class SocialNotificationSource implements NotificationSource {
             title: n.message,
             body: _previewBody(n.postPreviewContent),
             kind: CandidateKind.social,
+            // A swipe reports this back: it names the ALERT (bundle id),
+            // not the notification id, so the server can clear the group.
+            payload: '${DismissedNotifications.socialPrefix}${n.id}',
           ),
     ];
   }

@@ -79,13 +79,13 @@ class _LikersSheetState extends State<LikersSheet> {
                 const Spacer(),
                 IconButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  icon: const FaIcon(FontAwesomeIcons.xmark,
-                      size: 18, color: EnclavdColors.textSecondary),
+                  icon: FaIcon(FontAwesomeIcons.xmark,
+                      size: 18, color: context.enclavd.textSecondary),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1, color: EnclavdColors.divider),
+          Divider(height: 1, color: context.enclavd.divider),
           Flexible(child: _buildBody()),
         ],
       ),
@@ -104,18 +104,18 @@ class _LikersSheetState extends State<LikersSheet> {
       );
     }
     if (_error != null) {
-return ErrorView(message: _error!, onRetry: _load);
+      return ErrorView(message: _error!, onRetry: _load);
     }
     final likers = _likers ?? const [];
     if (likers.isEmpty) {
-      return const Column(
+      return Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           FaIcon(FontAwesomeIcons.heart,
-              size: 40, color: EnclavdColors.textSecondary),
-          SizedBox(height: 12),
+              size: 40, color: context.enclavd.textSecondary),
+          const SizedBox(height: 12),
           Text('No likes yet',
-              style: TextStyle(color: EnclavdColors.textSecondary)),
+              style: TextStyle(color: context.enclavd.textSecondary)),
         ],
       );
     }
@@ -123,7 +123,7 @@ return ErrorView(message: _error!, onRetry: _load);
       shrinkWrap: true,
       itemCount: likers.length,
       separatorBuilder: (_, index) =>
-          const Divider(height: 1, color: EnclavdColors.divider),
+          Divider(height: 1, color: context.enclavd.divider),
       itemBuilder: (context, index) => _LikerRow(
         liker: likers[index],
         apiBaseUrl: widget.apiBaseUrl,
@@ -140,8 +140,8 @@ class _LikerRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final rankColor = RankColors.forRank(liker.rank);
-    final personality = PersonalityColors.forType(liker.personalityType);
+    final rankColor = context.enclavd.rankName(liker.rank);
+    final personality = context.enclavd.personalityColor(liker.personalityType);
     return InkWell(
       onTap: () {
         Navigator.of(context).pop(); // close the sheet first
@@ -190,8 +190,8 @@ class _LikerRow extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     liker.likedAt,
-                    style: const TextStyle(
-                        color: EnclavdColors.textSecondary, fontSize: 13),
+                    style: TextStyle(
+                        color: context.enclavd.textSecondary, fontSize: 13),
                   ),
                 ],
               ),

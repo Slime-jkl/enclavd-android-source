@@ -29,6 +29,8 @@ class Comment {
     required this.content,
     required this.isOwner,
     this.parentCommentId,
+    this.parentUsername,
+    this.parentExcerpt,
     this.rank = '',
     this.createdAtUtc = '',
   });
@@ -48,6 +50,13 @@ class Comment {
   /// Reply target id (null = top-level comment). The API emits it for
   /// every item; the server also validates it on create.
   final int? parentCommentId;
+
+  /// Reply target's author and a one-line excerpt of its text, resolved
+  /// server-side from parent_comment_id so a card can show the quote
+  /// without fetching the parent. Null for a top-level comment, and for a
+  /// reply whose target this viewer may not see.
+  final String? parentUsername;
+  final String? parentExcerpt;
 
   /// raw db time falls back to the server's relative string if created_at_utc missing
   final String createdAtUtc;
@@ -70,6 +79,12 @@ class Comment {
         content: json['content'] as String? ?? '',
         isOwner: json['is_owner'] as bool? ?? false,
         parentCommentId: (json['parent_comment_id'] as num?)?.toInt(),
+        parentUsername: (json['parent_username'] as String?)?.isNotEmpty == true
+            ? json['parent_username'] as String
+            : null,
+        parentExcerpt: (json['parent_excerpt'] as String?)?.isNotEmpty == true
+            ? json['parent_excerpt'] as String
+            : null,
         rank: (json['rank'] as String?)?.isNotEmpty == true
             ? json['rank'] as String
             : _rankFromNameColor(json['name_color'] as String? ?? ''),

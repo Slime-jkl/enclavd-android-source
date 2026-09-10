@@ -80,8 +80,7 @@ class _InvitationsScreenState extends State<InvitationsScreen> {
       // Merge the new invite into the list (newest first) + fresh count.
       setState(() {
         final items = [created.item, ...?_list?.items];
-        _list = InvitationList(
-            inviteCount: created.inviteCount, items: items);
+        _list = InvitationList(inviteCount: created.inviteCount, items: items);
       });
     } on ApiException catch (e) {
       if (!mounted) return;
@@ -101,15 +100,15 @@ class _InvitationsScreenState extends State<InvitationsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: EnclavdColors.card,
+        backgroundColor: context.enclavd.card,
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: const BorderSide(color: EnclavdColors.border)),
+            side: BorderSide(color: context.enclavd.border)),
         title: const Text('Delete Invitation'),
-        content: const Text(
+        content: Text(
           'Are you sure you want to delete this invitation?\n'
           'Active invitations will not be refunded.',
-          style: TextStyle(color: EnclavdColors.textSecondary),
+          style: TextStyle(color: context.enclavd.textSecondary),
         ),
         actions: [
           TextButton(
@@ -173,11 +172,11 @@ class _InvitationsScreenState extends State<InvitationsScreen> {
       );
     }
     if (_error != null) {
-return ErrorView(message: _error!, onRetry: _load);
+      return ErrorView(message: _error!, onRetry: _load);
     }
     final list = _list!;
     return RefreshIndicator(
-      color: EnclavdColors.link,
+      color: context.enclavd.link,
       onRefresh: _load,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -196,24 +195,24 @@ return ErrorView(message: _error!, onRetry: _load);
                   : const FaIcon(FontAwesomeIcons.bolt, size: 15),
               label: Text('Create Invite (${list.inviteCount} left)'),
               style: FilledButton.styleFrom(
-                backgroundColor: EnclavdColors.primaryButton,
+                backgroundColor: context.enclavd.primaryButton,
                 padding:
                     const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
               ),
             ),
           if (list.inviteCount == 0)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
               child: Row(
                 children: [
                   FaIcon(FontAwesomeIcons.triangleExclamation,
-                      size: 14, color: EnclavdColors.warning),
-                  SizedBox(width: 8),
+                      size: 14, color: context.enclavd.warning),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       "You don't have any invites available",
                       style: TextStyle(
-                          color: EnclavdColors.warning, fontSize: 13),
+                          color: context.enclavd.warning, fontSize: 13),
                     ),
                   ),
                 ],
@@ -253,14 +252,14 @@ class _InviteCard extends StatelessWidget {
     final statusColor = switch (invite.status) {
       'accepted' => const Color(0xFF4ADE80), // green-400
       'expired' => const Color(0xFFF87171), // red-400
-      _ => EnclavdColors.warning, // pending
+      _ => context.enclavd.warning, // pending
     };
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: EnclavdColors.card,
+        color: context.enclavd.card,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: EnclavdColors.border),
+        border: Border.all(color: context.enclavd.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -273,31 +272,31 @@ class _InviteCard extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
                   decoration: BoxDecoration(
-                    color: EnclavdColors.cardSecondary,
+                    color: context.enclavd.cardSecondary,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     invite.code,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'monospace',
                       fontSize: 13,
-                      color: EnclavdColors.textPrimary,
+                      color: context.enclavd.textPrimary,
                     ),
                   ),
                 ),
               ),
               IconButton(
                 onPressed: onCopy,
-                icon: const FaIcon(FontAwesomeIcons.copy,
-                    size: 14, color: EnclavdColors.link),
+                icon: FaIcon(FontAwesomeIcons.copy,
+                    size: 14, color: context.enclavd.link),
                 tooltip: 'Copy code',
                 visualDensity: VisualDensity.compact,
               ),
               if (onDelete != null)
                 IconButton(
                   onPressed: onDelete,
-                  icon: const FaIcon(FontAwesomeIcons.trashCan,
-                      size: 14, color: EnclavdColors.likeActive),
+                  icon: FaIcon(FontAwesomeIcons.trashCan,
+                      size: 14, color: context.enclavd.likeActive),
                   tooltip: 'Delete',
                   visualDensity: VisualDensity.compact,
                 ),
@@ -311,8 +310,8 @@ class _InviteCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Expires: ${formatInviteExpiry(invite.validUntil)}',
-                  style: const TextStyle(
-                      fontSize: 12.5, color: EnclavdColors.textSecondary),
+                  style: TextStyle(
+                      fontSize: 12.5, color: context.enclavd.textSecondary),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -341,8 +340,8 @@ class _StatusChip extends StatelessWidget {
       ),
       child: Text(
         status[0].toUpperCase() + status.substring(1),
-        style: TextStyle(
-            fontSize: 11, fontWeight: FontWeight.w600, color: color),
+        style:
+            TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color),
       ),
     );
   }
@@ -356,23 +355,22 @@ class _EmptyState extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
-        color: EnclavdColors.card,
+        color: context.enclavd.card,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: EnclavdColors.border),
+        border: Border.all(color: context.enclavd.border),
       ),
-      child: const Column(
+      child: Column(
         children: [
           FaIcon(FontAwesomeIcons.ticket,
-              size: 30, color: EnclavdColors.link),
-          SizedBox(height: 12),
-          Text('No Active Invitations',
-              style:
-                  TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-          SizedBox(height: 4),
+              size: 30, color: context.enclavd.link),
+          const SizedBox(height: 12),
+          const Text('No Active Invitations',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 4),
           Text(
             "You haven't created any invitations yet.",
             textAlign: TextAlign.center,
-            style: TextStyle(color: EnclavdColors.textSecondary),
+            style: TextStyle(color: context.enclavd.textSecondary),
           ),
         ],
       ),

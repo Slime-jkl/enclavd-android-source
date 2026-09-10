@@ -331,8 +331,8 @@ class _ProfileScreenState extends State<ProfileScreen>
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Delete',
-                style: TextStyle(color: EnclavdColors.likeActive)),
+            child: Text('Delete',
+                style: TextStyle(color: context.enclavd.likeActive)),
           ),
         ],
       ),
@@ -398,8 +398,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(SnackBar(
-            content: Text(
-                'Could not update follow. ${friendlyErrorText(e)}')));
+            content: Text('Could not update follow. ${friendlyErrorText(e)}')));
     }
   }
 
@@ -473,8 +472,8 @@ class _ProfileScreenState extends State<ProfileScreen>
         actions: [
           if (profile != null && !profile.isOwn)
             IconButton(
-              icon: const FaIcon(FontAwesomeIcons.userPlus,
-                  color: EnclavdColors.link, size: 20),
+              icon: FaIcon(FontAwesomeIcons.userPlus,
+                  color: context.enclavd.link, size: 20),
               tooltip: 'Follow',
               onPressed: _toggleFollow,
             ),
@@ -482,7 +481,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       ),
       body: RefreshIndicator(
         onRefresh: _refresh,
-        color: EnclavdColors.link,
+        color: context.enclavd.link,
         child: _buildBody(profile),
       ),
     );
@@ -532,10 +531,8 @@ class _ProfileScreenState extends State<ProfileScreen>
               followBusy: _followBusy,
               onMessage: _openConversation,
               messageBusy: _messageBusy,
-              onFollowersTap: () =>
-                  _openFollowList(FollowListKind.followers),
-              onFollowingTap: () =>
-                  _openFollowList(FollowListKind.following));
+              onFollowersTap: () => _openFollowList(FollowListKind.followers),
+              onFollowingTap: () => _openFollowList(FollowListKind.following));
         }
         if (index == 1) {
           // The own profile splits its history into two tabs; other
@@ -545,12 +542,12 @@ class _ProfileScreenState extends State<ProfileScreen>
               margin: const EdgeInsets.only(top: 10),
               child: TabBar(
                 controller: _tabs,
-                dividerColor: EnclavdColors.border,
-                indicatorColor: EnclavdColors.link,
+                dividerColor: context.enclavd.border,
+                indicatorColor: context.enclavd.link,
                 indicatorSize: TabBarIndicatorSize.label,
                 indicatorWeight: 3,
-                labelColor: EnclavdColors.textPrimary,
-                unselectedLabelColor: EnclavdColors.textSecondary,
+                labelColor: context.enclavd.textPrimary,
+                unselectedLabelColor: context.enclavd.textSecondary,
                 labelStyle: const TextStyle(
                     fontSize: 13.5, fontWeight: FontWeight.w600),
                 tabs: const [
@@ -636,7 +633,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           children: [
             Text(_postsError!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: EnclavdColors.textSecondary)),
+                style: TextStyle(color: context.enclavd.textSecondary)),
             const SizedBox(height: 12),
             ElevatedButton(
                 onPressed: _loadFirstPosts, child: const Text('Retry')),
@@ -653,8 +650,8 @@ class _ProfileScreenState extends State<ProfileScreen>
         child: Center(
           child: Text(
             own ? 'No posts yet.' : 'This user has no posts.',
-            style: const TextStyle(
-                color: EnclavdColors.textSecondary, fontSize: 14),
+            style:
+                TextStyle(color: context.enclavd.textSecondary, fontSize: 14),
           ),
         ),
       );
@@ -695,7 +692,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           children: [
             Text(_activityError!,
                 textAlign: TextAlign.center,
-                style: const TextStyle(color: EnclavdColors.textSecondary)),
+                style: TextStyle(color: context.enclavd.textSecondary)),
             const SizedBox(height: 12),
             ElevatedButton(
                 onPressed: _loadFirstActivity, child: const Text('Retry')),
@@ -704,25 +701,25 @@ class _ProfileScreenState extends State<ProfileScreen>
       );
     }
     if (_activity.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 32),
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 32),
         child: Column(
           children: [
             FaIcon(FontAwesomeIcons.clockRotateLeft,
-                color: EnclavdColors.textSecondary, size: 30),
-            SizedBox(height: 12),
+                color: context.enclavd.textSecondary, size: 30),
+            const SizedBox(height: 12),
             Text(
               'No activity yet',
-              style: TextStyle(
-                  color: EnclavdColors.textSecondary, fontSize: 15),
+              style:
+                  TextStyle(color: context.enclavd.textSecondary, fontSize: 15),
             ),
-            SizedBox(height: 4),
+            const SizedBox(height: 4),
             Text(
               'Posts you like, comments you leave and people you follow '
               'will show up here.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                  color: EnclavdColors.textSecondary, fontSize: 12.5),
+                  color: context.enclavd.textSecondary, fontSize: 12.5),
             ),
           ],
         ),
@@ -761,11 +758,12 @@ class _ProfileHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final personality = PersonalityColors.forType(profile.personalityType);
-    final borderColor = personality ?? EnclavdColors.border;
+    final personality =
+        context.enclavd.personalityColor(profile.personalityType);
+    final borderColor = personality ?? context.enclavd.border;
     final rankColor = profile.isBlocked
-        ? RankColors.forRank('Blocked')
-        : RankColors.forRank(profile.rank);
+        ? context.enclavd.rankName('Blocked')
+        : context.enclavd.rankName(profile.rank);
 
     // Blocked banner sits above the card (server truth on load).
     return Column(
@@ -779,7 +777,7 @@ class _ProfileHeader extends StatelessWidget {
           margin: const EdgeInsets.only(bottom: 4),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: EnclavdColors.card,
+            color: context.enclavd.card,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: borderColor),
           ),
@@ -789,303 +787,306 @@ class _ProfileHeader extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-              // Avatar with personality border + online dot.
-              Stack(
-                children: [
-                  EnclavdAvatar(
-                    size: 64,
-                    url: resolveMediaUrl(AppConfig.apiBaseUrl,
-                        avatarPath: profile.profilePictureUrl),
-                    borderColor: borderColor,
-                  ),
-                  if (!profile.isOwn)
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: Container(
-                        width: 16,
-                        height: 16,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: profile.isOnline
-                              ? const Color(0xFF22C55E) // green-500
-                              : const Color(0xFF6B7280), // gray-500
-                          border:
-                              Border.all(color: EnclavdColors.card, width: 2),
-                        ),
+                  // Avatar with personality border + online dot.
+                  Stack(
+                    children: [
+                      EnclavdAvatar(
+                        size: 64,
+                        url: resolveMediaUrl(AppConfig.apiBaseUrl,
+                            avatarPath: profile.profilePictureUrl),
+                        borderColor: borderColor,
                       ),
-                    ),
-                ],
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Rank badge above the username (same chip as the likers sheet).
-                    RankBadge(rank: profile.rank),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            profile.username,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: rankColor,
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              decoration: profile.isBlocked
-                                  ? TextDecoration.lineThrough
-                                  : null,
-                              decorationColor: rankColor,
+                      if (!profile.isOwn)
+                        Positioned(
+                          bottom: 0,
+                          right: 0,
+                          child: Container(
+                            width: 16,
+                            height: 16,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: profile.isOnline
+                                  ? const Color(0xFF22C55E) // green-500
+                                  : const Color(0xFF6B7280), // gray-500
+                              border: Border.all(
+                                  color: context.enclavd.card, width: 2),
                             ),
                           ),
                         ),
-                        if (profile.personalityType != null) ...[
-                          const SizedBox(width: 6),
-                          PersonalityChip(type: profile.personalityType!),
-                        ],
-                        if (profile.warningCount > 0) ...[
-                          const SizedBox(width: 6),
-                          const FaIcon(FontAwesomeIcons.triangleExclamation,
-                              color: EnclavdColors.warning, size: 14),
-                          Text(
-                            '${profile.warningCount}',
-                            style: const TextStyle(
-                                color: EnclavdColors.warning, fontSize: 11),
-                          ),
-                        ],
-                      ],
-                    ),
-                    if (profile.fullName.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(profile.fullName,
-                          style: const TextStyle(
-                              color: EnclavdColors.textSecondary,
-                              fontSize: 13)),
                     ],
-                    const SizedBox(height: 10),
-                    // Follow stats; each count opens the connections
-                    // screen (blocked profiles keep a plain read-only row).
-                    Row(
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        InkWell(
-                          onTap: profile.isBlocked ? null : onFollowersTap,
-                          borderRadius: BorderRadius.circular(6),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 4, vertical: 2),
-                            child: Row(
-                              children: [
-                                Text('${profile.followerCount}',
-                                    style: const TextStyle(
-                                        color: EnclavdColors.textPrimary,
-                                        fontSize: 14)),
-                                const SizedBox(width: 4),
-                                const Text('Followers',
-                                    style: TextStyle(
-                                        color: EnclavdColors.textSecondary,
-                                        fontSize: 14)),
-                              ],
+                        // Rank badge above the username (same chip as the likers sheet).
+                        RankBadge(rank: profile.rank),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                profile.username,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: rankColor,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  decoration: profile.isBlocked
+                                      ? TextDecoration.lineThrough
+                                      : null,
+                                  decorationColor: rankColor,
+                                ),
+                              ),
                             ),
-                          ),
+                            if (profile.personalityType != null) ...[
+                              const SizedBox(width: 6),
+                              PersonalityChip(type: profile.personalityType!),
+                            ],
+                            if (profile.warningCount > 0) ...[
+                              const SizedBox(width: 6),
+                              FaIcon(FontAwesomeIcons.triangleExclamation,
+                                  color: context.enclavd.warning, size: 14),
+                              Text(
+                                '${profile.warningCount}',
+                                style: TextStyle(
+                                    color: context.enclavd.warning,
+                                    fontSize: 11),
+                              ),
+                            ],
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        const Text('-',
-                            style: TextStyle(
-                                color: EnclavdColors.textSecondary,
-                                fontSize: 14)),
-                        const SizedBox(width: 8),
-                        InkWell(
-                          onTap: profile.isBlocked ? null : onFollowingTap,
-                          borderRadius: BorderRadius.circular(6),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 4, vertical: 2),
-                            child: Row(
-                              children: [
-                                Text('${profile.followingCount}',
-                                    style: const TextStyle(
-                                        color: EnclavdColors.textPrimary,
-                                        fontSize: 14)),
-                                const SizedBox(width: 4),
-                                const Text('Following',
-                                    style: TextStyle(
-                                        color: EnclavdColors.textSecondary,
-                                        fontSize: 14)),
-                              ],
+                        if (profile.fullName.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(profile.fullName,
+                              style: TextStyle(
+                                  color: context.enclavd.textSecondary,
+                                  fontSize: 13)),
+                        ],
+                        const SizedBox(height: 10),
+                        // Follow stats; each count opens the connections
+                        // screen (blocked profiles keep a plain read-only row).
+                        Row(
+                          children: [
+                            InkWell(
+                              onTap: profile.isBlocked ? null : onFollowersTap,
+                              borderRadius: BorderRadius.circular(6),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 4, vertical: 2),
+                                child: Row(
+                                  children: [
+                                    Text('${profile.followerCount}',
+                                        style: TextStyle(
+                                            color: context.enclavd.textPrimary,
+                                            fontSize: 14)),
+                                    const SizedBox(width: 4),
+                                    Text('Followers',
+                                        style: TextStyle(
+                                            color:
+                                                context.enclavd.textSecondary,
+                                            fontSize: 14)),
+                                  ],
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (!profile.isOwn) ...[
-                      const SizedBox(height: 12),
-                      // Follow + Message in one row; message disables when blocked.
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _FollowButton(
-                              profile: profile,
-                              busy: followBusy,
-                              onPressed: onFollow,
-                            ),
-                          ),
-                          if (AppConfig.enableChat) ...[
                             const SizedBox(width: 8),
-                            Expanded(
-                              child: _MessageButton(
-                                profile: profile,
-                                busy: messageBusy,
-                                onPressed: onMessage,
+                            Text('-',
+                                style: TextStyle(
+                                    color: context.enclavd.textSecondary,
+                                    fontSize: 14)),
+                            const SizedBox(width: 8),
+                            InkWell(
+                              onTap: profile.isBlocked ? null : onFollowingTap,
+                              borderRadius: BorderRadius.circular(6),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 4, vertical: 2),
+                                child: Row(
+                                  children: [
+                                    Text('${profile.followingCount}',
+                                        style: TextStyle(
+                                            color: context.enclavd.textPrimary,
+                                            fontSize: 14)),
+                                    const SizedBox(width: 4),
+                                    Text('Following',
+                                        style: TextStyle(
+                                            color:
+                                                context.enclavd.textSecondary,
+                                            fontSize: 14)),
+                                  ],
+                                ),
                               ),
                             ),
                           ],
+                        ),
+                        if (!profile.isOwn) ...[
+                          const SizedBox(height: 12),
+                          // Follow + Message in one row; message disables when blocked.
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _FollowButton(
+                                  profile: profile,
+                                  busy: followBusy,
+                                  onPressed: onFollow,
+                                ),
+                              ),
+                              if (AppConfig.enableChat) ...[
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: _MessageButton(
+                                    profile: profile,
+                                    busy: messageBusy,
+                                    onPressed: onMessage,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
                         ],
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          // Prestige (site: number + violet/cyan pulse dots + gradient bar).
-          Row(
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Color(0xFF8B5CF6), // violet-500
-                ),
-              ),
-              const SizedBox(width: 6),
-              const Text('Prestige',
-                  style: TextStyle(
-                      color: EnclavdColors.textSecondary, fontSize: 12)),
-              const Spacer(),
-              Text(formatPrestige(profile.prestige),
-                  style: const TextStyle(
-                      color: EnclavdColors.textSecondary, fontSize: 12)),
-              const SizedBox(width: 6),
-              Container(
-                width: 8,
-                height: 8,
-                decoration: const BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Color(0xFF06B6D4), // cyan-500
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          // Track: gray-700/50 + always-visible 20% gradient; fill on top,
-          // clamped at 100%.
-          Container(
-            height: 10,
-            decoration: BoxDecoration(
-              color: const Color(0xFF374151), // gray-700/50
-              borderRadius: BorderRadius.circular(999),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                // Always-visible 20% gradient (the site's animate-pulse).
-                const DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                      colors: [
-                        Color(0x337C3AED), // violet-600/20
-                        Color(0x33C026D3), // fuchsia-600/20
-                        Color(0x330891B2), // cyan-600/20
                       ],
                     ),
                   ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              // Prestige (site: number + violet/cyan pulse dots + gradient bar).
+              Row(
+                children: [
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Color(0xFF8B5CF6), // violet-500
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text('Prestige',
+                      style: TextStyle(
+                          color: context.enclavd.textSecondary, fontSize: 12)),
+                  const Spacer(),
+                  Text(formatPrestige(profile.prestige),
+                      style: TextStyle(
+                          color: context.enclavd.textSecondary, fontSize: 12)),
+                  const SizedBox(width: 6),
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Color(0xFF06B6D4), // cyan-500
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              // Track: gray-700/50 + always-visible 20% gradient; fill on top,
+              // clamped at 100%.
+              Container(
+                height: 10,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF374151), // gray-700/50
+                  borderRadius: BorderRadius.circular(999),
                 ),
-                FractionallySizedBox(
-                  alignment: Alignment.centerLeft,
-                  widthFactor: (profile.prestige / 1000000).clamp(0.0, 1.0),
-                  child: const DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.centerLeft,
-                        end: Alignment.centerRight,
-                        colors: [
-                          Color(0xFF7C3AED), // violet-600
-                          Color(0xFFC026D3), // fuchsia-600
-                          Color(0xFF0891B2), // cyan-600
-                        ],
+                clipBehavior: Clip.antiAlias,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // Always-visible 20% gradient (the site's animate-pulse).
+                    const DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                          colors: [
+                            Color(0x337C3AED), // violet-600/20
+                            Color(0x33C026D3), // fuchsia-600/20
+                            Color(0x330891B2), // cyan-600/20
+                          ],
+                        ),
                       ),
                     ),
+                    FractionallySizedBox(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: (profile.prestige / 1000000).clamp(0.0, 1.0),
+                      child: const DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.centerLeft,
+                            end: Alignment.centerRight,
+                            colors: [
+                              Color(0xFF7C3AED), // violet-600
+                              Color(0xFFC026D3), // fuchsia-600
+                              Color(0xFF0891B2), // cyan-600
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+              // Joined date (site: fa-clock + "Joined M j, Y").
+              Row(
+                children: [
+                  FaIcon(FontAwesomeIcons.clock,
+                      size: 13, color: context.enclavd.textSecondary),
+                  const SizedBox(width: 6),
+                  Text('Joined ${formatJoinedDate(profile.dateCreated)}',
+                      style: TextStyle(
+                          color: context.enclavd.textSecondary, fontSize: 13)),
+                ],
+              ),
+              // Bio (site: bold "Bio" label + pre-line text).
+              if (profile.bio.isNotEmpty || profile.isOwn) ...[
+                const SizedBox(height: 12),
+                Text('Bio',
+                    style: TextStyle(
+                        color: context.enclavd.textPrimary,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14)),
+                const SizedBox(height: 2),
+                Text(
+                  profile.bio,
+                  style: TextStyle(
+                      color: context.enclavd.textPrimary,
+                      fontSize: 14,
+                      height: 1.3),
+                ),
+              ],
+              // Warnings (site: info-yellow list under the bio).
+              if (profile.warnings.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                for (final w in profile.warnings) _WarningCard(warning: w),
+              ],
+              // View personality
+              if (profile.personalityType != null) ...[
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => PersonalityScreen(userId: profile.id),
+                    ),
+                  ),
+                  icon: FaIcon(FontAwesomeIcons.brain,
+                      size: 14, color: context.enclavd.link),
+                  label: const Text('View personality'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: context.enclavd.link,
+                    side: BorderSide(color: context.enclavd.border),
+                    minimumSize: const Size.fromHeight(44),
                   ),
                 ),
               ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          // Joined date (site: fa-clock + "Joined M j, Y").
-          Row(
-            children: [
-              const FaIcon(FontAwesomeIcons.clock,
-                  size: 13, color: EnclavdColors.textSecondary),
-              const SizedBox(width: 6),
-              Text('Joined ${formatJoinedDate(profile.dateCreated)}',
-                  style: const TextStyle(
-                      color: EnclavdColors.textSecondary, fontSize: 13)),
             ],
           ),
-          // Bio (site: bold "Bio" label + pre-line text).
-          if (profile.bio.isNotEmpty || profile.isOwn) ...[
-            const SizedBox(height: 12),
-            const Text('Bio',
-                style: TextStyle(
-                    color: Color(0xFFD1D5DB), // gray-300
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14)),
-            const SizedBox(height: 2),
-            Text(
-              profile.bio,
-              style: const TextStyle(
-                  color: Color(0xFFD1D5DB), // gray-300
-                  fontSize: 14,
-                  height: 1.3),
-            ),
-          ],
-            // Warnings (site: info-yellow list under the bio).
-            if (profile.warnings.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              for (final w in profile.warnings) _WarningCard(warning: w),
-            ],
-            // View personality
-            if (profile.personalityType != null) ...[
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => PersonalityScreen(userId: profile.id),
-                  ),
-                ),
-                icon: const FaIcon(FontAwesomeIcons.brain,
-                    size: 14, color: EnclavdColors.link),
-                label: const Text('View personality'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: EnclavdColors.link,
-                  side: const BorderSide(color: EnclavdColors.border),
-                  minimumSize: const Size.fromHeight(44),
-                ),
-              ),
-            ],
-          ],
         ),
-      ),
-    ],
-  );
+      ],
+    );
   }
 }
 
@@ -1140,13 +1141,14 @@ class _WarningCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0x14FACC15), // bg-yellow-400/8
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0x4DA16207)), // border-yellow-700/30
+        border:
+            Border.all(color: const Color(0x4DA16207)), // border-yellow-700/30
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const FaIcon(FontAwesomeIcons.triangleExclamation,
-              color: EnclavdColors.warning, size: 14),
+          FaIcon(FontAwesomeIcons.triangleExclamation,
+              color: context.enclavd.warning, size: 14),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -1154,9 +1156,9 @@ class _WarningCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    const Text('Warning from ',
+                    Text('Warning from ',
                         style: TextStyle(
-                            color: EnclavdColors.warning, fontSize: 13)),
+                            color: context.enclavd.warning, fontSize: 13)),
                     Flexible(
                       child: GestureDetector(
                         onTap: () {
@@ -1170,8 +1172,8 @@ class _WarningCard extends StatelessWidget {
                         child: Text(
                           '@${warning.adminUsername}',
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              color: EnclavdColors.link,
+                          style: TextStyle(
+                              color: context.enclavd.link,
                               fontSize: 13,
                               fontWeight: FontWeight.w600),
                         ),
@@ -1183,8 +1185,8 @@ class _WarningCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     warning.reason,
-                    style: const TextStyle(
-                        color: EnclavdColors.textSecondary, fontSize: 13),
+                    style: TextStyle(
+                        color: context.enclavd.textSecondary, fontSize: 13),
                   ),
                 ],
                 const SizedBox(height: 2),
@@ -1229,23 +1231,23 @@ class _FollowButton extends StatelessWidget {
         style: TextButton.styleFrom(
           foregroundColor:
               following ? const Color(0xFFD1D5DB) : Colors.white, // gray-300
-          backgroundColor:
-              following ? const Color(0xFF030712) : EnclavdColors.primaryButton,
+          backgroundColor: following
+              ? const Color(0xFF030712)
+              : context.enclavd.primaryButton,
           disabledForegroundColor: following
               ? const Color(0xFF6B7280)
               : Colors.white.withValues(alpha: 0.7),
           disabledBackgroundColor: following
               ? const Color(0xFF030712).withValues(alpha: 0.6)
-              : EnclavdColors.primaryButton.withValues(alpha: 0.6),
+              : context.enclavd.primaryButton.withValues(alpha: 0.6),
           padding: const EdgeInsets.symmetric(horizontal: 16), // px-4
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8), // rounded-lg
             side: following
-                ? const BorderSide(color: EnclavdColors.border) // gray-800
+                ? BorderSide(color: context.enclavd.border) // gray-800
                 : BorderSide.none,
           ),
-          textStyle:
-              const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
         ),
         icon: FaIcon(
           following ? FontAwesomeIcons.userCheck : FontAwesomeIcons.userPlus,
@@ -1278,7 +1280,7 @@ class _MessageButton extends StatelessWidget {
         style: TextButton.styleFrom(
           foregroundColor: blocked
               ? const Color(0xFF6B7280) // text-gray-500
-              : EnclavdColors.link, // text-blue-400
+              : context.enclavd.link, // text-blue-400
           backgroundColor: blocked
               ? const Color(0xFF1F2937) // bg-gray-800
               : Colors.transparent,
@@ -1293,8 +1295,7 @@ class _MessageButton extends StatelessWidget {
                   : const Color(0x805FA5FA), // border-blue-500/50
             ),
           ),
-          textStyle:
-              const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
         ),
         icon: FaIcon(
           blocked ? FontAwesomeIcons.ban : FontAwesomeIcons.envelope,
@@ -1314,7 +1315,7 @@ class _ProfileHeaderSkeleton extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: EnclavdColors.card,
+        color: context.enclavd.card,
         borderRadius: BorderRadius.circular(12),
       ),
       child: const Column(

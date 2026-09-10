@@ -31,8 +31,8 @@ class ActivityNote extends StatelessWidget {
     final (icon, action) =
         _actions[item.type] ?? (FontAwesomeIcons.heart, 'You liked');
     final color = switch (item.type) {
-      ActivityType.like => EnclavdColors.likeActive,
-      ActivityType.comment => EnclavdColors.link,
+      ActivityType.like => context.enclavd.likeActive,
+      ActivityType.comment => context.enclavd.link,
       ActivityType.follow => const Color(0xFF34D399),
     };
     return Row(
@@ -41,17 +41,17 @@ class ActivityNote extends StatelessWidget {
         const SizedBox(width: 7),
         Text(
           action,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
-            color: Color(0xFFD1D5DB), // gray-300
+            color: context.enclavd.textPrimary,
           ),
         ),
         const Spacer(),
         Text(
           relativeTime(item.createdAt),
-          style: const TextStyle(
-              fontSize: 11.5, color: EnclavdColors.textSecondary),
+          style:
+              TextStyle(fontSize: 11.5, color: context.enclavd.textSecondary),
         ),
       ],
     );
@@ -61,7 +61,8 @@ class ActivityNote extends StatelessWidget {
 /// Member row for a follow entry: the followed member's avatar, rank-colored
 /// username (+ personality chip) and a one-line full name / bio.
 class ActivityFollowCard extends StatelessWidget {
-  const ActivityFollowCard({super.key, required this.user, required this.onTap});
+  const ActivityFollowCard(
+      {super.key, required this.user, required this.onTap});
 
   final FollowListItem user;
   final VoidCallback onTap;
@@ -70,15 +71,15 @@ class ActivityFollowCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final blocked = user.isBlocked;
     final nameColor = blocked
-        ? RankColors.forRank('Blocked')
-        : RankColors.forRank(user.rank);
-    final personality = PersonalityColors.forType(user.personalityType);
+        ? context.enclavd.rankName('Blocked')
+        : context.enclavd.rankName(user.rank);
+    final personality = context.enclavd.personalityColor(user.personalityType);
     final line = user.fullName.isNotEmpty ? user.fullName : user.bio;
     return Material(
-      color: EnclavdColors.card,
+      color: context.enclavd.card,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
-        side: const BorderSide(color: EnclavdColors.border),
+        side: BorderSide(color: context.enclavd.border),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -91,7 +92,7 @@ class ActivityFollowCard extends StatelessWidget {
                 size: 44,
                 url: resolveMediaUrl(AppConfig.apiBaseUrl,
                     avatarPath: user.profilePictureUrl),
-                borderColor: personality ?? EnclavdColors.border,
+                borderColor: personality ?? context.enclavd.border,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -108,9 +109,8 @@ class ActivityFollowCard extends StatelessWidget {
                             style: TextStyle(
                               color: nameColor,
                               fontWeight: FontWeight.w600,
-                              decoration: blocked
-                                  ? TextDecoration.lineThrough
-                                  : null,
+                              decoration:
+                                  blocked ? TextDecoration.lineThrough : null,
                               decorationColor: nameColor,
                             ),
                           ),
@@ -127,8 +127,8 @@ class ActivityFollowCard extends StatelessWidget {
                         line,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            color: EnclavdColors.textSecondary,
+                        style: TextStyle(
+                            color: context.enclavd.textSecondary,
                             fontSize: 12.5),
                       ),
                     ],

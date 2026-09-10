@@ -85,7 +85,8 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
       _submitSuccess = null;
     });
     if (content.isEmpty) {
-      setState(() => _submitError = 'Please describe the issue you are reporting.');
+      setState(
+          () => _submitError = 'Please describe the issue you are reporting.');
       return;
     }
     setState(() => _submitting = true);
@@ -113,7 +114,8 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
       setState(() => _submitError = e.message);
     } catch (_) {
       if (!mounted) return;
-      setState(() => _submitError = 'There was a problem submitting your report.');
+      setState(
+          () => _submitError = 'There was a problem submitting your report.');
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -165,7 +167,7 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
       );
     }
     if (_error != null) {
-return ErrorView(message: _error!, onRetry: _load);
+      return ErrorView(message: _error!, onRetry: _load);
     }
     final page = _page!;
     final types = page.allowedTypes;
@@ -173,7 +175,7 @@ return ErrorView(message: _error!, onRetry: _load);
       _type = types.isNotEmpty ? types.first : 'Other';
     }
     return RefreshIndicator(
-      color: EnclavdColors.link,
+      color: context.enclavd.link,
       onRefresh: _load,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -182,29 +184,29 @@ return ErrorView(message: _error!, onRetry: _load);
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: EnclavdColors.card,
+              color: context.enclavd.card,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: EnclavdColors.border),
+              border: Border.all(color: context.enclavd.border),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
+                Row(
                   children: [
                     FaIcon(FontAwesomeIcons.flag,
-                        size: 15, color: EnclavdColors.likeActive),
-                    SizedBox(width: 8),
-                    Text('Report an issue',
+                        size: 15, color: context.enclavd.likeActive),
+                    const SizedBox(width: 8),
+                    const Text('Report an issue',
                         style: TextStyle(
                             fontSize: 16, fontWeight: FontWeight.w700)),
                   ],
                 ),
                 const SizedBox(height: 4),
-                const Text(
+                Text(
                   'Use this form to report bugs, account problems, abuse, '
                   'or anything else that needs attention from the team.',
                   style: TextStyle(
-                      color: EnclavdColors.textSecondary, fontSize: 13),
+                      color: context.enclavd.textSecondary, fontSize: 13),
                 ),
                 if (_submitSuccess != null) ...[
                   const SizedBox(height: 12),
@@ -217,7 +219,7 @@ return ErrorView(message: _error!, onRetry: _load);
                 if (_submitError != null) ...[
                   const SizedBox(height: 12),
                   _Banner(
-                    color: EnclavdColors.likeActive,
+                    color: context.enclavd.likeActive,
                     icon: FontAwesomeIcons.triangleExclamation,
                     text: _submitError!,
                   ),
@@ -226,8 +228,8 @@ return ErrorView(message: _error!, onRetry: _load);
                 DropdownButtonFormField<String>(
                   initialValue: _type,
                   decoration: _inputDecoration('Issue type'),
-                  dropdownColor: EnclavdColors.cardSecondary,
-                  style: const TextStyle(color: EnclavdColors.textPrimary),
+                  dropdownColor: context.enclavd.cardSecondary,
+                  style: TextStyle(color: context.enclavd.textPrimary),
                   items: [
                     for (final t in types)
                       DropdownMenuItem(value: t, child: Text(t)),
@@ -241,7 +243,7 @@ return ErrorView(message: _error!, onRetry: _load);
                   controller: _contentController,
                   maxLines: 4,
                   maxLength: 255,
-                  style: const TextStyle(color: EnclavdColors.textPrimary),
+                  style: TextStyle(color: context.enclavd.textPrimary),
                   decoration: _inputDecoration(
                     'Describe the issue',
                     hint: 'Example: When I try to update my profile picture, '
@@ -262,7 +264,7 @@ return ErrorView(message: _error!, onRetry: _load);
                         : const FaIcon(FontAwesomeIcons.paperPlane, size: 14),
                     label: const Text('Submit report'),
                     style: FilledButton.styleFrom(
-                        backgroundColor: EnclavdColors.primaryButton),
+                        backgroundColor: context.enclavd.primaryButton),
                   ),
                 ),
               ],
@@ -273,13 +275,13 @@ return ErrorView(message: _error!, onRetry: _load);
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text('Your reports',
-                  style:
-                      TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
               if (page.total > 0)
-                Text('page ${page.page} of ${page.totalPages} '
+                Text(
+                    'page ${page.page} of ${page.totalPages} '
                     '(${page.total} total)',
-                    style: const TextStyle(
-                        fontSize: 11.5, color: EnclavdColors.textSecondary)),
+                    style: TextStyle(
+                        fontSize: 11.5, color: context.enclavd.textSecondary)),
             ],
           ),
           const SizedBox(height: 10),
@@ -287,7 +289,8 @@ return ErrorView(message: _error!, onRetry: _load);
             const _EmptyReports()
           else ...[
             if (page.open.isNotEmpty) ...[
-              const _GroupHeader(dot: Color(0xFF4ADE80), label: 'Open & pending'),
+              const _GroupHeader(
+                  dot: Color(0xFF4ADE80), label: 'Open & pending'),
               for (final t in page.open) ...[
                 _TicketRow(ticket: t, onTap: () => _openTicket(t)),
                 const SizedBox(height: 8),
@@ -295,7 +298,7 @@ return ErrorView(message: _error!, onRetry: _load);
               const SizedBox(height: 6),
             ],
             if (page.closed.isNotEmpty) ...[
-              const _GroupHeader(dot: EnclavdColors.textSecondary, label: 'Closed'),
+              _GroupHeader(dot: context.enclavd.textSecondary, label: 'Closed'),
               for (final t in page.closed) ...[
                 _TicketRow(ticket: t, onTap: () => _openTicket(t)),
                 const SizedBox(height: 8),
@@ -307,12 +310,11 @@ return ErrorView(message: _error!, onRetry: _load);
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   OutlinedButton(
-                    onPressed: page.page > 1
-                        ? () => _goToPage(page.page - 1)
-                        : null,
+                    onPressed:
+                        page.page > 1 ? () => _goToPage(page.page - 1) : null,
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: EnclavdColors.link,
-                      side: const BorderSide(color: EnclavdColors.border),
+                      foregroundColor: context.enclavd.link,
+                      side: BorderSide(color: context.enclavd.border),
                     ),
                     child: const Text('Previous'),
                   ),
@@ -322,8 +324,8 @@ return ErrorView(message: _error!, onRetry: _load);
                         ? () => _goToPage(page.page + 1)
                         : null,
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: EnclavdColors.link,
-                      side: const BorderSide(color: EnclavdColors.border),
+                      foregroundColor: context.enclavd.link,
+                      side: BorderSide(color: context.enclavd.border),
                     ),
                     child: const Text('Next'),
                   ),
@@ -341,14 +343,14 @@ return ErrorView(message: _error!, onRetry: _load);
         labelText: label,
         hintText: hint,
         filled: true,
-        fillColor: EnclavdColors.cardSecondary,
+        fillColor: context.enclavd.cardSecondary,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: EnclavdColors.border),
+          borderSide: BorderSide(color: context.enclavd.border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: EnclavdColors.border),
+          borderSide: BorderSide(color: context.enclavd.border),
         ),
       );
 }
@@ -400,11 +402,11 @@ class _GroupHeader extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Text(label.toUpperCase(),
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.8,
-                  color: EnclavdColors.textSecondary)),
+                  color: context.enclavd.textSecondary)),
         ],
       ),
     );
@@ -420,25 +422,16 @@ class _TicketRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (color, icon) = switch (ticket.status) {
-      'Pending' => (
-          const Color(0xFFFACC15),
-          FontAwesomeIcons.hourglassHalf
-        ),
-      'Closed' => (
-          const Color(0xFF4ADE80),
-          FontAwesomeIcons.circleCheck
-        ),
-      'Sealed' => (
-          const Color(0xFFC084FC),
-          FontAwesomeIcons.circleCheck
-        ),
-      _ => (EnclavdColors.link, FontAwesomeIcons.hourglassHalf),
+      'Pending' => (const Color(0xFFFACC15), FontAwesomeIcons.hourglassHalf),
+      'Closed' => (const Color(0xFF4ADE80), FontAwesomeIcons.circleCheck),
+      'Sealed' => (const Color(0xFFC084FC), FontAwesomeIcons.circleCheck),
+      _ => (context.enclavd.link, FontAwesomeIcons.hourglassHalf),
     };
     return Material(
-      color: EnclavdColors.cardSecondary,
+      color: context.enclavd.cardSecondary,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: EnclavdColors.border),
+        side: BorderSide(color: context.enclavd.border),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -448,69 +441,70 @@ class _TicketRow extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('#${ticket.id}',
-                        style: const TextStyle(
-                            fontFamily: 'monospace',
-                            fontSize: 11.5,
-                            color: EnclavdColors.textSecondary)),
-                    const Text('  -  ',
-                        style: TextStyle(
-                            color: EnclavdColors.textSecondary, fontSize: 11)),
-                    Flexible(
-                      child: Text(ticket.type,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w600, fontSize: 13)),
+                    Row(
+                      children: [
+                        Text('#${ticket.id}',
+                            style: TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 11.5,
+                                color: context.enclavd.textSecondary)),
+                        Text('  -  ',
+                            style: TextStyle(
+                                color: context.enclavd.textSecondary,
+                                fontSize: 11)),
+                        Flexible(
+                          child: Text(ticket.type,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w600, fontSize: 13)),
+                        ),
+                        if (ticket.date.isNotEmpty) ...[
+                          Text('  -  ',
+                              style: TextStyle(
+                                  color: context.enclavd.textSecondary,
+                                  fontSize: 11)),
+                          Text(ticket.date,
+                              style: TextStyle(
+                                  fontSize: 11.5,
+                                  color: context.enclavd.textSecondary)),
+                        ],
+                      ],
                     ),
-                    if (ticket.date.isNotEmpty) ...[
-                      const Text('  -  ',
-                          style: TextStyle(
-                              color: EnclavdColors.textSecondary,
-                              fontSize: 11)),
-                      Text(ticket.date,
-                          style: const TextStyle(
-                              fontSize: 11.5,
-                              color: EnclavdColors.textSecondary)),
-                    ],
+                    const SizedBox(height: 6),
+                    Text(
+                      ticket.content,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13, height: 1.35),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 6),
-                Text(
-                  ticket.content,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 13, height: 1.35),
+              ),
+              const SizedBox(width: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: color.withValues(alpha: 0.4)),
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: color.withValues(alpha: 0.4)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                FaIcon(icon, size: 10, color: color),
-                const SizedBox(width: 5),
-                Text(ticket.status,
-                    style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: color)),
-              ],
-            ),
-          ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    FaIcon(icon, size: 10, color: color),
+                    const SizedBox(width: 5),
+                    Text(ticket.status,
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: color)),
+                  ],
+                ),
+              ),
             ],
           ),
         ),
@@ -527,24 +521,23 @@ class _EmptyReports extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
-        color: EnclavdColors.card,
+        color: context.enclavd.card,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: EnclavdColors.border),
+        border: Border.all(color: context.enclavd.border),
       ),
-      child: const Column(
+      child: Column(
         children: [
           FaIcon(FontAwesomeIcons.inbox,
-              size: 30, color: EnclavdColors.textSecondary),
-          SizedBox(height: 12),
-          Text('You have not submitted any reports yet.',
+              size: 30, color: context.enclavd.textSecondary),
+          const SizedBox(height: 12),
+          const Text('You have not submitted any reports yet.',
               textAlign: TextAlign.center,
-              style:
-                  TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-          SizedBox(height: 4),
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
           Text('Use the form above to send your first report.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                  color: EnclavdColors.textSecondary, fontSize: 12.5)),
+                  color: context.enclavd.textSecondary, fontSize: 12.5)),
         ],
       ),
     );

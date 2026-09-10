@@ -6,12 +6,15 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../api/messages_service.dart'; // parseDbTime (DB UTC wall-clock)
 import '../api/notifications_service.dart';
 import '../config/app_config.dart';
+import '../main.dart'; // AppServices (tap routing needs the session)
 import '../services/realtime_service.dart';
 import '../services/social_notifications.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/error_view.dart';
 import '../utils/html_entities.dart';
 import '../widgets/enclavd_avatar.dart';
+import 'comments_screen.dart';
+import 'domain_thread_screen.dart';
 import 'post_detail_screen.dart';
 import 'profile_screen.dart';
 import '../services/analytics_service.dart';
@@ -34,6 +37,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   List<AppNotification>? _items; // null = loading
   String? _error;
   StreamSubscription<RealtimeEvent>? _realtimeSub;
+  final ScrollController _scroll = ScrollController();
+  int _lastId = 0; // oldest bundle on screen: the next page's cursor
+  bool _hasMore = false;
+  bool _loadingMore = false;
 
   @override
   void initState() {
@@ -41,6 +48,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     trackScreen('/notifications');
     // The drawer is open, so the live path must not also pop a notification.
     SocialNotifications.instance?.setDrawerOpen(true);
+    _scroll.addListener(_onScroll);
     _load();
     // The same SSE ping that lights the bell refreshes the open drawer.
     _realtimeSub = widget.realtime.events.listen((event) {
@@ -52,41 +60,101 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   void dispose() {
     SocialNotifications.instance?.setDrawerOpen(false);
     _realtimeSub?.cancel();
+    _scroll.dispose();
     super.dispose();
+  }
+
+  /// Reaching the bottom pulls the next 20; the list runs all the way back
+  /// to the member's oldest notification.
+  void _onScroll() {
+    if (!_scroll.hasClients || _loadingMore || !_hasMore) return;
+    final position = _scroll.position;
+    if (position.pixels >= position.maxScrollExtent - 400) {
+      unawaited(_loadMore());
+    }
   }
 
   Future<void> _load({bool silent = false}) async {
     if (!silent) setState(() => _error = null);
     try {
-      final items = await widget.notifications.list();
+      final page = await widget.notifications.fetch();
       if (!mounted) return;
       setState(() {
-        _items = items;
+        _items = page.items;
+        _lastId = page.lastId;
+        _hasMore = page.hasMore;
         _error = null;
       });
       // Mark-read is fire-and-forget; the server state catches up.
       unawaited(widget.notifications.markAllRead());
+      // The alerts are on screen now: their tray copies are stale, so drop
+      // them the same way a swipe would.
+      unawaited(SocialNotifications.instance?.clearTray(page.items));
     } catch (e) {
       if (!mounted || silent) return;
       setState(() => _error = 'Could not load notifications.');
     }
   }
 
+  /// Appends the next page. A failure keeps what is already on screen; the
+  /// next scroll retries it.
+  Future<void> _loadMore() async {
+    final loaded = _items;
+    if (loaded == null || _loadingMore || !_hasMore) return;
+    setState(() => _loadingMore = true);
+    try {
+      final page = await widget.notifications.fetch(beforeId: _lastId);
+      if (!mounted) return;
+      setState(() {
+        _items = [...loaded, ...page.items];
+        if (page.lastId > 0) _lastId = page.lastId;
+        _hasMore = page.hasMore;
+        _loadingMore = false;
+      });
+      unawaited(widget.notifications.markAllRead());
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loadingMore = false);
+    }
+  }
+
+  /// Routes a tapped row to the screen the notice is about.
+  ///
+  /// A comment notice lands ON the comment: the forum thread for a domain
+  /// post, the full-screen comments for a feed post. A like has no comment
+  /// to land on, so it stops at the post itself.
   void _openNotification(AppNotification n) {
-    switch (n.contentType) {
-      case 'follow':
+    final services = AppServices.current;
+    switch (n.tapTarget) {
+      case NotificationTarget.none:
+        return; // user-management: site parity (the row links nowhere)
+      case NotificationTarget.profile:
         Navigator.of(context).push(MaterialPageRoute<void>(
           builder: (_) => ProfileScreen(userId: n.fromUserId),
         ));
-      case 'post-like':
-      case 'post-comment':
-      case 'comment-mention':
-        // The site's /feed/post/<id> permalink as a native screen.
+      case NotificationTarget.post:
         Navigator.of(context).push(MaterialPageRoute<void>(
           builder: (_) => PostDetailScreen(postId: n.contentId),
         ));
-      default:
-        break; // user-management: site parity (the row links nowhere)
+      case NotificationTarget.comments:
+        if (services == null) return; // no session: nothing to open
+        // The comments screen loads its own list, so it opens at once.
+        Navigator.of(context).push(CommentsScreen.route(
+          postId: n.contentId,
+          social: services.social,
+          apiBaseUrl: AppConfig.apiBaseUrl,
+          highlightCommentId: n.commentId,
+        ));
+      case NotificationTarget.thread:
+        if (services == null) return;
+        // The thread screen loads its own OP + replies.
+        Navigator.of(context).push(MaterialPageRoute<void>(
+          builder: (_) => DomainThreadScreen(
+            domains: services.domains,
+            postId: n.contentId,
+            highlightReplyId: n.hasComment ? n.commentId : null,
+          ),
+        ));
     }
   }
 
@@ -100,7 +168,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
   Widget _buildBody() {
     if (_error != null) {
-return ErrorView(message: _error!, onRetry: _load);
+      return ErrorView(message: _error!, onRetry: _load);
     }
     final items = _items;
     if (items == null) {
@@ -108,21 +176,23 @@ return ErrorView(message: _error!, onRetry: _load);
         child: Padding(
           padding: EdgeInsets.all(24),
           child: SizedBox(
-              width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2.5)),
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2.5)),
         ),
       );
     }
     if (items.isEmpty) {
       // Site empty state: fa-bell-slash + "No notifications yet".
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             FaIcon(FontAwesomeIcons.bellSlash,
-                color: EnclavdColors.textSecondary, size: 28),
-            SizedBox(height: 10),
+                color: context.enclavd.textSecondary, size: 28),
+            const SizedBox(height: 10),
             Text('No notifications yet',
-                style: TextStyle(color: EnclavdColors.textSecondary)),
+                style: TextStyle(color: context.enclavd.textSecondary)),
           ],
         ),
       );
@@ -130,11 +200,25 @@ return ErrorView(message: _error!, onRetry: _load);
     return RefreshIndicator(
       onRefresh: () => _load(),
       child: ListView.separated(
+        controller: _scroll,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(vertical: 6),
-        itemCount: items.length,
+        // One extra slot while older pages remain: a loading row.
+        itemCount: items.length + (_hasMore ? 1 : 0),
         separatorBuilder: (_, __) => const SizedBox(height: 2),
         itemBuilder: (context, index) {
+          if (index >= items.length) {
+            return const Padding(
+              padding: EdgeInsets.symmetric(vertical: 14),
+              child: Center(
+                child: SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            );
+          }
           final n = items[index];
           return _NotificationRow(
             notification: n,
@@ -152,26 +236,56 @@ class _NotificationRow extends StatelessWidget {
   final AppNotification notification;
   final VoidCallback onTap;
 
-  static const Map<String, (FaIconData, Color)> _typeIcons = {
-    'post-like': (FontAwesomeIcons.heart, EnclavdColors.likeActive),
-    'post-comment': (FontAwesomeIcons.comment, EnclavdColors.link),
-    'comment-mention': (FontAwesomeIcons.at, Color(0xFFC084FC)),
-    'follow': (FontAwesomeIcons.userPlus, Color(0xFF34D399)),
-    'user-management': (FontAwesomeIcons.shieldHalved, Color(0xFFFACC15)),
-  };
-
   @override
   Widget build(BuildContext context) {
     final n = notification;
     final unread = !n.read;
-    final (icon, iconColor) = _typeIcons[n.contentType] ??
-        (FontAwesomeIcons.bell, EnclavdColors.textSecondary);
+    // Fixed accent colors step one tone darker on light so they keep
+    // contrast on white cards.
+    final light = Theme.of(context).brightness == Brightness.light;
+    final (icon, iconColor) = switch (n.contentType) {
+      'post-like' => (FontAwesomeIcons.heart, context.enclavd.likeActive),
+      'post-comment' => (FontAwesomeIcons.comment, context.enclavd.link),
+      'post-activity' => (
+          FontAwesomeIcons.comments,
+          light ? const Color(0xFF2563EB) : const Color(0xFF60A5FA)
+        ),
+      'comment-reply' => (
+          FontAwesomeIcons.reply,
+          light ? const Color(0xFF2563EB) : const Color(0xFF60A5FA)
+        ),
+      'comment-mention' => (
+          FontAwesomeIcons.at,
+          light ? const Color(0xFF9333EA) : const Color(0xFFC084FC)
+        ),
+      'follow' => (
+          FontAwesomeIcons.userPlus,
+          light ? const Color(0xFF059669) : const Color(0xFF34D399)
+        ),
+      'user-management' => (
+          FontAwesomeIcons.shieldHalved,
+          light ? const Color(0xFFD97706) : const Color(0xFFFACC15)
+        ),
+      'warning' => (
+          FontAwesomeIcons.triangleExclamation,
+          light ? const Color(0xFFD97706) : const Color(0xFFFBBF24)
+        ),
+      'announcement' => (
+          FontAwesomeIcons.bullhorn,
+          light ? const Color(0xFF2563EB) : const Color(0xFF60A5FA)
+        ),
+      'post-domain' => (
+          FontAwesomeIcons.diagramProject,
+          light ? const Color(0xFF2563EB) : const Color(0xFF60A5FA)
+        ),
+      _ => (FontAwesomeIcons.bell, context.enclavd.textSecondary),
+    };
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 3),
       child: Material(
         color: unread
             ? const Color(0x1A3B82F6) // site: bg-blue-500/10
-            : EnclavdColors.card,
+            : context.enclavd.card,
         borderRadius: BorderRadius.circular(14),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -181,33 +295,9 @@ class _NotificationRow extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    EnclavdAvatar(
-                      size: 40,
-                      url: n.avatarUrl(AppConfig.apiBaseUrl),
-                    ),
-                    // Type chip on the avatar corner.
-                    Positioned(
-                      right: -4,
-                      bottom: -4,
-                      // alignment REQUIRED: tight constraints otherwise
-                      // paint the glyph off-center.
-                      child: Container(
-                        width: 18,
-                        height: 18,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: iconColor,
-                          shape: BoxShape.circle,
-                          border:
-                              Border.all(color: EnclavdColors.card, width: 2),
-                        ),
-                        child: FaIcon(icon, size: 9, color: EnclavdColors.card),
-                      ),
-                    ),
-                  ],
+                EnclavdAvatar(
+                  size: 40,
+                  url: n.avatarUrl(AppConfig.apiBaseUrl),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -217,13 +307,20 @@ class _NotificationRow extends StatelessWidget {
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // The type icon LEADS the message; the avatar
+                          // stays bare (no corner badge).
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: FaIcon(icon, size: 13, color: iconColor),
+                          ),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               n.message,
                               style: TextStyle(
                                 color: unread
-                                    ? EnclavdColors.textPrimary
-                                    : EnclavdColors.textSecondary,
+                                    ? context.enclavd.textPrimary
+                                    : context.enclavd.textSecondary,
                                 fontWeight:
                                     unread ? FontWeight.w600 : FontWeight.w400,
                                 fontSize: 14,
@@ -233,9 +330,9 @@ class _NotificationRow extends StatelessWidget {
                           const SizedBox(width: 8),
                           Text(
                             _relative(n.createdAt),
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 11,
-                                color: EnclavdColors.textSecondary),
+                                color: context.enclavd.textSecondary),
                           ),
                         ],
                       ),
@@ -245,15 +342,16 @@ class _NotificationRow extends StatelessWidget {
                           padding: const EdgeInsets.all(8),
                           width: double.infinity,
                           decoration: BoxDecoration(
-                            color: EnclavdColors.cardSecondary,
+                            color: context.enclavd.cardSecondary,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             '"${_preview(n)}"',
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontSize: 12, color: EnclavdColors.textSecondary),
+                            style: TextStyle(
+                                fontSize: 12,
+                                color: context.enclavd.textSecondary),
                           ),
                         ),
                       if (unread) ...[
@@ -262,8 +360,8 @@ class _NotificationRow extends StatelessWidget {
                         Container(
                           width: 6,
                           height: 6,
-                          decoration: const BoxDecoration(
-                            color: EnclavdColors.link,
+                          decoration: BoxDecoration(
+                            color: context.enclavd.link,
                             shape: BoxShape.circle,
                           ),
                         ),

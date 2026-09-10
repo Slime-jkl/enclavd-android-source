@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:enclavd/api/api_client.dart';
 import 'package:enclavd/api/notifications_service.dart';
+import 'package:enclavd/services/dismissed_notifications.dart';
 import 'package:enclavd/services/notification_source.dart';
 import 'package:enclavd/services/social_notification_source.dart';
 import 'package:enclavd/services/social_notifications.dart';
@@ -11,6 +12,8 @@ AppNotification _bundle({
   int id = 12,
   String type = 'post-like',
   int contentId = 5,
+  int commentId = 0,
+  bool isDomain = false,
   bool read = false,
 }) =>
     AppNotification(
@@ -18,6 +21,8 @@ AppNotification _bundle({
       message: 'alice liked your post',
       contentType: type,
       contentId: contentId,
+      commentId: commentId,
+      isDomain: isDomain,
       fromUserId: 7,
       fromUsername: 'alice',
       fromUserAvatar: '/public/avatars/alice.png',
@@ -83,6 +88,16 @@ void main() {
     test('id <= 0 bundles are rejected (no stable identity)', () {
       expect(SocialNotificationSource.candidatesFrom([_bundle(id: 0)]),
           isEmpty);
+    });
+
+    test('the payload names the ALERT so a swipe can clear it', () {
+      final candidates =
+          SocialNotificationSource.candidatesFrom([_bundle(id: 12)]);
+      expect(candidates.single.payload, 'n:12',
+          reason: 'bundle id, not the post id: the server clears the group');
+      expect(
+          DismissedNotifications.bundleIdFromPayload(candidates.single.payload),
+          12);
     });
   });
 
@@ -164,6 +179,8 @@ extension on AppNotification {
         message: message,
         contentType: contentType,
         contentId: contentId,
+        commentId: commentId,
+        isDomain: isDomain,
         fromUserId: fromUserId,
         fromUsername: fromUsername,
         fromUserAvatar: fromUserAvatar,

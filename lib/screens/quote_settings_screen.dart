@@ -97,18 +97,18 @@ class _QuoteSettingsScreenState extends State<QuoteSettingsScreen> {
           padding: const EdgeInsets.all(16),
           children: [
             Material(
-              color: EnclavdColors.card,
+              color: context.enclavd.card,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
-                side: const BorderSide(color: EnclavdColors.border),
+                side: BorderSide(color: context.enclavd.border),
               ),
               clipBehavior: Clip.antiAlias,
               child: ListTile(
-                leading: const FaIcon(FontAwesomeIcons.circleQuestion,
-                    color: EnclavdColors.link, size: 18),
+                leading: FaIcon(FontAwesomeIcons.circleQuestion,
+                    color: context.enclavd.link, size: 18),
                 title: const Text('How daily quotes work?'),
-                trailing: const Icon(Icons.chevron_right,
-                    color: EnclavdColors.border),
+                trailing:
+                    Icon(Icons.chevron_right, color: context.enclavd.border),
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute<void>(
                     builder: (_) => const QuoteHelpScreen(),
@@ -214,10 +214,10 @@ class _QuoteSettingsScreenState extends State<QuoteSettingsScreen> {
     bool enabled = true,
   }) {
     return Material(
-      color: EnclavdColors.card,
+      color: context.enclavd.card,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: EnclavdColors.border),
+        side: BorderSide(color: context.enclavd.border),
       ),
       clipBehavior: Clip.antiAlias,
       child: loading
@@ -234,8 +234,8 @@ class _QuoteSettingsScreenState extends State<QuoteSettingsScreen> {
               child: SwitchListTile(
                 value: value,
                 onChanged: enabled ? onChanged : null,
-                activeTrackColor: EnclavdColors.primaryButton,
-                secondary: FaIcon(icon, color: EnclavdColors.link, size: 18),
+                activeTrackColor: context.enclavd.primaryButton,
+                secondary: FaIcon(icon, color: context.enclavd.link, size: 18),
                 title: Text(title),
                 subtitle: Text(subtitle),
               ),
@@ -253,8 +253,8 @@ class _SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(
-        color: EnclavdColors.textSecondary,
+      style: TextStyle(
+        color: context.enclavd.textSecondary,
         fontSize: 12,
         fontWeight: FontWeight.w600,
         letterSpacing: 0.4,

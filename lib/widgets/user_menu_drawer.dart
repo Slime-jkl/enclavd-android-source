@@ -12,7 +12,6 @@ import '../screens/profile_screen.dart';
 import '../screens/quote_settings_screen.dart';
 import '../screens/report_issue_screen.dart';
 import '../screens/settings_screen.dart';
-import '../screens/test_results_screen.dart';
 import '../theme/enclavd_theme.dart';
 import 'enclavd_avatar.dart';
 import 'personality_chip.dart';
@@ -63,7 +62,7 @@ class _UserMenuDrawerState extends State<UserMenuDrawer> {
   @override
   Widget build(BuildContext context) {
     return Drawer(
-      backgroundColor: EnclavdColors.card,
+      backgroundColor: context.enclavd.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.horizontal(left: Radius.circular(20)),
       ),
@@ -108,11 +107,6 @@ class _UserMenuDrawerState extends State<UserMenuDrawer> {
                 ),
                 const _SectionLabel('Community'),
                 _MenuItem(
-                  icon: FontAwesomeIcons.chartPie,
-                  label: 'Test Results',
-                  onTap: () => _push(const TestResultsScreen()),
-                ),
-                _MenuItem(
                   icon: FontAwesomeIcons.ticket,
                   label: 'Invitations',
                   onTap: () => _push(const InvitationsScreen()),
@@ -128,11 +122,11 @@ class _UserMenuDrawerState extends State<UserMenuDrawer> {
                   label: 'Report an issue',
                   onTap: () => _push(const ReportIssueScreen()),
                 ),
-                const Divider(
+                Divider(
                   height: 24,
                   indent: 16,
                   endIndent: 16,
-                  color: EnclavdColors.divider,
+                  color: context.enclavd.divider,
                 ),
                 _MenuItem(
                   icon: FontAwesomeIcons.arrowRightFromBracket,
@@ -148,28 +142,32 @@ class _UserMenuDrawerState extends State<UserMenuDrawer> {
                   child: Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: EnclavdColors.card,
+                      color: context.enclavd.card,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: EnclavdColors.border),
+                      border: Border.all(color: context.enclavd.border),
                     ),
                     child: Column(
                       children: [
-                        Image.asset('assets/images/enclavd-logo-white.png',
-                            height: 22),
+                        Image.asset(
+                          Theme.of(context).brightness == Brightness.light
+                              ? 'assets/images/enclavd-logo-dark.png'
+                              : 'assets/images/enclavd-logo-white.png',
+                          height: 22,
+                        ),
                         const SizedBox(height: 10),
                         const Text('iOS/Android native app',
                             style: TextStyle(
                                 fontWeight: FontWeight.w600, fontSize: 15)),
                         const SizedBox(height: 2),
-                        const Text('Community Powered',
+                        Text('Community Powered',
                             style: TextStyle(
-                                color: EnclavdColors.textSecondary,
+                                color: context.enclavd.textSecondary,
                                 fontSize: 12)),
                         const SizedBox(height: 12),
                         TextButton.icon(
                           onPressed: () => _openSite('/changelog'),
-                          icon: const FaIcon(FontAwesomeIcons.scroll,
-                              size: 14, color: EnclavdColors.link),
+                          icon: FaIcon(FontAwesomeIcons.scroll,
+                              size: 14, color: context.enclavd.link),
                           label: const Text('What\'s new'),
                         ),
                       ],
@@ -196,11 +194,11 @@ class _SectionLabel extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 6),
       child: Text(
         label.toUpperCase(),
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w600,
           letterSpacing: 1.1,
-          color: EnclavdColors.textSecondary,
+          color: context.enclavd.textSecondary,
         ),
       ),
     );
@@ -226,41 +224,41 @@ class _UserHeader extends StatelessWidget {
             Container(
               width: 46,
               height: 46,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: EnclavdColors.cardSecondary,
+                color: context.enclavd.cardSecondary,
               ),
-              child: const FaIcon(FontAwesomeIcons.user,
-                  size: 18, color: EnclavdColors.textSecondary),
+              child: FaIcon(FontAwesomeIcons.user,
+                  size: 18, color: context.enclavd.textSecondary),
             ),
             const SizedBox(width: 12),
-            const Expanded(
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     'Enclavd',
                     style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
                   ),
-                  SizedBox(height: 2),
+                  const SizedBox(height: 2),
                   Text(
                     'Session unavailable',
                     style: TextStyle(
-                        color: EnclavdColors.textSecondary, fontSize: 12),
+                        color: context.enclavd.textSecondary, fontSize: 12),
                   ),
                 ],
               ),
             ),
-            const FaIcon(FontAwesomeIcons.chevronRight,
-                size: 14, color: EnclavdColors.textSecondary),
+            FaIcon(FontAwesomeIcons.chevronRight,
+                size: 14, color: context.enclavd.textSecondary),
           ],
         ),
       );
     }
-    final personality = PersonalityColors.forType(u.personalityType);
+    final personality = context.enclavd.personalityColor(u.personalityType);
     final rankColor = u.rank == 'Blocked'
-        ? RankColors.forRank('Blocked')
-        : RankColors.forRank(u.rank);
+        ? context.enclavd.rankName('Blocked')
+        : context.enclavd.rankName(u.rank);
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -271,9 +269,9 @@ class _UserHeader extends StatelessWidget {
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              (personality ?? EnclavdColors.cardSecondary)
+              (personality ?? context.enclavd.cardSecondary)
                   .withValues(alpha: 0.28),
-              EnclavdColors.card,
+              context.enclavd.card,
             ],
           ),
         ),
@@ -282,7 +280,7 @@ class _UserHeader extends StatelessWidget {
             EnclavdAvatar(
               size: 46,
               url: u.avatarUrl(AppConfig.apiBaseUrl),
-              borderColor: personality ?? EnclavdColors.border,
+              borderColor: personality ?? context.enclavd.border,
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -311,8 +309,8 @@ class _UserHeader extends StatelessWidget {
                 ],
               ),
             ),
-            const FaIcon(FontAwesomeIcons.chevronRight,
-                size: 14, color: EnclavdColors.textSecondary),
+            FaIcon(FontAwesomeIcons.chevronRight,
+                size: 14, color: context.enclavd.textSecondary),
           ],
         ),
       ),
@@ -336,14 +334,13 @@ class _MenuItem extends StatelessWidget {
     return ListTile(
       dense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
-      leading: FaIcon(icon, size: 18, color: EnclavdColors.link),
+      leading: FaIcon(icon, size: 18, color: context.enclavd.link),
       title: Text(label,
-          style: const TextStyle(
-              fontSize: 14, color: EnclavdColors.textPrimary)),
+          style: TextStyle(fontSize: 14, color: context.enclavd.textPrimary)),
       trailing: onTap == null
           ? null
-          : const FaIcon(FontAwesomeIcons.chevronRight,
-              size: 12, color: EnclavdColors.textSecondary),
+          : FaIcon(FontAwesomeIcons.chevronRight,
+              size: 12, color: context.enclavd.textSecondary),
       onTap: onTap,
     );
   }

@@ -30,9 +30,9 @@ class RepliesPager extends StatelessWidget {
       children: [
         IconButton(
           onPressed: canPrev ? () => onPage(page - 1) : null,
-          icon: const FaIcon(FontAwesomeIcons.chevronLeft,
-              size: 15, color: EnclavdColors.textPrimary),
-          disabledColor: EnclavdColors.textSecondary,
+          icon: FaIcon(FontAwesomeIcons.chevronLeft,
+              size: 15, color: context.enclavd.textPrimary),
+          disabledColor: context.enclavd.textSecondary,
           visualDensity: VisualDensity.compact,
           tooltip: 'Older replies',
         ),
@@ -41,14 +41,15 @@ class RepliesPager extends StatelessWidget {
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 150),
           child: busy
-              ? const Padding(
-                  key: ValueKey('busy'),
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              ? Padding(
+                  key: const ValueKey('busy'),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                   child: SizedBox(
                     width: 15,
                     height: 15,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2, color: EnclavdColors.link),
+                        strokeWidth: 2, color: context.enclavd.link),
                   ),
                 )
               : Padding(
@@ -57,15 +58,15 @@ class RepliesPager extends StatelessWidget {
                   child: Text.rich(
                     TextSpan(
                       text: 'Page $page',
-                      style: const TextStyle(
-                          color: EnclavdColors.textPrimary,
+                      style: TextStyle(
+                          color: context.enclavd.textPrimary,
                           fontSize: 13,
                           fontWeight: FontWeight.w700),
                       children: [
                         TextSpan(
                           text: ' of $pages',
-                          style: const TextStyle(
-                            color: EnclavdColors.textSecondary,
+                          style: TextStyle(
+                            color: context.enclavd.textSecondary,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -76,9 +77,9 @@ class RepliesPager extends StatelessWidget {
         ),
         IconButton(
           onPressed: canNext ? () => onPage(page + 1) : null,
-          icon: const FaIcon(FontAwesomeIcons.chevronRight,
-              size: 15, color: EnclavdColors.textPrimary),
-          disabledColor: EnclavdColors.textSecondary,
+          icon: FaIcon(FontAwesomeIcons.chevronRight,
+              size: 15, color: context.enclavd.textPrimary),
+          disabledColor: context.enclavd.textSecondary,
           visualDensity: VisualDensity.compact,
           tooltip: 'Newer replies',
         ),

@@ -113,33 +113,34 @@ class _ArticlesScreenState extends State<ArticlesScreen> {
       );
     }
     if (_error != null && !_loaded) {
-return ErrorView(message: _error!, onRetry: _load);
+      return ErrorView(message: _error!, onRetry: _load);
     }
     if (_pinned.isEmpty && _articles.isEmpty) {
       // Site empty state (articles.php "No Articles Yet").
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             FaIcon(FontAwesomeIcons.newspaper,
-                color: EnclavdColors.textSecondary, size: 28),
-            SizedBox(height: 10),
+                color: context.enclavd.textSecondary, size: 28),
+            const SizedBox(height: 10),
             Text('No articles yet',
-                style: TextStyle(color: EnclavdColors.textSecondary)),
+                style: TextStyle(color: context.enclavd.textSecondary)),
           ],
         ),
       );
     }
     return RefreshIndicator(
       onRefresh: _load,
-      color: EnclavdColors.link,
+      color: context.enclavd.link,
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
           if (_pinned.isNotEmpty) ...[
             const _SectionLabel('Pinned'),
-            for (final a in _pinned) _ArticleCard(article: a, onTap: () => _open(a)),
+            for (final a in _pinned)
+              _ArticleCard(article: a, onTap: () => _open(a)),
           ],
           if (_articles.isNotEmpty) ...[
             const _SectionLabel('Latest'),
@@ -164,11 +165,11 @@ class _SectionLabel extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
       child: Text(
         label.toUpperCase(),
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w600,
           letterSpacing: 1.1,
-          color: EnclavdColors.textSecondary,
+          color: context.enclavd.textSecondary,
         ),
       ),
     );
@@ -188,7 +189,7 @@ class _ArticleCard extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       child: Material(
-        color: EnclavdColors.card,
+        color: context.enclavd.card,
         borderRadius: BorderRadius.circular(16),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -229,10 +230,10 @@ class _ArticleCard extends StatelessWidget {
                       a.title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
-                        color: EnclavdColors.textPrimary,
+                        color: context.enclavd.textPrimary,
                         height: 1.25,
                       ),
                     ),
@@ -249,34 +250,34 @@ class _ArticleCard extends StatelessWidget {
                             a.authorUsername,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 12,
-                                color: EnclavdColors.textSecondary),
+                                color: context.enclavd.textSecondary),
                           ),
                         ),
                         const SizedBox(width: 6),
-                        const Text('-',
+                        Text('-',
                             style: TextStyle(
                                 fontSize: 11,
-                                color: EnclavdColors.textSecondary)),
+                                color: context.enclavd.textSecondary)),
                         const SizedBox(width: 6),
                         Text(_formatDate(a.publishedDate),
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 12,
-                                color: EnclavdColors.textSecondary)),
+                                color: context.enclavd.textSecondary)),
                         const SizedBox(width: 6),
-                        const Text('-',
+                        Text('-',
                             style: TextStyle(
                                 fontSize: 11,
-                                color: EnclavdColors.textSecondary)),
+                                color: context.enclavd.textSecondary)),
                         const SizedBox(width: 6),
-                        const FaIcon(FontAwesomeIcons.eye,
-                            size: 11, color: EnclavdColors.textSecondary),
+                        FaIcon(FontAwesomeIcons.eye,
+                            size: 11, color: context.enclavd.textSecondary),
                         const SizedBox(width: 4),
                         Text(_formatViews(a.views),
-                            style: const TextStyle(
+                            style: TextStyle(
                                 fontSize: 12,
-                                color: EnclavdColors.textSecondary)),
+                                color: context.enclavd.textSecondary)),
                       ],
                     ),
                   ],
@@ -295,13 +296,13 @@ class _ArticleCardSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
       child: Material(
-        color: EnclavdColors.card,
-        borderRadius: BorderRadius.all(Radius.circular(16)),
+        color: context.enclavd.card,
+        borderRadius: const BorderRadius.all(Radius.circular(16)),
         clipBehavior: Clip.antiAlias,
-        child: Column(
+        child: const Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ShimmerBox(width: double.infinity, height: 170, borderRadius: 0),
@@ -335,8 +336,18 @@ String _formatDate(String dbUtc) {
   final t = parseDbTime(dbUtc);
   if (t == null) return '';
   const months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
   return '${months[t.month - 1]} ${t.day}, ${t.year}';
 }

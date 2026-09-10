@@ -1,8 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/painting.dart';
 
-import '../theme/enclavd_theme.dart';
-
 /// Post-body linkification, port of the site's render pipeline
 /// (post_card.php: convertHashtagsToLinks + convertUrlsToLinks). Runs on
 /// DECODED content, so a `#` is always a real hashtag - never the remnant
@@ -69,11 +67,12 @@ List<ContentToken> tokenizePostContent(String text) {
 /// without disposal leaks).
 List<InlineSpan> postContentSpans(
   String text, {
+  required Color linkColor,
   required void Function(String tag) onHashtag,
   required void Function(String url) onUrl,
   required List<TapGestureRecognizer> recognizers,
 }) {
-  const linkStyle = TextStyle(color: EnclavdColors.link);
+  final linkStyle = TextStyle(color: linkColor);
   final spans = <InlineSpan>[];
   for (final token in tokenizePostContent(text)) {
     if (token.isPlain) {
@@ -86,7 +85,8 @@ List<InlineSpan> postContentSpans(
       final tag = token.text.substring(1); // strip '#'
       recognizer.onTap = () => onHashtag(tag);
     } else {
-      final url = token.text.startsWith('http') ? token.text : 'https://${token.text}';
+      final url =
+          token.text.startsWith('http') ? token.text : 'https://${token.text}';
       recognizer.onTap = () => onUrl(url);
     }
     spans.add(TextSpan(
@@ -114,9 +114,11 @@ class CommentToken {
   bool get isPlain => kind == 'plain';
 }
 
-/// A quote-on-reply prefix parsed off the start of a comment: the app
-/// writes '@user wrote: "clamped"\n\n' + typed text, which would render
-/// as raw text. Cards render it as a styled quote block instead.
+/// Quote shown above a reply: whose reply it answers plus a collapsed
+/// excerpt of that reply. The target comes from the reply relationship
+/// (parent_comment_id, resolved server side). Rows written before that
+/// carried the '@user wrote: "clamped"' prefix in their own text instead,
+/// which parseCommentQuote still recognises.
 class CommentQuote {
   const CommentQuote({
     required this.target,
@@ -147,8 +149,8 @@ CommentQuote? parseCommentQuote(String content) {
 
 /// The site's convertMentionsToLinks regex, ported verbatim: the
 /// lookbehind keeps `email@x` and `@@user` from linkifying mid-token.
-final _commentTokenRe = RegExp(
-    r'(?:https?://|www\.)\S+|(?<![\w@])@[A-Za-z0-9_]+');
+final _commentTokenRe =
+    RegExp(r'(?:https?://|www\.)\S+|(?<![\w@])@[A-Za-z0-9_]+');
 
 /// Comment tokenizer: @mentions + URLs, no hashtags (site parity). A URL
 /// match wins over a mention inside it; trailing `.,:` is stripped.
@@ -190,11 +192,12 @@ List<CommentToken> tokenizeCommentContent(String text) {
 /// contract as postContentSpans.
 List<InlineSpan> commentContentSpans(
   String text, {
+  required Color linkColor,
   required void Function(String username) onMention,
   required void Function(String url) onUrl,
   required List<TapGestureRecognizer> recognizers,
 }) {
-  const linkStyle = TextStyle(color: EnclavdColors.link);
+  final linkStyle = TextStyle(color: linkColor);
   final spans = <InlineSpan>[];
   for (final token in tokenizeCommentContent(text)) {
     if (token.isPlain) {
@@ -207,7 +210,8 @@ List<InlineSpan> commentContentSpans(
       final username = token.text.substring(1); // strip '@'
       recognizer.onTap = () => onMention(username);
     } else {
-      final url = token.text.startsWith('http') ? token.text : 'https://${token.text}';
+      final url =
+          token.text.startsWith('http') ? token.text : 'https://${token.text}';
       recognizer.onTap = () => onUrl(url);
     }
     spans.add(TextSpan(

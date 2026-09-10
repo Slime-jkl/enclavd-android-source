@@ -86,6 +86,7 @@ void main() {
       final recs = <TapGestureRecognizer>[];
       final spans = postContentSpans(
         'hello world',
+        linkColor: EnclavdPalette.dark.link,
         onHashtag: (_) {},
         onUrl: (_) {},
         recognizers: recs,
@@ -101,12 +102,13 @@ void main() {
       String? tapped;
       final spans = postContentSpans(
         '#viral',
+        linkColor: EnclavdPalette.dark.link,
         onHashtag: (tag) => tapped = tag,
         onUrl: (_) {},
         recognizers: recs,
       );
       final span = spans.single as TextSpan;
-      expect(span.style?.color, EnclavdColors.link);
+      expect(span.style?.color, EnclavdPalette.dark.link);
       expect(span.text, '#viral');
       expect(recs, hasLength(1));
       recs.single.onTap!();
@@ -118,6 +120,7 @@ void main() {
       String? opened;
       postContentSpans(
         'www.example.com',
+        linkColor: EnclavdPalette.dark.link,
         onHashtag: (_) {},
         onUrl: (url) => opened = url,
         recognizers: recs,
@@ -131,6 +134,7 @@ void main() {
       String? opened;
       postContentSpans(
         'https://enclavd.com/x',
+        linkColor: EnclavdPalette.dark.link,
         onHashtag: (_) {},
         onUrl: (url) => opened = url,
         recognizers: recs,
@@ -217,12 +221,13 @@ void main() {
       String? tapped;
       final spans = commentContentSpans(
         'hello @alice',
+        linkColor: EnclavdPalette.dark.link,
         onMention: (username) => tapped = username,
         onUrl: (_) {},
         recognizers: recs,
       );
       final mentionSpan = spans.last as TextSpan;
-      expect(mentionSpan.style?.color, EnclavdColors.link);
+      expect(mentionSpan.style?.color, EnclavdPalette.dark.link);
       expect(mentionSpan.text, '@alice');
       expect(recs, hasLength(1));
       recs.single.onTap!();
@@ -234,6 +239,7 @@ void main() {
       String? opened;
       commentContentSpans(
         'www.example.com',
+        linkColor: EnclavdPalette.dark.link,
         onMention: (_) {},
         onUrl: (url) => opened = url,
         recognizers: recs,

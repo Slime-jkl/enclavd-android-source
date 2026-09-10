@@ -32,6 +32,7 @@ class CommentsSection extends StatefulWidget {
     required this.onDelete,
     required this.onReply,
     required this.apiBaseUrl,
+    this.highlightId,
   });
 
   final List<Comment> comments;
@@ -45,6 +46,11 @@ class CommentsSection extends StatefulWidget {
   final void Function(Comment) onReply;
   final String apiBaseUrl;
 
+  /// The comment the screen was opened ON (a notification tap): its row is
+  /// scrolled into view and tinted, and it is revealed if it sits inside a
+  /// collapsed reply group or behind a read-more clamp.
+  final int? highlightId;
+
   @override
   State<CommentsSection> createState() => _CommentsSectionState();
 }
@@ -55,6 +61,52 @@ class _CommentsSectionState extends State<CommentsSection> {
   // Reply groups the user opened. Default: every group is collapsed
   // behind its 'n replies' toggle until tapped.
   final Set<int> _openThreads = {};
+
+  /// Addresses the highlighted row for the scroll-into-view pass.
+  final GlobalKey _highlightKey = GlobalKey();
+  bool _highlightScrolled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _syncHighlight();
+  }
+
+  @override
+  void didUpdateWidget(CommentsSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Comments arrive page by page: the target can show up in any of them.
+    if (oldWidget.comments.length != widget.comments.length ||
+        oldWidget.highlightId != widget.highlightId) {
+      _syncHighlight();
+    }
+  }
+
+  /// Reveals the highlighted comment: its group opened when it is a nested
+  /// reply (groups start collapsed) and its text unclamped when it is long.
+  void _syncHighlight() {
+    final id = widget.highlightId;
+    if (id == null || !widget.comments.any((c) => c.id == id)) return;
+    _expandedCommentId = id;
+    final root = CommentTree.build(widget.comments).rootOf[id];
+    if (root != null && root != id) _openThreads.add(root);
+  }
+
+  /// One scroll per screen: the target is in view as the list arrives.
+  void _scheduleHighlightScroll() {
+    if (_highlightScrolled || widget.highlightId == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _highlightKey.currentContext;
+      if (!mounted || ctx == null) return;
+      _highlightScrolled = true;
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+        alignment: 0.15,
+      );
+    });
+  }
 
   void _toggleReplies(int rootId) {
     setState(() {
@@ -75,9 +127,10 @@ class _CommentsSectionState extends State<CommentsSection> {
     }
     if (widget.error != null) {
       return Text(widget.error!,
-          style: const TextStyle(color: EnclavdColors.textSecondary));
+          style: TextStyle(color: context.enclavd.textSecondary));
     }
     final tree = CommentTree.build(widget.comments);
+    _scheduleHighlightScroll();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -95,6 +148,8 @@ class _CommentsSectionState extends State<CommentsSection> {
             }),
             nestedOpen: _openThreads.contains(root.id),
             onToggleNested: () => _toggleReplies(root.id),
+            highlightId: widget.highlightId,
+            highlightKey: _highlightKey,
           ),
         if (widget.hasMore)
           Center(
@@ -106,12 +161,12 @@ class _CommentsSectionState extends State<CommentsSection> {
                       height: 14,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const FaIcon(FontAwesomeIcons.anglesDown,
-                      size: 13, color: EnclavdColors.link),
+                  : FaIcon(FontAwesomeIcons.anglesDown,
+                      size: 13, color: context.enclavd.link),
               label: Text(
                   widget.loadingMore ? 'Loading...' : 'Load more comments'),
               style: TextButton.styleFrom(
-                foregroundColor: EnclavdColors.link,
+                foregroundColor: context.enclavd.link,
                 textStyle:
                     const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
               ),
@@ -158,24 +213,24 @@ class CommentComposer extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
               decoration: BoxDecoration(
-                color: EnclavdColors.cardSecondary.withValues(alpha: 0.7),
+                color: context.enclavd.cardSecondary.withValues(alpha: 0.7),
                 borderRadius: BorderRadius.circular(10),
-                border: const Border(
-                    left: BorderSide(color: EnclavdColors.link, width: 3)),
+                border: Border(
+                    left: BorderSide(color: context.enclavd.link, width: 3)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const FaIcon(FontAwesomeIcons.reply,
-                      size: 12, color: EnclavdColors.link),
+                  FaIcon(FontAwesomeIcons.reply,
+                      size: 12, color: context.enclavd.link),
                   const SizedBox(width: 6),
                   Flexible(
                     child: Text(
                       'Replying to @${target.username}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: EnclavdColors.link,
+                      style: TextStyle(
+                        color: context.enclavd.link,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
@@ -185,10 +240,10 @@ class CommentComposer extends StatelessWidget {
                     InkWell(
                       onTap: onDismissReply,
                       borderRadius: BorderRadius.circular(8),
-                      child: const Padding(
-                        padding: EdgeInsets.all(6),
+                      child: Padding(
+                        padding: const EdgeInsets.all(6),
                         child: FaIcon(FontAwesomeIcons.xmark,
-                            size: 13, color: EnclavdColors.textSecondary),
+                            size: 13, color: context.enclavd.textSecondary),
                       ),
                     ),
                 ],
@@ -209,30 +264,31 @@ class CommentComposer extends StatelessWidget {
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) => onSend(),
                 // 1000-char cap enforced silently, no counter UI.
-                style: const TextStyle(
-                    fontSize: 14, color: EnclavdColors.textPrimary),
-                cursorColor: EnclavdColors.link,
-                decoration: const InputDecoration(
+                style:
+                    TextStyle(fontSize: 14, color: context.enclavd.textPrimary),
+                cursorColor: context.enclavd.link,
+                decoration: InputDecoration(
                   hintText: 'Add a comment...',
                   hintStyle: TextStyle(
-                      color: EnclavdColors.textSecondary, fontSize: 14),
+                      color: context.enclavd.textSecondary, fontSize: 14),
                   filled: true,
-                  fillColor: EnclavdColors.background,
+                  fillColor: context.enclavd.background,
                   isDense: true,
                   counterText: '',
                   contentPadding:
-                      EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(10)),
-                    borderSide: BorderSide(color: EnclavdColors.border),
+                    borderRadius: const BorderRadius.all(Radius.circular(10)),
+                    borderSide: BorderSide(color: context.enclavd.border),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(10)),
-                    borderSide: BorderSide(color: EnclavdColors.border),
+                    borderRadius: const BorderRadius.all(Radius.circular(10)),
+                    borderSide: BorderSide(color: context.enclavd.border),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(10)),
-                    borderSide: BorderSide(color: EnclavdColors.link, width: 2),
+                    borderRadius: const BorderRadius.all(Radius.circular(10)),
+                    borderSide:
+                        BorderSide(color: context.enclavd.link, width: 2),
                   ),
                 ),
               ),
@@ -246,8 +302,8 @@ class CommentComposer extends StatelessWidget {
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const FaIcon(FontAwesomeIcons.paperPlane,
-                      size: 18, color: EnclavdColors.link),
+                  : FaIcon(FontAwesomeIcons.paperPlane,
+                      size: 18, color: context.enclavd.link),
               tooltip: 'Send comment',
             ),
           ],
@@ -274,6 +330,8 @@ class CommentThread extends StatelessWidget {
     required this.onToggle,
     required this.nestedOpen,
     required this.onToggleNested,
+    this.highlightId,
+    this.highlightKey,
   });
 
   final Comment root;
@@ -289,19 +347,27 @@ class CommentThread extends StatelessWidget {
   final bool nestedOpen;
   final VoidCallback onToggleNested;
 
+  /// The row to land on (root or nested), addressed by [highlightKey].
+  final int? highlightId;
+  final GlobalKey? highlightKey;
+
   @override
   Widget build(BuildContext context) {
     final showRail = children.isNotEmpty && nestedOpen;
     final rootRow = CommentRow(
       // Key by id: new comments prepend, so positional reuse would
-      // misattach row state.
-      key: ValueKey(root.id),
+      // misattach row state. The highlight target needs a key the section
+      // can resolve for the scroll, so it takes the GlobalKey instead.
+      key: root.id == highlightId && highlightKey != null
+          ? highlightKey!
+          : ValueKey(root.id),
       comment: root,
       apiBaseUrl: apiBaseUrl,
       onDelete: onDelete,
       onReply: onReply,
       expanded: root.id == expandedId,
       onToggle: () => onToggle(root.id),
+      highlighted: root.id == highlightId,
     );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -314,9 +380,9 @@ class CommentThread extends StatelessWidget {
           Stack(
             fit: StackFit.passthrough,
             children: [
-              const Positioned.fill(
+              Positioned.fill(
                 child: RailDrop(
-                  color: EnclavdColors.border,
+                  color: context.enclavd.border,
                   railX: 14,
                   startY: 38,
                 ),
@@ -339,21 +405,24 @@ class CommentThread extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         ThreadElbow(
-                          color: EnclavdColors.border,
+                          color: context.enclavd.border,
                           elbowY: 20, // child avatar 28 center + 6 pad
                           isLast: i == children.length - 1,
                         ),
                         Expanded(
                           child: CommentRow(
-                            key: ValueKey(children[i].id),
+                            key: children[i].id == highlightId &&
+                                    highlightKey != null
+                                ? highlightKey!
+                                : ValueKey(children[i].id),
                             comment: children[i],
-                            replyToUsername:
-                                parentUsernames[children[i].id],
+                            replyToUsername: parentUsernames[children[i].id],
                             apiBaseUrl: apiBaseUrl,
                             onDelete: onDelete,
                             onReply: onReply,
                             expanded: children[i].id == expandedId,
                             onToggle: () => onToggle(children[i].id),
+                            highlighted: children[i].id == highlightId,
                           ),
                         ),
                       ],
@@ -393,6 +462,7 @@ class CommentRow extends StatefulWidget {
     required this.expanded,
     required this.onToggle,
     this.replyToUsername,
+    this.highlighted = false,
   });
 
   final Comment comment;
@@ -408,6 +478,9 @@ class CommentRow extends StatefulWidget {
   /// Direct reply target, shown as a hint line on nested rows.
   final String? replyToUsername;
 
+  /// Tinted: this is the comment the screen was opened on.
+  final bool highlighted;
+
   @override
   State<CommentRow> createState() => _CommentRowState();
 }
@@ -417,6 +490,7 @@ class _CommentRowState extends State<CommentRow> {
   final List<TapGestureRecognizer> _recognizers = [];
   List<InlineSpan>? _cachedSpans;
   String? _cachedFor; // 'full' | 'short' slice the cache holds
+  Color? _cachedLinkColor; // palette the cache was tokenized with
 
   static const int _readMoreLimit = 200;
 
@@ -464,7 +538,12 @@ class _CommentRowState extends State<CommentRow> {
 
   List<InlineSpan> _spans() {
     final key = _expanded ? 'full' : 'short';
-    if (_cachedFor == key && _cachedSpans != null) return _cachedSpans!;
+    final linkColor = context.enclavd.link;
+    if (_cachedFor == key &&
+        _cachedSpans != null &&
+        _cachedLinkColor == linkColor) {
+      return _cachedSpans!;
+    }
     // Drop the previous slice's recognizers so none are orphaned.
     for (final r in _recognizers) {
       r.dispose();
@@ -473,6 +552,7 @@ class _CommentRowState extends State<CommentRow> {
     final text = _visibleContent;
     final spans = commentContentSpans(
       text,
+      linkColor: linkColor,
       onMention: (username) => _openMention(username),
       onUrl: (url) => _openUrl(url),
       recognizers: _recognizers,
@@ -482,6 +562,7 @@ class _CommentRowState extends State<CommentRow> {
     }
     _cachedSpans = spans;
     _cachedFor = key;
+    _cachedLinkColor = linkColor;
     return spans;
   }
 
@@ -509,8 +590,9 @@ class _CommentRowState extends State<CommentRow> {
 
   @override
   Widget build(BuildContext context) {
-    final personality = PersonalityColors.forType(comment.personalityType);
-    return Padding(
+    final personality =
+        context.enclavd.personalityColor(comment.personalityType);
+    final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -539,7 +621,8 @@ class _CommentRowState extends State<CommentRow> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: rankColorFromCssClass(comment.nameColor),
+                            color: context.enclavd
+                                .rankNameFromCss(comment.nameColor),
                             fontWeight: FontWeight.w600,
                             fontSize: 13,
                           ),
@@ -549,18 +632,18 @@ class _CommentRowState extends State<CommentRow> {
                     const SizedBox(width: 6),
                     Text(
                       relativeTime(comment.createdAtUtc),
-                      style: const TextStyle(
-                          color: EnclavdColors.textSecondary, fontSize: 11),
+                      style: TextStyle(
+                          color: context.enclavd.textSecondary, fontSize: 11),
                     ),
                     if (!comment.isOwner) ...[
                       const SizedBox(width: 6),
                       GestureDetector(
                         onTap: () => widget.onReply(comment),
                         behavior: HitTestBehavior.opaque,
-                        child: const Padding(
-                          padding: EdgeInsets.all(2),
+                        child: Padding(
+                          padding: const EdgeInsets.all(2),
                           child: FaIcon(FontAwesomeIcons.reply,
-                              size: 13, color: EnclavdColors.textSecondary),
+                              size: 13, color: context.enclavd.textSecondary),
                         ),
                       ),
                     ],
@@ -568,8 +651,8 @@ class _CommentRowState extends State<CommentRow> {
                       const SizedBox(width: 6),
                       GestureDetector(
                         onTap: () => _confirmDelete(),
-                        child: const FaIcon(FontAwesomeIcons.trashCan,
-                            size: 14, color: EnclavdColors.textSecondary),
+                        child: FaIcon(FontAwesomeIcons.trashCan,
+                            size: 14, color: context.enclavd.textSecondary),
                       ),
                     ],
                   ],
@@ -583,8 +666,8 @@ class _CommentRowState extends State<CommentRow> {
                     padding: const EdgeInsets.only(bottom: 2),
                     child: Text(
                       'Replying to @$target',
-                      style: const TextStyle(
-                        color: EnclavdColors.link,
+                      style: TextStyle(
+                        color: context.enclavd.link,
                         fontSize: 11.5,
                         fontWeight: FontWeight.w600,
                       ),
@@ -592,8 +675,8 @@ class _CommentRowState extends State<CommentRow> {
                   ),
                 Text.rich(
                   TextSpan(children: _spans()),
-                  style: const TextStyle(
-                      color: EnclavdColors.textPrimary, fontSize: 14),
+                  style: TextStyle(
+                      color: context.enclavd.textPrimary, fontSize: 14),
                 ),
                 if (_body.length > _readMoreLimit)
                   GestureDetector(
@@ -602,8 +685,8 @@ class _CommentRowState extends State<CommentRow> {
                       padding: const EdgeInsets.only(top: 2),
                       child: Text(
                         _expanded ? 'Show less' : 'Read more',
-                        style: const TextStyle(
-                          color: EnclavdColors.link,
+                        style: TextStyle(
+                          color: context.enclavd.link,
                           fontSize: 12.5,
                           fontWeight: FontWeight.w600,
                         ),
@@ -615,6 +698,16 @@ class _CommentRowState extends State<CommentRow> {
           ),
         ],
       ),
+    );
+    if (!widget.highlighted) return row;
+    // No extra padding: the reply rail's geometry is tuned to the avatar's
+    // position, so the tint and the rounding carry the marker on their own.
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0x1A3B82F6), // site: bg-blue-500/10
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: row,
     );
   }
 

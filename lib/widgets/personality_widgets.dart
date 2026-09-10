@@ -15,9 +15,9 @@ class CardBox extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: EnclavdColors.card,
+        color: context.enclavd.card,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: EnclavdColors.border),
+        border: Border.all(color: context.enclavd.border),
       ),
       child: child,
     );
@@ -74,8 +74,8 @@ class PersonalityTypeBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = PersonalityColors.forType(type) ??
-        EnclavdColors.textSecondary;
+    final color =
+        context.enclavd.personalityColor(type) ?? context.enclavd.textSecondary;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
       decoration: BoxDecoration(
@@ -123,8 +123,8 @@ class PersonalityInfoCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(description,
-              style: const TextStyle(
-                  color: EnclavdColors.textSecondary, height: 1.45)),
+              style: TextStyle(
+                  color: context.enclavd.textSecondary, height: 1.45)),
           const SizedBox(height: 16),
           BulletList(
             icon: FontAwesomeIcons.star,
@@ -183,8 +183,7 @@ class TraitBar extends StatelessWidget {
                 ),
                 TextSpan(
                     text: '  $first',
-                    style: const TextStyle(
-                        color: EnclavdColors.textSecondary)),
+                    style: TextStyle(color: context.enclavd.textSecondary)),
               ])),
               Text.rich(TextSpan(children: [
                 TextSpan(
@@ -193,8 +192,7 @@ class TraitBar extends StatelessWidget {
                 ),
                 TextSpan(
                     text: '  $second',
-                    style: const TextStyle(
-                        color: EnclavdColors.textSecondary)),
+                    style: TextStyle(color: context.enclavd.textSecondary)),
               ])),
             ],
           ),
@@ -204,7 +202,7 @@ class TraitBar extends StatelessWidget {
             child: SizedBox(
               height: 8,
               child: ColoredBox(
-                color: const Color(0xFF6B7280), // gray-500 track
+                color: context.enclavd.cardSecondary,
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [

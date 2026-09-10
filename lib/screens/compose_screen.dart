@@ -164,12 +164,12 @@ class _ComposeScreenState extends State<ComposeScreen> {
                     : OutlinedButton.icon(
                         onPressed: _busy ? null : _pickImage,
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: EnclavdColors.textPrimary,
-                          side: const BorderSide(color: EnclavdColors.border),
+                          foregroundColor: context.enclavd.textPrimary,
+                          side: BorderSide(color: context.enclavd.border),
                           padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
-                        icon: const FaIcon(FontAwesomeIcons.image,
-                            size: 16, color: EnclavdColors.textSecondary),
+                        icon: FaIcon(FontAwesomeIcons.image,
+                            size: 16, color: context.enclavd.textSecondary),
                         label: const Text('Add Image'),
                       )
               else if (post?.image != null && post!.image!.isNotEmpty)
@@ -194,19 +194,19 @@ class _ComposeScreenState extends State<ComposeScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
                 icon: _busy
-                    ? const SizedBox(
+                    ? SizedBox(
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: EnclavdColors.primaryButtonText),
+                            color: context.enclavd.primaryButtonText),
                       )
                     : FaIcon(
                         _isEdit
                             ? FontAwesomeIcons.floppyDisk
                             : FontAwesomeIcons.paperPlane,
                         size: 15,
-                        color: EnclavdColors.primaryButtonText,
+                        color: context.enclavd.primaryButtonText,
                       ),
                 label: Text(_busy
                     ? (_isEdit ? 'Saving...' : 'Posting...')
@@ -220,17 +220,17 @@ class _ComposeScreenState extends State<ComposeScreen> {
   }
 
   Widget _composerField() {
-    const base = TextStyle(
-      color: EnclavdColors.textPrimary,
+    final base = TextStyle(
+      color: context.enclavd.textPrimary,
       fontSize: 16,
       height: 1.5,
     );
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: EnclavdColors.cardSecondary,
+        color: context.enclavd.cardSecondary,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: EnclavdColors.border),
+        border: Border.all(color: context.enclavd.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -244,8 +244,8 @@ class _ComposeScreenState extends State<ComposeScreen> {
             maxLength: 2000,
             textCapitalization: TextCapitalization.sentences,
             style: base,
-            cursorColor: EnclavdColors.textPrimary,
-            decoration: const InputDecoration(
+            cursorColor: context.enclavd.textPrimary,
+            decoration: InputDecoration(
               // No focusedBorder: the theme's blue OutlineInputBorder drew
               // an unwanted outline on focus.
               filled: false,
@@ -257,7 +257,7 @@ class _ComposeScreenState extends State<ComposeScreen> {
               focusedErrorBorder: InputBorder.none,
               counterText: '',
               hintText: 'Write post..', // the site's Quill placeholder
-              hintStyle: TextStyle(color: EnclavdColors.textSecondary),
+              hintStyle: TextStyle(color: context.enclavd.textSecondary),
               // Zero padding: the container's own padding positions the text.
               contentPadding: EdgeInsets.zero,
             ),
@@ -270,8 +270,8 @@ class _ComposeScreenState extends State<ComposeScreen> {
               valueListenable: _controller,
               builder: (context, value, _) => Text(
                 '${value.text.characters.length}/2000 characters',
-                style: const TextStyle(
-                    color: EnclavdColors.textSecondary, fontSize: 12),
+                style: TextStyle(
+                    color: context.enclavd.textSecondary, fontSize: 12),
               ),
             ),
           ),

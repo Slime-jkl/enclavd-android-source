@@ -38,14 +38,14 @@ class SuggestionRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       // Bottom gap to the first post, same as the personality banner.
       children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 14),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
           child: Text(
             'Suggested for you',
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: EnclavdColors.textSecondary,
+              color: context.enclavd.textSecondary,
             ),
           ),
         ),
@@ -95,9 +95,9 @@ class _SuggestionCard extends StatelessWidget {
       width: 104,
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
-        color: EnclavdColors.card,
+        color: context.enclavd.card,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: EnclavdColors.border),
+        border: Border.all(color: context.enclavd.border),
       ),
       child: Column(
         children: [
@@ -108,7 +108,8 @@ class _SuggestionCard extends StatelessWidget {
               size: 56,
               url: resolveMediaUrl(AppConfig.apiBaseUrl,
                   avatarPath: user.profilePictureUrl),
-              borderColor: PersonalityColors.forType(user.personalityType),
+              borderColor:
+                  context.enclavd.personalityColor(user.personalityType),
             ),
           ),
           const SizedBox(height: 6),
@@ -123,7 +124,7 @@ class _SuggestionCard extends StatelessWidget {
                 fontSize: 12,
                 height: 1.2, // pinned: Montserrat's natural line box
                 fontWeight: FontWeight.w500,
-                color: RankColors.forRank(user.rank),
+                color: context.enclavd.rankName(user.rank),
               ),
             ),
           ),
@@ -157,27 +158,26 @@ class _FollowChip extends StatelessWidget {
       child: TextButton(
         onPressed: busy ? null : onPressed,
         style: TextButton.styleFrom(
-          foregroundColor: EnclavdColors.primaryButtonText,
-          backgroundColor: EnclavdColors.primaryButton,
+          foregroundColor: context.enclavd.primaryButtonText,
+          backgroundColor: context.enclavd.primaryButton,
           disabledForegroundColor:
-              EnclavdColors.primaryButtonText.withValues(alpha: 0.6),
+              context.enclavd.primaryButtonText.withValues(alpha: 0.6),
           disabledBackgroundColor:
-              EnclavdColors.primaryButton.withValues(alpha: 0.6),
+              context.enclavd.primaryButton.withValues(alpha: 0.6),
           padding: const EdgeInsets.symmetric(horizontal: 4),
           minimumSize: const Size(0, 24),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(7),
           ),
-          textStyle:
-              const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+          textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
         ),
         child: busy
-            ? const SizedBox(
+            ? SizedBox(
                 width: 12,
                 height: 12,
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
-                  color: EnclavdColors.primaryButtonText,
+                  color: context.enclavd.primaryButtonText,
                 ),
               )
             : Text(label, maxLines: 1),

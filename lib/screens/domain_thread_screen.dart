@@ -37,6 +37,7 @@ class DomainThreadScreen extends StatefulWidget {
     this.breadcrumbName,
     this.social,
     this.posts,
+    this.highlightReplyId,
   });
 
   final DomainsService domains;
@@ -47,6 +48,10 @@ class DomainThreadScreen extends StatefulWidget {
 
   final SocialService? social;
   final PostsService? posts;
+
+  /// Reply to land on - a notification tap: the thread pages back until it
+  /// is loaded, then scrolls to it and tints it.
+  final int? highlightReplyId;
 
   @override
   State<DomainThreadScreen> createState() => _DomainThreadScreenState();
@@ -73,6 +78,31 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
   bool _jumpToRepliesEnd = false;
 
   int? _expandedReplyId;
+
+  /// Addresses the highlighted reply for the scroll-into-view pass.
+  final GlobalKey _highlightKey = GlobalKey();
+  bool _highlightScrolled = false;
+
+  /// How many pages the highlight seek may walk back through: later replies
+  /// can push the target off the newest page, but a deleted one must not
+  /// walk the whole thread.
+  static const int _highlightMaxPages = 3;
+
+  /// Scrolls the reply list onto the highlighted reply once it has laid out.
+  void _scheduleHighlightScroll() {
+    if (_highlightScrolled || widget.highlightReplyId == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctx = _highlightKey.currentContext;
+      if (!mounted || ctx == null) return;
+      _highlightScrolled = true;
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+        alignment: 0.15,
+      );
+    });
+  }
 
   /// Scrolls the reply list to its newest row once the frame that
   /// changed its content has laid out.
@@ -116,16 +146,19 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
   PostsService get _posts => widget.posts ?? _services!.posts;
 
   Future<void> _load() async {
-    // Tests inject both services; skip the AppServices dance then.
-    if (widget.social == null || widget.posts == null) {
-      _services ??= AppServices.current ?? await AppServices.create();
-    }
     if (!mounted) return;
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
+      // Tests inject both services; skip the AppServices dance then.
+      // Bounded: a container build that never returns has to land in the
+      // error state with a retry, not leave the skeleton up forever.
+      if (widget.social == null || widget.posts == null) {
+        _services ??= AppServices.current ??
+            await AppServices.create().timeout(AppConfig.receiveTimeout);
+      }
       final detail = await widget.domains.thread(widget.postId);
       if (!mounted) return;
       setState(() {
@@ -154,8 +187,28 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
   /// Initial reply load: the newest (last) page, scrolled to its end so
   /// the latest reply is in view on busy threads.
   Future<void> _loadReplies() async {
-    _jumpToRepliesEnd = true;
+    // With a target to land on, the highlight's scroll is the only motion.
+    _jumpToRepliesEnd = widget.highlightReplyId == null;
     await _fetchReplyPage(0);
+    await _seekHighlight();
+  }
+
+  /// The reply a notification pointed at can be pushed off the newest page
+  /// by later replies: step back until it loads, then scroll onto it.
+  Future<void> _seekHighlight() async {
+    final target = widget.highlightReplyId;
+    if (target == null) return;
+    var tries = 0;
+    while (mounted &&
+        tries < _highlightMaxPages &&
+        _replyPage > 1 &&
+        !_replies.any((r) => r.id == target)) {
+      tries++;
+      final before = _replies.length;
+      await _fetchReplyPage(_replyPage - 1);
+      if (_replies.length == before) return; // a failed fetch: stop here
+    }
+    _scheduleHighlightScroll();
   }
 
   /// Fetches one grouped reply page (0 = newest) and swaps the list
@@ -183,8 +236,10 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
         _replyBusy = false;
         _repliesLoading = false;
         _post = _withCommentCount(post, result.total);
-        // freshly loaded newest page shows its tail first.
-        if (result.page == result.pages) _jumpToRepliesEnd = true;
+        // A freshly loaded newest page shows its tail first.
+        if (result.page == result.pages && widget.highlightReplyId == null) {
+          _jumpToRepliesEnd = true;
+        }
       });
       _scheduleRepliesEndJump();
     } catch (_) {
@@ -200,6 +255,11 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
     }
   }
 
+  /// Reply to a reply: the composer opens with that reply as the target.
+  /// The reply nests under it (parentCommentId) and the card it produces
+  /// quotes it, read from the target itself rather than copied into the
+  /// text, so the quote is right however the reply was written and stays
+  /// right when the target is edited.
   void _quoteReply(Comment reply) {
     setState(() {
       _quoting = reply;
@@ -220,20 +280,9 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
 
   void _dismissQuote() => setState(() => _quoting = null);
 
-  String _quotePrefix(Comment q) {
-    final stripped = q.content.replaceAllMapped(
-        RegExp(r'@([A-Za-z0-9_]+)'), (m) => m.group(1)!);
-    final collapsed = stripped.replaceAll(RegExp(r'\s+'), ' ').trim();
-    final clamped = collapsed.length > 160
-        ? '${collapsed.substring(0, 160)}...'
-        : collapsed;
-    return '@${q.username} wrote: "$clamped"\n\n';
-  }
-
   Future<void> _sendReply() async {
     final quote = _quoting;
-    final typed = _replyController.text.trim();
-    final content = quote == null ? typed : '${_quotePrefix(quote)}$typed';
+    final content = _replyController.text.trim();
     if (content.isEmpty || _replying) return;
     setState(() => _replying = true);
     try {
@@ -274,7 +323,8 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
     while (grew) {
       grew = false;
       for (final c in _replies) {
-        if (c.parentCommentId != null && toDrop.contains(c.parentCommentId) &&
+        if (c.parentCommentId != null &&
+            toDrop.contains(c.parentCommentId) &&
             !toDrop.contains(c.id)) {
           toDrop.add(c.id);
           grew = true;
@@ -286,8 +336,7 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
 
   Future<void> _deleteReply(Comment comment) async {
     try {
-      final newCount =
-          await _social.deleteComment(comment.id, widget.postId);
+      final newCount = await _social.deleteComment(comment.id, widget.postId);
       if (!mounted) return;
       setState(() {
         _dropSubtree(comment.id);
@@ -346,8 +395,8 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: const Text('Delete',
-                style: TextStyle(color: EnclavdColors.likeActive)),
+            child: Text('Delete',
+                style: TextStyle(color: context.enclavd.likeActive)),
           ),
         ],
       ),
@@ -387,10 +436,10 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
               child: Center(
                 child: Text(
                   '#${_post!.id}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontFamily: 'monospace',
-                    color: EnclavdColors.textSecondary,
+                    color: context.enclavd.textSecondary,
                   ),
                 ),
               ),
@@ -402,6 +451,9 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
   }
 
   Widget _buildBody() {
+    // The highlighted reply may already be loaded: get the scroll in as
+    // soon as it has a layout.
+    _scheduleHighlightScroll();
     final error = _error;
     if (error != null) {
       return ErrorView(message: error, onRetry: _load);
@@ -432,9 +484,9 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
           Container(
             margin: const EdgeInsets.only(bottom: 12),
             decoration: BoxDecoration(
-              color: EnclavdColors.card,
+              color: context.enclavd.card,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: EnclavdColors.border),
+              border: Border.all(color: context.enclavd.border),
             ),
             child: _ReplyComposer(
               controller: _replyController,
@@ -445,8 +497,7 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
               onDismissQuote: _dismissQuote,
             ),
           ),
-        _RepliesHeader(
-            count: post.commentCount, onReply: _toggleComposer),
+        _RepliesHeader(count: post.commentCount, onReply: _toggleComposer),
         if (_repliesLoading)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 10),
@@ -459,25 +510,23 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(_repliesError!,
-                    style: const TextStyle(
-                        fontSize: 12.5,
-                        color: EnclavdColors.textSecondary)),
+                    style: TextStyle(
+                        fontSize: 12.5, color: context.enclavd.textSecondary)),
                 TextButton(
                   onPressed: _loadReplies,
-                  child: const Text('Retry',
-                      style: TextStyle(fontSize: 12.5)),
+                  child: const Text('Retry', style: TextStyle(fontSize: 12.5)),
                 ),
               ],
             ),
           )
         else if (_replies.isEmpty)
           // Site empty state (domain_comment_list: "No replies yet.").
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 20),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20),
             child: Center(
               child: Text('No replies yet - start the discussion.',
                   style: TextStyle(
-                      fontSize: 13, color: EnclavdColors.textSecondary)),
+                      fontSize: 13, color: context.enclavd.textSecondary)),
             ),
           )
         else ...[
@@ -492,23 +541,26 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
             ),
             const SizedBox(height: 6),
           ],
-          // Flat reply list. A reply that answers another one carries
-          // its quoted text inline (quote card), so rows never nest.
-          // Numbers stay global across pages: fixed 20-row pages, so the
-          // first row of page N is at (N - 1) * 20 + 1.
+          // Flat reply list, oldest first. A reply that answers another one
+          // carries it as a quote card, resolved from its parent id, so rows
+          // never nest. Numbers stay global across pages: fixed 20-row pages,
+          // so the first row of page N is at (N - 1) * 20 + 1.
           for (var i = 0; i < _replies.length; i++)
             _ForumReplyCard(
-              key: ValueKey(_replies[i].id),
+              // The target takes the GlobalKey the scroll resolves.
+              key: _replies[i].id == widget.highlightReplyId
+                  ? _highlightKey
+                  : ValueKey(_replies[i].id),
               reply: _replies[i],
               number: (_replyPage - 1) * _repliesPerPage + i + 1,
               apiBaseUrl: AppConfig.apiBaseUrl,
               onDelete: _deleteReply,
               onReply: _quoteReply,
               expanded: _replies[i].id == _expandedReplyId,
+              highlighted: _replies[i].id == widget.highlightReplyId,
               onToggle: () => setState(() {
-                _expandedReplyId = _expandedReplyId == _replies[i].id
-                    ? null
-                    : _replies[i].id;
+                _expandedReplyId =
+                    _expandedReplyId == _replies[i].id ? null : _replies[i].id;
               }),
             ),
           if (_replyPages > 1)
@@ -526,8 +578,8 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
       ],
     );
   }
-}
 
+}
 class _ForumPostCard extends StatefulWidget {
   const _ForumPostCard({
     super.key,
@@ -558,6 +610,7 @@ class _ForumPostCardState extends State<_ForumPostCard> {
   final List<TapGestureRecognizer> _recognizers = [];
   List<InlineSpan>? _cachedSpans;
   String? _cachedContent;
+  Color? _cachedLinkColor; // palette the cache was tokenized with
 
   Post get post => widget.post;
 
@@ -587,7 +640,10 @@ class _ForumPostCardState extends State<_ForumPostCard> {
 
   List<InlineSpan> _spans() {
     final content = post.content;
-    if (_cachedContent == content && _cachedSpans != null) {
+    final linkColor = context.enclavd.link;
+    if (_cachedContent == content &&
+        _cachedSpans != null &&
+        _cachedLinkColor == linkColor) {
       return _cachedSpans!;
     }
     for (final r in _recognizers) {
@@ -596,12 +652,14 @@ class _ForumPostCardState extends State<_ForumPostCard> {
     _recognizers.clear();
     final spans = postContentSpans(
       content,
+      linkColor: linkColor,
       onHashtag: (tag) => _openHashtag(tag),
       onUrl: (url) => _openUrl(url),
       recognizers: _recognizers,
     );
     _cachedSpans = spans;
     _cachedContent = content;
+    _cachedLinkColor = linkColor;
     return spans;
   }
 
@@ -655,14 +713,14 @@ class _ForumPostCardState extends State<_ForumPostCard> {
 
   @override
   Widget build(BuildContext context) {
-    final personality = PersonalityColors.forType(post.personalityType);
+    final personality = context.enclavd.personalityColor(post.personalityType);
     return Container(
       margin: const EdgeInsets.only(bottom: 4),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: EnclavdColors.card,
+        color: context.enclavd.card,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: EnclavdColors.border),
+        border: Border.all(color: context.enclavd.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -694,8 +752,8 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                         const Spacer(),
                         Text(
                           relativeTime(post.createdAt),
-                          style: const TextStyle(
-                              color: EnclavdColors.textSecondary,
+                          style: TextStyle(
+                              color: context.enclavd.textSecondary,
                               fontSize: 11.5),
                         ),
                         if (post.isOwner &&
@@ -703,15 +761,15 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                                 widget.onDeletePost != null)) ...[
                           const SizedBox(width: 2),
                           PopupMenuButton<String>(
-                            icon: const FaIcon(FontAwesomeIcons.ellipsis,
-                                size: 15,
-                                color: EnclavdColors.textSecondary),
+                            icon: FaIcon(FontAwesomeIcons.ellipsis,
+                                size: 15, color: context.enclavd.textSecondary),
                             padding: EdgeInsets.zero,
                             style: IconButton.styleFrom(
                                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                 minimumSize: Size.zero),
                             onSelected: (value) {
-                              if (value == 'edit' && widget.onEditPost != null) {
+                              if (value == 'edit' &&
+                                  widget.onEditPost != null) {
                                 widget.onEditPost!(post);
                               }
                               if (value == 'delete' &&
@@ -721,28 +779,28 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                             },
                             itemBuilder: (context) => [
                               if (widget.onEditPost != null)
-                                const PopupMenuItem(
+                                PopupMenuItem(
                                   value: 'edit',
                                   child: Row(
                                     children: [
                                       FaIcon(FontAwesomeIcons.pen,
                                           size: 14,
-                                          color: EnclavdColors.textSecondary),
-                                      SizedBox(width: 8),
-                                      Text('Edit Post'),
+                                          color: context.enclavd.textSecondary),
+                                      const SizedBox(width: 8),
+                                      const Text('Edit Post'),
                                     ],
                                   ),
                                 ),
                               if (widget.onDeletePost != null)
-                                const PopupMenuItem(
+                                PopupMenuItem(
                                   value: 'delete',
                                   child: Row(
                                     children: [
                                       FaIcon(FontAwesomeIcons.trashCan,
                                           size: 14,
-                                          color: EnclavdColors.textSecondary),
-                                      SizedBox(width: 8),
-                                      Text('Delete Post'),
+                                          color: context.enclavd.textSecondary),
+                                      const SizedBox(width: 8),
+                                      const Text('Delete Post'),
                                     ],
                                   ),
                                 ),
@@ -768,27 +826,25 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
                                       color: post.isBlocked
-                                          ? RankColors.forRank('Blocked')
-                                          : RankColors.forRank(post.rank),
+                                          ? context.enclavd.rankName('Blocked')
+                                          : context.enclavd.rankName(post.rank),
                                       fontWeight: FontWeight.w700,
                                       fontSize: 15,
                                       decoration: post.isBlocked
                                           ? TextDecoration.lineThrough
                                           : null,
                                       decorationColor:
-                                          RankColors.forRank('Blocked'),
+                                          context.enclavd.rankName('Blocked'),
                                     ),
                                   ),
                                 ),
                                 if (post.warningCount > 0) ...[
                                   const SizedBox(width: 6),
-                                  const FaIcon(
-                                      FontAwesomeIcons.triangleExclamation,
-                                      color: EnclavdColors.warning,
-                                      size: 13),
+                                  FaIcon(FontAwesomeIcons.triangleExclamation,
+                                      color: context.enclavd.warning, size: 13),
                                   Text('${post.warningCount}',
-                                      style: const TextStyle(
-                                          color: EnclavdColors.warning,
+                                      style: TextStyle(
+                                          color: context.enclavd.warning,
                                           fontSize: 10)),
                                 ],
                               ],
@@ -806,8 +862,8 @@ class _ForumPostCardState extends State<_ForumPostCard> {
           // Forums don't clamp the OP's content.
           Text.rich(
             TextSpan(children: _spans()),
-            style: const TextStyle(
-                color: EnclavdColors.textPrimary,
+            style: TextStyle(
+                color: context.enclavd.textPrimary,
                 fontSize: 14.5,
                 height: 1.45),
           ),
@@ -816,7 +872,7 @@ class _ForumPostCardState extends State<_ForumPostCard> {
             PostImage(post: post, apiBaseUrl: widget.apiBaseUrl),
           ],
           const SizedBox(height: 14),
-          const Divider(height: 1, color: EnclavdColors.divider),
+          Divider(height: 1, color: context.enclavd.divider),
           const SizedBox(height: 10),
           // Action row: like (plain toggle) + comment count.
           Row(
@@ -833,8 +889,8 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                         FontAwesomeIcons.heart,
                         size: 16,
                         color: _liked
-                            ? EnclavdColors.likeActive
-                            : EnclavdColors.textSecondary,
+                            ? context.enclavd.likeActive
+                            : context.enclavd.textSecondary,
                       ),
                       const SizedBox(width: 6),
                       Text(
@@ -843,8 +899,8 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                           color: _liked
-                              ? EnclavdColors.likeActive
-                              : EnclavdColors.textPrimary,
+                              ? context.enclavd.likeActive
+                              : context.enclavd.textPrimary,
                         ),
                       ),
                     ],
@@ -852,23 +908,22 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                 ),
               ),
               const SizedBox(width: 18),
-              const FaIcon(FontAwesomeIcons.comments,
-                  size: 15, color: EnclavdColors.textSecondary),
+              FaIcon(FontAwesomeIcons.comments,
+                  size: 15, color: context.enclavd.textSecondary),
               const SizedBox(width: 6),
               Text(
                 '${post.commentCount}',
-                style: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w600),
+                style:
+                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
               ),
               const Spacer(),
-              if (post.lastReplyAt != null &&
-                  post.lastReplyUsername != null)
+              if (post.lastReplyAt != null && post.lastReplyUsername != null)
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 190),
                   child: Text.rich(
                     TextSpan(
-                      style: const TextStyle(
-                          fontSize: 11, color: EnclavdColors.textSecondary),
+                      style: TextStyle(
+                          fontSize: 11, color: context.enclavd.textSecondary),
                       children: [
                         TextSpan(
                             text:
@@ -878,9 +933,9 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
                             color: post.lastReplyActive == 'false'
-                                ? RankColors.forRank('Blocked')
-                                : RankColors.forRank(
-                                    post.lastReplyRank ?? 'Member'),
+                                ? context.enclavd.rankName('Blocked')
+                                : context.enclavd
+                                    .rankName(post.lastReplyRank ?? 'Member'),
                           ),
                         ),
                       ],
@@ -916,16 +971,15 @@ class _RepliesHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(6, 0, 6, 8),
       child: Row(
         children: [
-          const FaIcon(FontAwesomeIcons.reply,
-              size: 13, color: EnclavdColors.link),
+          FaIcon(FontAwesomeIcons.reply, size: 13, color: context.enclavd.link),
           const SizedBox(width: 8),
           Text(
             count == 1 ? '1 Reply' : '$count Replies',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.6,
-              color: EnclavdColors.textSecondary,
+              color: context.enclavd.textSecondary,
             ),
           ),
           const Spacer(),
@@ -936,25 +990,24 @@ class _RepliesHeader extends StatelessWidget {
             onTap: onReply,
             borderRadius: BorderRadius.circular(8),
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
               decoration: BoxDecoration(
-                color: EnclavdColors.cardSecondary,
+                color: context.enclavd.cardSecondary,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: EnclavdColors.border),
+                border: Border.all(color: context.enclavd.border),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   FaIcon(FontAwesomeIcons.reply,
-                      size: 11, color: EnclavdColors.link),
-                  SizedBox(width: 6),
+                      size: 11, color: context.enclavd.link),
+                  const SizedBox(width: 6),
                   Text(
                     'Reply',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: EnclavdColors.link,
+                      color: context.enclavd.link,
                     ),
                   ),
                 ],
@@ -977,6 +1030,7 @@ class _ForumReplyCard extends StatefulWidget {
     required this.onReply,
     required this.expanded,
     required this.onToggle,
+    this.highlighted = false,
   });
 
   final Comment reply;
@@ -992,6 +1046,9 @@ class _ForumReplyCard extends StatefulWidget {
 
   final VoidCallback onToggle;
 
+  /// Tinted: this is the reply the screen was opened on.
+  final bool highlighted;
+
   @override
   State<_ForumReplyCard> createState() => _ForumReplyCardState();
 }
@@ -1000,6 +1057,7 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
   final List<TapGestureRecognizer> _recognizers = [];
   List<InlineSpan>? _cachedSpans;
   String? _cachedFor; // 'full' | 'short' slice the cache holds
+  Color? _cachedLinkColor; // palette the cache was tokenized with
 
   static const int _readMoreLimit = 200;
   bool get _expanded => widget.expanded;
@@ -1026,8 +1084,29 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
   }
 
   CommentQuote? _parsedQuote;
-  CommentQuote? get _quote =>
-      _parsedQuote ??= parseCommentQuote(reply.content);
+  bool _quoteResolved = false;
+
+  /// Quoted context shown above the reply: the target the server resolved
+  /// from parent_comment_id wins, so every reply shows what it answers no
+  /// matter where it was written. The stored '@user wrote:' prefix stays as
+  /// the fallback for rows written before the target was the source of truth.
+  CommentQuote? get _quote {
+    if (!_quoteResolved) {
+      _quoteResolved = true;
+      final legacy = parseCommentQuote(reply.content);
+      final target = reply.parentUsername;
+      _parsedQuote = (target != null && target.isNotEmpty)
+          ? CommentQuote(
+              target: target,
+              text: reply.parentExcerpt ?? '',
+              // A legacy row keeps its prefix out of the body even when the
+              // target resolves, or the raw text would render under the card.
+              body: legacy?.body ?? reply.content,
+            )
+          : legacy;
+    }
+    return _parsedQuote;
+  }
 
   /// The part after any quote prefix; read-more clamps THIS, never the
   /// quoted block.
@@ -1045,7 +1124,12 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
 
   List<InlineSpan> _spans() {
     final key = _expanded ? 'full' : 'short';
-    if (_cachedFor == key && _cachedSpans != null) return _cachedSpans!;
+    final linkColor = context.enclavd.link;
+    if (_cachedFor == key &&
+        _cachedSpans != null &&
+        _cachedLinkColor == linkColor) {
+      return _cachedSpans!;
+    }
     for (final r in _recognizers) {
       r.dispose();
     }
@@ -1053,6 +1137,7 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
     final text = _visibleContent;
     final spans = commentContentSpans(
       text,
+      linkColor: linkColor,
       onMention: (username) => _openMention(username),
       onUrl: (url) => _openUrl(url),
       recognizers: _recognizers,
@@ -1062,6 +1147,7 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
     }
     _cachedSpans = spans;
     _cachedFor = key;
+    _cachedLinkColor = linkColor;
     return spans;
   }
 
@@ -1091,14 +1177,23 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
 
   @override
   Widget build(BuildContext context) {
-    final personality = PersonalityColors.forType(reply.personalityType);
+    final personality = context.enclavd.personalityColor(reply.personalityType);
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: EnclavdColors.card,
+        // The reply a notification landed on wears the tint + the accent
+        // border; every other card keeps the plain border.
+        color: widget.highlighted
+            ? Color.alphaBlend(
+                const Color(0x1A3B82F6), context.enclavd.card)
+            : context.enclavd.card,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: EnclavdColors.border),
+        border: Border.all(
+          color: widget.highlighted
+              ? context.enclavd.link
+              : context.enclavd.border,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1130,8 +1225,8 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                         const Spacer(),
                         Text(
                           relativeTime(reply.createdAtUtc),
-                          style: const TextStyle(
-                              color: EnclavdColors.textSecondary,
+                          style: TextStyle(
+                              color: context.enclavd.textSecondary,
                               fontSize: 11),
                         ),
                       ],
@@ -1151,8 +1246,8 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
-                                      color: rankColorFromCssClass(
-                                          reply.nameColor),
+                                      color: context.enclavd
+                                          .rankNameFromCss(reply.nameColor),
                                       fontWeight: FontWeight.w600,
                                       fontSize: 13.5,
                                     ),
@@ -1160,10 +1255,8 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                                 ),
                                 if (reply.hasWarnings) ...[
                                   const SizedBox(width: 6),
-                                  const FaIcon(
-                                      FontAwesomeIcons.triangleExclamation,
-                                      color: EnclavdColors.warning,
-                                      size: 12),
+                                  FaIcon(FontAwesomeIcons.triangleExclamation,
+                                      color: context.enclavd.warning, size: 12),
                                 ],
                               ],
                             ),
@@ -1185,10 +1278,8 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
           ],
           Text.rich(
             TextSpan(children: _spans()),
-            style: const TextStyle(
-                color: EnclavdColors.textPrimary,
-                fontSize: 14,
-                height: 1.4),
+            style: TextStyle(
+                color: context.enclavd.textPrimary, fontSize: 14, height: 1.4),
           ),
           if (_body.length > _readMoreLimit)
             GestureDetector(
@@ -1197,8 +1288,8 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                 padding: const EdgeInsets.only(top: 3),
                 child: Text(
                   _expanded ? 'Show less' : 'Read more',
-                  style: const TextStyle(
-                    color: EnclavdColors.link,
+                  style: TextStyle(
+                    color: context.enclavd.link,
                     fontSize: 12.5,
                     fontWeight: FontWeight.w600,
                   ),
@@ -1214,18 +1305,18 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                   key: Key('replyQuote-${reply.id}'),
                   onTap: () => widget.onReply(reply),
                   borderRadius: BorderRadius.circular(8),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(
-                        horizontal: 4, vertical: 4),
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                     child: Row(
                       children: [
                         FaIcon(FontAwesomeIcons.quoteLeft,
-                            size: 12, color: EnclavdColors.link),
-                        SizedBox(width: 5),
+                            size: 12, color: context.enclavd.link),
+                        const SizedBox(width: 5),
                         Text(
                           'Reply',
                           style: TextStyle(
-                            color: EnclavdColors.link,
+                            color: context.enclavd.link,
                             fontSize: 12.5,
                             fontWeight: FontWeight.w600,
                           ),
@@ -1238,18 +1329,18 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                 InkWell(
                   onTap: () => _confirmDelete(),
                   borderRadius: BorderRadius.circular(8),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(
-                        horizontal: 4, vertical: 4),
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                     child: Row(
                       children: [
                         FaIcon(FontAwesomeIcons.trashCan,
-                            size: 12, color: EnclavdColors.likeActive),
-                        SizedBox(width: 5),
+                            size: 12, color: context.enclavd.likeActive),
+                        const SizedBox(width: 5),
                         Text(
                           'Delete',
                           style: TextStyle(
-                            color: EnclavdColors.likeActive,
+                            color: context.enclavd.likeActive,
                             fontSize: 12.5,
                             fontWeight: FontWeight.w600,
                           ),
@@ -1261,10 +1352,10 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
               const Spacer(),
               Text(
                 '#${widget.number}',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
                   fontFamily: 'monospace',
-                  color: EnclavdColors.textSecondary,
+                  color: context.enclavd.textSecondary,
                 ),
               ),
             ],
@@ -1308,70 +1399,70 @@ class _ReplyComposer extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-            if (quote != null) ...[
-              _QuoteBanner(quote: quote!, onDismiss: onDismissQuote),
-              const SizedBox(height: 6),
-            ],
-            Row(
-              // Stays aligned with the input's center as it grows.
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: controller,
-                    focusNode: focusNode,
-                    minLines: 1,
-                    maxLines: 4,
-                    maxLength: 1000,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => onSend(),
-                    style: const TextStyle(
-                        fontSize: 14, color: EnclavdColors.textPrimary),
-                    cursorColor: EnclavdColors.link,
-                    // 1000-char cap enforced silently, no counter.
-                    decoration: const InputDecoration(
-                      hintText: 'Reply...',
-                      hintStyle: TextStyle(
-                          color: EnclavdColors.textSecondary, fontSize: 14),
-                      filled: true,
-                      fillColor: EnclavdColors.background,
-                      isDense: true,
-                      counterText: '',
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.all(Radius.circular(10)),
-                        borderSide: BorderSide(color: EnclavdColors.border),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.all(Radius.circular(10)),
-                        borderSide: BorderSide(color: EnclavdColors.border),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.all(Radius.circular(10)),
-                        borderSide:
-                            BorderSide(color: EnclavdColors.link, width: 2),
-                      ),
+          if (quote != null) ...[
+            _QuoteBanner(quote: quote!, onDismiss: onDismissQuote),
+            const SizedBox(height: 6),
+          ],
+          Row(
+            // Stays aligned with the input's center as it grows.
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  minLines: 1,
+                  maxLines: 4,
+                  maxLength: 1000,
+                  textInputAction: TextInputAction.send,
+                  onSubmitted: (_) => onSend(),
+                  style: TextStyle(
+                      fontSize: 14, color: context.enclavd.textPrimary),
+                  cursorColor: context.enclavd.link,
+                  // 1000-char cap enforced silently, no counter.
+                  decoration: InputDecoration(
+                    hintText: 'Reply...',
+                    hintStyle: TextStyle(
+                        color: context.enclavd.textSecondary, fontSize: 14),
+                    filled: true,
+                    fillColor: context.enclavd.background,
+                    isDense: true,
+                    counterText: '',
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 10),
+                    border: OutlineInputBorder(
+                      borderRadius: const BorderRadius.all(Radius.circular(10)),
+                      borderSide: BorderSide(color: context.enclavd.border),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: const BorderRadius.all(Radius.circular(10)),
+                      borderSide: BorderSide(color: context.enclavd.border),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: const BorderRadius.all(Radius.circular(10)),
+                      borderSide:
+                          BorderSide(color: context.enclavd.link, width: 2),
                     ),
                   ),
                 ),
-                const SizedBox(width: 4),
-                IconButton(
-                  onPressed: sending ? null : onSend,
-                  icon: sending
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const FaIcon(FontAwesomeIcons.paperPlane,
-                          size: 18, color: EnclavdColors.link),
-                  tooltip: 'Send reply',
-                ),
-              ],
-            ),
-          ],
-        ),
+              ),
+              const SizedBox(width: 4),
+              IconButton(
+                onPressed: sending ? null : onSend,
+                icon: sending
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : FaIcon(FontAwesomeIcons.paperPlane,
+                        size: 18, color: context.enclavd.link),
+                tooltip: 'Send reply',
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1388,15 +1479,14 @@ class _QuoteBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
       decoration: BoxDecoration(
-        color: EnclavdColors.cardSecondary.withValues(alpha: 0.6),
+        color: context.enclavd.cardSecondary.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(10),
-        border: const Border(
-            left: BorderSide(color: EnclavdColors.link, width: 3)),
+        border: Border(left: BorderSide(color: context.enclavd.link, width: 3)),
       ),
       child: Row(
         children: [
-          const FaIcon(FontAwesomeIcons.quoteLeft,
-              size: 13, color: EnclavdColors.link),
+          FaIcon(FontAwesomeIcons.quoteLeft,
+              size: 13, color: context.enclavd.link),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -1404,10 +1494,10 @@ class _QuoteBanner extends StatelessWidget {
               children: [
                 Text(
                   'Replying to @${quote.username}',
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: EnclavdColors.link,
+                    color: context.enclavd.link,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -1415,8 +1505,8 @@ class _QuoteBanner extends StatelessWidget {
                   collapsed,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontSize: 12, color: EnclavdColors.textSecondary),
+                  style: TextStyle(
+                      fontSize: 12, color: context.enclavd.textSecondary),
                 ),
               ],
             ),
@@ -1425,10 +1515,10 @@ class _QuoteBanner extends StatelessWidget {
             InkWell(
               onTap: onDismiss,
               borderRadius: BorderRadius.circular(8),
-              child: const Padding(
-                padding: EdgeInsets.all(6),
+              child: Padding(
+                padding: const EdgeInsets.all(6),
                 child: FaIcon(FontAwesomeIcons.xmark,
-                    size: 14, color: EnclavdColors.textSecondary),
+                    size: 14, color: context.enclavd.textSecondary),
               ),
             ),
         ],

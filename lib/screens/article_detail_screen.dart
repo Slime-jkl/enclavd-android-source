@@ -127,7 +127,7 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
 
   Widget _buildBody() {
     if (_error != null && _article == null) {
-return ErrorView(message: _error!, onRetry: _load);
+      return ErrorView(message: _error!, onRetry: _load);
     }
     final article = _article;
     if (article == null) {
@@ -150,7 +150,7 @@ return ErrorView(message: _error!, onRetry: _load);
           onLike: _toggleLike,
         ),
         if (article.tags.isNotEmpty) _TagChips(tags: article.tags),
-        const Divider(height: 1, color: EnclavdColors.divider),
+        Divider(height: 1, color: context.enclavd.divider),
         _buildBodyView(html),
         const SizedBox(height: 28),
       ],
@@ -166,8 +166,8 @@ return ErrorView(message: _error!, onRetry: _load);
       html: html,
       baseUrl: AppConfig.apiBaseUrl,
       onArticleLink: _openRelatedBySlug,
-      onExternalLink: (uri) => launchUrl(uri,
-          mode: LaunchMode.externalApplication),
+      onExternalLink: (uri) =>
+          launchUrl(uri, mode: LaunchMode.externalApplication),
     );
   }
 }
@@ -193,10 +193,10 @@ class _ArticleHero extends StatelessWidget {
             ],
             Text(
               a.title,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w700,
-                color: EnclavdColors.textPrimary,
+                color: context.enclavd.textPrimary,
                 height: 1.25,
               ),
             ),
@@ -229,9 +229,9 @@ class _ArticleHero extends StatelessWidget {
                     end: Alignment.bottomCenter,
                     stops: const [0, 0.5, 1],
                     colors: [
-                      EnclavdColors.background.withValues(alpha: 0),
-                      EnclavdColors.background.withValues(alpha: 0.5),
-                      EnclavdColors.background,
+                      context.enclavd.background.withValues(alpha: 0),
+                      context.enclavd.background.withValues(alpha: 0.5),
+                      context.enclavd.background,
                     ],
                   ),
                 ),
@@ -243,24 +243,23 @@ class _ArticleHero extends StatelessWidget {
             top: 12,
             right: 12,
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: EnclavdColors.card,
+                color: context.enclavd.card,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const FaIcon(FontAwesomeIcons.eye,
-                      size: 12, color: EnclavdColors.textPrimary),
+                  FaIcon(FontAwesomeIcons.eye,
+                      size: 12, color: context.enclavd.textPrimary),
                   const SizedBox(width: 6),
                   Text(
                     formatViews(a.views),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
-                      color: EnclavdColors.textPrimary,
+                      color: context.enclavd.textPrimary,
                     ),
                   ),
                 ],
@@ -310,8 +309,8 @@ class _AuthorRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final a = article.summary;
-    final rankColor = RankColors.forRank(a.rank);
-    final personality = PersonalityColors.forType(a.personalityType);
+    final rankColor = context.enclavd.rankName(a.rank);
+    final personality = context.enclavd.personalityColor(a.personalityType);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 8, 6),
       child: Row(
@@ -367,8 +366,8 @@ class _AuthorRow extends StatelessWidget {
                   'Published on ${formatDateFull(a.publishedDate)}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      fontSize: 11, color: EnclavdColors.textSecondary),
+                  style: TextStyle(
+                      fontSize: 11, color: context.enclavd.textSecondary),
                 ),
               ],
             ),
@@ -388,8 +387,8 @@ class _AuthorRow extends StatelessWidget {
                         : FontAwesomeIcons.heart,
                     size: 22,
                     color: liked
-                        ? EnclavdColors.likeActive
-                        : EnclavdColors.textSecondary,
+                        ? context.enclavd.likeActive
+                        : context.enclavd.textSecondary,
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -398,8 +397,8 @@ class _AuthorRow extends StatelessWidget {
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                       color: liked
-                          ? EnclavdColors.likeActive
-                          : EnclavdColors.textSecondary,
+                          ? context.enclavd.likeActive
+                          : context.enclavd.textSecondary,
                     ),
                   ),
                 ],
@@ -429,19 +428,19 @@ class _TagChips extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
               decoration: BoxDecoration(
-                color: EnclavdColors.cardSecondary,
+                color: context.enclavd.cardSecondary,
                 borderRadius: BorderRadius.circular(999),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const FaIcon(FontAwesomeIcons.hashtag,
-                      size: 10, color: EnclavdColors.link),
+                  FaIcon(FontAwesomeIcons.hashtag,
+                      size: 10, color: context.enclavd.link),
                   const SizedBox(width: 5),
                   Text(
                     tag,
-                    style: const TextStyle(
-                        fontSize: 11, color: EnclavdColors.textPrimary),
+                    style: TextStyle(
+                        fontSize: 11, color: context.enclavd.textPrimary),
                   ),
                 ],
               ),
@@ -474,7 +473,7 @@ class _ArticleBodyWebViewState extends State<_ArticleBodyWebView> {
 
   late final WebViewController _controller = WebViewController()
     ..setJavaScriptMode(JavaScriptMode.unrestricted)
-    ..setBackgroundColor(EnclavdColors.background)
+    ..setBackgroundColor(context.enclavd.background)
     ..addJavaScriptChannel('EnclavdBridge', onMessageReceived: _onMeasure)
     ..setNavigationDelegate(NavigationDelegate(
       onPageFinished: (_) => _measure(),
@@ -494,9 +493,7 @@ class _ArticleBodyWebViewState extends State<_ArticleBodyWebView> {
         .runJavaScriptReturningResult('document.documentElement.scrollHeight')
         .then((value) {
       var raw = '$value'.trim();
-      if (raw.length >= 2 &&
-          raw.startsWith('"') &&
-          raw.endsWith('"')) {
+      if (raw.length >= 2 && raw.startsWith('"') && raw.endsWith('"')) {
         raw = raw.substring(1, raw.length - 1);
       }
       final h = int.tryParse(raw);
@@ -588,8 +585,18 @@ String formatDateFull(String dbUtc) {
   final t = parseDbTime(dbUtc);
   if (t == null) return '';
   const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
   ];
   final d = t.day;
   final suffix = switch (d % 100) {

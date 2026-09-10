@@ -85,7 +85,8 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
 
   double _requiredMinScale(Size viewport) {
     final src = _source!;
-    final fit = math.min(viewport.width / src.width, viewport.height / src.height);
+    final fit =
+        math.min(viewport.width / src.width, viewport.height / src.height);
     final iw = src.width * fit;
     final ih = src.height * fit;
     final frame = _frameRect(viewport);
@@ -232,8 +233,8 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
                     height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const FaIcon(FontAwesomeIcons.check,
-                    size: 15, color: EnclavdColors.link),
+                : FaIcon(FontAwesomeIcons.check,
+                    size: 15, color: context.enclavd.link),
             label: const Text('Apply'),
           ),
         ],
@@ -249,7 +250,7 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(_error!,
-                style: const TextStyle(color: EnclavdColors.textSecondary)),
+                style: TextStyle(color: context.enclavd.textSecondary)),
             const SizedBox(height: 12),
             ElevatedButton(
               onPressed: () => Navigator.of(context).pop(),
@@ -260,15 +261,15 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
       );
     }
     if (_source == null) {
-      return const Center(
-          child: CircularProgressIndicator(color: EnclavdColors.link));
+      return Center(
+          child: CircularProgressIndicator(color: context.enclavd.link));
     }
     return Column(
       children: [
         // Card-backed preview so letterboxed areas never look transparent.
         Expanded(
           child: Container(
-            color: EnclavdColors.card,
+            color: context.enclavd.card,
             child: _preview(),
           ),
         ),
@@ -340,8 +341,9 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
 
   Widget _toolTabs() {
     return Container(
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: EnclavdColors.divider, width: 1)),
+      decoration: BoxDecoration(
+        border:
+            Border(top: BorderSide(color: context.enclavd.divider, width: 1)),
       ),
       child: Row(
         children: [
@@ -361,7 +363,7 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
           decoration: BoxDecoration(
             border: Border(
               bottom: BorderSide(
-                color: active ? EnclavdColors.link : Colors.transparent,
+                color: active ? context.enclavd.link : Colors.transparent,
                 width: 2,
               ),
             ),
@@ -372,16 +374,16 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
               FaIcon(icon,
                   size: 14,
                   color: active
-                      ? EnclavdColors.link
-                      : EnclavdColors.textSecondary),
+                      ? context.enclavd.link
+                      : context.enclavd.textSecondary),
               const SizedBox(width: 6),
               Text(label,
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: active
-                        ? EnclavdColors.link
-                        : EnclavdColors.textSecondary,
+                        ? context.enclavd.link
+                        : context.enclavd.textSecondary,
                   )),
             ],
           ),
@@ -414,7 +416,8 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
   Widget _ratioCard((String, double) item,
       {required bool selected, required VoidCallback onTap}) {
     final (label, ratio) = item;
-    final color = selected ? EnclavdColors.link : EnclavdColors.textSecondary;
+    final color =
+        selected ? context.enclavd.link : context.enclavd.textSecondary;
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -424,11 +427,11 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
         padding: const EdgeInsets.symmetric(vertical: 5),
         decoration: BoxDecoration(
           color: selected
-              ? EnclavdColors.link.withValues(alpha: 0.15)
-              : EnclavdColors.cardSecondary,
+              ? context.enclavd.link.withValues(alpha: 0.15)
+              : context.enclavd.cardSecondary,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: selected ? EnclavdColors.link : EnclavdColors.divider,
+            color: selected ? context.enclavd.link : context.enclavd.divider,
             width: selected ? 1.5 : 1,
           ),
         ),
@@ -484,7 +487,8 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
       {required Uint8List? thumbs,
       required bool selected,
       required VoidCallback onTap}) {
-    final color = selected ? EnclavdColors.link : EnclavdColors.textSecondary;
+    final color =
+        selected ? context.enclavd.link : context.enclavd.textSecondary;
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -499,10 +503,11 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: selected ? EnclavdColors.link : EnclavdColors.divider,
+                color:
+                    selected ? context.enclavd.link : context.enclavd.divider,
                 width: selected ? 2 : 1,
               ),
-              color: EnclavdColors.cardSecondary,
+              color: context.enclavd.cardSecondary,
             ),
             child: thumbs == null
                 ? const Center(
@@ -620,8 +625,8 @@ class _RatioGlyphPainter extends CustomPainter {
       h = size.height - 6;
       w = h * ratio;
     }
-    final rect = Rect.fromCenter(
-        center: size.center(Offset.zero), width: w, height: h);
+    final rect =
+        Rect.fromCenter(center: size.center(Offset.zero), width: w, height: h);
     canvas.drawRRect(
         RRect.fromRectAndRadius(rect, const Radius.circular(2)), paint);
   }

@@ -28,8 +28,7 @@ class _TestResultsScreenState extends State<TestResultsScreen> {
   String? _error;
   TestResults? _results;
 
-  ResultsService get _resultsService =>
-      widget.results ?? _services!.results;
+  ResultsService get _resultsService => widget.results ?? _services!.results;
 
   @override
   void initState() {
@@ -95,12 +94,14 @@ class _TestResultsScreenState extends State<TestResultsScreen> {
     if (_loading) {
       return const Center(
         child: SizedBox(
-            width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2)),
+            width: 24,
+            height: 24,
+            child: CircularProgressIndicator(strokeWidth: 2)),
       );
     }
     if (_noResults) return _NoResultsView(onTakeTest: _openTestPage);
     if (_error != null) {
-return ErrorView(message: _error!, onRetry: _load);
+      return ErrorView(message: _error!, onRetry: _load);
     }
     return _ResultsView(results: _results!, onTakeTest: _openTestPage);
   }
@@ -168,14 +169,13 @@ class _ResultsView extends StatelessWidget {
         Center(
           child: OutlinedButton.icon(
             onPressed: onTakeTest,
-            icon: const FaIcon(FontAwesomeIcons.users,
-                size: 14, color: EnclavdColors.link),
+            icon: FaIcon(FontAwesomeIcons.users,
+                size: 14, color: context.enclavd.link),
             label: const Text('See all types'),
             style: OutlinedButton.styleFrom(
-              foregroundColor: EnclavdColors.link,
-              side: const BorderSide(color: EnclavdColors.border),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              foregroundColor: context.enclavd.link,
+              side: BorderSide(color: context.enclavd.border),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             ),
           ),
         ),
@@ -197,18 +197,17 @@ class _NoResultsView extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const FaIcon(FontAwesomeIcons.chartPie,
-                size: 40, color: EnclavdColors.textSecondary),
+            FaIcon(FontAwesomeIcons.chartPie,
+                size: 40, color: context.enclavd.textSecondary),
             const SizedBox(height: 14),
             const Text('No test results yet',
-                style:
-                    TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
             const SizedBox(height: 6),
-            const Text(
+            Text(
               'Take the personality test on the website to unlock '
               'your results here.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: EnclavdColors.textSecondary),
+              style: TextStyle(color: context.enclavd.textSecondary),
             ),
             const SizedBox(height: 18),
             FilledButton.icon(
@@ -217,7 +216,7 @@ class _NoResultsView extends StatelessWidget {
                   size: 14),
               label: const Text('Take the test'),
               style: FilledButton.styleFrom(
-                  backgroundColor: EnclavdColors.primaryButton),
+                  backgroundColor: context.enclavd.primaryButton),
             ),
           ],
         ),

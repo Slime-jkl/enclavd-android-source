@@ -81,14 +81,14 @@ Future<void> runBackgroundSources(List<NotificationSource> sources) async {
   }
 
   // This isolate has no plugin state: initialize a fresh instance (the
-  // background reply action must be wired here too, so a drawer reply
-  // from a worker-shown notification works).
+  // background handlers must be wired here too, so a drawer reply AND a
+  // swipe-away from a worker-shown notification both work).
   final plugin = FlutterLocalNotificationsPlugin();
   await plugin.initialize(
     settings: const InitializationSettings(
       android: AndroidInitializationSettings('ic_stat_enclavd'),
     ),
-    onDidReceiveBackgroundNotificationResponse: replyFromNotification,
+    onDidReceiveBackgroundNotificationResponse: notificationBackgroundResponse,
   );
 
   final context = SourceContext(api: api, prefs: prefs);
@@ -116,6 +116,7 @@ Future<void> runBackgroundSources(List<NotificationSource> sources) async {
             notificationId: candidate.notificationId,
             title: candidate.title,
             body: candidate.body,
+            payload: candidate.payload ?? '',
           );
       }
       await tracker.add(candidate.key); // only after a successful show

@@ -65,6 +65,9 @@ class AppConfig {
 
   static const Duration connectTimeout = Duration(seconds: 15);
   static const Duration receiveTimeout = Duration(seconds: 20);
+  // Requests that carry a body (a baked post image is a few hundred KB
+  // base64) need more room than a GET before the attempt is called dead.
+  static const Duration uploadTimeout = Duration(seconds: 90);
   static const int httpClientRetries = 2; // transient network failures
 
   /// The app's own self-hosted Plausible (the website's analytics, proxied

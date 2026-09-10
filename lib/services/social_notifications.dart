@@ -107,12 +107,27 @@ class SocialNotifications with WidgetsBindingObserver {
           notificationId: candidate.notificationId,
           title: candidate.title,
           body: candidate.body,
+          payload: candidate.payload ?? '',
         );
         await tracker.add(candidate.key); // only after a successful show
       }
     } catch (e) {
       // The poll / next ping covers it; log so a dead path is diagnosable.
       debugPrint('SN: ping failed: $e');
+    }
+  }
+
+  /// The drawer is showing the alerts, so their tray copies are stale:
+  /// drop each one (the id it was shown under). A notification the user
+  /// already swiped is simply gone - cancel is a no-op there.
+  Future<void> clearTray(List<AppNotification> items) async {
+    for (final n in items) {
+      try {
+        await notifier.cancelNotification(
+            SocialNotificationSource.notificationIdOffset + n.groupId);
+      } catch (e) {
+        debugPrint('SN: clearTray failed: $e');
+      }
     }
   }
 

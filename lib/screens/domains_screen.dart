@@ -180,14 +180,13 @@ class _DomainsScreenState extends State<DomainsScreen> {
     }
     return RefreshIndicator(
       onRefresh: () => _loadFeed(reset: true),
-      color: EnclavdColors.link,
+      color: context.enclavd.link,
       child: ListView.builder(
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: _threads.isEmpty
-            ? 3
-            : 1 + 1 + _threads.length + (_loading ? 1 : 0),
+        itemCount:
+            _threads.isEmpty ? 3 : 1 + 1 + _threads.length + (_loading ? 1 : 0),
         itemBuilder: (context, index) {
           if (index == 0) return _buildChips();
           if (index == 1) return _buildFeedHeader();
@@ -197,15 +196,15 @@ class _DomainsScreenState extends State<DomainsScreen> {
               padding: const EdgeInsets.symmetric(vertical: 48),
               child: Column(
                 children: [
-                  const FaIcon(FontAwesomeIcons.comments,
-                      color: EnclavdColors.textSecondary, size: 28),
+                  FaIcon(FontAwesomeIcons.comments,
+                      color: context.enclavd.textSecondary, size: 28),
                   const SizedBox(height: 10),
-                  const Text(
+                  Text(
                     'No posts yet',
                     style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: EnclavdColors.textPrimary),
+                        color: context.enclavd.textPrimary),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -213,9 +212,8 @@ class _DomainsScreenState extends State<DomainsScreen> {
                         ? 'Posts promoted to a domain will show up here.'
                         : 'Nothing has been promoted to this domain yet.',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        fontSize: 12.5,
-                        color: EnclavdColors.textSecondary),
+                    style: TextStyle(
+                        fontSize: 12.5, color: context.enclavd.textSecondary),
                   ),
                 ],
               ),
@@ -264,7 +262,7 @@ class _DomainsScreenState extends State<DomainsScreen> {
           _DomainChip(
             label: 'All',
             icon: FontAwesomeIcons.tableCellsLarge,
-            iconColor: EnclavdColors.link,
+            iconColor: context.enclavd.link,
             selected: _selectedId == null,
             onTap: () => _select(null),
           ),
@@ -272,7 +270,8 @@ class _DomainsScreenState extends State<DomainsScreen> {
             _DomainChip(
               label: cat.name,
               icon: domainIconFor(cat.icon, codePoint: cat.iconCode),
-              iconColor: domainColorFromHex(cat.color),
+              iconColor:
+                  context.enclavd.accentGlyph(domainColorFromHex(cat.color)),
               selected: _selectedId == cat.id,
               onTap: () => _select(cat.id),
             ),
@@ -295,18 +294,18 @@ class _DomainsScreenState extends State<DomainsScreen> {
         children: [
           Text(
             selected != null ? 'Posts in ${selected.name}' : 'Latest Posts',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.3,
-              color: EnclavdColors.textSecondary,
+              color: context.enclavd.textSecondary,
             ),
           ),
           const Spacer(),
           Text(
             '$_total total',
-            style: const TextStyle(
-                fontSize: 11, color: EnclavdColors.textSecondary),
+            style:
+                TextStyle(fontSize: 11, color: context.enclavd.textSecondary),
           ),
         ],
       ),
@@ -332,9 +331,9 @@ class _DomainChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bg = selected
-        ? EnclavdColors.link.withValues(alpha: 0.16)
-        : EnclavdColors.cardSecondary;
-    final fg = selected ? EnclavdColors.link : EnclavdColors.textSecondary;
+        ? context.enclavd.link.withValues(alpha: 0.16)
+        : context.enclavd.cardSecondary;
+    final fg = selected ? context.enclavd.link : context.enclavd.textSecondary;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
@@ -345,8 +344,8 @@ class _DomainChip extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: selected
-                ? EnclavdColors.link.withValues(alpha: 0.5)
-                : EnclavdColors.border,
+                ? context.enclavd.link.withValues(alpha: 0.5)
+                : context.enclavd.border,
           ),
         ),
         child: Row(

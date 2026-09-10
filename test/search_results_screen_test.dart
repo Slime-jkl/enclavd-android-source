@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:enclavd/api/api_client.dart';
 import 'package:enclavd/api/search_service.dart';
+import 'package:enclavd/config/app_config.dart';
 import 'package:enclavd/screens/post_detail_screen.dart';
 import 'package:enclavd/screens/profile_screen.dart';
 import 'package:enclavd/screens/search_results_screen.dart';
@@ -158,6 +159,12 @@ void main() {
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.byType(PostDetailScreen), findsOneWidget);
 
+    // No plugin channels here, so the container build cannot finish: the
+    // screen has to surface its retryable error rather than sit on the
+    // loading skeleton forever (the deadline in PostDetailScreen._load).
+    await tester.pump(AppConfig.receiveTimeout + const Duration(seconds: 1));
+    expect(find.textContaining('Could not load the post'), findsOneWidget);
+
     // Back, then comment row -> PostDetailScreen(postId = parent post id).
     await tester.pageBack();
     await tester.pump();
@@ -166,6 +173,8 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     expect(find.byType(PostDetailScreen), findsOneWidget);
+    await tester.pump(AppConfig.receiveTimeout + const Duration(seconds: 1));
+    expect(find.textContaining('Could not load the post'), findsOneWidget);
   });
 
   testWidgets('empty state', (tester) async {

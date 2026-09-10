@@ -90,6 +90,12 @@ Map<String, dynamic> _postJson() => {
 
 Post _post() => Post.fromJson(_postJson());
 
+/// The row tint the highlight paints (site: bg-blue-500/10).
+Finder _highlightTint() => find.byWidgetPredicate((w) =>
+    w is Container &&
+    w.decoration is BoxDecoration &&
+    (w.decoration! as BoxDecoration).color == const Color(0x1A3B82F6));
+
 Comment _comment(int id, String text, {int? parent, bool own = false}) =>
     Comment(
       id: id,
@@ -124,14 +130,15 @@ void main() {
       _comment(2, 'Child reply', parent: 1),
     ]);
     await tester.pumpWidget(wrap(CommentsScreen(
-      post: _post(),
+      postId: _post().id,
+      initialCount: _post().commentCount,
       social: social,
       apiBaseUrl: 'https://example.com',
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    // Post context + the root comment + the composer.
-    expect(find.text('The post content'), findsOneWidget);
+    // The thread + the pinned composer; no post preview above them.
+    expect(find.text('The post content'), findsNothing);
     expect(find.text('Root comment'), findsOneWidget);
     expect(find.byType(TextField), findsOneWidget);
     // The nested reply is hidden behind its count toggle by default.
@@ -150,30 +157,62 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('Child reply'), findsNothing);
     expect(find.text('1 reply'), findsOneWidget);
-    // Short posts render in full: no read-more toggle on the header.
-    expect(find.text('Show more'), findsNothing);
   });
 
-  testWidgets('long post content clamps behind a show-more toggle',
+  testWidgets('the comment a notification landed on is revealed and tinted',
       (tester) async {
-    final social = _FakeSocial();
-    final post = Post.fromJson(_postJson()..['content'] = 'word ' * 200);
+    final social = _FakeSocial(comments: [
+      _comment(1, 'Root comment'),
+      _comment(2, 'Child reply', parent: 1),
+      _comment(3, 'Another root'),
+    ]);
     await tester.pumpWidget(wrap(CommentsScreen(
-      post: post,
+      postId: _post().id,
+      initialCount: _post().commentCount,
+      social: social,
+      apiBaseUrl: 'https://example.com',
+      highlightCommentId: 2,
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // A nested reply: its group opens itself so the row is on screen.
+    expect(find.text('Child reply'), findsOneWidget);
+    expect(find.text('Replying to @Someone'), findsOneWidget);
+    // Exactly one row wears the tint, and it is the target's.
+    expect(_highlightTint(), findsOneWidget);
+  });
+
+  testWidgets('nothing is tinted without a target', (tester) async {
+    final social = _FakeSocial(comments: [_comment(1, 'Root comment')]);
+    await tester.pumpWidget(wrap(CommentsScreen(
+      postId: _post().id,
+      initialCount: _post().commentCount,
       social: social,
       apiBaseUrl: 'https://example.com',
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    // Collapsed by default; expanding reveals the full text, and the
-    // toggle flips back so it can be clamped again.
-    expect(find.text('Show more'), findsOneWidget);
-    await tester.tap(find.text('Show more'));
+    expect(_highlightTint(), findsNothing);
+  });
+
+  testWidgets('long post stays out of the way of the thread and composer',
+      (tester) async {
+    // Regression: the post preview used to sit above the thread and, with a
+    // long post, squeezed it until the keyboard pushed the composer off-screen.
+    final social = _FakeSocial(comments: [_comment(1, 'Root comment')]);
+    final post = Post.fromJson(_postJson()..['content'] = 'word ' * 200);
+    await tester.pumpWidget(wrap(CommentsScreen(
+      postId: post.id,
+      initialCount: post.commentCount,
+      social: social,
+      apiBaseUrl: 'https://example.com',
+    )));
     await tester.pump(const Duration(milliseconds: 50));
-    expect(find.text('Show less'), findsOneWidget);
-    await tester.tap(find.text('Show less'));
-    await tester.pump(const Duration(milliseconds: 50));
-    expect(find.text('Show more'), findsOneWidget);
+
+    expect(find.text('Root comment'), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget); // composer still there
+    expect(find.textContaining('word word'), findsNothing); // no post body
+    expect(find.text('Show more'), findsNothing); // no clamp toggle either
   });
 
   testWidgets('deleting an own comment asks first, then drops the subtree',
@@ -183,7 +222,8 @@ void main() {
       _comment(2, 'Child reply', parent: 1),
     ]);
     await tester.pumpWidget(wrap(CommentsScreen(
-      post: _post(),
+      postId: _post().id,
+      initialCount: _post().commentCount,
       social: social,
       apiBaseUrl: 'https://example.com',
     )));
@@ -218,7 +258,8 @@ void main() {
       _comment(2, long, parent: 1),
     ]);
     await tester.pumpWidget(wrap(CommentsScreen(
-      post: _post(),
+      postId: _post().id,
+      initialCount: _post().commentCount,
       social: social,
       apiBaseUrl: 'https://example.com',
     )));
@@ -291,7 +332,8 @@ void main() {
       (tester) async {
     final social = _FakeSocial(comments: [_comment(1, 'Root comment')]);
     await tester.pumpWidget(wrap(CommentsScreen(
-      post: _post(),
+      postId: _post().id,
+      initialCount: _post().commentCount,
       social: social,
       apiBaseUrl: 'https://example.com',
     )));
@@ -339,7 +381,8 @@ void main() {
               onPressed: () async {
                 popped = await Navigator.of(context).push<int>(
                   CommentsScreen.route(
-                    post: _post(),
+                    postId: _post().id,
+                    initialCount: _post().commentCount,
                     social: social,
                     apiBaseUrl: 'https://example.com',
                   ),

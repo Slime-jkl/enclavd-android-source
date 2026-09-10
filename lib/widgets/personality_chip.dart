@@ -11,11 +11,11 @@ class PersonalityChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color =
-        PersonalityColors.forType(type) ?? EnclavdColors.textSecondary;
+        context.enclavd.personalityColor(type) ?? context.enclavd.textSecondary;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: EnclavdColors.cardSecondary,
+        color: context.enclavd.cardSecondary,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(

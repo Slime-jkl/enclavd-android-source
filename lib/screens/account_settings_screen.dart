@@ -123,7 +123,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = userFacingError(e, fallback: 'Failed to load account settings.');
+        _error =
+            userFacingError(e, fallback: 'Failed to load account settings.');
         _loading = false;
       });
     }
@@ -146,8 +147,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         setState(() => _countries = countries);
         final country = account.geoCountry;
         if (country != null) {
-          final match =
-              countries.where((c) => c.id == country).toList();
+          final match = countries.where((c) => c.id == country).toList();
           if (match.isNotEmpty && mounted) {
             setState(() => _countryName = match.first.name);
           }
@@ -163,8 +163,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
 
   Future<void> _loadCities(int countryId, {int? keepCity}) async {
     try {
-      final json = await _api.getJson(
-          '/handlers/geo/get_cities.php', query: {'country_id': '$countryId'});
+      final json = await _api.getJson('/handlers/geo/get_cities.php',
+          query: {'country_id': '$countryId'});
       final data = json['data'];
       if (data is! List) return;
       final cities = data
@@ -201,25 +201,22 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       if (!mounted) return;
       setState(() {
         _pendingAvatar = bytes;
-        _avatarDataUrl =
-            'data:image/jpeg;base64,${base64Encode(bytes)}';
+        _avatarDataUrl = 'data:image/jpeg;base64,${base64Encode(bytes)}';
       });
     } catch (_) {
       // A picker failure must not be silent: the user tapped Change.
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text(
-            'Could not open your photos. Please check the app\'s photo '
-            'permission and try again.'),
+        content:
+            Text('Could not open your photos. Please check the app\'s photo '
+                'permission and try again.'),
         duration: Duration(seconds: 3),
       ));
     }
   }
 
   Future<void> _pickBirthdate() async {
-    final initial = _birthdate != null
-        ? DateTime.tryParse(_birthdate!)
-        : null;
+    final initial = _birthdate != null ? DateTime.tryParse(_birthdate!) : null;
     final picked = await showDatePicker(
       context: context,
       initialDate: initial ?? DateTime(2000, 1, 1),
@@ -228,8 +225,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       helpText: 'Date of birth',
       builder: (context, child) => Theme(
         data: Theme.of(context).copyWith(
-          datePickerTheme: const DatePickerThemeData(
-            backgroundColor: EnclavdColors.card,
+          datePickerTheme: DatePickerThemeData(
+            backgroundColor: context.enclavd.card,
             surfaceTintColor: Colors.transparent,
           ),
         ),
@@ -238,8 +235,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     );
     if (picked == null || !mounted) return;
     setState(() {
-      _birthdate =
-          '${picked.year.toString().padLeft(4, '0')}-'
+      _birthdate = '${picked.year.toString().padLeft(4, '0')}-'
           '${picked.month.toString().padLeft(2, '0')}-'
           '${picked.day.toString().padLeft(2, '0')}';
     });
@@ -248,7 +244,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
   Future<void> _pickCountry() async {
     final picked = await showModalBottomSheet<_GeoCountry>(
       context: context,
-      backgroundColor: EnclavdColors.card,
+      backgroundColor: context.enclavd.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -277,7 +273,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
     if (!mounted) return;
     final picked = await showModalBottomSheet<_GeoCity>(
       context: context,
-      backgroundColor: EnclavdColors.card,
+      backgroundColor: context.enclavd.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -321,8 +317,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       if (!mounted) return;
       setState(() {
         _saving = false;
-        _error = userFacingError(
-            e, fallback: 'Could not save your changes. Please try again.');
+        _error = userFacingError(e,
+            fallback: 'Could not save your changes. Please try again.');
       });
       _revealError();
       return;
@@ -334,8 +330,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         if (!mounted) return;
         setState(() {
           _saving = false;
-          _error = userFacingError(
-              e,
+          _error = userFacingError(e,
               fallback:
                   'Your new profile picture could not be saved. Please try again.');
         });
@@ -375,10 +370,10 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: EnclavdColors.card,
+          backgroundColor: context.enclavd.card,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: const BorderSide(color: EnclavdColors.border),
+            side: BorderSide(color: context.enclavd.border),
           ),
           title: const Text('Change Password'),
           content: SingleChildScrollView(
@@ -390,12 +385,12 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: EnclavdColors.likeActive.withValues(alpha: 0.12),
+                      color: context.enclavd.likeActive.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(error!,
-                        style: const TextStyle(
-                            fontSize: 12.5, color: EnclavdColors.likeActive)),
+                        style: TextStyle(
+                            fontSize: 12.5, color: context.enclavd.likeActive)),
                   ),
                   const SizedBox(height: 10),
                 ],
@@ -431,7 +426,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
             ),
             FilledButton(
               style: FilledButton.styleFrom(
-                  backgroundColor: EnclavdColors.primaryButton),
+                  backgroundColor: context.enclavd.primaryButton),
               onPressed: () async {
                 final currentText = current.text;
                 final nextText = next.text;
@@ -439,8 +434,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                 if (currentText.isEmpty ||
                     nextText.isEmpty ||
                     confirmText.isEmpty) {
-                  setDialogState(() =>
-                      error = 'All password fields are required');
+                  setDialogState(
+                      () => error = 'All password fields are required');
                   return;
                 }
                 try {
@@ -451,8 +446,8 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                   );
                   if (context.mounted) Navigator.of(context).pop(true);
                 } catch (e) {
-                  setDialogState(() => error =
-                      userFacingError(e, fallback: 'Failed to change the password.'));
+                  setDialogState(() => error = userFacingError(e,
+                      fallback: 'Failed to change the password.'));
                 }
               },
               child: const Text('Save'),
@@ -487,7 +482,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       );
     }
     if (_error != null && _account == null) {
-return ErrorView(message: _error!, onRetry: _load);
+      return ErrorView(message: _error!, onRetry: _load);
     }
     final account = _account!;
     return ListView(
@@ -515,7 +510,7 @@ return ErrorView(message: _error!, onRetry: _load);
                 url: account.profilePictureUrl.startsWith('/')
                     ? '${AppConfig.apiBaseUrl}${account.profilePictureUrl}'
                     : account.profilePictureUrl,
-                borderColor: EnclavdColors.border,
+                borderColor: context.enclavd.border,
               ),
             const SizedBox(width: 16),
             Expanded(
@@ -523,26 +518,24 @@ return ErrorView(message: _error!, onRetry: _load);
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text('Profile Picture',
-                      style: TextStyle(
-                          fontSize: 14, fontWeight: FontWeight.w600)),
+                      style:
+                          TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 4),
-                  const Text(
+                  Text(
                     'JPEG, PNG, GIF or WebP. Images are resized to '
                     '800x800.',
                     style: TextStyle(
-                        fontSize: 12, color: EnclavdColors.textSecondary),
+                        fontSize: 12, color: context.enclavd.textSecondary),
                   ),
                   const SizedBox(height: 8),
                   OutlinedButton.icon(
                     onPressed: _pickAvatar,
-                    icon: const FaIcon(FontAwesomeIcons.image,
-                        size: 13, color: EnclavdColors.link),
-                    label: Text(_pendingAvatar != null
-                        ? 'Replace'
-                        : 'Change'),
+                    icon: FaIcon(FontAwesomeIcons.image,
+                        size: 13, color: context.enclavd.link),
+                    label: Text(_pendingAvatar != null ? 'Replace' : 'Change'),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: EnclavdColors.link,
-                      side: const BorderSide(color: EnclavdColors.border),
+                      foregroundColor: context.enclavd.link,
+                      side: BorderSide(color: context.enclavd.border),
                       visualDensity: VisualDensity.compact,
                     ),
                   ),
@@ -557,7 +550,7 @@ return ErrorView(message: _error!, onRetry: _load);
           child: TextField(
             controller: _emailController,
             enabled: false,
-            style: const TextStyle(color: EnclavdColors.textSecondary),
+            style: TextStyle(color: context.enclavd.textSecondary),
             decoration: _inputDecoration(),
           ),
         ),
@@ -566,7 +559,7 @@ return ErrorView(message: _error!, onRetry: _load);
           label: 'Full Name',
           child: TextField(
             controller: _fullNameController,
-            style: const TextStyle(color: EnclavdColors.textPrimary),
+            style: TextStyle(color: context.enclavd.textPrimary),
             decoration: _inputDecoration(),
           ),
         ),
@@ -577,7 +570,7 @@ return ErrorView(message: _error!, onRetry: _load);
             controller: _bioController,
             maxLines: 3,
             maxLength: kMaxBioChars,
-            style: const TextStyle(color: EnclavdColors.textPrimary),
+            style: TextStyle(color: context.enclavd.textPrimary),
             decoration: _inputDecoration(),
           ),
         ),
@@ -595,20 +588,20 @@ return ErrorView(message: _error!, onRetry: _load);
                       _birthdate ?? 'Select your date of birth',
                       style: TextStyle(
                         color: _birthdate == null
-                            ? EnclavdColors.textSecondary
-                            : EnclavdColors.textPrimary,
+                            ? context.enclavd.textSecondary
+                            : context.enclavd.textPrimary,
                       ),
                     ),
                   ),
                   if (_birthdate != null)
                     InkWell(
                       onTap: () => setState(() => _birthdate = null),
-                      child: const FaIcon(FontAwesomeIcons.xmark,
-                          size: 14, color: EnclavdColors.textSecondary),
+                      child: FaIcon(FontAwesomeIcons.xmark,
+                          size: 14, color: context.enclavd.textSecondary),
                     )
                   else
-                    const FaIcon(FontAwesomeIcons.calendar,
-                        size: 14, color: EnclavdColors.textSecondary),
+                    FaIcon(FontAwesomeIcons.calendar,
+                        size: 14, color: context.enclavd.textSecondary),
                 ],
               ),
             ),
@@ -619,8 +612,8 @@ return ErrorView(message: _error!, onRetry: _load);
           label: 'Gender',
           child: DropdownButtonFormField<String>(
             initialValue: _gender,
-            dropdownColor: EnclavdColors.cardSecondary,
-            style: const TextStyle(color: EnclavdColors.textPrimary),
+            dropdownColor: context.enclavd.cardSecondary,
+            style: TextStyle(color: context.enclavd.textPrimary),
             decoration: _inputDecoration(),
             items: const [
               DropdownMenuItem(value: 'NONE', child: Text('Prefer not to say')),
@@ -650,13 +643,13 @@ return ErrorView(message: _error!, onRetry: _load);
                           : _countryName,
                       style: TextStyle(
                         color: _countryName.isEmpty
-                            ? EnclavdColors.textSecondary
-                            : EnclavdColors.textPrimary,
+                            ? context.enclavd.textSecondary
+                            : context.enclavd.textPrimary,
                       ),
                     ),
                   ),
-                  const FaIcon(FontAwesomeIcons.chevronDown,
-                      size: 12, color: EnclavdColors.textSecondary),
+                  FaIcon(FontAwesomeIcons.chevronDown,
+                      size: 12, color: context.enclavd.textSecondary),
                 ],
               ),
             ),
@@ -681,13 +674,13 @@ return ErrorView(message: _error!, onRetry: _load);
                             : _cityName,
                         style: TextStyle(
                           color: _cityName.isEmpty
-                              ? EnclavdColors.textSecondary
-                              : EnclavdColors.textPrimary,
+                              ? context.enclavd.textSecondary
+                              : context.enclavd.textPrimary,
                         ),
                       ),
                     ),
-                    const FaIcon(FontAwesomeIcons.chevronDown,
-                        size: 12, color: EnclavdColors.textSecondary),
+                    FaIcon(FontAwesomeIcons.chevronDown,
+                        size: 12, color: context.enclavd.textSecondary),
                   ],
                 ),
               ),
@@ -706,7 +699,7 @@ return ErrorView(message: _error!, onRetry: _load);
               : const FaIcon(FontAwesomeIcons.floppyDisk, size: 14),
           label: const Text('Save Changes'),
           style: FilledButton.styleFrom(
-            backgroundColor: EnclavdColors.primaryButton,
+            backgroundColor: context.enclavd.primaryButton,
             padding: const EdgeInsets.symmetric(vertical: 14),
           ),
         ),
@@ -714,25 +707,24 @@ return ErrorView(message: _error!, onRetry: _load);
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: EnclavdColors.cardSecondary,
+            color: context.enclavd.cardSecondary,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: EnclavdColors.border),
+            border: Border.all(color: context.enclavd.border),
           ),
           child: Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Password',
+                    const Text('Password',
                         style: TextStyle(
                             fontSize: 15, fontWeight: FontWeight.w700)),
-                    SizedBox(height: 4),
+                    const SizedBox(height: 4),
                     Text(
                       'Use the button to securely change your password.',
                       style: TextStyle(
-                          fontSize: 12.5,
-                          color: EnclavdColors.textSecondary),
+                          fontSize: 12.5, color: context.enclavd.textSecondary),
                     ),
                   ],
                 ),
@@ -742,7 +734,7 @@ return ErrorView(message: _error!, onRetry: _load);
                 icon: const FaIcon(FontAwesomeIcons.key, size: 13),
                 label: const Text('Change Password'),
                 style: FilledButton.styleFrom(
-                  backgroundColor: EnclavdColors.primaryButton,
+                  backgroundColor: context.enclavd.primaryButton,
                   visualDensity: VisualDensity.compact,
                 ),
               ),
@@ -755,14 +747,14 @@ return ErrorView(message: _error!, onRetry: _load);
 
   InputDecoration _inputDecoration() => InputDecoration(
         filled: true,
-        fillColor: EnclavdColors.cardSecondary,
+        fillColor: context.enclavd.cardSecondary,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: EnclavdColors.border),
+          borderSide: BorderSide(color: context.enclavd.border),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: EnclavdColors.border),
+          borderSide: BorderSide(color: context.enclavd.border),
         ),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
@@ -783,8 +775,8 @@ class _Field extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.only(bottom: 6),
           child: Text(label,
-              style: const TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w500)),
+              style:
+                  const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
         ),
         child,
       ],
@@ -810,19 +802,21 @@ class _PasswordField extends StatelessWidget {
     return TextField(
       controller: controller,
       obscureText: obscure,
-      style: const TextStyle(color: EnclavdColors.textPrimary),
+      style: TextStyle(color: context.enclavd.textPrimary),
       decoration: InputDecoration(
         labelText: label,
         filled: true,
-        fillColor: EnclavdColors.cardSecondary,
+        fillColor: context.enclavd.cardSecondary,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: EnclavdColors.border),
+          borderSide: BorderSide(color: context.enclavd.border),
         ),
         suffixIcon: IconButton(
           onPressed: onToggle,
-          icon: FaIcon(obscure ? FontAwesomeIcons.eye : FontAwesomeIcons.eyeSlash,
-              size: 14, color: EnclavdColors.textSecondary),
+          icon: FaIcon(
+              obscure ? FontAwesomeIcons.eye : FontAwesomeIcons.eyeSlash,
+              size: 14,
+              color: context.enclavd.textSecondary),
         ),
       ),
     );
@@ -840,20 +834,20 @@ class _ErrorBanner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: EnclavdColors.likeActive.withValues(alpha: 0.12),
+        color: context.enclavd.likeActive.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-            color: EnclavdColors.likeActive.withValues(alpha: 0.4)),
+            color: context.enclavd.likeActive.withValues(alpha: 0.4)),
       ),
       child: Row(
         children: [
-          const FaIcon(FontAwesomeIcons.triangleExclamation,
-              size: 14, color: EnclavdColors.likeActive),
+          FaIcon(FontAwesomeIcons.triangleExclamation,
+              size: 14, color: context.enclavd.likeActive),
           const SizedBox(width: 8),
           Expanded(
             child: Text(text,
-                style: const TextStyle(
-                    fontSize: 12.5, color: EnclavdColors.likeActive)),
+                style: TextStyle(
+                    fontSize: 12.5, color: context.enclavd.likeActive)),
           ),
         ],
       ),
@@ -891,21 +885,17 @@ class _GeoPickerSheetState extends State<_GeoPickerSheet> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: TextField(
                 autofocus: true,
-                style:
-                    const TextStyle(color: EnclavdColors.textPrimary),
+                style: TextStyle(color: context.enclavd.textPrimary),
                 decoration: InputDecoration(
                   hintText: 'Search ${widget.title.toLowerCase()}',
-                  hintStyle:
-                      const TextStyle(color: EnclavdColors.textSecondary),
-                  prefixIcon: const FieldIcon(
-                      FontAwesomeIcons.magnifyingGlass,
-                      size: 14,
-                      color: EnclavdColors.textSecondary),
+                  hintStyle: TextStyle(color: context.enclavd.textSecondary),
+                  prefixIcon: FieldIcon(FontAwesomeIcons.magnifyingGlass,
+                      size: 14, color: context.enclavd.textSecondary),
                   filled: true,
-                  fillColor: EnclavdColors.cardSecondary,
+                  fillColor: context.enclavd.cardSecondary,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: EnclavdColors.border),
+                    borderSide: BorderSide(color: context.enclavd.border),
                   ),
                 ),
                 onChanged: (v) => setState(() => _query = v),
@@ -913,10 +903,10 @@ class _GeoPickerSheetState extends State<_GeoPickerSheet> {
             ),
             Expanded(
               child: filtered.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Text('No matches found',
-                          style: TextStyle(
-                              color: EnclavdColors.textSecondary)))
+                          style:
+                              TextStyle(color: context.enclavd.textSecondary)))
                   : ListView.builder(
                       itemCount: filtered.length,
                       itemBuilder: (context, i) {
@@ -952,7 +942,9 @@ class _CityPickerSheetState extends State<_CityPickerSheet> {
   @override
   Widget build(BuildContext context) {
     final filtered = widget.cities
-        .where((c) => _query.isEmpty || c.name.toLowerCase().contains(_query.toLowerCase()))
+        .where((c) =>
+            _query.isEmpty ||
+            c.name.toLowerCase().contains(_query.toLowerCase()))
         .toList();
     return SafeArea(
       child: SizedBox(
@@ -963,20 +955,17 @@ class _CityPickerSheetState extends State<_CityPickerSheet> {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: TextField(
                 autofocus: true,
-                style: const TextStyle(color: EnclavdColors.textPrimary),
+                style: TextStyle(color: context.enclavd.textPrimary),
                 decoration: InputDecoration(
                   hintText: 'Search city',
-                  hintStyle:
-                      const TextStyle(color: EnclavdColors.textSecondary),
-                  prefixIcon: const FieldIcon(
-                      FontAwesomeIcons.magnifyingGlass,
-                      size: 14,
-                      color: EnclavdColors.textSecondary),
+                  hintStyle: TextStyle(color: context.enclavd.textSecondary),
+                  prefixIcon: FieldIcon(FontAwesomeIcons.magnifyingGlass,
+                      size: 14, color: context.enclavd.textSecondary),
                   filled: true,
-                  fillColor: EnclavdColors.cardSecondary,
+                  fillColor: context.enclavd.cardSecondary,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: EnclavdColors.border),
+                    borderSide: BorderSide(color: context.enclavd.border),
                   ),
                 ),
                 onChanged: (v) => setState(() => _query = v),
@@ -984,10 +973,10 @@ class _CityPickerSheetState extends State<_CityPickerSheet> {
             ),
             Expanded(
               child: filtered.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Text('No matches found',
-                          style: TextStyle(
-                              color: EnclavdColors.textSecondary)))
+                          style:
+                              TextStyle(color: context.enclavd.textSecondary)))
                   : ListView.builder(
                       itemCount: filtered.length,
                       itemBuilder: (context, i) {

@@ -485,7 +485,8 @@ class _ChatScreenState extends State<ChatScreen> {
   // ── Block / unblock ───────────────────────────────────────────────
   Future<void> _toggleBlock() async {
     if (_busyBlock) return;
-    final name = widget.participantName.isEmpty ? 'this user' : widget.participantName;
+    final name =
+        widget.participantName.isEmpty ? 'this user' : widget.participantName;
     final blocking = !_blockedByMe;
     final ok = await _confirm(
       blocking ? 'Block $name?' : 'Unblock $name?',
@@ -527,14 +528,16 @@ class _ChatScreenState extends State<ChatScreen> {
     return showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: EnclavdColors.card,
-        title: Text(title, style: const TextStyle(color: EnclavdColors.textPrimary)),
-        content: Text(body, style: const TextStyle(color: EnclavdColors.textSecondary)),
+        backgroundColor: context.enclavd.card,
+        title:
+            Text(title, style: TextStyle(color: context.enclavd.textPrimary)),
+        content:
+            Text(body, style: TextStyle(color: context.enclavd.textSecondary)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Cancel',
-                style: TextStyle(color: EnclavdColors.textSecondary)),
+            child: Text('Cancel',
+                style: TextStyle(color: context.enclavd.textSecondary)),
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
@@ -542,7 +545,7 @@ class _ChatScreenState extends State<ChatScreen> {
                 style: TextStyle(
                     color: destructive
                         ? const Color(0xFFF87171)
-                        : EnclavdColors.link)),
+                        : context.enclavd.link)),
           ),
         ],
       ),
@@ -579,8 +582,8 @@ class _ChatScreenState extends State<ChatScreen> {
                   size: 32,
                   url: resolveAvatarUrl(
                       AppConfig.apiBaseUrl, widget.participantAvatar!),
-                  borderColor:
-                      PersonalityColors.forType(widget.participantPersonality),
+                  borderColor: context.enclavd
+                      .personalityColor(widget.participantPersonality),
                 ),
               ),
             Expanded(
@@ -594,24 +597,35 @@ class _ChatScreenState extends State<ChatScreen> {
                     Text(
                       name.isEmpty ? 'Conversation' : name,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: EnclavdColors.textPrimary,
+                        color: context.enclavd.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 1),
                     Text(
                       blocked
                           ? '- blocked'
-                          : (widget.participantIsOnline ? '- online' : '- offline'),
+                          : (widget.participantIsOnline
+                              ? '- online'
+                              : '- offline'),
                       style: TextStyle(
                         fontSize: 12,
+                        // Accents step one tone darker on light.
                         color: blocked
-                            ? const Color(0xFFF87171)
+                            ? (Theme.of(context).brightness == Brightness.light
+                                ? const Color(0xFFDC2626)
+                                : const Color(0xFFF87171))
                             : (widget.participantIsOnline
-                                ? const Color(0xFF4ADE80) // green-400
-                                : const Color(0xFF9CA3AF)), // gray-400
+                                ? (Theme.of(context).brightness ==
+                                        Brightness.light
+                                    ? const Color(0xFF059669)
+                                    : const Color(0xFF4ADE80)) // green-400
+                                : (Theme.of(context).brightness ==
+                                        Brightness.light
+                                    ? context.enclavd.textSecondary
+                                    : const Color(0xFF9CA3AF))), // gray-400
                       ),
                     ),
                   ],
@@ -631,8 +645,10 @@ class _ChatScreenState extends State<ChatScreen> {
                   : FontAwesomeIcons.userSlash,
               size: 18,
               color: _blockedByMe
-                  ? const Color(0xFFF87171)
-                  : EnclavdColors.textSecondary,
+                  ? (Theme.of(context).brightness == Brightness.light
+                      ? const Color(0xFFDC2626)
+                      : const Color(0xFFF87171))
+                  : context.enclavd.textSecondary,
             ),
           ),
         ],
@@ -661,14 +677,24 @@ class _ChatScreenState extends State<ChatScreen> {
       color: const Color(0x1FEF4444), // red-500/12
       child: Row(
         children: [
-          const FaIcon(FontAwesomeIcons.ban, size: 13, color: Color(0xFFFCA5A5)),
+          // Light red-300 text disappears on white cards; use 600 there.
+          FaIcon(FontAwesomeIcons.ban,
+              size: 13,
+              color: Theme.of(context).brightness == Brightness.light
+                  ? const Color(0xFFDC2626)
+                  : const Color(0xFFFCA5A5)),
           const SizedBox(width: 9),
           Expanded(
             child: Text(
               _blockedByMe
                   ? 'You blocked $name. Messages are paused until you unblock.'
                   : "You can't send messages to $name.",
-              style: const TextStyle(fontSize: 12.5, color: Color(0xFFFCA5A5)),
+              style: TextStyle(
+                fontSize: 12.5,
+                color: Theme.of(context).brightness == Brightness.light
+                    ? const Color(0xFFDC2626)
+                    : const Color(0xFFFCA5A5),
+              ),
             ),
           ),
         ],
@@ -678,8 +704,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _buildThread() {
     if (_loading) {
-      return const Center(
-        child: CircularProgressIndicator(color: EnclavdColors.link),
+      return Center(
+        child: CircularProgressIndicator(color: context.enclavd.link),
       );
     }
     if (_error != null && _messages.isEmpty) {
@@ -707,14 +733,14 @@ class _ChatScreenState extends State<ChatScreen> {
         itemBuilder: (context, index) {
           if (index >= _messages.length) {
             // Older-page fetch in flight (rendered at the top end).
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 14),
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 14),
               child: Center(
                 child: SizedBox(
                   width: 18,
                   height: 18,
                   child: CircularProgressIndicator(
-                      strokeWidth: 2, color: EnclavdColors.link),
+                      strokeWidth: 2, color: context.enclavd.link),
                 ),
               ),
             );
@@ -770,15 +796,18 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _buildTypingIndicator() {
     if (!_otherTyping) return const SizedBox.shrink();
+    final light = Theme.of(context).brightness == Brightness.light;
     return Container(
       alignment: Alignment.centerLeft,
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 2),
-      child: const Text(
+      child: Text(
         'Typing...',
         style: TextStyle(
           fontSize: 12, // text-xs
           fontStyle: FontStyle.italic,
-          color: Color(0xCC93C5FD), // text-blue-300/80
+          color: light
+              ? context.enclavd.link
+              : const Color(0xCC93C5FD), // text-blue-300/80
         ),
       ),
     );
@@ -786,11 +815,15 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _buildInputBar() {
     final blocked = _blocked;
+    final light = Theme.of(context).brightness == Brightness.light;
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      decoration: const BoxDecoration(
-        color: Color(0x4D000000), // black/30 (site bg-black/[0.3])
-        border: Border(top: BorderSide(color: EnclavdColors.divider)),
+      decoration: BoxDecoration(
+        // site bg-black/[0.3]; a light wash reads better on white cards
+        color: light
+            ? const Color(0x12000000) // black/[0.07]
+            : const Color(0x4D000000), // black/30
+        border: Border(top: BorderSide(color: context.enclavd.divider)),
       ),
       child: Opacity(
         opacity: blocked ? 0.55 : 1,
@@ -806,26 +839,27 @@ class _ChatScreenState extends State<ChatScreen> {
                 onChanged: _onInputChanged,
                 onSubmitted: (_) => _send(),
                 // No autofillHints: they detach the IME on Android.
-                style: const TextStyle(
-                    color: EnclavdColors.textPrimary, fontSize: 15),
+                style:
+                    TextStyle(color: context.enclavd.textPrimary, fontSize: 15),
                 decoration: InputDecoration(
-                  hintText: blocked
-                      ? 'Messages paused'
-                      : 'Type your message...',
+                  hintText:
+                      blocked ? 'Messages paused' : 'Type your message...',
                   isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 11),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
                   filled: true,
-                  fillColor: const Color(0x0DFFFFFF), // white/[0.05]
+                  fillColor: Theme.of(context).brightness == Brightness.light
+                      ? const Color(0x0F111827) // gray-900/[0.06]
+                      : const Color(0x0DFFFFFF), // white/[0.05]
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8), // rounded-lg
                     borderSide:
-                        const BorderSide(color: EnclavdColors.border), // white/10
+                        BorderSide(color: context.enclavd.border), // white/10
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                     borderSide:
-                        const BorderSide(color: EnclavdColors.link, width: 2),
+                        BorderSide(color: context.enclavd.link, width: 2),
                   ),
                 ),
               ),
@@ -840,10 +874,10 @@ class _ChatScreenState extends State<ChatScreen> {
                 onPressed: (_sending || _loading || blocked) ? null : _send,
                 style: ElevatedButton.styleFrom(
                   padding: EdgeInsets.zero,
-                  backgroundColor: EnclavdColors.primaryButton,
-                  foregroundColor: EnclavdColors.primaryButtonText,
+                  backgroundColor: context.enclavd.primaryButton,
+                  foregroundColor: context.enclavd.primaryButtonText,
                   disabledBackgroundColor:
-                      EnclavdColors.primaryButton.withValues(alpha: 0.5),
+                      context.enclavd.primaryButton.withValues(alpha: 0.5),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -882,6 +916,7 @@ class _MessageBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final maxWidth = MediaQuery.of(context).size.width * 0.7; // site max-w 70%
     final tombstone = message.deletedForEveryone;
+    final light = Theme.of(context).brightness == Brightness.light;
     final bubbleText = tombstone
         ? (isMine ? 'You deleted this message' : 'This message was deleted')
         : message.message;
@@ -889,11 +924,19 @@ class _MessageBubble extends StatelessWidget {
       constraints: BoxConstraints(maxWidth: maxWidth),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        // Sent: rgba(30,58,138,0.8); received: rgba(255,255,255,0.1);
+        // Sent: rgba(30,58,138,0.8); received: white/10 over the dark
+        // list, soft cards (palette card) with an ink border over light;
         // tombstones keep a faint shell so the row reads as a placeholder.
         color: isMine
             ? (tombstone ? const Color(0x661E3A8A) : const Color(0xCC1E3A8A))
-            : (tombstone ? const Color(0x0AFFFFFF) : const Color(0x1AFFFFFF)),
+            : (tombstone
+                ? (light
+                    ? const Color(0x0D000000) // black/[0.05]
+                    : const Color(0x0AFFFFFF))
+                : (light ? context.enclavd.card : const Color(0x1AFFFFFF))),
+        border: (!isMine && light)
+            ? Border.all(color: context.enclavd.border)
+            : null,
         borderRadius: BorderRadius.only(
           // Site: 1.5rem with the sender-side corner 0.5rem.
           topLeft: Radius.circular(isMine ? 24 : 8),
@@ -906,12 +949,14 @@ class _MessageBubble extends StatelessWidget {
         bubbleText,
         style: TextStyle(
           color: isMine
-              ? (tombstone
-                  ? const Color(0x80FFFFFF)
-                  : Colors.white)
+              ? (tombstone ? const Color(0x80FFFFFF) : Colors.white)
               : (tombstone
-                  ? const Color(0x66E2E8F0)
-                  : const Color(0xFFE2E8F0)), // slate-200 (site received text)
+                  ? (light
+                      ? context.enclavd.textSecondary
+                      : const Color(0x66E2E8F0))
+                  : (light
+                      ? context.enclavd.textPrimary
+                      : const Color(0xFFE2E8F0))), // slate-200 (site text)
           fontSize: 15,
           height: 1.3,
           fontStyle: tombstone ? FontStyle.italic : FontStyle.normal,
@@ -925,12 +970,15 @@ class _MessageBubble extends StatelessWidget {
     // cannot be mis-tapped. Tombstones reveal nothing.
     Widget? metaRow;
     if (expanded && !tombstone) {
+      // Time + receipts sit under the bubble, so they follow the list
+      // background, not the bubble fill.
+      final metaInk =
+          light ? context.enclavd.textSecondary : const Color(0x99FFFFFF);
       final timeLine = Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(formatMessageTime(message.createdAt),
-              style:
-                  const TextStyle(fontSize: 10, color: Color(0x99FFFFFF))),
+              style: TextStyle(fontSize: 10, color: metaInk)),
           if (isMine) ...[
             const SizedBox(width: 8),
             FaIcon(
@@ -940,8 +988,10 @@ class _MessageBubble extends StatelessWidget {
               key: ValueKey('receipt-${message.id}'),
               size: 10,
               color: message.isRead == true
-                  ? const Color(0xFF60A5FA) // blue-400 (seen)
-                  : const Color(0x99FFFFFF), // white/60 (sent)
+                  ? (light
+                      ? const Color(0xFF2563EB) // blue-600 (seen)
+                      : const Color(0xFF60A5FA)) // blue-400 (seen)
+                  : metaInk,
             ),
           ],
         ],
@@ -960,7 +1010,10 @@ class _MessageBubble extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: const Color(0x26FFFFFF)), // white/15
+              border: Border.all(
+                  color: light
+                      ? context.enclavd.border
+                      : const Color(0x26FFFFFF)), // white/15
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -979,9 +1032,14 @@ class _MessageBubble extends StatelessWidget {
         ));
       }
 
-      addAction('Delete for me', const Color(0xCCFFFFFF), onDeleteMe);
       addAction(
-          'Delete for everyone', const Color(0xFFFCA5A5), onDeleteEveryone);
+          'Delete for me',
+          light ? context.enclavd.textSecondary : const Color(0xCCFFFFFF),
+          onDeleteMe);
+      addAction(
+          'Delete for everyone',
+          light ? const Color(0xFFDC2626) : const Color(0xFFFCA5A5),
+          onDeleteEveryone);
 
       metaRow = Padding(
         padding: EdgeInsets.only(top: 3, right: isMine ? 2 : 0),
@@ -1034,8 +1092,12 @@ class _MessageBubble extends StatelessWidget {
                       key: ValueKey('receipt-${message.id}'),
                       size: 11,
                       color: message.isRead == true
-                          ? const Color(0xFF60A5FA) // blue-400 (seen)
-                          : const Color(0x99FFFFFF), // white/60 (sent)
+                          ? (light
+                              ? const Color(0xFF2563EB) // blue-600 (seen)
+                              : const Color(0xFF60A5FA)) // blue-400 (seen)
+                          : (light
+                              ? context.enclavd.textSecondary
+                              : const Color(0x99FFFFFF)), // white/60 (sent)
                     ),
                   ),
                 ],

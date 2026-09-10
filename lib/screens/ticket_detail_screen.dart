@@ -144,7 +144,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
       );
     }
     if (_error != null) {
-return ErrorView(message: _error!, onRetry: _load);
+      return ErrorView(message: _error!, onRetry: _load);
     }
     final detail = _detail!;
     return ListView(
@@ -157,9 +157,9 @@ return ErrorView(message: _error!, onRetry: _load);
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: EnclavdColors.card,
+            color: context.enclavd.card,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: EnclavdColors.border),
+            border: Border.all(color: context.enclavd.border),
           ),
           child: Row(
             children: [
@@ -167,11 +167,11 @@ return ErrorView(message: _error!, onRetry: _load);
                 EnclavdAvatar(
                   size: 48,
                   url: _avatarUrl(detail.owner!.profilePictureUrl),
-                  borderColor: RankColors.forRank(detail.owner!.rank),
+                  borderColor: context.enclavd.rankName(detail.owner!.rank),
                 )
               else
-                const FaIcon(FontAwesomeIcons.user,
-                    size: 22, color: EnclavdColors.textSecondary),
+                FaIcon(FontAwesomeIcons.user,
+                    size: 22, color: context.enclavd.textSecondary),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -187,8 +187,8 @@ return ErrorView(message: _error!, onRetry: _load);
                               fontSize: 15,
                               fontWeight: FontWeight.w600,
                               color: detail.owner != null
-                                  ? RankColors.forRank(detail.owner!.rank)
-                                  : EnclavdColors.textPrimary,
+                                  ? context.enclavd.rankName(detail.owner!.rank)
+                                  : context.enclavd.textPrimary,
                             ),
                           ),
                         ),
@@ -200,15 +200,15 @@ return ErrorView(message: _error!, onRetry: _load);
                     ),
                     const SizedBox(height: 2),
                     Text('Report #${detail.id}',
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 11.5,
-                            color: EnclavdColors.textSecondary)),
+                            color: context.enclavd.textSecondary)),
                   ],
                 ),
               ),
               Text(detail.date,
-                  style: const TextStyle(
-                      fontSize: 11, color: EnclavdColors.textSecondary)),
+                  style: TextStyle(
+                      fontSize: 11, color: context.enclavd.textSecondary)),
             ],
           ),
         ),
@@ -216,9 +216,9 @@ return ErrorView(message: _error!, onRetry: _load);
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: EnclavdColors.card,
+            color: context.enclavd.card,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: EnclavdColors.border),
+            border: Border.all(color: context.enclavd.border),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -234,21 +234,22 @@ return ErrorView(message: _error!, onRetry: _load);
                     Text(
                       'Resolved on ${detail.solvedDate}',
                       style: const TextStyle(
-                          fontSize: 11,
-                          color: Color(0xFF4ADE80)), // green-400
+                          fontSize: 11, color: Color(0xFF4ADE80)), // green-400
                     ),
                 ],
               ),
               const SizedBox(height: 12),
-              const Text('Description',
+              Text('Description',
                   style: TextStyle(
                       fontSize: 12.5,
                       fontWeight: FontWeight.w600,
-                      color: EnclavdColors.textSecondary)),
+                      color: context.enclavd.textSecondary)),
               const SizedBox(height: 6),
               Text(detail.content,
-                  style: const TextStyle(
-                      fontSize: 13.5, height: 1.45, color: EnclavdColors.textPrimary)),
+                  style: TextStyle(
+                      fontSize: 13.5,
+                      height: 1.45,
+                      color: context.enclavd.textPrimary)),
               if (!detail.isClosed) ...[
                 const SizedBox(height: 14),
                 Align(
@@ -271,33 +272,32 @@ return ErrorView(message: _error!, onRetry: _load);
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: EnclavdColors.card,
+            color: context.enclavd.card,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: EnclavdColors.border),
+            border: Border.all(color: context.enclavd.border),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
+              Row(
                 children: [
                   FaIcon(FontAwesomeIcons.comments,
-                      size: 14, color: EnclavdColors.link),
-                  SizedBox(width: 8),
-                  Text('Activity',
-                      style: TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.w700)),
+                      size: 14, color: context.enclavd.link),
+                  const SizedBox(width: 8),
+                  const Text('Activity',
+                      style:
+                          TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                 ],
               ),
               const SizedBox(height: 12),
               if (detail.events.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.only(bottom: 6),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
                   child: Text(
                     'No activity yet. Use the box below to add more '
                     'information or follow up.',
                     style: TextStyle(
-                        fontSize: 12.5,
-                        color: EnclavdColors.textSecondary),
+                        fontSize: 12.5, color: context.enclavd.textSecondary),
                   ),
                 )
               else
@@ -309,35 +309,34 @@ return ErrorView(message: _error!, onRetry: _load);
                   const SizedBox(height: 10),
                 ],
               if (detail.sealed)
-                const Row(
+                Row(
                   children: [
                     FaIcon(FontAwesomeIcons.lock,
-                        size: 12, color: EnclavdColors.likeActive),
-                    SizedBox(width: 6),
+                        size: 12, color: context.enclavd.likeActive),
+                    const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         'This ticket has been sealed. It cannot be reopened.',
                         style: TextStyle(
-                            fontSize: 12, color: EnclavdColors.likeActive),
+                            fontSize: 12, color: context.enclavd.likeActive),
                       ),
                     ),
                   ],
                 )
               else ...[
-                const Divider(height: 20, color: EnclavdColors.divider),
+                Divider(height: 20, color: context.enclavd.divider),
                 TextField(
                   controller: _replyController,
                   maxLines: 3,
                   maxLength: 255,
-                  style: const TextStyle(color: EnclavdColors.textPrimary),
+                  style: TextStyle(color: context.enclavd.textPrimary),
                   decoration: InputDecoration(
                     labelText: 'Add a reply',
                     filled: true,
-                    fillColor: EnclavdColors.cardSecondary,
+                    fillColor: context.enclavd.cardSecondary,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
-                      borderSide:
-                          const BorderSide(color: EnclavdColors.border),
+                      borderSide: BorderSide(color: context.enclavd.border),
                     ),
                   ),
                 ),
@@ -345,14 +344,13 @@ return ErrorView(message: _error!, onRetry: _load);
                 Align(
                   alignment: Alignment.centerRight,
                   child: FilledButton.icon(
-                    onPressed:
-                        (_busy || _replyController.text.trim().isEmpty)
-                            ? null
-                            : _sendReply,
+                    onPressed: (_busy || _replyController.text.trim().isEmpty)
+                        ? null
+                        : _sendReply,
                     icon: const FaIcon(FontAwesomeIcons.paperPlane, size: 14),
                     label: const Text('Send reply'),
                     style: FilledButton.styleFrom(
-                      backgroundColor: EnclavdColors.primaryButton,
+                      backgroundColor: context.enclavd.primaryButton,
                       visualDensity: VisualDensity.compact,
                     ),
                   ),
@@ -379,14 +377,13 @@ class _TypeChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: EnclavdColors.cardSecondary,
+        color: context.enclavd.cardSecondary,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const FaIcon(FontAwesomeIcons.tag,
-              size: 10, color: EnclavdColors.link),
+          FaIcon(FontAwesomeIcons.tag, size: 10, color: context.enclavd.link),
           const SizedBox(width: 6),
           Text(type,
               style:
@@ -408,7 +405,7 @@ class _StatusPill extends StatelessWidget {
       'Pending' => (const Color(0xFFFACC15), FontAwesomeIcons.hourglassHalf),
       'Closed' => (const Color(0xFF4ADE80), FontAwesomeIcons.circleCheck),
       'Sealed' => (const Color(0xFFC084FC), FontAwesomeIcons.lock),
-      _ => (EnclavdColors.link, FontAwesomeIcons.hourglassHalf),
+      _ => (context.enclavd.link, FontAwesomeIcons.hourglassHalf),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -446,7 +443,7 @@ class _ReplyBubble extends StatelessWidget {
           url: event.profilePictureUrl.startsWith('/')
               ? '${AppConfig.apiBaseUrl}${event.profilePictureUrl}'
               : event.profilePictureUrl,
-          borderColor: EnclavdColors.border,
+          borderColor: context.enclavd.border,
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -465,9 +462,9 @@ class _ReplyBubble extends StatelessWidget {
                   RankBadge(rank: event.rank),
                   const Spacer(),
                   Text(event.date,
-                      style: const TextStyle(
+                      style: TextStyle(
                           fontSize: 10.5,
-                          color: EnclavdColors.textSecondary)),
+                          color: context.enclavd.textSecondary)),
                 ],
               ),
               const SizedBox(height: 5),
@@ -476,9 +473,9 @@ class _ReplyBubble extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
                 decoration: BoxDecoration(
-                  color: EnclavdColors.cardSecondary,
+                  color: context.enclavd.cardSecondary,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: EnclavdColors.border),
+                  border: Border.all(color: context.enclavd.border),
                 ),
                 child: Text(event.content,
                     style: const TextStyle(fontSize: 12.5, height: 1.4)),
@@ -504,24 +501,24 @@ class _LogChip extends StatelessWidget {
         constraints: const BoxConstraints(maxWidth: 420),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: EnclavdColors.cardSecondary,
+          color: context.enclavd.cardSecondary,
           borderRadius: BorderRadius.circular(10),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const FaIcon(FontAwesomeIcons.clockRotateLeft,
-                size: 11, color: EnclavdColors.textSecondary),
+            FaIcon(FontAwesomeIcons.clockRotateLeft,
+                size: 11, color: context.enclavd.textSecondary),
             const SizedBox(width: 8),
             Flexible(
               child: Text(event.ticketLog,
-                  style: const TextStyle(
-                      fontSize: 11.5, color: EnclavdColors.textSecondary)),
+                  style: TextStyle(
+                      fontSize: 11.5, color: context.enclavd.textSecondary)),
             ),
             const SizedBox(width: 8),
             Text(event.date,
-                style: const TextStyle(
-                    fontSize: 10, color: EnclavdColors.textSecondary)),
+                style: TextStyle(
+                    fontSize: 10, color: context.enclavd.textSecondary)),
           ],
         ),
       ),
@@ -540,20 +537,20 @@ class _ErrorBanner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: EnclavdColors.likeActive.withValues(alpha: 0.12),
+        color: context.enclavd.likeActive.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
-            color: EnclavdColors.likeActive.withValues(alpha: 0.4)),
+            color: context.enclavd.likeActive.withValues(alpha: 0.4)),
       ),
       child: Row(
         children: [
-          const FaIcon(FontAwesomeIcons.triangleExclamation,
-              size: 14, color: EnclavdColors.likeActive),
+          FaIcon(FontAwesomeIcons.triangleExclamation,
+              size: 14, color: context.enclavd.likeActive),
           const SizedBox(width: 8),
           Expanded(
             child: Text(text,
-                style: const TextStyle(
-                    fontSize: 12.5, color: EnclavdColors.likeActive)),
+                style: TextStyle(
+                    fontSize: 12.5, color: context.enclavd.likeActive)),
           ),
         ],
       ),

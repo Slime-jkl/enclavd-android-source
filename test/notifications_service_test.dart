@@ -21,6 +21,8 @@ Map<String, dynamic> _bundle({
   int id = 12,
   String type = 'post-like',
   int contentId = 5,
+  int commentId = 0,
+  bool isDomain = false,
   bool read = false,
   String username = 'alice',
   int actors = 3,
@@ -29,6 +31,8 @@ Map<String, dynamic> _bundle({
 }) =>
     {
       'id': id,
+      'comment_id': commentId,
+      'is_domain': isDomain,
       'message': actors > 1
           ? '$username & ${actors - 1} others liked your post'
           : '$username liked your post',
@@ -97,6 +101,53 @@ void main() {
     expect(n.groupId, 5);
   });
 
+  test('a comment notice carries the comment to land on', () {
+    // Bundled: the row is the group's NEWEST, so this is the last comment.
+    final n = AppNotification.fromJson(
+        _bundle(id: 9, type: 'post-comment', commentId: 477, actors: 7));
+    expect(n.commentId, 477);
+    expect(n.hasComment, isTrue);
+    expect(n.tapTarget, NotificationTarget.comments,
+        reason: 'a feed post opens its comments ON the comment');
+  });
+
+  test('a domain post opens the thread instead', () {
+    final n = AppNotification.fromJson(
+        _bundle(type: 'comment-mention', commentId: 31, isDomain: true));
+    expect(n.isDomain, isTrue);
+    expect(n.tapTarget, NotificationTarget.thread);
+  });
+
+  test('a like carries no comment and stops at the post', () {
+    final n = AppNotification.fromJson(_bundle(type: 'post-like'));
+    expect(n.commentId, 0);
+    expect(n.hasComment, isFalse);
+    expect(n.tapTarget, NotificationTarget.post);
+  });
+
+  test('follow opens the profile; unrooted types open nothing', () {
+    expect(AppNotification.fromJson(_bundle(type: 'follow')).tapTarget,
+        NotificationTarget.profile);
+    expect(
+        AppNotification.fromJson(_bundle(type: 'user-management')).tapTarget,
+        NotificationTarget.none);
+  });
+
+  test('comment-reply rides the post like the other comment notices', () {
+    final n = AppNotification.fromJson(
+        _bundle(id: 4, type: 'comment-reply', actors: 1));
+    expect(n.isPostAttached, isTrue);
+    expect(n.groupId, 5, reason: 'a reply groups on its post id');
+  });
+
+  test('post-activity rides the post like the other comment notices', () {
+    final n = AppNotification.fromJson(
+        _bundle(id: 6, type: 'post-activity', actors: 3));
+    expect(n.isPostAttached, isTrue);
+    expect(n.groupId, 5,
+        reason: 'a thread notice groups on its post id, replacing the older one');
+  });
+
   group('over a real local socket', () {
     late HttpServer server;
     late ApiClient api;
@@ -123,7 +174,7 @@ void main() {
       });
     }
 
-    test('list() sends ?list=1 and parses the bundles', () async {
+    test('list() sends ?list=1&limit=5 and parses the bundles', () async {
       final seen = <String>[];
       await serve((req) async {
         seen.add(req.uri.toString());
@@ -136,10 +187,51 @@ void main() {
       });
 
       final items = await NotificationsService(api).list();
-      expect(seen, ['/api/v1/notifications?list=1']);
+      expect(seen, ['/api/v1/notifications?list=1&limit=5']);
       expect(items, hasLength(2));
       expect(items.first.message, contains('alice'));
       expect(items.last.contentType, 'follow');
+    });
+
+    test('fetch() pages 20 at a time and walks back with before_id',
+        () async {
+      final seen = <String>[];
+      await serve((req) async {
+        seen.add(req.uri.query);
+        req.response.headers.contentType = ContentType.json;
+        req.response.write(jsonEncode({
+          'success': true,
+          'notifications': [_bundle(id: 100)],
+          'has_more': true,
+          'last_id': 100,
+        }));
+        await req.response.close();
+      });
+
+      final service = NotificationsService(api);
+      final first = await service.fetch();
+      expect(first.items, hasLength(1));
+      expect(first.hasMore, isTrue);
+      expect(first.lastId, 100);
+
+      final second = await service.fetch(beforeId: first.lastId);
+      expect(second.items, hasLength(1));
+      expect(seen, ['list=1&limit=20', 'list=1&limit=20&before_id=100']);
+    });
+
+    test('a server without paging stops at the first page', () async {
+      await serve((req) async {
+        req.response.headers.contentType = ContentType.json;
+        req.response.write(jsonEncode({
+          'success': true,
+          'notifications': [_bundle(id: 7)],
+        }));
+        await req.response.close();
+      });
+
+      final page = await NotificationsService(api).fetch();
+      expect(page.hasMore, isFalse);
+      expect(page.lastId, 7, reason: 'the oldest row id is the fallback cursor');
     });
 
     test('unreadCount() hits the bare endpoint', () async {
@@ -174,6 +266,39 @@ void main() {
       await NotificationsService(api).markAllRead();
       expect(requests, contains('POST /api/v1/notifications'));
       expect(requests, contains('body:{"action":"mark_all_read"}'));
+    });
+
+    test('markRead() POSTs the swiped bundle ids and returns the count',
+        () async {
+      String? body;
+      await serve((req) async {
+        if (req.uri.path == '/feed') {
+          req.response.write(
+              '<html><head><meta name="csrf-token" content="tok123"></head></html>');
+        } else if (req.uri.path == '/api/v1/notifications') {
+          body = await utf8.decoder.bind(req).join();
+          req.response.headers.contentType = ContentType.json;
+          req.response.write(jsonEncode({'success': true, 'unread_count': 2}));
+        } else {
+          req.response.statusCode = 404;
+        }
+        await req.response.close();
+      });
+
+      expect(await NotificationsService(api).markRead([12, 13]), 2);
+      expect(jsonDecode(body!), {'action': 'mark_read', 'ids': [12, 13]});
+    });
+
+    test('markRead() with no ids never touches the network', () async {
+      var calls = 0;
+      await serve((req) async {
+        calls++;
+        req.response.statusCode = 500;
+        await req.response.close();
+      });
+
+      expect(await NotificationsService(api).markRead(const []), isNull);
+      expect(calls, 0);
     });
   });
 }

@@ -6,8 +6,7 @@ import 'package:enclavd/theme/enclavd_theme.dart';
 import 'package:enclavd/widgets/suggestion_row.dart';
 
 void main() {
-  SuggestedUser user(int id, String name,
-          {bool theyFollow = false}) =>
+  SuggestedUser user(int id, String name, {bool theyFollow = false}) =>
       SuggestedUser(
         id: id,
         username: name,
@@ -38,8 +37,7 @@ void main() {
     expect(find.text('Follow'), findsNWidgets(2));
   });
 
-  testWidgets('Follow Back label when they follow the viewer',
-      (tester) async {
+  testWidgets('Follow Back label when they follow the viewer', (tester) async {
     await tester.pumpWidget(MaterialApp(
       home: Scaffold(
         body: SuggestionRow(
@@ -121,13 +119,15 @@ void main() {
 
     // Rank-colored name (blue-400 for Officer), not the generic primary.
     final name = tester.widget<Text>(find.text('officer_user'));
-    expect(name.style?.color, RankColors.forRank('Officer'));
+    expect(name.style?.color, EnclavdPalette.dark.rankName('Officer'));
 
     // Blue-500 background with gray-900 text (app primary button scheme).
     final button = tester.widget<TextButton>(find.byType(TextButton));
     final style = button.style;
-    expect(style?.backgroundColor?.resolve({}), EnclavdColors.primaryButton);
-    expect(style?.foregroundColor?.resolve({}), EnclavdColors.primaryButtonText);
+    expect(
+        style?.backgroundColor?.resolve({}), EnclavdPalette.dark.primaryButton);
+    expect(style?.foregroundColor?.resolve({}),
+        EnclavdPalette.dark.primaryButtonText);
   });
 
   testWidgets('empty list renders nothing', (tester) async {

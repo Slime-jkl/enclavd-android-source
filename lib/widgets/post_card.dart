@@ -142,7 +142,7 @@ class _PostCardState extends State<PostCard> {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: EnclavdColors.card,
+      backgroundColor: context.enclavd.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -164,7 +164,8 @@ class _PostCardState extends State<PostCard> {
     }
     final newCount = await Navigator.of(context).push<int>(
       CommentsScreen.route(
-        post: widget.post,
+        postId: widget.post.id,
+        initialCount: widget.post.commentCount,
         social: widget.social,
         apiBaseUrl: widget.apiBaseUrl,
       ),
@@ -270,9 +271,9 @@ class _PostCardState extends State<PostCard> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const FaIcon(
+                              FaIcon(
                                 FontAwesomeIcons.arrowUpRightFromSquare,
-                                color: EnclavdColors.link,
+                                color: context.enclavd.link,
                                 size: 13,
                               ),
                               const SizedBox(width: 6),
@@ -281,8 +282,8 @@ class _PostCardState extends State<PostCard> {
                                     ? 'View in Domains ($_commentCount '
                                         '${_commentCount == 1 ? 'reply' : 'replies'})'
                                     : 'View in Domains',
-                                style: const TextStyle(
-                                  color: EnclavdColors.link,
+                                style: TextStyle(
+                                  color: context.enclavd.link,
                                   fontSize: 13,
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -347,7 +348,7 @@ class _AuthorRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final personality = PersonalityColors.forType(post.personalityType);
+    final personality = context.enclavd.personalityColor(post.personalityType);
     return Row(
       children: [
         GestureDetector(
@@ -375,13 +376,13 @@ class _AuthorRow extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: post.isBlocked
-                              ? RankColors.forRank('Blocked')
-                              : RankColors.forRank(post.rank),
+                              ? context.enclavd.rankName('Blocked')
+                              : context.enclavd.rankName(post.rank),
                           fontWeight: FontWeight.w600,
                           decoration: post.isBlocked
                               ? TextDecoration.lineThrough
                               : null,
-                          decorationColor: RankColors.forRank('Blocked'),
+                          decorationColor: context.enclavd.rankName('Blocked'),
                         ),
                       ),
                     ),
@@ -391,11 +392,11 @@ class _AuthorRow extends StatelessWidget {
                     ],
                     if (post.warningCount > 0) ...[
                       const SizedBox(width: 6),
-                      const FaIcon(FontAwesomeIcons.triangleExclamation,
-                          color: EnclavdColors.warning, size: 14),
+                      FaIcon(FontAwesomeIcons.triangleExclamation,
+                          color: context.enclavd.warning, size: 14),
                       Text('${post.warningCount}',
-                          style: const TextStyle(
-                              color: EnclavdColors.warning, fontSize: 10)),
+                          style: TextStyle(
+                              color: context.enclavd.warning, fontSize: 10)),
                     ],
                   ],
                 ),
@@ -406,14 +407,13 @@ class _AuthorRow extends StatelessWidget {
         const SizedBox(width: 8),
         Text(
           relativeTime(post.createdAt),
-          style:
-              const TextStyle(color: EnclavdColors.textSecondary, fontSize: 12),
+          style: TextStyle(color: context.enclavd.textSecondary, fontSize: 12),
         ),
         // Own-post Edit/Delete menu (site's post_menu.php).
         if (post.isOwner && (onEdit != null || onDelete != null))
           PopupMenuButton<String>(
-            icon: const FaIcon(FontAwesomeIcons.ellipsis,
-                size: 16, color: EnclavdColors.textSecondary),
+            icon: FaIcon(FontAwesomeIcons.ellipsis,
+                size: 16, color: context.enclavd.textSecondary),
             padding: EdgeInsets.zero,
             style: IconButton.styleFrom(
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -424,26 +424,26 @@ class _AuthorRow extends StatelessWidget {
             },
             itemBuilder: (context) => [
               if (onEdit != null)
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'edit',
                   child: Row(
                     children: [
                       FaIcon(FontAwesomeIcons.pen,
-                          size: 14, color: EnclavdColors.textSecondary),
-                      SizedBox(width: 8),
-                      Text('Edit Post'),
+                          size: 14, color: context.enclavd.textSecondary),
+                      const SizedBox(width: 8),
+                      const Text('Edit Post'),
                     ],
                   ),
                 ),
               if (onDelete != null)
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'delete',
                   child: Row(
                     children: [
                       FaIcon(FontAwesomeIcons.trashCan,
-                          size: 14, color: EnclavdColors.textSecondary),
-                      SizedBox(width: 8),
-                      Text('Delete Post'),
+                          size: 14, color: context.enclavd.textSecondary),
+                      const SizedBox(width: 8),
+                      const Text('Delete Post'),
                     ],
                   ),
                 ),
@@ -476,6 +476,7 @@ class _PostContentState extends State<_PostContent> {
   // Owned here so they get disposed; postContentSpans hands them over.
   final List<TapGestureRecognizer> _recognizers = [];
   List<InlineSpan>? _cachedSpans;
+  Color? _cachedLinkColor; // palette the cache was tokenized with
 
   @override
   void didUpdateWidget(covariant _PostContent oldWidget) {
@@ -497,15 +498,24 @@ class _PostContentState extends State<_PostContent> {
   }
 
   List<InlineSpan> _spans() {
-    final cached = _cachedSpans;
-    if (cached != null) return cached;
+    final linkColor = context.enclavd.link;
+    if (_cachedSpans != null && _cachedLinkColor == linkColor) {
+      return _cachedSpans!;
+    }
+    // Drop the previous round's recognizers so none are orphaned.
+    for (final r in _recognizers) {
+      r.dispose();
+    }
+    _recognizers.clear();
     final spans = postContentSpans(
       widget.post.content,
+      linkColor: linkColor,
       onHashtag: (tag) => _openHashtag(tag),
       onUrl: (url) => _openUrl(url),
       recognizers: _recognizers,
     );
     _cachedSpans = spans;
+    _cachedLinkColor = linkColor;
     return spans;
   }
 
@@ -542,10 +552,10 @@ class _PostContentState extends State<_PostContent> {
           TextSpan(children: _spans()),
           maxLines: needs && !_expanded ? 4 : null,
           overflow: needs && !_expanded ? TextOverflow.ellipsis : null,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 15,
             height: 1.15,
-            color: EnclavdColors.textPrimary,
+            color: context.enclavd.textPrimary,
           ),
         ),
         if (needs)
@@ -670,19 +680,19 @@ class PostImageState extends State<PostImage> {
   void _showSaveSheet(BuildContext context, String url) {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: EnclavdColors.card,
+      backgroundColor: context.enclavd.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (sheetContext) => SafeArea(
         child: ListTile(
-          leading: const FaIcon(FontAwesomeIcons.download,
-              color: EnclavdColors.link, size: 18),
+          leading: FaIcon(FontAwesomeIcons.download,
+              color: context.enclavd.link, size: 18),
           title: const Text('Save image to device',
               style: TextStyle(fontWeight: FontWeight.w600)),
-          subtitle: const Text('Saves to the Enclavd folder in your gallery',
+          subtitle: Text('Saves to the Enclavd folder in your gallery',
               style: TextStyle(
-                  color: EnclavdColors.textSecondary, fontSize: 12.5)),
+                  color: context.enclavd.textSecondary, fontSize: 12.5)),
           onTap: () {
             Navigator.of(sheetContext).pop();
             _saveToDevice(context, url);
@@ -748,8 +758,9 @@ class _DomainPromotionBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final promoter =
-        (post.promoterUsername?.isNotEmpty ?? false) ? post.promoterUsername! : 'System';
+    final promoter = (post.promoterUsername?.isNotEmpty ?? false)
+        ? post.promoterUsername!
+        : 'System';
     final domainName = post.domainName ?? '';
     return InkWell(
       onTap: onTap,
@@ -759,13 +770,13 @@ class _DomainPromotionBanner extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           // Soft tint, no border; text scales to fit, never wraps.
-          color: EnclavdColors.link.withValues(alpha: 0.08),
+          color: context.enclavd.link.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Row(
           children: [
-            const FaIcon(FontAwesomeIcons.bullhorn,
-                color: EnclavdColors.link, size: 12),
+            FaIcon(FontAwesomeIcons.bullhorn,
+                color: context.enclavd.link, size: 12),
             const SizedBox(width: 6),
             Expanded(
               child: FittedBox(
@@ -773,16 +784,16 @@ class _DomainPromotionBanner extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: Text.rich(
                   TextSpan(
-                    style: const TextStyle(
-                      color: EnclavdColors.textSecondary,
+                    style: TextStyle(
+                      color: context.enclavd.textSecondary,
                       fontSize: 12,
                       height: 1.2,
                     ),
                     children: [
                       TextSpan(
                         text: '@$promoter ',
-                        style: const TextStyle(
-                          color: EnclavdColors.textPrimary,
+                        style: TextStyle(
+                          color: context.enclavd.textPrimary,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -790,8 +801,8 @@ class _DomainPromotionBanner extends StatelessWidget {
                       if (domainName.isNotEmpty)
                         TextSpan(
                           text: domainName,
-                          style: const TextStyle(
-                            color: EnclavdColors.link,
+                          style: TextStyle(
+                            color: context.enclavd.link,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -844,8 +855,8 @@ class _ActionRow extends StatelessWidget {
                     FontAwesomeIcons.heart,
                     key: const ValueKey('like-heart'),
                     color: liked
-                        ? EnclavdColors.likeActive
-                        : EnclavdColors.textSecondary,
+                        ? context.enclavd.likeActive
+                        : context.enclavd.textSecondary,
                     size: 20,
                   ),
                 ),
@@ -861,8 +872,8 @@ class _ActionRow extends StatelessWidget {
                   child: Text('$likeCount',
                       style: TextStyle(
                           color: liked
-                              ? EnclavdColors.likeActive
-                              : EnclavdColors.textSecondary)),
+                              ? context.enclavd.likeActive
+                              : context.enclavd.textSecondary)),
                 ),
               ),
               const SizedBox(width: 20),
@@ -878,13 +889,13 @@ class _ActionRow extends StatelessWidget {
                         commentCount > 0
                             ? FontAwesomeIcons.comments
                             : FontAwesomeIcons.comment,
-                        color: EnclavdColors.textSecondary,
+                        color: context.enclavd.textSecondary,
                         size: 20,
                       ),
                       const SizedBox(width: 6),
                       Text('$commentCount',
                           style:
-                              const TextStyle(color: EnclavdColors.textSecondary)),
+                              TextStyle(color: context.enclavd.textSecondary)),
                     ],
                   ),
                 ),
@@ -901,8 +912,8 @@ class _ActionRow extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
               child: Text(
                 'Liked by $likeCount',
-                style: const TextStyle(
-                  color: EnclavdColors.link, // textLink: text-blue-400
+                style: TextStyle(
+                  color: context.enclavd.link, // textLink: text-blue-400
                   fontSize: 13,
                   fontWeight: FontWeight.w500,
                 ),
@@ -1018,7 +1029,7 @@ class _YouTubeEmbedState extends State<_YouTubeEmbed> {
                 GestureDetector(
                   onTap: _play,
                   child: Container(
-                    color: EnclavdColors.card,
+                    color: context.enclavd.card,
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
