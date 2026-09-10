@@ -37,11 +37,13 @@ class AppNotification {
   final String postPreviewImage; // BARE gallery filename
 
   /// Post-attached types deep-link to the post; the rest stand alone.
-  /// comment-reply carries the post id too, so it groups and taps like
-  /// the others (the server sends one notice per comment at most).
+  /// comment-reply and post-activity carry the post id too, so they group
+  /// and tap like the others (the server sends one notice per comment at
+  /// most).
   bool get isPostAttached =>
       contentType == 'post-like' ||
       contentType == 'post-comment' ||
+      contentType == 'post-activity' ||
       contentType == 'comment-reply' ||
       contentType == 'comment-mention';
 

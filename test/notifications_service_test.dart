@@ -104,6 +104,14 @@ void main() {
     expect(n.groupId, 5, reason: 'a reply groups on its post id');
   });
 
+  test('post-activity rides the post like the other comment notices', () {
+    final n = AppNotification.fromJson(
+        _bundle(id: 6, type: 'post-activity', actors: 3));
+    expect(n.isPostAttached, isTrue);
+    expect(n.groupId, 5,
+        reason: 'a thread notice groups on its post id, replacing the older one');
+  });
+
   group('over a real local socket', () {
     late HttpServer server;
     late ApiClient api;
