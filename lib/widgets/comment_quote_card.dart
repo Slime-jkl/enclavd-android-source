@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import '../theme/enclavd_theme.dart';
 import '../utils/content_spans.dart';
 
-/// Styled quote block for the app's quote-on-reply prefix: a left-accent
-/// card with the target's name + the quoted text, above the reply's own
-/// content. Mirrors the composer's quote banner so the quoted context
-/// reads as a quote everywhere.
+/// Styled quote block for a reply's target: a left-accent card with the
+/// target's name + an excerpt of its text, above the reply's own content.
+/// Mirrors the composer's reply banner so the quoted context reads as a
+/// quote everywhere.
 class CommentQuoteCard extends StatelessWidget {
   const CommentQuoteCard({super.key, required this.quote});
 

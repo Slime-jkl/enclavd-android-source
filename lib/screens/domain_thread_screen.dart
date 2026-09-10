@@ -200,6 +200,11 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
     }
   }
 
+  /// Reply to a reply: the composer opens with that reply as the target.
+  /// The reply nests under it (parentCommentId) and the card it produces
+  /// quotes it, read from the target itself rather than copied into the
+  /// text, so the quote is right however the reply was written and stays
+  /// right when the target is edited.
   void _quoteReply(Comment reply) {
     setState(() {
       _quoting = reply;
@@ -220,20 +225,9 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
 
   void _dismissQuote() => setState(() => _quoting = null);
 
-  String _quotePrefix(Comment q) {
-    final stripped = q.content
-        .replaceAllMapped(RegExp(r'@([A-Za-z0-9_]+)'), (m) => m.group(1)!);
-    final collapsed = stripped.replaceAll(RegExp(r'\s+'), ' ').trim();
-    final clamped = collapsed.length > 160
-        ? '${collapsed.substring(0, 160)}...'
-        : collapsed;
-    return '@${q.username} wrote: "$clamped"\n\n';
-  }
-
   Future<void> _sendReply() async {
     final quote = _quoting;
-    final typed = _replyController.text.trim();
-    final content = quote == null ? typed : '${_quotePrefix(quote)}$typed';
+    final content = _replyController.text.trim();
     if (content.isEmpty || _replying) return;
     setState(() => _replying = true);
     try {
@@ -489,10 +483,10 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
             ),
             const SizedBox(height: 6),
           ],
-          // Flat reply list. A reply that answers another one carries
-          // its quoted text inline (quote card), so rows never nest.
-          // Numbers stay global across pages: fixed 20-row pages, so the
-          // first row of page N is at (N - 1) * 20 + 1.
+          // Flat reply list, oldest first. A reply that answers another one
+          // carries it as a quote card, resolved from its parent id, so rows
+          // never nest. Numbers stay global across pages: fixed 20-row pages,
+          // so the first row of page N is at (N - 1) * 20 + 1.
           for (var i = 0; i < _replies.length; i++)
             _ForumReplyCard(
               key: ValueKey(_replies[i].id),
@@ -522,8 +516,8 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
       ],
     );
   }
-}
 
+}
 class _ForumPostCard extends StatefulWidget {
   const _ForumPostCard({
     super.key,
@@ -1024,7 +1018,29 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
   }
 
   CommentQuote? _parsedQuote;
-  CommentQuote? get _quote => _parsedQuote ??= parseCommentQuote(reply.content);
+  bool _quoteResolved = false;
+
+  /// Quoted context shown above the reply: the target the server resolved
+  /// from parent_comment_id wins, so every reply shows what it answers no
+  /// matter where it was written. The stored '@user wrote:' prefix stays as
+  /// the fallback for rows written before the target was the source of truth.
+  CommentQuote? get _quote {
+    if (!_quoteResolved) {
+      _quoteResolved = true;
+      final legacy = parseCommentQuote(reply.content);
+      final target = reply.parentUsername;
+      _parsedQuote = (target != null && target.isNotEmpty)
+          ? CommentQuote(
+              target: target,
+              text: reply.parentExcerpt ?? '',
+              // A legacy row keeps its prefix out of the body even when the
+              // target resolves, or the raw text would render under the card.
+              body: legacy?.body ?? reply.content,
+            )
+          : legacy;
+    }
+    return _parsedQuote;
+  }
 
   /// The part after any quote prefix; read-more clamps THIS, never the
   /// quoted block.

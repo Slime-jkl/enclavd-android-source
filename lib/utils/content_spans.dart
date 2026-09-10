@@ -114,9 +114,11 @@ class CommentToken {
   bool get isPlain => kind == 'plain';
 }
 
-/// A quote-on-reply prefix parsed off the start of a comment: the app
-/// writes '@user wrote: "clamped"\n\n' + typed text, which would render
-/// as raw text. Cards render it as a styled quote block instead.
+/// Quote shown above a reply: whose reply it answers plus a collapsed
+/// excerpt of that reply. The target comes from the reply relationship
+/// (parent_comment_id, resolved server side). Rows written before that
+/// carried the '@user wrote: "clamped"' prefix in their own text instead,
+/// which parseCommentQuote still recognises.
 class CommentQuote {
   const CommentQuote({
     required this.target,

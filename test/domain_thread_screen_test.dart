@@ -15,6 +15,7 @@ import 'package:enclavd/widgets/enclavd_avatar.dart';
 import 'package:enclavd/widgets/comment_quote_card.dart';
 import 'package:enclavd/widgets/post_card.dart'; // PostCard (must be ABSENT)
 import 'package:enclavd/widgets/shimmer.dart';
+import 'package:enclavd/widgets/thread_connector.dart';
 
 class _NoopStore implements SessionStore {
   @override
@@ -73,6 +74,12 @@ class _FakeSocial extends SocialService {
       {int? parentCommentId}) async {
     sent.add(content);
     sentParents.add(parentCommentId);
+    // The server resolves the reply target for its response, so the card
+    // it lands on shows the quote without a refetch.
+    Comment? target;
+    for (final r in replies) {
+      if (r.id == parentCommentId) target = r;
+    }
     final c = Comment(
       id: 999,
       postId: postId,
@@ -86,6 +93,8 @@ class _FakeSocial extends SocialService {
       content: content,
       isOwner: true,
       parentCommentId: parentCommentId,
+      parentUsername: target?.username,
+      parentExcerpt: target?.content.replaceAll(RegExp(r'\s+'), ' ').trim(),
     );
     // OP declared 2 comments; the server returns the real total after insert (2 + 1).
     return (c, 3);
@@ -131,7 +140,7 @@ DomainThreadDetail _detail() => DomainThreadDetail.fromJson({
 
 Comment _reply(int id, String text,
         {bool own = false, String rank = 'Member', int? parent,
-        bool warnings = false}) =>
+        bool warnings = false, String? parentName, String? parentExcerpt}) =>
     Comment(
       id: id,
       postId: 218,
@@ -147,6 +156,8 @@ Comment _reply(int id, String text,
       isOwner: own,
       rank: rank,
       parentCommentId: parent,
+      parentUsername: parentName,
+      parentExcerpt: parentExcerpt,
     );
 
 void main() {
@@ -263,8 +274,44 @@ void main() {
     expect(find.text('First reply'), findsOneWidget);
   });
 
-  testWidgets('a quoted reply renders flat with its context inline',
+  testWidgets('a reply quotes the reply it answers', (tester) async {
+    final social = _FakeSocial(replies: [
+      _reply(1, 'First reply'),
+      // The server resolves the target from parent_comment_id, so the row
+      // quotes it without carrying any prefix in its own text.
+      _reply(2, 'Agreed!',
+          parent: 1, parentName: 'Someone', parentExcerpt: 'First reply'),
+    ]);
+    await tester.pumpWidget(wrap(DomainThreadScreen(
+      domains: _FakeDomains(_detail()),
+      postId: 218,
+      social: social,
+      posts: _FakePosts(),
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // 'First reply' appears twice: the root card + the quote card's preview.
+    expect(find.text('First reply'), findsNWidgets(2));
+    expect(find.text('Agreed!'), findsOneWidget);
+    expect(find.text('#1'), findsOneWidget);
+    expect(find.text('#2'), findsOneWidget);
+    expect(find.byType(CommentQuoteCard), findsOneWidget);
+    expect(find.text('Replying to @Someone'), findsOneWidget);
+
+    // Flat list (locked): the quote card carries the context and the rows
+    // stay full-size cards at the same left edge. No tree, no rail.
+    expect(find.byType(ThreadElbow), findsNothing);
+    expect(find.byType(RailDrop), findsNothing);
+    final rootLeft = tester.getTopLeft(find.text('First reply').first).dx;
+    final replyLeft = tester.getTopLeft(find.text('Agreed!')).dx;
+    expect((replyLeft - rootLeft).abs() < 1.0, isTrue,
+        reason: 'replies are not indented into a tree');
+  });
+
+  testWidgets('a legacy quoted reply still renders its stored quote',
       (tester) async {
+    // Rows written before the reply target became the source of truth keep
+    // the '@user wrote: "..."' prefix, which still renders as the card.
     const quoted = '@Someone wrote: "First reply"\n\nAgreed!';
     final social = _FakeSocial(replies: [
       _reply(1, 'First reply'),
@@ -278,27 +325,40 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    // Both rows are full cards in the flat list; no nesting affordances.
-    // 'First reply' appears twice: the original card + its preview in
-    // the quote card.
-    expect(find.text('First reply'), findsNWidgets(2));
-    expect(find.text('Agreed!'), findsOneWidget);
-    expect(find.text('#1'), findsOneWidget);
-    expect(find.text('#2'), findsOneWidget);
     expect(find.byType(CommentQuoteCard), findsOneWidget);
-    // The quote header is the only "Replying to" text (no hint lines).
     expect(find.text('Replying to @Someone'), findsOneWidget);
-    expect(find.text('1 reply'), findsNothing);
-    expect(find.text('Hide replies'), findsNothing);
+    expect(find.text('Agreed!'), findsOneWidget);
+    // The prefix never leaks into the body as raw text.
+    expect(find.text(quoted), findsNothing);
+    expect(find.text('First reply'), findsNWidgets(2));
+  });
 
-    // Both replies use the same full-size card layout.
-    final avatars = tester
-        .widgetList<EnclavdAvatar>(find.byType(EnclavdAvatar))
-        .where((w) => w.url.contains('x.png'))
-        .toList();
-    expect(avatars, hasLength(2));
-    expect(avatars.every((w) => w.size == 48), isTrue,
-        reason: 'flat replies are full-size cards, not nested rows');
+  testWidgets('a reply whose target sits on another page keeps its quote',
+      (tester) async {
+    // 21 replies -> the thread opens on page 2 (just row 21). Row 21 answers
+    // row 1, which is on page 1: the row still renders (flat list) with the
+    // quote the server resolved for it.
+    final social = _FakeSocial(replies: [
+      for (var n = 1; n <= 20; n++) _reply(n, 'Reply $n'),
+      _reply(21, 'Orphan reply',
+          parent: 1, parentName: 'Someone', parentExcerpt: 'Reply 1'),
+    ]);
+    await tester.pumpWidget(wrap(DomainThreadScreen(
+      domains: _FakeDomains(_detail()),
+      postId: 218,
+      social: social,
+      posts: _FakePosts(),
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('Orphan reply'), findsOneWidget);
+    expect(find.text('#21'), findsOneWidget);
+    expect(find.byType(CommentQuoteCard), findsOneWidget);
+    expect(find.text('Replying to @Someone'), findsOneWidget);
+    // The target's own card is on page 1 and is not rendered; its text only
+    // shows up as the quote card's excerpt.
+    expect(find.text('Reply 1'), findsOneWidget);
+    expect(find.text('Reply 20'), findsNothing);
   });
 
   testWidgets('long replies collapse with a read-more toggle', (tester) async {
@@ -564,12 +624,13 @@ void main() {
     await tester.tap(find.byTooltip('Send reply'));
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(social.sent, ['@Someone wrote: "First reply"\n\nAgreed!']);
+    // Only the typed text is stored: the reply relationship carries the
+    // quote, so nothing is prefixed onto it.
+    expect(social.sent, ['Agreed!']);
     expect(social.sentParents, [1]);
-    // The sent reply is a new flat card (appended locally): it carries
-    // the quote prefix, so it renders as a styled quote card whose
-    // "Replying to @Someone" header replaces the banner; the typed text
-    // renders as the reply's own content.
+    // The sent reply lands as a flat card quoting the context the server
+    // resolved for it. The composer banner is gone again, so the card's
+    // header is the only "Replying to" text.
     expect(find.byType(CommentQuoteCard), findsOneWidget);
     expect(find.text('Replying to @Someone'), findsOneWidget);
     expect(find.text('Agreed!'), findsOneWidget);
@@ -596,8 +657,8 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    // Every reply is its own row with its own number; there is no tree,
-    // no count toggle and no reply-to hint (quotes carry the context).
+    // Every reply is its own full-width card with its own number; the list
+    // stays flat (no rail, no count toggle) and these rows carry no quote.
     expect(find.text('Root reply'), findsOneWidget);
     expect(find.text('Child reply'), findsOneWidget);
     expect(find.text('Grandchild reply'), findsOneWidget);
@@ -605,6 +666,14 @@ void main() {
     expect(find.text('#2'), findsOneWidget);
     expect(find.text('#3'), findsOneWidget);
     expect(find.text('3 Replies'), findsOneWidget);
+    expect(find.byType(ThreadElbow), findsNothing);
+    expect(find.byType(RailDrop), findsNothing);
+    final left = tester.getTopLeft(find.text('Root reply')).dx;
+    expect((tester.getTopLeft(find.text('Child reply')).dx - left).abs() < 1.0,
+        isTrue, reason: 'flat replies share the card left edge');
+    expect(
+        (tester.getTopLeft(find.text('Grandchild reply')).dx - left).abs() < 1.0,
+        isTrue, reason: 'a reply to a reply is not indented either');
     expect(find.text('Replying to @Someone'), findsNothing);
     // Quoting still works from any row (its parent id rides along).
     await tester.ensureVisible(find.byKey(const Key('replyQuote-3')));
