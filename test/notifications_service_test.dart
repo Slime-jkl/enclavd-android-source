@@ -97,6 +97,13 @@ void main() {
     expect(n.groupId, 5);
   });
 
+  test('comment-reply rides the post like the other comment notices', () {
+    final n = AppNotification.fromJson(
+        _bundle(id: 4, type: 'comment-reply', actors: 1));
+    expect(n.isPostAttached, isTrue);
+    expect(n.groupId, 5, reason: 'a reply groups on its post id');
+  });
+
   group('over a real local socket', () {
     late HttpServer server;
     late ApiClient api;

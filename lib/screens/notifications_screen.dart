@@ -80,6 +80,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ));
       case 'post-like':
       case 'post-comment':
+      case 'comment-reply':
       case 'comment-mention':
         // The site's /feed/post/<id> permalink as a native screen.
         Navigator.of(context).push(MaterialPageRoute<void>(
@@ -164,6 +165,10 @@ class _NotificationRow extends StatelessWidget {
     final (icon, iconColor) = switch (n.contentType) {
       'post-like' => (FontAwesomeIcons.heart, context.enclavd.likeActive),
       'post-comment' => (FontAwesomeIcons.comment, context.enclavd.link),
+      'comment-reply' => (
+          FontAwesomeIcons.reply,
+          light ? const Color(0xFF2563EB) : const Color(0xFF60A5FA)
+        ),
       'comment-mention' => (
           FontAwesomeIcons.at,
           light ? const Color(0xFF9333EA) : const Color(0xFFC084FC)
