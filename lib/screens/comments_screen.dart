@@ -1,25 +1,16 @@
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../api/api_client.dart'; // friendlyErrorText
-import '../api/auth_service.dart'; // resolveMediaUrl
 import '../api/feed_service.dart'; // Post
 import '../api/social_service.dart';
 import '../theme/enclavd_theme.dart';
-import '../utils/content_spans.dart';
-import '../utils/db_time.dart';
 import '../widgets/comment_section.dart';
-import '../widgets/enclavd_avatar.dart';
-import '../widgets/post_card.dart'; // PostImage
-import 'hashtag_screen.dart';
-import 'profile_screen.dart';
 
-/// Full-screen comments for a post: the post + its comment thread take
-/// over the whole screen (smooth zoom-in transition) with the composer
-/// pinned at the bottom, so writing is easy. Pops with the latest
-/// comment count so the feed card stays in sync.
+/// Full-screen comments for a post (smooth zoom-in transition) with the
+/// composer pinned at the bottom. No post preview: a tall post squeezed
+/// the thread and pushed the composer under the keyboard. Pops with the
+/// latest comment count so the feed card stays in sync.
 class CommentsScreen extends StatefulWidget {
   const CommentsScreen({
     super.key,
@@ -248,7 +239,6 @@ class _CommentsScreenState extends State<CommentsScreen> {
         child: Column(
           children: [
             _TopBar(commentCount: _commentCount, onClose: _close),
-            _PostHeader(post: _post, apiBaseUrl: widget.apiBaseUrl),
             Divider(height: 1, color: context.enclavd.divider),
             Expanded(
               child: ListView(
@@ -343,199 +333,6 @@ class _TopBar extends StatelessWidget {
                 fontWeight: FontWeight.w600,
                 color: context.enclavd.textSecondary),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Compact post context above the thread: author, time, clamped content
-/// and the image (if any).
-class _PostHeader extends StatefulWidget {
-  const _PostHeader({required this.post, required this.apiBaseUrl});
-
-  final Post post;
-  final String apiBaseUrl;
-
-  @override
-  State<_PostHeader> createState() => _PostHeaderState();
-}
-
-class _PostHeaderState extends State<_PostHeader> {
-  final List<TapGestureRecognizer> _recognizers = [];
-  List<InlineSpan>? _cachedSpans;
-  Color? _cachedLinkColor; // palette the cache was tokenized with
-  bool _expanded = false;
-
-  Post get post => widget.post;
-
-  bool get _needsOverflow {
-    // Same heuristic as the feed card's content clamp.
-    final content = post.content;
-    final charCount = content.trim().length;
-    final newlineCount = '\n'.allMatches(content).length;
-    return charCount > 250 || (charCount + newlineCount * 75) > 300;
-  }
-
-  /// The post text plus its Show more / Show less toggle. Expanded
-  /// text is capped so a huge post cannot push the pinned composer
-  /// off-screen; the block scrolls only when it outgrows the cap.
-  List<Widget> _contentBlock() {
-    final needs = _needsOverflow;
-    final collapsed = needs && !_expanded;
-    final text = Text.rich(
-      TextSpan(children: _spans()),
-      maxLines: collapsed ? 4 : null,
-      overflow: collapsed ? TextOverflow.ellipsis : null,
-      style: TextStyle(
-          color: context.enclavd.textPrimary, fontSize: 14, height: 1.45),
-    );
-    return [
-      if (needs && _expanded)
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxHeight: 300),
-          child: ListView(
-            shrinkWrap: true,
-            padding: EdgeInsets.zero,
-            children: [text],
-          ),
-        )
-      else
-        text,
-      if (needs)
-        TextButton(
-          onPressed: () => setState(() => _expanded = !_expanded),
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            minimumSize: const Size(0, 32),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-          child: Text(_expanded ? 'Show less' : 'Show more'),
-        ),
-    ];
-  }
-
-  @override
-  void dispose() {
-    for (final r in _recognizers) {
-      r.dispose();
-    }
-    super.dispose();
-  }
-
-  List<InlineSpan> _spans() {
-    final linkColor = context.enclavd.link;
-    if (_cachedSpans != null && _cachedLinkColor == linkColor) {
-      return _cachedSpans!;
-    }
-    // Drop the previous round's recognizers so none are orphaned.
-    for (final r in _recognizers) {
-      r.dispose();
-    }
-    _recognizers.clear();
-    final spans = postContentSpans(
-      post.content,
-      linkColor: linkColor,
-      onHashtag: (tag) => _openHashtag(tag),
-      onUrl: (url) => _openUrl(url),
-      recognizers: _recognizers,
-    );
-    _cachedSpans = spans;
-    _cachedLinkColor = linkColor;
-    return spans;
-  }
-
-  void _openHashtag(String tag) {
-    Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => HashtagScreen(tag: tag),
-    ));
-  }
-
-  Future<void> _openUrl(String url) async {
-    final uri = Uri.tryParse(url);
-    if (uri == null) return;
-    try {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } catch (_) {
-      // Never let a link open break the header.
-    }
-  }
-
-  void _openProfile(int authorId) {
-    if (authorId <= 0) return;
-    Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => ProfileScreen(userId: authorId),
-    ));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final personality = context.enclavd.personalityColor(post.personalityType);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              GestureDetector(
-                onTap: () => _openProfile(post.authorId),
-                child: EnclavdAvatar(
-                  size: 40,
-                  url: resolveMediaUrl(widget.apiBaseUrl,
-                      avatarPath: post.profilePictureUrl),
-                  borderColor: personality,
-                  square: true,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    GestureDetector(
-                      onTap: () => _openProfile(post.authorId),
-                      child: Text(
-                        post.username,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: post.isBlocked
-                              ? context.enclavd.rankName('Blocked')
-                              : context.enclavd.rankName(post.rank),
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                          decoration: post.isBlocked
-                              ? TextDecoration.lineThrough
-                              : null,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      relativeTime(post.createdAt),
-                      style: TextStyle(
-                          color: context.enclavd.textSecondary, fontSize: 11.5),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          // Post content reads like a feed card: short posts in full,
-          // long ones clamp to 4 lines behind a Show more toggle.
-          ..._contentBlock(),
-          if (post.image != null && post.image!.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 240),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: PostImage(post: post, apiBaseUrl: widget.apiBaseUrl),
-              ),
-            ),
-          ],
         ],
       ),
     );

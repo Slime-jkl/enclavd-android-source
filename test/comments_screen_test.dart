@@ -130,8 +130,8 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    // Post context + the root comment + the composer.
-    expect(find.text('The post content'), findsOneWidget);
+    // The thread + the pinned composer; no post preview above them.
+    expect(find.text('The post content'), findsNothing);
     expect(find.text('Root comment'), findsOneWidget);
     expect(find.byType(TextField), findsOneWidget);
     // The nested reply is hidden behind its count toggle by default.
@@ -150,13 +150,13 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('Child reply'), findsNothing);
     expect(find.text('1 reply'), findsOneWidget);
-    // Short posts render in full: no read-more toggle on the header.
-    expect(find.text('Show more'), findsNothing);
   });
 
-  testWidgets('long post content clamps behind a show-more toggle',
+  testWidgets('long post stays out of the way of the thread and composer',
       (tester) async {
-    final social = _FakeSocial();
+    // Regression: the post preview used to sit above the thread and, with a
+    // long post, squeezed it until the keyboard pushed the composer off-screen.
+    final social = _FakeSocial(comments: [_comment(1, 'Root comment')]);
     final post = Post.fromJson(_postJson()..['content'] = 'word ' * 200);
     await tester.pumpWidget(wrap(CommentsScreen(
       post: post,
@@ -165,15 +165,10 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    // Collapsed by default; expanding reveals the full text, and the
-    // toggle flips back so it can be clamped again.
-    expect(find.text('Show more'), findsOneWidget);
-    await tester.tap(find.text('Show more'));
-    await tester.pump(const Duration(milliseconds: 50));
-    expect(find.text('Show less'), findsOneWidget);
-    await tester.tap(find.text('Show less'));
-    await tester.pump(const Duration(milliseconds: 50));
-    expect(find.text('Show more'), findsOneWidget);
+    expect(find.text('Root comment'), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget); // composer still there
+    expect(find.textContaining('word word'), findsNothing); // no post body
+    expect(find.text('Show more'), findsNothing); // no clamp toggle either
   });
 
   testWidgets('deleting an own comment asks first, then drops the subtree',
