@@ -66,6 +66,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       });
       // Mark-read is fire-and-forget; the server state catches up.
       unawaited(widget.notifications.markAllRead());
+      // The alerts are on screen now: their tray copies are stale, so drop
+      // them the same way a swipe would.
+      unawaited(SocialNotifications.instance?.clearTray(items));
     } catch (e) {
       if (!mounted || silent) return;
       setState(() => _error = 'Could not load notifications.');

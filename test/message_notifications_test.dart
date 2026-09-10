@@ -20,6 +20,9 @@ class FakeNotifier implements LocalNotifier {
   String? lastAvatarPath;
   bool osEnabled = true; // the OS-level permission state the app reads
   int openSettingsCalls = 0;
+  String? lastPayload; // the alert a swipe would report back
+  String? launch; // the payload that cold-started the app
+  final List<int> cancelled = <int>[];
 
   @override
   Future<void> initialize() async => initializeCalls++;
@@ -53,15 +56,23 @@ class FakeNotifier implements LocalNotifier {
   }
 
   @override
+  Future<void> cancelNotification(int notificationId) async => cancelled.add(notificationId);
+
+  @override
+  Future<String?> launchPayload() async => launch;
+
+  @override
   Future<void> showSocialNotification({
     required int notificationId,
     required String title,
     required String body,
+    required String payload,
   }) async {
     shown++;
     lastNotificationId = notificationId;
     lastSender = title;
     lastBody = body;
+    lastPayload = payload;
   }
 }
 

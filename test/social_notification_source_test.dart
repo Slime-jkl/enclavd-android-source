@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:enclavd/api/api_client.dart';
 import 'package:enclavd/api/notifications_service.dart';
+import 'package:enclavd/services/dismissed_notifications.dart';
 import 'package:enclavd/services/notification_source.dart';
 import 'package:enclavd/services/social_notification_source.dart';
 import 'package:enclavd/services/social_notifications.dart';
@@ -83,6 +84,16 @@ void main() {
     test('id <= 0 bundles are rejected (no stable identity)', () {
       expect(SocialNotificationSource.candidatesFrom([_bundle(id: 0)]),
           isEmpty);
+    });
+
+    test('the payload names the ALERT so a swipe can clear it', () {
+      final candidates =
+          SocialNotificationSource.candidatesFrom([_bundle(id: 12)]);
+      expect(candidates.single.payload, 'n:12',
+          reason: 'bundle id, not the post id: the server clears the group');
+      expect(
+          DismissedNotifications.bundleIdFromPayload(candidates.single.payload),
+          12);
     });
   });
 

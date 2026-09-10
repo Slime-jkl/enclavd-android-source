@@ -8,6 +8,7 @@ import '../api/site_config_service.dart';
 import '../api/api_client.dart';
 import '../main.dart';
 import '../services/daily_quote_service.dart';
+import '../services/notification_taps.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/auth_password_field.dart';
 import '../widgets/field_icon.dart';
@@ -187,6 +188,9 @@ class _LoginScreenState extends State<LoginScreen> {
     }
     if (!mounted) return;
     Navigator.of(context).pushReplacementNamed(FeedScreen.routeName);
+    // A tap that arrived with no session (or cold-started the app) lands on
+    // its screen now that there is one.
+    await NotificationTaps.resolvePending();
   }
 
   String? _rateLimitMessage() {

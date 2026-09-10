@@ -37,10 +37,17 @@ class _SettingsFakeNotifier implements LocalNotifier {
   }) async {}
 
   @override
+  Future<void> cancelNotification(int notificationId) async {}
+
+  @override
+  Future<String?> launchPayload() async => null;
+
+  @override
   Future<void> showSocialNotification({
     required int notificationId,
     required String title,
     required String body,
+    required String payload,
   }) async {}
 }
 

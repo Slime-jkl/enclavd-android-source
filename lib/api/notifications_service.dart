@@ -117,4 +117,18 @@ class NotificationsService {
   Future<void> markAllRead() async {
     await _api.postJson('/api/v1/notifications', {'action': 'mark_all_read'});
   }
+
+  /// Marks the given BUNDLES read - the tray-swipe path: an alert the user
+  /// cleared must not sit unread in the drawer. The ids are the bundle ids
+  /// [list] reports; the server resolves each one back to its group, so a
+  /// post's bundled likes/comments clear together. Returns the fresh unread
+  /// count (null when nothing was sent).
+  Future<int?> markRead(List<int> ids) async {
+    if (ids.isEmpty) return null;
+    final json = await _api.postJson('/api/v1/notifications', <String, dynamic>{
+      'action': 'mark_read',
+      'ids': ids,
+    });
+    return (json['unread_count'] as num?)?.toInt();
+  }
 }

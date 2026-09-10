@@ -190,5 +190,38 @@ void main() {
       expect(requests, contains('POST /api/v1/notifications'));
       expect(requests, contains('body:{"action":"mark_all_read"}'));
     });
+
+    test('markRead() POSTs the swiped bundle ids and returns the count',
+        () async {
+      String? body;
+      await serve((req) async {
+        if (req.uri.path == '/feed') {
+          req.response.write(
+              '<html><head><meta name="csrf-token" content="tok123"></head></html>');
+        } else if (req.uri.path == '/api/v1/notifications') {
+          body = await utf8.decoder.bind(req).join();
+          req.response.headers.contentType = ContentType.json;
+          req.response.write(jsonEncode({'success': true, 'unread_count': 2}));
+        } else {
+          req.response.statusCode = 404;
+        }
+        await req.response.close();
+      });
+
+      expect(await NotificationsService(api).markRead([12, 13]), 2);
+      expect(jsonDecode(body!), {'action': 'mark_read', 'ids': [12, 13]});
+    });
+
+    test('markRead() with no ids never touches the network', () async {
+      var calls = 0;
+      await serve((req) async {
+        calls++;
+        req.response.statusCode = 500;
+        await req.response.close();
+      });
+
+      expect(await NotificationsService(api).markRead(const []), isNull);
+      expect(calls, 0);
+    });
   });
 }

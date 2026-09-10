@@ -4,6 +4,7 @@ import 'package:home_widget/home_widget.dart';
 import '../api/api_client.dart';
 import '../api/auth_service.dart';
 import '../main.dart';
+import '../services/notification_taps.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/error_view.dart';
 import 'ban_screen.dart';
@@ -55,6 +56,9 @@ class _SplashScreenState extends State<SplashScreen> {
           case Gate.feed:
             _goTo(FeedScreen.routeName);
             await _maybeOpenQuoteSettings();
+            // A tap that cold-started the app finishes here, once there is
+            // a session and a navigator to push onto.
+            await NotificationTaps.resolvePending();
             return;
         }
       } else {

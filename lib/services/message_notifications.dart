@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../api/api_client.dart';
 import '../api/messages_service.dart';
 import '../config/app_config.dart';
+import 'dismissed_notifications.dart';
 import 'message_notification_source.dart';
 import 'notification_avatar.dart';
 import 'notification_source.dart';
@@ -215,6 +216,14 @@ abstract class LocalNotifier {
   /// whether an activity could be launched.
   Future<bool> openAppNotificationSettings();
 
+  /// Drops one shown notification from the tray (the id it was shown
+  /// under). Used when the in-app drawer shows the alert instead.
+  Future<void> cancelNotification(int notificationId);
+
+  /// The payload of the notification that LAUNCHED the app, or null when
+  /// the app was not started from one (a cold-start tap).
+  Future<String?> launchPayload();
+
   Future<void> showMessageNotification({
     required int notificationId,
     required String senderName,
@@ -224,11 +233,13 @@ abstract class LocalNotifier {
   });
 
   /// Social alert (likes/comments/mentions): plain channel, no reply
-  /// action (you can't reply to a like from the drawer).
+  /// action (you can't reply to a like from the drawer). [payload] names
+  /// the alert the way [DismissedNotifications] needs it back on a swipe.
   Future<void> showSocialNotification({
     required int notificationId,
     required String title,
     required String body,
+    required String payload,
   });
 }
 
@@ -346,12 +357,14 @@ AndroidNotificationDetails _messageNotificationDetails(
 
 /// Renders one SOCIAL notification (like/comment/mention alert) through
 /// the given plugin instance. No MessagingStyle and no actions: an alert
-/// is not a conversation.
+/// is not a conversation. [payload] rides the notification so a swipe can
+/// report the alert back (see [DismissedNotifications]).
 Future<void> showSocialNotificationWith(
   FlutterLocalNotificationsPlugin plugin, {
   required int notificationId,
   required String title,
   required String body,
+  required String payload,
 }) async {
   const details = AndroidNotificationDetails(
     _socialChannelId,
@@ -359,13 +372,31 @@ Future<void> showSocialNotificationWith(
     channelDescription: _socialChannelDescription,
     importance: Importance.high,
     priority: Priority.high,
+    // A swipe has to reach us even with the app terminated, so the report
+    // goes to the background isolate.
+    dismissIsolate: NotificationDismissedIsolate.background,
   );
   await plugin.show(
     id: notificationId,
     title: title,
     body: body,
     notificationDetails: const NotificationDetails(android: details),
+    payload: payload,
   );
+}
+
+/// Background-isolate entry for the callbacks that must work with no UI:
+/// a swipe-away (the user may have killed the app long before) and a
+/// drawer reply. Top-level + @pragma so the AOT snapshot keeps it.
+@pragma('vm:entry-point')
+Future<void> notificationBackgroundResponse(
+    NotificationResponse response) async {
+  if (response.notificationResponseType ==
+      NotificationResponseType.notificationDismissed) {
+    await DismissedNotifications.markRead(response.payload);
+    return;
+  }
+  await replyFromNotification(response);
 }
 
 /// Plugin-backed implementation; routes callbacks to the live instance
@@ -385,7 +416,7 @@ class FlutterLocalNotifier implements LocalNotifier {
     await _plugin.initialize(
       settings: settings,
       onDidReceiveNotificationResponse: onResponse,
-      onDidReceiveBackgroundNotificationResponse: replyFromNotification,
+      onDidReceiveBackgroundNotificationResponse: notificationBackgroundResponse,
     );
   }
 
@@ -414,6 +445,17 @@ class FlutterLocalNotifier implements LocalNotifier {
   }
 
   @override
+  Future<void> cancelNotification(int notificationId) =>
+      _plugin.cancel(id: notificationId);
+
+  @override
+  Future<String?> launchPayload() async {
+    final details = await _plugin.getNotificationAppLaunchDetails();
+    if (details == null || !details.didNotificationLaunchApp) return null;
+    return details.notificationResponse?.payload;
+  }
+
+  @override
   Future<void> showMessageNotification({
     required int notificationId,
     required String senderName,
@@ -435,11 +477,13 @@ class FlutterLocalNotifier implements LocalNotifier {
     required int notificationId,
     required String title,
     required String body,
+    required String payload,
   }) =>
       showSocialNotificationWith(
         _plugin,
         notificationId: notificationId,
         title: title,
         body: body,
+        payload: payload,
       );
 }

@@ -39,6 +39,7 @@ import 'services/analytics_service.dart';
 import 'services/daily_quote_service.dart';
 import 'services/message_notification_source.dart';
 import 'services/message_notifications.dart';
+import 'services/notification_taps.dart';
 import 'services/notification_worker.dart';
 import 'services/push/push_registration_service.dart';
 import 'services/push/push_transport.dart';
@@ -203,16 +204,10 @@ class AppServices {
     // One plugin-backed notifier shared by Message and Social
     // notifications, so the plugin initializes exactly once.
     final notifier = FlutterLocalNotifier(
-      onResponse: (r) {
-        // Daily-quote notification tap deep-links into Quote of the day
-        // settings (the widget tap uses the same target).
-        if (r.payload == 'quote') {
-          QuoteDeepLink.requestOpen();
-          return;
-        }
-        MessageNotifications.instance?.handleResponse(r);
-      },
+      onResponse: NotificationTaps.handleResponse,
     );
+    // Cold-start taps are read back from the notifier after the gate.
+    NotificationTaps.attach(notifier);
     // First create wins; later ones reuse the singleton so the plugin
     // initializes once and the messages-open count stays consistent.
     var notifications = MessageNotifications.instance;
