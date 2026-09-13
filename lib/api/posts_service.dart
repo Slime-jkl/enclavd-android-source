@@ -6,33 +6,66 @@ import '../config/app_config.dart';
 import 'api_client.dart';
 
 /// Create / update / delete posts over api/v1 (posts.php POST, all
-/// CSRF-gated via the X-CSRF-Token header). create = urlencoded form,
-/// same fields as the site's post_form.php (content + image_data base64
-/// data URL <= 10MB, is_base64_image=1); update (JSON) is content ONLY -
-/// the API never replaces a post's image on edit; delete (JSON) sends the
-/// #hashtags for orphan-tag cleanup, ownership enforced server-side.
+/// CSRF-gated via the X-CSRF-Token header). create = multipart form, same
+/// fields as the site's post_form.php: content plus either the single-image
+/// fields (image_data base64 data URL <= 10MB, is_base64_image=1) or, for a
+/// carousel, images_data (JSON array of up to 6 data URLs) with
+/// is_multiple_images=1; update (JSON) is content ONLY - the API never
+/// replaces a post's images on edit; delete (JSON) sends the #hashtags for
+/// orphan-tag cleanup, ownership enforced server-side.
 class PostsService {
   PostsService(this._api);
 
   final ApiClient _api;
 
+  /// Slides one post may carry (the server enforces the same cap).
+  static const int maxImages = 6;
+
   /// Creates a post (`content` may be empty when an image is attached;
-  /// the server requires at least one). Returns the new post id. The
-  /// image is compressed by image_picker at pick time (maxWidth 1600,
-  /// quality 80), so uploads stay far under the 10MB base64 cap; GIFs
-  /// flatten to a still JPEG frame, same tradeoff the site's editor makes.
-  Future<int> createPost({required String content, XFile? image}) async {
-    final fields = <String, String>{
-      'content': content,
-      'is_base64_image': image != null ? '1' : '0',
-    };
-    if (image != null) {
-      final bytes = await image.readAsBytes();
+  /// the server requires at least one). Returns the new post id.
+  ///
+  /// Every image arrives already baked (<=1200px, JPEG q85) by the editor
+  /// or the picker, so uploads stay far under the caps. A single image
+  /// keeps the original single-image fields, so one-image posts work even
+  /// against a server that predates the carousel; two or more use the
+  /// carousel fields, exactly as the website composer sends them.
+  Future<int> createPost({
+    required String content,
+    List<XFile> images = const [],
+  }) async {
+    if (images.length > maxImages) {
+      throw const ApiException('Up to $maxImages images per post.');
+    }
+
+    final fields = <String, String>{'content': content};
+
+    if (images.isEmpty) {
+      fields['is_base64_image'] = '0';
+    } else if (images.length == 1) {
+      final file = images.first;
+      final bytes = await file.readAsBytes();
       if (bytes.length > 10 * 1024 * 1024) {
         throw const ApiException('Image too large (max 10MB).');
       }
+      fields['is_base64_image'] = '1';
       fields['image_data'] =
-          'data:${_mimeFor(image.name)};base64,${base64Encode(bytes)}';
+          'data:${_mimeFor(file.name)};base64,${base64Encode(bytes)}';
+    } else {
+      final slides = <String>[];
+      for (final file in images) {
+        final bytes = await file.readAsBytes();
+        if (bytes.length > 5 * 1024 * 1024) {
+          throw const ApiException('Each image must be under 5MB.');
+        }
+        slides.add('data:${_mimeFor(file.name)};base64,${base64Encode(bytes)}');
+      }
+      // Slides for a server that knows the carousel, plus the lead image in
+      // the single-image fields so a server that does not know it yet still
+      // posts the first image instead of rejecting the whole thing.
+      fields['is_multiple_images'] = '1';
+      fields['images_data'] = jsonEncode(slides);
+      fields['is_base64_image'] = '1';
+      fields['image_data'] = slides.first;
     }
 
     final token = await _api.fetchCsrfToken();

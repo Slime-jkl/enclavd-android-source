@@ -12,17 +12,33 @@ import '../config/app_config.dart';
 import '../main.dart';
 import '../services/sound_service.dart';
 import '../theme/enclavd_theme.dart';
+import '../utils/image_bake.dart';
 import '../widgets/enclavd_image.dart';
 import 'image_editor_screen.dart';
 import '../services/analytics_service.dart';
 
+/// One attached slide: the baked bytes that get uploaded, plus the picked
+/// file they came from so the editor can re-open it.
+class _ComposeSlide {
+  _ComposeSlide({required this.baked, this.sourcePath});
+
+  Uint8List baked;
+  final String? sourcePath;
+}
+
 class ComposeScreen extends StatefulWidget {
-  const ComposeScreen({super.key, this.post});
+  const ComposeScreen({super.key, this.post, this.pickImages});
 
   /// Null = create a new post; set = edit that post's content.
   final Post? post;
 
+  /// Test seam: replaces the platform picker.
+  final Future<List<XFile>> Function()? pickImages;
+
   static const routeName = '/compose';
+
+  /// Slides one post may carry (the server's cap).
+  static const int maxImages = 6;
 
   @override
   State<ComposeScreen> createState() => _ComposeScreenState();
@@ -32,13 +48,15 @@ class _ComposeScreenState extends State<ComposeScreen> {
   late final TextEditingController _controller;
   final _focus = FocusNode();
 
-  XFile? _image;
-  Uint8List? _imageBytes; // set when _image came from the editor
+  final List<_ComposeSlide> _slides = [];
+  bool _baking = false;
 
   bool _busy = false;
   String? _error;
 
   bool get _isEdit => widget.post != null;
+
+  bool get _canAddMore => _slides.length < ComposeScreen.maxImages;
 
   @override
   void initState() {
@@ -54,30 +72,79 @@ class _ComposeScreenState extends State<ComposeScreen> {
     super.dispose();
   }
 
-  Future<void> _pickImage() async {
-    final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
-    if (picked == null || !mounted) return;
+  /// Picks one or more images and bakes each one. A single first image still
+  /// goes straight into the editor; the rest land in the strip, where a tap
+  /// re-opens the editor for that slide.
+  Future<void> _pickImages() async {
+    if (_busy || _baking) return;
 
-    // The editor bakes a bounded JPEG, keeping uploads small (the Android
-    // picker ignores maxWidth/imageQuality).
-    final edited = await Navigator.of(context).push<Uint8List>(
-      MaterialPageRoute(
-          builder: (_) => ImageEditorScreen(imagePath: picked.path)),
-    );
-    if (!mounted) return;
-    if (edited == null) return; // cancelled in the editor
+    final picked = await (widget.pickImages ?? _pickFromGallery)();
+    if (picked.isEmpty || !mounted) return;
+
+    if (_slides.length + picked.length > ComposeScreen.maxImages) {
+      setState(() => _error =
+          'Up to ${ComposeScreen.maxImages} images per post.');
+      return;
+    }
 
     setState(() {
-      _image =
-          XFile.fromData(edited, name: 'edited.jpg', mimeType: 'image/jpeg');
-      _imageBytes = edited;
+      _baking = true;
+      _error = null;
     });
+
+    try {
+      final baked = <_ComposeSlide>[];
+      for (final file in picked) {
+        final bytes = await file.readAsBytes();
+        baked.add(_ComposeSlide(
+          baked: bakePickedBytes(bytes),
+          sourcePath: file.path,
+        ));
+      }
+      if (!mounted) return;
+      setState(() {
+        _baking = false;
+        _slides.addAll(baked);
+      });
+      // The single-image flow behaves exactly as before: pick, then edit.
+      if (baked.length == 1 && _slides.length == 1) {
+        await _editSlide(0);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _baking = false;
+        _error = 'Could not read that image.';
+      });
+    }
+  }
+
+  static Future<List<XFile>> _pickFromGallery() =>
+      ImagePicker().pickMultiImage();
+
+  Future<void> _editSlide(int index) async {
+    final slide = _slides[index];
+    final path = slide.sourcePath;
+    if (path == null) return;
+
+    final edited = await Navigator.of(context).push<Uint8List>(
+      MaterialPageRoute(builder: (_) => ImageEditorScreen(imagePath: path)),
+    );
+    if (edited == null || !mounted) return; // cancelled in the editor
+
+    setState(() {
+      _slides[index] = _ComposeSlide(baked: edited, sourcePath: path);
+    });
+  }
+
+  void _removeSlide(int index) {
+    setState(() => _slides.removeAt(index));
   }
 
   Future<void> _submit() async {
     final content = _controller.text.trim();
     final post = widget.post;
-    if (!_isEdit && content.isEmpty && _image == null) {
+    if (!_isEdit && content.isEmpty && _slides.isEmpty) {
       setState(() => _error = 'Write something or add an image.');
       return;
     }
@@ -100,7 +167,14 @@ class _ComposeScreenState extends State<ComposeScreen> {
           originalContent: post.content,
         );
       } else {
-        await services.posts.createPost(content: content, image: _image);
+        await services.posts.createPost(
+          content: content,
+          images: [
+            for (final slide in _slides)
+              XFile.fromData(slide.baked,
+                  name: 'edited.jpg', mimeType: 'image/jpeg'),
+          ],
+        );
         // Site: action_sound when a new post is successfully created.
         SoundService.instance.action();
       }
@@ -150,46 +224,50 @@ class _ComposeScreenState extends State<ComposeScreen> {
               ],
               const SizedBox(height: 16),
               // Image area: picker + preview in create mode, read-only
-              // existing image in edit mode.
-              if (!_isEdit)
-                _image != null
-                    ? _ImagePreview(
-                        path: _image!.path,
-                        bytes: _imageBytes,
-                        onRemove: () => setState(() {
-                          _image = null;
-                          _imageBytes = null;
-                        }),
-                      )
-                    : OutlinedButton.icon(
-                        onPressed: _busy ? null : _pickImage,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: context.enclavd.textPrimary,
-                          side: BorderSide(color: context.enclavd.border),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        icon: FaIcon(FontAwesomeIcons.image,
-                            size: 16, color: context.enclavd.textSecondary),
-                        label: const Text('Add Image'),
-                      )
-              else if (post?.image != null && post!.image!.isNotEmpty)
-                // Existing post image: shown, not replaceable (updates only edit content).
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: EnclavdImage(
-                      resolveMediaUrl(AppConfig.apiBaseUrl,
-                          galleryName: post.image),
-                      fit: BoxFit.contain,
-                      height: 220,
-                      placeholderHeight: 180,
-                    ),
+              // existing images in edit mode.
+              if (!_isEdit) ...[
+                if (_slides.length == 1)
+                  _ImagePreview(
+                    path: _slides.first.sourcePath,
+                    bytes: _slides.first.baked,
+                    onRemove: () => _removeSlide(0),
+                  )
+                else if (_slides.length > 1)
+                  _ImageStrip(
+                    slides: _slides,
+                    onEdit: _editSlide,
+                    onRemove: _removeSlide,
                   ),
-                ),
+                if (_slides.isEmpty || _canAddMore) ...[
+                  if (_slides.isNotEmpty) const SizedBox(height: 10),
+                  OutlinedButton.icon(
+                    onPressed: (_busy || _baking) ? null : _pickImages,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: context.enclavd.textPrimary,
+                      side: BorderSide(color: context.enclavd.border),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    icon: _baking
+                        ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: context.enclavd.textSecondary),
+                          )
+                        : FaIcon(FontAwesomeIcons.image,
+                            size: 16, color: context.enclavd.textSecondary),
+                    label: Text(_baking
+                        ? 'Preparing...'
+                        : (_slides.isEmpty ? 'Add Image' : 'Add More')),
+                  ),
+                ],
+              ] else if (post != null && post.galleryImages.isNotEmpty) ...[
+                _ReadOnlyImages(post: post),
+              ],
               const SizedBox(height: 20),
               ElevatedButton.icon(
-                onPressed: _busy ? null : _submit,
+                onPressed: (_busy || _baking) ? null : _submit,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
@@ -320,6 +398,165 @@ class _ImagePreview extends StatelessWidget {
               ),
               child: const FaIcon(FontAwesomeIcons.xmark,
                   size: 14, color: Colors.white),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Several attached images: thumbnails in post order, tap to edit, x to
+/// remove (the website composer's strip).
+class _ImageStrip extends StatelessWidget {
+  const _ImageStrip({
+    required this.slides,
+    required this.onEdit,
+    required this.onRemove,
+  });
+
+  final List<_ComposeSlide> slides;
+  final ValueChanged<int> onEdit;
+  final ValueChanged<int> onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 92,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: slides.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, i) => _Thumb(
+              bytes: slides[i].baked,
+              label: '${i + 1}',
+              onTap: slides[i].sourcePath == null ? null : () => onEdit(i),
+              onRemove: () => onRemove(i),
+            ),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '${slides.length}/${ComposeScreen.maxImages} images - tap to edit',
+          style: TextStyle(color: context.enclavd.textSecondary, fontSize: 12),
+        ),
+      ],
+    );
+  }
+}
+
+/// Edit mode: the post's existing images, shown read-only (updates only
+/// touch the text).
+class _ReadOnlyImages extends StatelessWidget {
+  const _ReadOnlyImages({required this.post});
+
+  final Post post;
+
+  @override
+  Widget build(BuildContext context) {
+    final slides = post.galleryImages;
+    if (slides.length == 1) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: EnclavdImage(
+            resolveMediaUrl(AppConfig.apiBaseUrl, galleryName: slides.first),
+            fit: BoxFit.contain,
+            height: 220,
+            placeholderHeight: 180,
+          ),
+        ),
+      );
+    }
+    return SizedBox(
+      height: 92,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: slides.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, i) => SizedBox(
+          width: 88,
+          height: 88,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: EnclavdImage(
+              resolveMediaUrl(AppConfig.apiBaseUrl, galleryName: slides[i]),
+              fit: BoxFit.cover,
+              height: 88,
+              placeholderHeight: 88,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Thumb extends StatelessWidget {
+  const _Thumb({
+    required this.bytes,
+    required this.label,
+    required this.onTap,
+    required this.onRemove,
+  });
+
+  final Uint8List bytes;
+  final String label;
+  final VoidCallback? onTap;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        GestureDetector(
+          onTap: onTap,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.memory(
+              bytes,
+              width: 88,
+              height: 88,
+              fit: BoxFit.cover,
+            ),
+          ),
+        ),
+        Positioned(
+          right: 4,
+          bottom: 4,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              label,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600),
+            ),
+          ),
+        ),
+        Positioned(
+          top: -6,
+          right: -6,
+          child: GestureDetector(
+            onTap: onRemove,
+            child: Container(
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(
+                color: context.enclavd.card,
+                shape: BoxShape.circle,
+                border: Border.all(color: context.enclavd.border),
+              ),
+              child: FaIcon(FontAwesomeIcons.xmark,
+                  size: 11, color: context.enclavd.textPrimary),
             ),
           ),
         ),
