@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../api/api_client.dart'; // friendlyErrorText
 import '../api/social_service.dart';
 import '../theme/enclavd_theme.dart';
+import '../utils/submit_lock.dart';
 import '../widgets/comment_section.dart';
 
 /// Full-screen comments for a post (smooth zoom-in transition) with the
@@ -78,7 +79,9 @@ class _CommentsScreenState extends State<CommentsScreen> {
   // pinned composer.
   final _commentController = TextEditingController();
   final _commentFocus = FocusNode();
-  bool _commentSending = false;
+  // One comment at a time plus a cooldown (site: comments.js locks the
+  // submit button for 5s), so a spam tap cannot double-post.
+  final _commentLock = SubmitLock();
 
   // Set by a comment's reply button: arms parent_comment_id on submit
   // and shows the "Replying to @user" chip above the composer.
@@ -108,6 +111,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
   void dispose() {
     _commentController.dispose();
     _commentFocus.dispose();
+    _commentLock.dispose();
     super.dispose();
   }
 
@@ -194,9 +198,8 @@ class _CommentsScreenState extends State<CommentsScreen> {
 
   Future<void> _sendComment() async {
     final content = _commentController.text.trim();
-    if (content.isEmpty || _commentSending) return;
+    if (content.isEmpty || !_commentLock.begin()) return;
     setState(() {
-      _commentSending = true;
       // Optimistic: bump now, server total corrects on success.
       _commentCount += 1;
     });
@@ -208,21 +211,28 @@ class _CommentsScreenState extends State<CommentsScreen> {
       );
       if (!mounted) return;
       setState(() {
-        _comments = [comment, ..._comments]; // newest first (server order)
+        // Newest first (server order). A retried send answers with the
+        // row it already stored: same id, so it stays one comment.
+        if (!_comments.any((c) => c.id == comment.id)) {
+          _comments = [comment, ..._comments];
+        }
         _commentCount = newCount;
-        _commentSending = false;
         _replyTarget = null;
       });
       _commentController.clear();
       _commentFocus.unfocus();
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _commentSending = false;
-        _commentCount -= 1; // roll back the optimistic bump
-      });
+      setState(() => _commentCount -= 1); // roll back the optimistic bump
       _toast(friendlyErrorText(e));
+    } finally {
+      // Cooldown on the way out of every attempt.
+      _commentLock.end(_onCommentLockFree);
     }
+  }
+
+  void _onCommentLockFree() {
+    if (mounted) setState(() {});
   }
 
   /// Drops a comment and its whole subtree from the local list (the
@@ -324,7 +334,8 @@ class _CommentsScreenState extends State<CommentsScreen> {
               child: CommentComposer(
                 controller: _commentController,
                 focusNode: _commentFocus,
-                sending: _commentSending,
+                sending: _commentLock.busy,
+                locked: _commentLock.locked,
                 replyTarget: _replyTarget,
                 onDismissReply: _dismissReplyTarget,
                 onSend: _sendComment,

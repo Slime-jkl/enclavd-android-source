@@ -695,6 +695,55 @@ void main() {
     expect(find.text('Agreed!'), findsOneWidget);
   });
 
+  testWidgets('a tap inside the cooldown cannot post the reply twice',
+      (tester) async {
+    // Tall viewport: the whole thread stays laid out, so the composer
+    // does not scroll away between taps.
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
+    final social = _FakeSocial(replies: [_reply(1, 'First reply')]);
+    await tester.pumpWidget(wrap(DomainThreadScreen(
+      domains: _FakeDomains(_detail()),
+      postId: 218,
+      social: social,
+      posts: _FakePosts(),
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.tap(find.byKey(const Key('replyToggle')));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.enterText(find.byType(TextField), 'Agreed!');
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('Send reply'));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(social.sent, ['Agreed!']);
+
+    // The send control is dead for the cooldown (site: comments.js locks
+    // it for 5s), so a spam tap goes nowhere even with the text back.
+    final sendBtn = tester.widget<IconButton>(find.ancestor(
+      of: find.byTooltip('Send reply'),
+      matching: find.byType(IconButton),
+    ));
+    expect(sendBtn.onPressed, isNull, reason: 'locked while cooling down');
+
+    await tester.enterText(find.byType(TextField), 'Agreed!');
+    await tester.pump();
+    await tester.tap(find.byTooltip('Send reply'), warnIfMissed: false);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(social.sent, ['Agreed!'], reason: 'no second reply');
+
+    // Cooldown over: a new reply goes through as normal.
+    await tester.pump(const Duration(seconds: 5));
+    await tester.enterText(find.byType(TextField), 'Second reply');
+    await tester.pump();
+    await tester.tap(find.byTooltip('Send reply'));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(social.sent, ['Agreed!', 'Second reply']);
+  });
+
   testWidgets('reply chains render as separate flat cards, all numbered',
       (tester) async {
     // Tall viewport: full-width body cards stack high; all three must

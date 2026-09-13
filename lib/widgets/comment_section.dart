@@ -185,6 +185,7 @@ class CommentComposer extends StatelessWidget {
     required this.controller,
     required this.focusNode,
     required this.sending,
+    required this.locked,
     required this.onSend,
     this.replyTarget,
     this.onDismissReply,
@@ -193,6 +194,9 @@ class CommentComposer extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final bool sending;
+
+  /// A comment is in flight or still cooling down: the send button is dead.
+  final bool locked;
   final VoidCallback onSend;
 
   /// Armed reply target: shows the "Replying to @user" chip above the
@@ -295,7 +299,7 @@ class CommentComposer extends StatelessWidget {
             ),
             const SizedBox(width: 4),
             IconButton(
-              onPressed: sending ? null : onSend,
+              onPressed: locked ? null : onSend,
               icon: sending
                   ? const SizedBox(
                       width: 18,
@@ -303,7 +307,10 @@ class CommentComposer extends StatelessWidget {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : FaIcon(FontAwesomeIcons.paperPlane,
-                      size: 18, color: context.enclavd.link),
+                      size: 18,
+                      color: locked
+                          ? context.enclavd.textSecondary
+                          : context.enclavd.link),
               tooltip: 'Send comment',
             ),
           ],

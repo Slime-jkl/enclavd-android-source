@@ -368,6 +368,45 @@ void main() {
     expect(find.text('Replying to @Someone'), findsOneWidget);
   });
 
+  testWidgets('a tap inside the cooldown cannot post the comment twice',
+      (tester) async {
+    final social = _FakeSocial(comments: const []);
+    await tester.pumpWidget(wrap(CommentsScreen(
+      postId: _post().id,
+      initialCount: 0,
+      social: social,
+      apiBaseUrl: 'https://example.com',
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.enterText(find.byType(TextField), 'Agreed!');
+    await tester.pump();
+    await tester.tap(find.byTooltip('Send comment'));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(social.sent, ['Agreed!']);
+
+    // Locked for the cooldown, text back in the box: the spam tap is
+    // refused (site: comments.js holds the button for 5s).
+    final sendBtn = tester.widget<IconButton>(find.ancestor(
+      of: find.byTooltip('Send comment'),
+      matching: find.byType(IconButton),
+    ));
+    expect(sendBtn.onPressed, isNull, reason: 'locked while cooling down');
+
+    await tester.enterText(find.byType(TextField), 'Agreed!');
+    await tester.pump();
+    await tester.tap(find.byTooltip('Send comment'), warnIfMissed: false);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(social.sent, ['Agreed!'], reason: 'no second comment');
+
+    await tester.pump(const Duration(seconds: 5));
+    await tester.enterText(find.byType(TextField), 'Second');
+    await tester.pump();
+    await tester.tap(find.byTooltip('Send comment'));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(social.sent, ['Agreed!', 'Second']);
+  });
+
   testWidgets('back button closes the screen and returns the count',
       (tester) async {
     final social = _FakeSocial(comments: [_comment(1, 'Root comment')]);
