@@ -13,6 +13,7 @@ import '../main.dart';
 import '../services/sound_service.dart';
 import '../theme/enclavd_theme.dart';
 import '../utils/image_bake.dart';
+import '../utils/submit_lock.dart';
 import '../widgets/enclavd_image.dart';
 import 'image_editor_screen.dart';
 import '../services/analytics_service.dart';
@@ -52,6 +53,9 @@ class _ComposeScreenState extends State<ComposeScreen> {
   bool _baking = false;
 
   bool _busy = false;
+  // One attempt at a time plus a cooldown (site: the post button locks
+  // for 5s), so a spam tap cannot publish twice.
+  final _submitLock = SubmitLock();
   String? _error;
 
   bool get _isEdit => widget.post != null;
@@ -69,6 +73,7 @@ class _ComposeScreenState extends State<ComposeScreen> {
   void dispose() {
     _controller.dispose();
     _focus.dispose();
+    _submitLock.dispose();
     super.dispose();
   }
 
@@ -152,6 +157,7 @@ class _ComposeScreenState extends State<ComposeScreen> {
       setState(() => _error = 'Post content cannot be empty.');
       return;
     }
+    if (!_submitLock.begin()) return; // in flight, or cooling down
 
     setState(() {
       _busy = true;
@@ -192,7 +198,14 @@ class _ComposeScreenState extends State<ComposeScreen> {
         _busy = false;
         _error = friendlyErrorText(e);
       });
+    } finally {
+      // Cooldown on the way out of every attempt.
+      _submitLock.end(_onSubmitLockFree);
     }
+  }
+
+  void _onSubmitLockFree() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -267,7 +280,9 @@ class _ComposeScreenState extends State<ComposeScreen> {
               ],
               const SizedBox(height: 20),
               ElevatedButton.icon(
-                onPressed: (_busy || _baking) ? null : _submit,
+                onPressed: (_busy || _baking || _submitLock.locked)
+                    ? null
+                    : _submit,
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),

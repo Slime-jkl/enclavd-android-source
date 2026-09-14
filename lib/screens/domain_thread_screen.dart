@@ -17,6 +17,7 @@ import '../theme/enclavd_theme.dart';
 import '../utils/confirm_dialog.dart';
 import '../utils/content_spans.dart'; // postContentSpans + commentContentSpans
 import '../utils/db_time.dart';
+import '../utils/submit_lock.dart';
 import '../widgets/enclavd_avatar.dart';
 import '../widgets/comment_quote_card.dart';
 import '../widgets/error_view.dart';
@@ -121,7 +122,9 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
 
   final _replyController = TextEditingController();
   final _replyFocus = FocusNode();
-  bool _replying = false;
+  // One reply at a time plus a cooldown, so a spam tap on a slow (or
+  // failed) send cannot land the same reply twice.
+  final _replyLock = SubmitLock();
   bool _composerOpen = false; // composer at the top of replies, hidden
 
   AppServices? _services;
@@ -138,6 +141,7 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
     _repliesScroll.dispose();
     _replyController.dispose();
     _replyFocus.dispose();
+    _replyLock.dispose();
     super.dispose();
   }
 
@@ -283,8 +287,8 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
   Future<void> _sendReply() async {
     final quote = _quoting;
     final content = _replyController.text.trim();
-    if (content.isEmpty || _replying) return;
-    setState(() => _replying = true);
+    if (content.isEmpty || !_replyLock.begin()) return;
+    setState(() {}); // the send control locks with the attempt
     try {
       final (comment, newCount) = await _social.createComment(
         widget.postId,
@@ -297,8 +301,11 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
         // the next build) instead of refetching, so the fresh reply
         // never flickers out of view mid-page, the pager refetches when
         // the user navigates. A sent reply rides at the list end.
-        _replies = [..._replies, comment];
-        _replying = false;
+        // A retried send can answer with the row it already stored:
+        // same id, so it must not paint a second card.
+        if (!_replies.any((r) => r.id == comment.id)) {
+          _replies = [..._replies, comment];
+        }
         _quoting = null;
         _jumpToRepliesEnd = true;
         // Keep the OP card's count in sync.
@@ -310,9 +317,16 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
       FocusScope.of(context).unfocus();
     } catch (e) {
       if (!mounted) return;
-      setState(() => _replying = false);
       _toast(friendlyErrorText(e));
+    } finally {
+      // Cooldown on the way out of every attempt - a spam tap right
+      // after a send goes nowhere.
+      _replyLock.end(_onReplyLockFree);
     }
+  }
+
+  void _onReplyLockFree() {
+    if (mounted) setState(() {});
   }
 
   /// Drops a comment and its whole subtree from the local list (the
@@ -491,7 +505,8 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
             child: _ReplyComposer(
               controller: _replyController,
               focusNode: _replyFocus,
-              sending: _replying,
+              sending: _replyLock.busy,
+              locked: _replyLock.locked,
               onSend: _sendReply,
               quote: _quoting,
               onDismissQuote: _dismissQuote,
@@ -1378,6 +1393,7 @@ class _ReplyComposer extends StatelessWidget {
     required this.controller,
     required this.focusNode,
     required this.sending,
+    required this.locked,
     required this.onSend,
     this.quote,
     this.onDismissQuote,
@@ -1386,6 +1402,9 @@ class _ReplyComposer extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final bool sending;
+
+  /// A reply is in flight or still cooling down: the send button is dead.
+  final bool locked;
   final VoidCallback onSend;
 
   final Comment? quote;
@@ -1448,7 +1467,7 @@ class _ReplyComposer extends StatelessWidget {
               ),
               const SizedBox(width: 4),
               IconButton(
-                onPressed: sending ? null : onSend,
+                onPressed: locked ? null : onSend,
                 icon: sending
                     ? const SizedBox(
                         width: 18,
@@ -1456,7 +1475,10 @@ class _ReplyComposer extends StatelessWidget {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : FaIcon(FontAwesomeIcons.paperPlane,
-                        size: 18, color: context.enclavd.link),
+                        size: 18,
+                        color: locked
+                            ? context.enclavd.textSecondary
+                            : context.enclavd.link),
                 tooltip: 'Send reply',
               ),
             ],
