@@ -30,7 +30,7 @@ class AppConfig {
   /// client gets logged out. One string for all platforms on purpose.
   static const String userAgent = String.fromEnvironment(
     'ENCLAVD_USER_AGENT',
-    defaultValue: 'EnclavdNative/1.0',
+    defaultValue: 'EnclavdNative/2.1.2',
   );
 
   /// Allow self-signed TLS (dev stack runs https on a self-signed cert);
@@ -70,19 +70,18 @@ class AppConfig {
   static const Duration uploadTimeout = Duration(seconds: 90);
   static const int httpClientRetries = 2; // transient network failures
 
-  /// The app's own self-hosted Plausible (the website's analytics, proxied
-  /// by the web server on :2000); app screens land in the same dashboard
+  /// The app's own self-hosted analytics; app screens land in the same dashboard
   /// as web pages.
   static const String analyticsEndpoint =
       'https://enclavd.com:2000/api/event';
 
-  /// The Plausible site the events belong to (the site's data-domain).
+  /// The analytics site the events belong to (the site's data-domain).
   static const String analyticsDomain = 'enclavd.com';
 
-  /// Plausible silently drops events whose UA is not browser-like. This
+  /// Analytics silently drops events whose UA is not browser-like. This
   /// PINNED Chrome/124 string (what the old WebView wrapper always sent)
   /// passes the bot filter and keeps the same visitor identity for the
-  /// same phone across app versions (IP + UA hash).
+  /// same phone across app versions.
   static const String analyticsUserAgent =
       'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 '
       '(KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36';

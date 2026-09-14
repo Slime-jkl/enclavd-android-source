@@ -32,7 +32,7 @@ void main() {
       final image =
           XFile.fromData(Uint8List.fromList([1, 2, 3]), name: 'pic.jpg');
       final id = await PostsService(h.client)
-          .createPost(content: 'hello #tag', image: image);
+          .createPost(content: 'hello #tag', images: [image]);
 
       expect(id, 99);
       expect(contentType, 'multipart/form-data');
@@ -66,6 +66,65 @@ void main() {
       expect(body, contains('name="is_base64_image"'));
       expect(body, contains('\r\n\r\n0\r\n'));
       expect(body, isNot(contains('AQID')));
+
+      await h.close();
+    });
+
+    test('several images send the carousel fields', () async {
+      String? body;
+      final h = await Harness.start((req) async {
+        if (req.uri.path == '/feed') {
+          Harness.respond(req, body: '<meta name="csrf-token" content="t">');
+        } else {
+          body = await utf8.decoder.bind(req).join();
+          Harness.respond(req,
+              body: '{"success":true,"post":{"id":12,"html":"<div/>"}}');
+        }
+      });
+
+      final images = [
+        for (final n in ['a', 'b', 'c'])
+          XFile.fromData(Uint8List.fromList([1, 2, 3]), name: '$n.jpg'),
+      ];
+      final id = await PostsService(h.client)
+          .createPost(content: 'three slides', images: images);
+
+      expect(id, 12);
+      expect(body, contains('name="is_multiple_images"'));
+      expect(body, contains('name="images_data"'));
+      // The JSON array travels as one part: three data URLs in slide order.
+      expect(body, contains('data:image/jpeg;base64,AQID'));
+      expect(RegExp(r'data:image/jpeg;base64,AQID').allMatches(body!).length, 4,
+          reason: 'three slides in images_data plus the lead repeated in '
+              'image_data, so a server without the carousel still posts one '
+              'image instead of rejecting the post');
+
+      await h.close();
+    });
+
+    test('more images than the cap is refused before any request', () async {
+      var posted = false;
+      final h = await Harness.start((req) async {
+        if (req.uri.path == '/feed') {
+          Harness.respond(req, body: '<meta name="csrf-token" content="t">');
+        } else {
+          posted = true;
+          Harness.respond(req,
+              body: '{"success":true,"post":{"id":1,"html":""}}');
+        }
+      });
+
+      final images = [
+        for (var i = 0; i < PostsService.maxImages + 1; i++)
+          XFile.fromData(Uint8List.fromList([1]), name: '$i.jpg'),
+      ];
+      await expectLater(
+        PostsService(h.client).createPost(content: 'too many', images: images),
+        throwsA(isA<ApiException>()
+            .having((e) => e.message, 'message', 'Up to 6 images per post.')),
+      );
+      expect(posted, isFalse,
+          reason: 'the cap is checked before anything is uploaded');
 
       await h.close();
     });

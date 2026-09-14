@@ -8,6 +8,7 @@ import 'package:image/image.dart' as img;
 
 import '../theme/enclavd_theme.dart';
 import '../utils/ied_filter.dart';
+import '../utils/image_bake.dart';
 
 class ImageEditorScreen extends StatefulWidget {
   const ImageEditorScreen({super.key, required this.imagePath});
@@ -198,15 +199,7 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
       if (_filter.id != 'normal') {
         IedFilter.applyToImage(out, _filter.matrix());
       }
-      final maxDim = math.max(out.width, out.height);
-      if (maxDim > ImageEditorScreen.maxOutput) {
-        final scale = ImageEditorScreen.maxOutput / maxDim;
-        out = img.copyResize(out,
-            width: (out.width * scale).round(),
-            height: (out.height * scale).round(),
-            interpolation: img.Interpolation.cubic);
-      }
-      final bytes = Uint8List.fromList(img.encodeJpg(out, quality: 85));
+      final bytes = bakeJpeg(out, maxEdge: ImageEditorScreen.maxOutput);
       if (!mounted) return;
       Navigator.of(context).pop(bytes);
     } catch (_) {

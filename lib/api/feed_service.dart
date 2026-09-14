@@ -1,6 +1,25 @@
 import 'api_client.dart';
 import '../utils/html_entities.dart';
 
+/// Carousel slides from a post payload: the API's `images` list, or the
+/// single `image` field when `images` is absent or empty (a payload from a
+/// server that predates the carousel, or a text-only post that carries
+/// neither).
+List<String> postImages(Map<String, dynamic> json) {
+  final raw = json['images'];
+  final slides = <String>[];
+  if (raw is List) {
+    for (final value in raw) {
+      if (value is String && value.isNotEmpty) slides.add(value);
+    }
+  }
+  if (slides.isEmpty) {
+    final single = json['image'];
+    if (single is String && single.isNotEmpty) slides.add(single);
+  }
+  return slides;
+}
+
 class Post {
   const Post({
     required this.id,
@@ -18,6 +37,7 @@ class Post {
     required this.isActive,
     required this.rank,
     required this.image,
+    this.images = const [],
     this.isOwner = false,
     this.lastReplyAt,
     this.lastReplyUsername,
@@ -45,6 +65,11 @@ class Post {
   final String isActive;
   final String rank;
   final String? image;
+
+  /// Every image in the post, in slide order. Empty for a text-only post;
+  /// a single-image post (or one from a server that predates the carousel)
+  /// carries one entry, so the UI can always render this list.
+  final List<String> images;
   final bool isOwner;
   final String? lastReplyAt;
   final String? lastReplyUsername;
@@ -76,6 +101,7 @@ class Post {
         isActive: json['is_active'] as String? ?? 'true',
         rank: json['rank'] as String? ?? 'Member',
         image: json['image'] as String?,
+        images: postImages(json),
         isOwner: json['is_owner'] as bool? ?? false,
         // Domain thread OP payload: last activity line (web parity).
         lastReplyAt: json['last_reply_at'] as String?,
@@ -90,6 +116,12 @@ class Post {
       );
 
   bool get isBlocked => isActive == 'false';
+
+  /// Slides to render: [images], or the single [image] when the post was
+  /// built without the list (older code paths and tests).
+  List<String> get galleryImages => images.isNotEmpty
+      ? images
+      : (image != null && image!.isNotEmpty ? [image!] : const []);
 }
 
 

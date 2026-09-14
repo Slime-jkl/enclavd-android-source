@@ -159,8 +159,10 @@ Future<void> main() async {
   final postStamp = DateTime.now().millisecondsSinceEpoch;
   final newId = await postsService.createPost(
     content: 'native-app verify post $postStamp #verifytest',
-    image: XFile.fromData(Uint8List.fromList(bigJpeg),
-        name: 'verify.jpg', mimeType: 'image/jpeg'),
+    images: [
+      XFile.fromData(Uint8List.fromList(bigJpeg),
+          name: 'verify.jpg', mimeType: 'image/jpeg'),
+    ],
   );
   check('post create returns an id', newId > 0, '#$newId');
 

@@ -20,7 +20,7 @@ import '../utils/db_time.dart';
 import '../widgets/enclavd_avatar.dart';
 import '../widgets/comment_quote_card.dart';
 import '../widgets/error_view.dart';
-import '../widgets/post_card.dart'; // PostCardSkeleton, PostImage,
+import '../widgets/post_card.dart'; // PostCardSkeleton, PostCarousel,
 // rankColorFromCssClass
 import '../widgets/rank_badge.dart';
 import '../widgets/replies_pager.dart';
@@ -867,9 +867,9 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                 fontSize: 14.5,
                 height: 1.45),
           ),
-          if (post.image != null && post.image!.isNotEmpty) ...[
+          if (post.galleryImages.isNotEmpty) ...[
             const SizedBox(height: 12),
-            PostImage(post: post, apiBaseUrl: widget.apiBaseUrl),
+            PostCarousel(post: post, apiBaseUrl: widget.apiBaseUrl),
           ],
           const SizedBox(height: 14),
           Divider(height: 1, color: context.enclavd.divider),

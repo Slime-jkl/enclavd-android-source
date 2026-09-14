@@ -242,10 +242,9 @@ class _PostCardState extends State<PostCard> {
                       if (extractYouTubeId(widget.post.content) case final id?)
                         _YouTubeEmbed(
                             videoId: id, apiBaseUrl: widget.apiBaseUrl),
-                      if (widget.post.image != null &&
-                          widget.post.image!.isNotEmpty) ...[
+                      if (widget.post.galleryImages.isNotEmpty) ...[
                         const SizedBox(height: 4),
-                        PostImage(
+                        PostCarousel(
                             post: widget.post, apiBaseUrl: widget.apiBaseUrl),
                       ],
                     ],
@@ -573,28 +572,23 @@ class _PostContentState extends State<_PostContent> {
   }
 }
 
-/// Post image, capped at half the viewport height; tap -> fullscreen viewer.
-class PostImage extends StatefulWidget {
-  const PostImage({
-    super.key,
-    required this.post,
-    required this.apiBaseUrl,
-  });
+/// Probe an image's aspect ratio with a tiny 128px decode, one shot. The
+/// listener detaches as soon as the ratio is known, so the only frame left
+/// alive is the display decode.
+class _AspectProbe extends StatefulWidget {
+  const _AspectProbe({required this.url, required this.builder});
 
-  final Post post;
-  final String apiBaseUrl;
+  final String url;
+  final Widget Function(BuildContext context, double? aspect) builder;
 
   @override
-  State<PostImage> createState() => PostImageState();
+  State<_AspectProbe> createState() => _AspectProbeState();
 }
 
-class PostImageState extends State<PostImage> {
+class _AspectProbeState extends State<_AspectProbe> {
   double? _aspect;
   ImageStream? _stream;
   bool _probeStarted = false;
-
-  String get _url =>
-      resolveMediaUrl(widget.apiBaseUrl, galleryName: widget.post.image);
 
   late final ImageStreamListener _probeListener = ImageStreamListener(
     (info, _) {
@@ -611,6 +605,18 @@ class PostImageState extends State<PostImage> {
     },
   );
 
+  /// A new url (post edit, carousel slide swap) starts a fresh probe.
+  @override
+  void didUpdateWidget(covariant _AspectProbe oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.url == widget.url) return;
+    _stream?.removeListener(_probeListener);
+    _stream = null;
+    _aspect = null;
+    _probeStarted = false;
+    _ensureProbe();
+  }
+
   @override
   void dispose() {
     _stream?.removeListener(_probeListener);
@@ -623,7 +629,7 @@ class PostImageState extends State<PostImage> {
     final provider = ResizeImage.resizeIfNeeded(
       128,
       null,
-      CachedNetworkImageProvider(_url),
+      CachedNetworkImageProvider(widget.url),
     );
     final stream = provider.resolve(ImageConfiguration.empty);
     _stream = stream;
@@ -632,122 +638,379 @@ class PostImageState extends State<PostImage> {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: LayoutBuilder(builder: (context, constraints) {
-        final contentWidth = constraints.maxWidth;
-        // Cap at 50vh like the site's max-h-[50vh].
-        final maxHeight = MediaQuery.sizeOf(context).height * 0.5;
-        _ensureProbe();
-        final height = _aspect == null
-            ? 180.0 // probing: shimmer at a sane default
-            : math.min(contentWidth / _aspect!, maxHeight);
-        return GestureDetector(
-          onTap: () => _viewFullImage(context, _url),
-          // Long-press saves to the gallery; tap opens the fullscreen viewer.
-          onLongPress: () => _showSaveSheet(context, _url),
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              EnclavdImage(
-                _url,
-                width: contentWidth,
-                height: height,
-                fit: BoxFit.contain,
-                errorAsset: 'assets/images/no-image.jpg',
-                borderRadius: BorderRadius.circular(8),
-              ),
-              // No hover on touch, so keep an always-on expand hint.
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.45),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const FaIcon(FontAwesomeIcons.expand,
-                      size: 13, color: Colors.white),
-                ),
-              ),
-            ],
-          ),
-        );
-      }),
-    );
+    _ensureProbe();
+    return widget.builder(context, _aspect);
   }
+}
 
-  void _showSaveSheet(BuildContext context, String url) {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: context.enclavd.card,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (sheetContext) => SafeArea(
-        child: ListTile(
-          leading: FaIcon(FontAwesomeIcons.download,
-              color: context.enclavd.link, size: 18),
-          title: const Text('Save image to device',
-              style: TextStyle(fontWeight: FontWeight.w600)),
-          subtitle: Text('Saves to the Enclavd folder in your gallery',
-              style: TextStyle(
-                  color: context.enclavd.textSecondary, fontSize: 12.5)),
-          onTap: () {
-            Navigator.of(sheetContext).pop();
-            _saveToDevice(context, url);
+/// Post image, capped at half the viewport height; tap -> fullscreen viewer.
+class PostImage extends StatefulWidget {
+  const PostImage({
+    super.key,
+    required this.post,
+    required this.apiBaseUrl,
+  });
+
+  final Post post;
+  final String apiBaseUrl;
+
+  @override
+  State<PostImage> createState() => PostImageState();
+}
+
+class PostImageState extends State<PostImage> {
+  String get _url =>
+      resolveMediaUrl(widget.apiBaseUrl, galleryName: widget.post.image);
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: _AspectProbe(
+        url: _url,
+        builder: (context, aspect) => LayoutBuilder(
+          builder: (context, constraints) {
+            final contentWidth = constraints.maxWidth;
+            // Cap at 50vh like the site's max-h-[50vh].
+            final maxHeight = MediaQuery.sizeOf(context).height * 0.5;
+            final height = aspect == null
+                ? 180.0 // probing: shimmer at a sane default
+                : math.min(contentWidth / aspect, maxHeight);
+            return GestureDetector(
+              onTap: () => showPostImageViewer(context, [_url]),
+              // Long-press saves to the gallery; tap opens the fullscreen viewer.
+              onLongPress: () => _showImageSaveSheet(context, _url),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  EnclavdImage(
+                    _url,
+                    width: contentWidth,
+                    height: height,
+                    fit: BoxFit.contain,
+                    errorAsset: 'assets/images/no-image.jpg',
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  const _ExpandHint(),
+                ],
+              ),
+            );
           },
         ),
       ),
     );
   }
+}
 
-  Future<void> _saveToDevice(BuildContext context, String url) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final message = await GallerySaver().saveImage(url);
-    messenger.showSnackBar(SnackBar(
-      content: Text(message),
-      duration: const Duration(seconds: 3),
-    ));
+/// Several images in one post: a swipeable carousel. One image (or a post
+/// from before the carousel) renders through [PostImage] unchanged, so the
+/// single-image card keeps its exact layout.
+class PostCarousel extends StatefulWidget {
+  const PostCarousel({
+    super.key,
+    required this.post,
+    required this.apiBaseUrl,
+  });
+
+  final Post post;
+  final String apiBaseUrl;
+
+  @override
+  State<PostCarousel> createState() => _PostCarouselState();
+}
+
+class _PostCarouselState extends State<PostCarousel> {
+  final PageController _controller = PageController();
+  int _index = 0;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
-  void _viewFullImage(BuildContext context, String url) {
-    showDialog<void>(
-      context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.92),
-      builder: (dialogContext) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: EdgeInsets.zero,
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: GestureDetector(
-                onTap: () => Navigator.of(dialogContext).pop(),
-                child: InteractiveViewer(
-                  maxScale: 5,
-                  child: Center(
-                    child: Image(
-                      image: CachedNetworkImageProvider(url),
-                      fit: BoxFit.contain,
+  @override
+  Widget build(BuildContext context) {
+    final slides = widget.post.galleryImages;
+    if (slides.length <= 1) {
+      return PostImage(post: widget.post, apiBaseUrl: widget.apiBaseUrl);
+    }
+
+    final urls = [
+      for (final name in slides)
+        resolveMediaUrl(widget.apiBaseUrl, galleryName: name),
+    ];
+
+    return Center(
+      child: _AspectProbe(
+        // The frame follows the lead image's ratio, so swiping never
+        // resizes the card; other slides letterbox inside it.
+        url: urls.first,
+        builder: (context, aspect) => LayoutBuilder(
+          builder: (context, constraints) {
+            final contentWidth = constraints.maxWidth;
+            final maxHeight = MediaQuery.sizeOf(context).height * 0.5;
+            final height = aspect == null
+                ? 180.0
+                : math.min(contentWidth / aspect, maxHeight);
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: contentWidth,
+                  height: height,
+                  child: GestureDetector(
+                    onTap: () => showPostImageViewer(context, urls,
+                        initialIndex: _index),
+                    onLongPress: () =>
+                        _showImageSaveSheet(context, urls[_index]),
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        PageView.builder(
+                          controller: _controller,
+                          itemCount: urls.length,
+                          onPageChanged: (i) => setState(() => _index = i),
+                          itemBuilder: (context, i) => EnclavdImage(
+                            urls[i],
+                            width: contentWidth,
+                            height: height,
+                            fit: BoxFit.contain,
+                            errorAsset: 'assets/images/no-image.jpg',
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        const _ExpandHint(),
+                      ],
                     ),
                   ),
                 ),
-              ),
-            ),
-            Positioned(
-              top: 24,
-              right: 24,
-              child: IconButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                icon: const FaIcon(FontAwesomeIcons.xmark,
-                    color: Colors.white, size: 22),
-              ),
-            ),
-          ],
+                const SizedBox(height: 8),
+                _CarouselDots(
+                  count: urls.length,
+                  index: _index,
+                  onTap: (i) => _controller.animateToPage(
+                    i,
+                    duration: const Duration(milliseconds: 250),
+                    curve: Curves.easeOut,
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
   }
+}
+
+class _CarouselDots extends StatelessWidget {
+  const _CarouselDots({
+    required this.count,
+    required this.index,
+    required this.onTap,
+  });
+
+  final int count;
+  final int index;
+  final ValueChanged<int> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (var i = 0; i < count; i++)
+          GestureDetector(
+            onTap: () => onTap(i),
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+              child: Container(
+                key: ValueKey('carousel-dot-$i'),
+                width: 6,
+                height: 6,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: i == index
+                      ? context.enclavd.link
+                      : context.enclavd.textSecondary.withValues(alpha: 0.35),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _ExpandHint extends StatelessWidget {
+  const _ExpandHint();
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: 8,
+      right: 8,
+      child: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.45),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: const FaIcon(FontAwesomeIcons.expand,
+            size: 13, color: Colors.white),
+      ),
+    );
+  }
+}
+
+/// Fullscreen viewer. One url renders the plain zoomable image; several render
+/// a pager with a counter, so a carousel opens on the slide that was tapped.
+void showPostImageViewer(
+  BuildContext context,
+  List<String> urls, {
+  int initialIndex = 0,
+}) {
+  if (urls.isEmpty) return;
+  showDialog<void>(
+    context: context,
+    barrierColor: Colors.black.withValues(alpha: 0.92),
+    builder: (dialogContext) => Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: EdgeInsets.zero,
+      child: _ImageViewer(
+        urls: urls,
+        initialIndex: initialIndex.clamp(0, urls.length - 1),
+      ),
+    ),
+  );
+}
+
+class _ImageViewer extends StatefulWidget {
+  const _ImageViewer({required this.urls, required this.initialIndex});
+
+  final List<String> urls;
+  final int initialIndex;
+
+  @override
+  State<_ImageViewer> createState() => _ImageViewerState();
+}
+
+class _ImageViewerState extends State<_ImageViewer> {
+  late final PageController _controller =
+      PageController(initialPage: widget.initialIndex);
+  late int _index = widget.initialIndex;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final urls = widget.urls;
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: GestureDetector(
+            onTap: () => Navigator.of(context).pop(),
+            child: PageView.builder(
+              controller: _controller,
+              itemCount: urls.length,
+              onPageChanged: (i) => setState(() => _index = i),
+              itemBuilder: (context, i) => InteractiveViewer(
+                maxScale: 5,
+                child: Center(
+                  child: Image(
+                    image: CachedNetworkImageProvider(urls[i]),
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          top: 24,
+          right: 24,
+          child: IconButton(
+            onPressed: () => Navigator.of(context).pop(),
+            icon: const FaIcon(FontAwesomeIcons.xmark,
+                color: Colors.white, size: 22),
+          ),
+        ),
+        if (urls.length > 1)
+          Positioned(
+            bottom: 28,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: _ImageCounter(text: '${_index + 1}/${urls.length}'),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _ImageCounter extends StatelessWidget {
+  const _ImageCounter({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 12.5,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+}
+
+void _showImageSaveSheet(BuildContext context, String url) {
+  showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: context.enclavd.card,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+    ),
+    builder: (sheetContext) => SafeArea(
+      child: ListTile(
+        leading: FaIcon(FontAwesomeIcons.download,
+            color: context.enclavd.link, size: 18),
+        title: const Text('Save image to device',
+            style: TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: Text('Saves to the Enclavd folder in your gallery',
+            style: TextStyle(
+                color: context.enclavd.textSecondary, fontSize: 12.5)),
+        onTap: () {
+          Navigator.of(sheetContext).pop();
+          _saveImageToDevice(context, url);
+        },
+      ),
+    ),
+  );
+}
+
+Future<void> _saveImageToDevice(BuildContext context, String url) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final message = await GallerySaver().saveImage(url);
+  messenger.showSnackBar(SnackBar(
+    content: Text(message),
+    duration: const Duration(seconds: 3),
+  ));
 }
 
 class _DomainPromotionBanner extends StatelessWidget {
