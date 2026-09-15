@@ -3,9 +3,11 @@ import 'package:audioplayers/audioplayers.dart';
 /// Port of the site's EnclavdSounds (components/notifications.js) using the
 /// site's own sound files (copied to assets/sounds/, LICENSE included):
 /// like_sound.mp3 when a post becomes LIKED (never on unlike, per
-/// likes.js) and action_sound.mp3 on feed refresh / post create. Lazy
-/// per-sound players; replay restarts from 0. Every call is a defensive
-/// no-op on failure - audio must never break the UI.
+/// likes.js), action_sound.mp3 on feed refresh / post create, and the
+/// flame's own recording on an ignite (the very file the site's flame
+/// overlay ships with). Lazy per-sound players; replay restarts from 0.
+/// Every call is a defensive no-op on failure - audio must never break
+/// the UI.
 class SoundService {
   SoundService._() {
     // Mix the UI sounds OVER whatever the user is playing (music, a
@@ -38,6 +40,7 @@ class SoundService {
 
   AudioPlayer? _like;
   AudioPlayer? _action;
+  AudioPlayer? _ignite;
 
   Future<void> like() async {
     if (muted) return;
@@ -47,6 +50,13 @@ class SoundService {
   Future<void> action() async {
     if (muted) return;
     await _play(_player(like: false), 'sounds/action_sound.mp3');
+  }
+
+  /// Plays the flame over the card: the same recording the site's ignite
+  /// overlay uses, on a grant and on re-pressing an already ignited post.
+  Future<void> ignite() async {
+    if (muted) return;
+    await _play(_ignite ??= AudioPlayer(), 'sounds/flame-vortex-SFAW.wav');
   }
 
   AudioPlayer _player({required bool like}) {

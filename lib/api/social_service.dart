@@ -15,6 +15,33 @@ class LikeResult {
       );
 }
 
+/// One ignite attempt. A granted ignite also likes the post, so
+/// [likeCount] is the post's authoritative total either way.
+class IgniteResult {
+  const IgniteResult({
+    required this.status,
+    this.message = '',
+    this.likeCount = 0,
+  });
+
+  /// ignited | already_ignited | limit_reached (or '' on an unknown body).
+  final String status;
+
+  /// The server's own copy for the daily limit.
+  final String message;
+  final int likeCount;
+
+  bool get granted => status == 'ignited';
+  bool get alreadyIgnited => status == 'already_ignited';
+  bool get limitReached => status == 'limit_reached';
+
+  factory IgniteResult.fromJson(Map<String, dynamic> json) => IgniteResult(
+        status: json['status'] as String? ?? '',
+        message: json['message'] as String? ?? '',
+        likeCount: (json['like_count'] as num?)?.toInt() ?? 0,
+      );
+}
+
 class Comment {
   const Comment({
     required this.id,
@@ -114,6 +141,7 @@ class Liker {
     required this.personalityType,
     required this.rank,
     required this.likedAt,
+    this.ignited = false,
   });
 
   final int id;
@@ -122,6 +150,10 @@ class Liker {
   final String? personalityType;
   final String rank;
   final String likedAt;
+
+  /// This account ignited the post. The list already sorts igniters first
+  /// server-side; the flag is what draws the fire beside their name.
+  final bool ignited;
 
   /// Prod's likers payload predates the raw fields: it sends
   /// `personality_badge` / `rank_styles` as HTML instead of plain
@@ -143,6 +175,7 @@ class Liker {
       rank:
           (json['rank'] as String?) ?? _rankFromBadge(rankBadge) ?? 'Member',
       likedAt: json['liked_at'] as String? ?? '',
+      ignited: json['ignited'] as bool? ?? false,
     );
   }
 
@@ -350,6 +383,17 @@ class SocialService {
   Future<LikeResult> toggleLike(int postId) async {
     final json = await _api.postJson('/api/v1/likes', {'post_id': postId});
     return LikeResult.fromJson(json);
+  }
+
+  /// Spends this account's ignite for the day on one post. The daily limit is
+  /// a 409 with its own status, not a failure, so the body is read on any
+  /// status and handed back to the caller to show.
+  Future<IgniteResult> ignite(int postId) async {
+    final json = await _api.postJsonRelaxed(
+      '/api/v1/ignite',
+      <String, dynamic>{'post_id': postId},
+    );
+    return IgniteResult.fromJson(json);
   }
 
   /// The users who liked a post, newest first (likes.php GET - public).

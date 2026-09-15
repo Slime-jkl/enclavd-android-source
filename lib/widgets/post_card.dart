@@ -24,6 +24,8 @@ import '../utils/db_time.dart';
 import 'cached_image.dart';
 import 'enclavd_avatar.dart';
 import 'enclavd_image.dart';
+import 'ignite_button.dart';
+import 'ignite_flame_overlay.dart';
 import 'likers_sheet.dart';
 import 'personality_chip.dart';
 
@@ -49,7 +51,8 @@ class PostCard extends StatefulWidget {
   State<PostCard> createState() => _PostCardState();
 }
 
-class _PostCardState extends State<PostCard> {
+class _PostCardState extends State<PostCard>
+    with IgniteFlamePlayer<PostCard> {
   late int _likeCount;
   late bool _liked;
   late int _commentCount;
@@ -84,11 +87,6 @@ class _PostCardState extends State<PostCard> {
     if (old.commentCount != fresh.commentCount) {
       _commentCount = fresh.commentCount;
     }
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 
   Future<void> _toggleLike() async {
@@ -129,6 +127,17 @@ class _PostCardState extends State<PostCard> {
 
   void _onHeartTap() {
     _toggleLike();
+  }
+
+  /// The ignite control lights itself; the card takes the like the ignite
+  /// carried and plays the site's flame over itself. A re-press of an already
+  /// ignited post lands here too, so it replays exactly like the website.
+  void _onIgniteResult(IgniteResult result) {
+    setState(() {
+      if (result.likeCount > 0) _likeCount = result.likeCount;
+      if (result.granted) _liked = true;
+    });
+    playIgniteFlame();
   }
 
   void _showBurst() {
@@ -257,6 +266,12 @@ class _PostCardState extends State<PostCard> {
                     onLike: _onHeartTap,
                     onLikers: _openLikers,
                     onComments: _openComments,
+                    ignite: IgniteButton(
+                      postId: widget.post.id,
+                      ignited: widget.post.userIgnited,
+                      social: widget.social,
+                      onResult: _onIgniteResult,
+                    ),
                   ),
                   if (widget.post.hasDomain) ...[
                     const Divider(height: 12),
@@ -302,6 +317,11 @@ class _PostCardState extends State<PostCard> {
                 child: IgnorePointer(
                   child: Center(child: _HeartBurst()),
                 ),
+              ),
+            // The site's ignite flame, over the card it was played on.
+            if (flamePlaying)
+              const Positioned.fill(
+                child: IgnorePointer(child: IgniteFlameOverlay()),
               ),
           ],
         ),
@@ -1092,6 +1112,7 @@ class _ActionRow extends StatelessWidget {
     required this.onLike,
     required this.onLikers,
     required this.onComments,
+    required this.ignite,
   });
 
   final bool liked;
@@ -1100,6 +1121,9 @@ class _ActionRow extends StatelessWidget {
   final VoidCallback onLike;
   final VoidCallback onLikers;
   final VoidCallback onComments;
+
+  /// The shared ignite control, built by the card (it carries its own state).
+  final Widget ignite;
 
   @override
   Widget build(BuildContext context) {
@@ -1163,6 +1187,10 @@ class _ActionRow extends StatelessWidget {
                   ),
                 ),
               ),
+              const SizedBox(width: 20),
+              // Ignite: one a day, so it sits with the other actions and
+              // lights up on the post that holds the viewer's ignite.
+              ignite,
             ],
           ),
         ),

@@ -245,6 +245,10 @@ class _NotificationRow extends StatelessWidget {
     final light = Theme.of(context).brightness == Brightness.light;
     final (icon, iconColor) = switch (n.contentType) {
       'post-like' => (FontAwesomeIcons.heart, context.enclavd.likeActive),
+      'post-super-like' => (
+          FontAwesomeIcons.fire,
+          light ? const Color(0xFFEA580C) : const Color(0xFFFB923C)
+        ),
       'post-comment' => (FontAwesomeIcons.comment, context.enclavd.link),
       'post-activity' => (
           FontAwesomeIcons.comments,

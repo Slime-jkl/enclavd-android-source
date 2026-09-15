@@ -1,7 +1,7 @@
 name: enclavd
 description: "Enclavd - Personality Social Network"
 publish_to: "none"
-version: 2.1.5+215
+version: 2.1.6+216
 
 environment:
   sdk: ^3.6.0
@@ -25,6 +25,7 @@ dependencies:
   firebase_core: ^4.13.0
   firebase_messaging: ^16.5.0
   unifiedpush: ^6.2.0
+  lottie: ^3.5.1
 
 dev_dependencies:
   flutter_test:
@@ -56,4 +57,5 @@ flutter:
     - assets/images/enclavd-logo-white.png
     - assets/images/enclavd-logo-dark.png
     - assets/images/quote-widget-logo-dark.png
+    - assets/animations/
     - assets/sounds/

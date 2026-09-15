@@ -21,6 +21,8 @@ import '../utils/submit_lock.dart';
 import '../widgets/enclavd_avatar.dart';
 import '../widgets/comment_quote_card.dart';
 import '../widgets/error_view.dart';
+import '../widgets/ignite_button.dart';
+import '../widgets/ignite_flame_overlay.dart';
 import '../widgets/post_card.dart'; // PostCardSkeleton, PostCarousel,
 // rankColorFromCssClass
 import '../widgets/rank_badge.dart';
@@ -616,7 +618,8 @@ class _ForumPostCard extends StatefulWidget {
   State<_ForumPostCard> createState() => _ForumPostCardState();
 }
 
-class _ForumPostCardState extends State<_ForumPostCard> {
+class _ForumPostCardState extends State<_ForumPostCard>
+    with IgniteFlamePlayer<_ForumPostCard> {
   late int _likeCount;
   late bool _liked;
   bool _likeBusy = false;
@@ -694,6 +697,17 @@ class _ForumPostCardState extends State<_ForumPostCard> {
     }
   }
 
+  /// The ignite control lights itself; the OP takes the like the ignite
+  /// carried (an ignite likes the post) and plays the site's flame, on a grant
+  /// and on a re-press of a thread that already holds this viewer's ignite.
+  void _onIgniteResult(IgniteResult result) {
+    setState(() {
+      if (result.likeCount > 0) _likeCount = result.likeCount;
+      if (result.granted) _liked = true;
+    });
+    playIgniteFlame();
+  }
+
   Future<void> _toggleLike() async {
     if (_likeBusy) return;
     setState(() {
@@ -728,6 +742,20 @@ class _ForumPostCardState extends State<_ForumPostCard> {
 
   @override
   Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        _card(context),
+        // The site's ignite flame, over the card it was played on.
+        if (flamePlaying)
+          const Positioned.fill(
+            child: IgnorePointer(child: IgniteFlameOverlay()),
+          ),
+      ],
+    );
+  }
+
+  Widget _card(BuildContext context) {
     final personality = context.enclavd.personalityColor(post.personalityType);
     return Container(
       margin: const EdgeInsets.only(bottom: 4),
@@ -930,6 +958,14 @@ class _ForumPostCardState extends State<_ForumPostCard> {
                 '${post.commentCount}',
                 style:
                     const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(width: 18),
+              IgniteButton(
+                postId: post.id,
+                ignited: post.userIgnited,
+                social: widget.social,
+                size: 20,
+                onResult: _onIgniteResult,
               ),
               const Spacer(),
               if (post.lastReplyAt != null && post.lastReplyUsername != null)
