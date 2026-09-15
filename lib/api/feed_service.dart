@@ -30,6 +30,7 @@ class Post {
     required this.likeCount,
     required this.commentCount,
     required this.userLiked,
+    this.userIgnited = false,
     required this.warningCount,
     required this.username,
     required this.profilePictureUrl,
@@ -58,6 +59,10 @@ class Post {
   final int likeCount;
   final int commentCount;
   final bool userLiked;
+
+  /// The viewer spent a daily ignite on this post (feed-grade flag, same
+  /// place as [userLiked]; the API emits `user_ignited`).
+  final bool userIgnited;
   final int warningCount;
   final String username;
   final String profilePictureUrl;
@@ -93,6 +98,7 @@ class Post {
         likeCount: (json['like_count'] as num?)?.toInt() ?? 0,
         commentCount: (json['comment_count'] as num?)?.toInt() ?? 0,
         userLiked: json['user_liked'] as bool? ?? false,
+        userIgnited: json['user_ignited'] as bool? ?? false,
         warningCount: (json['warning_count'] as num?)?.toInt() ?? 0,
         username: json['username'] as String? ?? '',
         profilePictureUrl: json['profile_picture_url'] as String? ??

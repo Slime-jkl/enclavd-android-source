@@ -102,6 +102,14 @@ class _FakeSocial extends SocialService {
 
   @override
   Future<int> deleteComment(int commentId, int postId) async => 0;
+
+  int igniteCalls = 0;
+
+  @override
+  Future<IgniteResult> ignite(int postId) async {
+    igniteCalls++;
+    return const IgniteResult(status: 'ignited', likeCount: 4);
+  }
 }
 
 class _FakePosts extends PostsService {
@@ -208,6 +216,26 @@ void main() {
     expect(social.pageRequests, [0]);
     // Single-page threads skip the pager bars.
     expect(find.textContaining('Page '), findsNothing);
+  });
+
+  testWidgets('the OP carries the ignite and spends it', (tester) async {
+    final social = _FakeSocial(replies: const []);
+    await tester.pumpWidget(wrap(DomainThreadScreen(
+      domains: _FakeDomains(_detail()),
+      postId: 218,
+      social: social,
+      posts: _FakePosts(),
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // One fire: the OP's action row. Replies are not ignitable.
+    expect(find.byKey(const ValueKey('ignite-fire')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('ignite-fire')));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(social.igniteCalls, 1);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.byKey(const ValueKey('ignite-flame')), findsOneWidget);
   });
 
   testWidgets('sending a reply appends it and bumps the count',

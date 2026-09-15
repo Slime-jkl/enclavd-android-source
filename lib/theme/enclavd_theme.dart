@@ -23,6 +23,7 @@ class EnclavdPalette extends ThemeExtension<EnclavdPalette> {
     required this.primaryButtonHover,
     required this.primaryButtonText,
     required this.likeActive,
+    required this.igniteActive,
     required this.warning,
     required this.error,
     required this.rankNameColors,
@@ -42,6 +43,7 @@ class EnclavdPalette extends ThemeExtension<EnclavdPalette> {
   final Color primaryButtonHover; // donate hover (blue-400 / blue-700)
   final Color primaryButtonText; // button label (gray-900 / white)
   final Color likeActive; // red-400 / red-600
+  final Color igniteActive; // orange-400 / orange-600 (the lit fire)
   final Color warning; // yellow-400 / amber-700
   final Color error; // red-400 / red-600
 
@@ -69,6 +71,7 @@ class EnclavdPalette extends ThemeExtension<EnclavdPalette> {
     primaryButtonHover: Color(0xFF60A5FA), // blue-400
     primaryButtonText: Color(0xFF111827), // gray-900
     likeActive: Color(0xFFF87171), // red-400
+    igniteActive: Color(0xFFFB923C), // orange-400
     warning: Color(0xFFFACC15), // yellow-400
     error: Color(0xFFF87171), // red-400
     rankNameColors: {
@@ -104,6 +107,7 @@ class EnclavdPalette extends ThemeExtension<EnclavdPalette> {
     primaryButtonHover: Color(0xFF1D4ED8), // blue-700
     primaryButtonText: Color(0xFFFFFFFF), // white
     likeActive: Color(0xFFDC2626), // red-600
+    igniteActive: Color(0xFFEA580C), // orange-600
     warning: Color(0xFFB45309), // amber-700
     error: Color(0xFFDC2626), // red-600
     rankNameColors: {
@@ -177,6 +181,7 @@ class EnclavdPalette extends ThemeExtension<EnclavdPalette> {
     Color? primaryButtonHover,
     Color? primaryButtonText,
     Color? likeActive,
+    Color? igniteActive,
     Color? warning,
     Color? error,
     Map<String, Color>? rankNameColors,
@@ -195,6 +200,7 @@ class EnclavdPalette extends ThemeExtension<EnclavdPalette> {
       primaryButtonHover: primaryButtonHover ?? this.primaryButtonHover,
       primaryButtonText: primaryButtonText ?? this.primaryButtonText,
       likeActive: likeActive ?? this.likeActive,
+      igniteActive: igniteActive ?? this.igniteActive,
       warning: warning ?? this.warning,
       error: error ?? this.error,
       rankNameColors: rankNameColors ?? this.rankNameColors,
@@ -225,6 +231,7 @@ class EnclavdPalette extends ThemeExtension<EnclavdPalette> {
       primaryButtonText:
           Color.lerp(primaryButtonText, other.primaryButtonText, t)!,
       likeActive: Color.lerp(likeActive, other.likeActive, t)!,
+      igniteActive: Color.lerp(igniteActive, other.igniteActive, t)!,
       warning: Color.lerp(warning, other.warning, t)!,
       error: Color.lerp(error, other.error, t)!,
       rankNameColors: maps.rankNameColors,

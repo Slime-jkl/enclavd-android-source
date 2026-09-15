@@ -57,6 +57,7 @@ class AppNotification {
   /// most).
   bool get isPostAttached =>
       contentType == 'post-like' ||
+      contentType == 'post-super-like' ||
       contentType == 'post-comment' ||
       contentType == 'post-activity' ||
       contentType == 'comment-reply' ||

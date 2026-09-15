@@ -24,6 +24,7 @@ import '../utils/db_time.dart';
 import 'cached_image.dart';
 import 'enclavd_avatar.dart';
 import 'enclavd_image.dart';
+import 'ignite_button.dart';
 import 'likers_sheet.dart';
 import 'personality_chip.dart';
 
@@ -59,6 +60,9 @@ class _PostCardState extends State<PostCard> {
 
   // Heart-burst overlay on double-tap.
   bool _burst = false;
+
+  // Fire-burst overlay when this card's ignite is granted.
+  bool _fireBurst = false;
 
   @override
   void initState() {
@@ -129,6 +133,23 @@ class _PostCardState extends State<PostCard> {
 
   void _onHeartTap() {
     _toggleLike();
+  }
+
+  /// The ignite control lights itself; the card takes the like the ignite
+  /// carried and plays the burst when this press is what granted it.
+  void _onIgniteResult(IgniteResult result) {
+    setState(() {
+      if (result.likeCount > 0) _likeCount = result.likeCount;
+      if (result.granted) _liked = true;
+    });
+    if (result.granted) _showFireBurst();
+  }
+
+  void _showFireBurst() {
+    setState(() => _fireBurst = true);
+    Timer(const Duration(milliseconds: 700), () {
+      if (mounted) setState(() => _fireBurst = false);
+    });
   }
 
   void _showBurst() {
@@ -257,6 +278,12 @@ class _PostCardState extends State<PostCard> {
                     onLike: _onHeartTap,
                     onLikers: _openLikers,
                     onComments: _openComments,
+                    ignite: IgniteButton(
+                      postId: widget.post.id,
+                      ignited: widget.post.userIgnited,
+                      social: widget.social,
+                      onResult: _onIgniteResult,
+                    ),
                   ),
                   if (widget.post.hasDomain) ...[
                     const Divider(height: 12),
@@ -301,6 +328,13 @@ class _PostCardState extends State<PostCard> {
               const Positioned.fill(
                 child: IgnorePointer(
                   child: Center(child: _HeartBurst()),
+                ),
+              ),
+            // Fire burst when this card's ignite is granted.
+            if (_fireBurst)
+              const Positioned.fill(
+                child: IgnorePointer(
+                  child: Center(child: IgniteBurst()),
                 ),
               ),
           ],
@@ -1092,6 +1126,7 @@ class _ActionRow extends StatelessWidget {
     required this.onLike,
     required this.onLikers,
     required this.onComments,
+    required this.ignite,
   });
 
   final bool liked;
@@ -1100,6 +1135,9 @@ class _ActionRow extends StatelessWidget {
   final VoidCallback onLike;
   final VoidCallback onLikers;
   final VoidCallback onComments;
+
+  /// The shared ignite control, built by the card (it carries its own state).
+  final Widget ignite;
 
   @override
   Widget build(BuildContext context) {
@@ -1163,6 +1201,10 @@ class _ActionRow extends StatelessWidget {
                   ),
                 ),
               ),
+              const SizedBox(width: 20),
+              // Ignite: one a day, so it sits with the other actions and
+              // lights up on the post that holds the viewer's ignite.
+              ignite,
             ],
           ),
         ),
