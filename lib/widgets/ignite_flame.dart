@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// The lit fire, painted instead of loaded: a small flame that flickers.
-///
-/// Native on purpose. The site plays a Lottie file because a browser has no
-/// flame of its own; the app would have to ship an animation runtime for one
-/// icon. Layers of gradient tongues read the same at 20px and cost nothing.
+/// The lit fire, painted rather than loaded: gradient tongues that flicker.
 class IgniteFlame extends StatefulWidget {
   const IgniteFlame({
     super.key,
@@ -13,10 +9,8 @@ class IgniteFlame extends StatefulWidget {
     this.animate = true,
   });
 
-  /// Fire colour: the theme's ignite accent (orange).
   final Color color;
 
-  /// Height in logical pixels; the width follows the flame's own ratio.
   final double size;
 
   /// Off renders the same shape as a still frame (dialogs, tests).
@@ -77,7 +71,6 @@ class _IgniteFlameState extends State<IgniteFlame>
 class _FlamePainter extends CustomPainter {
   _FlamePainter({required this.phase, required this.color});
 
-  /// 0..1, ping-ponged by the controller.
   final double phase;
   final Color color;
 
@@ -103,8 +96,7 @@ class _FlamePainter extends CustomPainter {
         ).createShader(Offset.zero & size),
     );
 
-    // Core and hot centre lean the other way, so the layers shimmer against
-    // each other instead of moving as one blob.
+    // The inner tongues lean the other way so the layers shimmer.
     _tongue(
       canvas,
       size,
@@ -139,8 +131,7 @@ class _FlamePainter extends CustomPainter {
     canvas.restore();
   }
 
-  /// A flame silhouette in a [w] x [h] box: rounded base, tip leaning with
-  /// [sway].
+  /// A flame silhouette in a [w] x [h] box, tip leaning with [sway].
   Path _flamePath(double w, double h, double sway) {
     final cx = w / 2;
     final tipX = cx + sway * w * 0.16;

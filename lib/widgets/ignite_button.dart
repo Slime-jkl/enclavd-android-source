@@ -5,18 +5,12 @@ import '../api/social_service.dart';
 import '../theme/enclavd_theme.dart';
 import 'ignite_flame.dart';
 
-/// Server copy for the daily limit. The dialog shows the server's own wording
-/// and falls back to this only if a response arrives without one.
+/// Fallback for the daily-limit dialog: the server's own wording wins.
 const String kIgniteLimitCopy =
     'You can ignite only one post each day, you already ignited one today.';
 
-/// The ignite control: the fire in an action row, the day's limit dialog and
-/// the burst. Feed cards and forum cards share it, so both surfaces spend the
-/// same allowance with the same feedback.
-///
-/// The button owns its lit state (seeded from [ignited], reconciled when the
-/// parent rebuilds); [onResult] tells the parent, which is what needs to sync
-/// the like the ignite carried.
+/// The ignite control: the fire in an action row, the limit dialog and the
+/// burst. Feed and forum cards share it, so both spend the same allowance.
 class IgniteButton extends StatefulWidget {
   const IgniteButton({
     super.key,
@@ -29,15 +23,13 @@ class IgniteButton extends StatefulWidget {
 
   final int postId;
 
-  /// The server's view: this viewer already ignited this post.
   final bool ignited;
   final SocialService social;
 
-  /// Control size in logical pixels (the feed row and the forum card differ).
   final double size;
 
-  /// Fired after a settled press that spent or replayed the ignite. The limit
-  /// case shows the dialog itself and never calls this.
+  /// Fired after a press that spent or replayed the ignite; never on the
+  /// limit case, which shows the dialog itself.
   final void Function(IgniteResult result)? onResult;
 
   @override

@@ -129,9 +129,8 @@ class _PostCardState extends State<PostCard>
     _toggleLike();
   }
 
-  /// The ignite control lights itself; the card takes the like the ignite
-  /// carried and plays the site's flame over itself. A re-press of an already
-  /// ignited post lands here too, so it replays exactly like the website.
+  /// The ignite lights itself; the card takes the like it carried and plays
+  /// the flame. A re-press replays it.
   void _onIgniteResult(IgniteResult result) {
     setState(() {
       if (result.likeCount > 0) _likeCount = result.likeCount;
@@ -320,8 +319,8 @@ class _PostCardState extends State<PostCard>
               ),
             // The site's ignite flame, over the card it was played on.
             if (flamePlaying)
-              const Positioned.fill(
-                child: IgnorePointer(child: IgniteFlameOverlay()),
+              Positioned.fill(
+                child: IgnorePointer(child: flameLayer),
               ),
           ],
         ),
@@ -1188,8 +1187,7 @@ class _ActionRow extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 20),
-              // Ignite: one a day, so it sits with the other actions and
-              // lights up on the post that holds the viewer's ignite.
+              // Ignite: one a day, lit on the post that holds it.
               ignite,
             ],
           ),

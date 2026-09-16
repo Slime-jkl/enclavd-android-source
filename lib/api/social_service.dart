@@ -385,9 +385,8 @@ class SocialService {
     return LikeResult.fromJson(json);
   }
 
-  /// Spends this account's ignite for the day on one post. The daily limit is
-  /// a 409 with its own status, not a failure, so the body is read on any
-  /// status and handed back to the caller to show.
+  /// Spends the day's ignite. The limit comes back as 409, a status and not a
+  /// failure, so the body is read on any status and handed to the caller.
   Future<IgniteResult> ignite(int postId) async {
     final json = await _api.postJsonRelaxed(
       '/api/v1/ignite',

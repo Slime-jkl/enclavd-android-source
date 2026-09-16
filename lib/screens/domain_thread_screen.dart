@@ -697,9 +697,8 @@ class _ForumPostCardState extends State<_ForumPostCard>
     }
   }
 
-  /// The ignite control lights itself; the OP takes the like the ignite
-  /// carried (an ignite likes the post) and plays the site's flame, on a grant
-  /// and on a re-press of a thread that already holds this viewer's ignite.
+  /// The ignite control lights itself; the OP takes the like it carried and
+  /// plays the flame, on a grant and on a re-press.
   void _onIgniteResult(IgniteResult result) {
     setState(() {
       if (result.likeCount > 0) _likeCount = result.likeCount;
@@ -748,8 +747,8 @@ class _ForumPostCardState extends State<_ForumPostCard>
         _card(context),
         // The site's ignite flame, over the card it was played on.
         if (flamePlaying)
-          const Positioned.fill(
-            child: IgnorePointer(child: IgniteFlameOverlay()),
+          Positioned.fill(
+            child: IgnorePointer(child: flameLayer),
           ),
       ],
     );
