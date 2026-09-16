@@ -17,7 +17,8 @@ import 'package:enclavd/widgets/post_card.dart';
 const _limitCopy =
     'You can ignite only one post each day, you already ignited one today.';
 
-Post _post({bool userIgnited = false, int likeCount = 0}) => Post.fromJson({
+Post _post({bool userIgnited = false, int likeCount = 0, int igniteCount = 0}) =>
+    Post.fromJson({
       'id': 1,
       'author_id': 2,
       'content': 'hello world',
@@ -27,6 +28,7 @@ Post _post({bool userIgnited = false, int likeCount = 0}) => Post.fromJson({
       'comment_count': 0,
       'user_liked': false,
       'user_ignited': userIgnited,
+      'ignite_count': igniteCount,
       'warning_count': 0,
       'username': 'Dev',
       'profile_picture_url': '/a.png',
@@ -202,6 +204,31 @@ void main() {
       expect(find.text(_limitCopy), findsNothing);
       expect(find.byType(IgniteFlameOverlay), findsOneWidget,
           reason: 'the site flame plays over the card');
+    });
+
+    testWidgets('the count of igniters sits beside the fire', (tester) async {
+      await pumpCard(tester, post: _post(igniteCount: 3));
+
+      expect(find.byKey(const ValueKey('ignite-count')), findsOneWidget);
+      expect(find.text('3'), findsOneWidget);
+    });
+
+    testWidgets('nothing to count until somebody has ignited it',
+        (tester) async {
+      await pumpCard(tester);
+
+      expect(find.byKey(const ValueKey('ignite-count')), findsNothing);
+    });
+
+    testWidgets('a press takes the server count', (tester) async {
+      await pumpCard(
+        tester,
+        result: const IgniteResult(status: 'ignited', likeCount: 5, igniteCount: 9),
+      );
+
+      await tapFire(tester);
+
+      expect(find.text('9'), findsOneWidget);
     });
 
     testWidgets('the spent day explains itself and stays unlit',

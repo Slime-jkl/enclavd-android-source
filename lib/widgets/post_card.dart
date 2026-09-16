@@ -268,6 +268,7 @@ class _PostCardState extends State<PostCard>
                     ignite: IgniteButton(
                       postId: widget.post.id,
                       ignited: widget.post.userIgnited,
+                      count: widget.post.igniteCount,
                       social: widget.social,
                       onResult: _onIgniteResult,
                     ),

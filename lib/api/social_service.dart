@@ -22,6 +22,7 @@ class IgniteResult {
     required this.status,
     this.message = '',
     this.likeCount = 0,
+    this.igniteCount = 0,
   });
 
   /// ignited | already_ignited | limit_reached (or '' on an unknown body).
@@ -30,6 +31,7 @@ class IgniteResult {
   /// The server's own copy for the daily limit.
   final String message;
   final int likeCount;
+  final int igniteCount;
 
   bool get granted => status == 'ignited';
   bool get alreadyIgnited => status == 'already_ignited';
@@ -39,6 +41,7 @@ class IgniteResult {
         status: json['status'] as String? ?? '',
         message: json['message'] as String? ?? '',
         likeCount: (json['like_count'] as num?)?.toInt() ?? 0,
+        igniteCount: (json['ignite_count'] as num?)?.toInt() ?? 0,
       );
 }
 

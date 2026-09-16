@@ -28,6 +28,7 @@ class Post {
     required this.createdAt,
     required this.feedScore,
     required this.likeCount,
+    this.igniteCount = 0,
     required this.commentCount,
     required this.userLiked,
     this.userIgnited = false,
@@ -57,6 +58,7 @@ class Post {
   final String createdAt;
   final double? feedScore;
   final int likeCount;
+  final int igniteCount;
   final int commentCount;
   final bool userLiked;
 
@@ -96,6 +98,7 @@ class Post {
         createdAt: json['created_at'] as String? ?? '',
         feedScore: (json['feed_score'] as num?)?.toDouble(),
         likeCount: (json['like_count'] as num?)?.toInt() ?? 0,
+        igniteCount: (json['ignite_count'] as num?)?.toInt() ?? 0,
         commentCount: (json['comment_count'] as num?)?.toInt() ?? 0,
         userLiked: json['user_liked'] as bool? ?? false,
         userIgnited: json['user_ignited'] as bool? ?? false,

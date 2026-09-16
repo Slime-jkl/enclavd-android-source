@@ -16,6 +16,7 @@ class IgniteButton extends StatefulWidget {
     super.key,
     required this.postId,
     required this.ignited,
+    this.count = 0,
     required this.social,
     this.size = 22,
     this.onResult,
@@ -24,6 +25,7 @@ class IgniteButton extends StatefulWidget {
   final int postId;
 
   final bool ignited;
+  final int count;
   final SocialService social;
 
   final double size;
@@ -38,6 +40,7 @@ class IgniteButton extends StatefulWidget {
 
 class _IgniteButtonState extends State<IgniteButton> {
   late bool _ignited = widget.ignited;
+  late int _count = widget.count;
   bool _busy = false;
 
   @override
@@ -46,6 +49,9 @@ class _IgniteButtonState extends State<IgniteButton> {
     // A reload is authoritative while nothing is in flight.
     if (!_busy && oldWidget.ignited != widget.ignited) {
       _ignited = widget.ignited;
+    }
+    if (oldWidget.count != widget.count) {
+      _count = widget.count;
     }
   }
 
@@ -78,6 +84,11 @@ class _IgniteButtonState extends State<IgniteButton> {
     setState(() {
       _busy = false;
       _ignited = true;
+      if (result.igniteCount > 0) {
+        _count = result.igniteCount;
+      } else if (result.granted) {
+        _count += 1;
+      }
     });
     widget.onResult?.call(result);
   }
@@ -95,23 +106,34 @@ class _IgniteButtonState extends State<IgniteButton> {
       borderRadius: BorderRadius.circular(8),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-        child: SizedBox(
-          width: widget.size,
-          height: widget.size,
-          child: Center(
-            child: _ignited
-                ? IgniteFlame(
-                    key: const ValueKey('ignite-flame'),
-                    size: widget.size,
-                    color: context.enclavd.igniteActive,
-                  )
-                : FaIcon(
-                    FontAwesomeIcons.fire,
-                    key: const ValueKey('ignite-fire'),
-                    color: context.enclavd.textSecondary,
-                    size: widget.size * 0.9,
-                  ),
-          ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              width: widget.size,
+              height: widget.size,
+              child: Center(
+                child: _ignited
+                    ? IgniteFlame(
+                        key: const ValueKey('ignite-flame'),
+                        size: widget.size,
+                        color: context.enclavd.igniteActive,
+                      )
+                    : FaIcon(
+                        FontAwesomeIcons.fire,
+                        key: const ValueKey('ignite-fire'),
+                        color: context.enclavd.textSecondary,
+                        size: widget.size * 0.9,
+                      ),
+              ),
+            ),
+            if (_count > 0) ...[
+              const SizedBox(width: 6),
+              Text('$_count',
+                  key: const ValueKey('ignite-count'),
+                  style: TextStyle(color: context.enclavd.textSecondary)),
+            ],
+          ],
         ),
       ),
     );

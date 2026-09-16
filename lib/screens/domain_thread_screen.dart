@@ -962,6 +962,7 @@ class _ForumPostCardState extends State<_ForumPostCard>
               IgniteButton(
                 postId: post.id,
                 ignited: post.userIgnited,
+                count: post.igniteCount,
                 social: widget.social,
                 size: 20,
                 onResult: _onIgniteResult,
