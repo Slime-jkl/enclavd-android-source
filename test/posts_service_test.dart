@@ -15,7 +15,7 @@ void main() {
       String? contentType;
       String? csrf;
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req,
               body: '<meta name="csrf-token" content="tok-post">');
         } else if (req.uri.path == '/api/v1/posts') {
@@ -52,7 +52,7 @@ void main() {
     test('text-only post sends is_base64_image=0 and no image data', () async {
       String? body;
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req, body: '<meta name="csrf-token" content="t">');
         } else {
           body = await utf8.decoder.bind(req).join();
@@ -73,7 +73,7 @@ void main() {
     test('several images send the carousel fields', () async {
       String? body;
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req, body: '<meta name="csrf-token" content="t">');
         } else {
           body = await utf8.decoder.bind(req).join();
@@ -105,7 +105,7 @@ void main() {
     test('more images than the cap is refused before any request', () async {
       var posted = false;
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req, body: '<meta name="csrf-token" content="t">');
         } else {
           posted = true;
@@ -131,7 +131,7 @@ void main() {
 
     test('server 400 surfaces its message', () async {
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req, body: '<meta name="csrf-token" content="t">');
         } else {
           Harness.respond(req,
@@ -156,7 +156,7 @@ void main() {
       String? body;
       String? csrf;
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req,
               body: '<meta name="csrf-token" content="tok-upd">');
         } else if (req.uri.path == '/api/v1/posts') {
@@ -191,7 +191,7 @@ void main() {
     test('sends action delete + deduped hashtags from content', () async {
       String? body;
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req, body: '<meta name="csrf-token" content="t">');
         } else {
           body = await utf8.decoder.bind(req).join();

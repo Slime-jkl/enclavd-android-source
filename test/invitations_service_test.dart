@@ -56,7 +56,7 @@ void main() {
       String? rawBody;
       String? csrf;
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req, body: '<meta name="csrf-token" content="tok-i">');
         } else if (req.uri.path == '/api/v1/invitations') {
           rawBody = await utf8.decoder.bind(req).join();
@@ -91,7 +91,7 @@ void main() {
     test('delete POSTs the id and returns the fresh count', () async {
       String? rawBody;
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req, body: '<meta name="csrf-token" content="t">');
         } else if (req.uri.path == '/api/v1/invitations') {
           rawBody = await utf8.decoder.bind(req).join();
@@ -110,7 +110,7 @@ void main() {
 
     test('403 (not yours / accepted) surfaces as ApiException', () async {
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req, body: '<meta name="csrf-token" content="t">');
         } else {
           Harness.respond(req,

@@ -209,7 +209,7 @@ void main() {
         () async {
       String? rawBody;
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req, body: '<meta name="csrf-token" content="t">');
         } else if (req.uri.path == '/api/v1/messages') {
           rawBody = await utf8.decoder.bind(req).join();
@@ -233,7 +233,7 @@ void main() {
 
     test('start() POSTs user_id and returns the conversation_id', () async {
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req, body: '<meta name="csrf-token" content="t">');
         } else if (req.uri.path == '/api/v1/messages') {
           Harness.respond(req,
@@ -252,7 +252,7 @@ void main() {
     test('markRead() POSTs mark_read and tolerates a 401-ish error', () async {
       var posted = false;
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req, body: '<meta name="csrf-token" content="t">');
         } else if (req.uri.path == '/api/v1/messages') {
           posted = true;

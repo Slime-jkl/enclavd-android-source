@@ -32,7 +32,7 @@ void main() {
     test('POSTs action=get and parses an unlocked snapshot', () async {
       Map<String, dynamic>? sent;
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(
               req, body: '<meta name="csrf-token" content="csrf123">');
           return;
@@ -77,7 +77,7 @@ void main() {
 
     test('parses a locked snapshot with today\'s entry', () async {
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req, body: '<meta name="csrf-token" content="t">');
           return;
         }
@@ -117,7 +117,7 @@ void main() {
 
     test('4xx surfaces the server message verbatim', () async {
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req, body: '<meta name="csrf-token" content="t">');
           return;
         }
@@ -142,7 +142,7 @@ void main() {
       Map<String, dynamic>? sent;
       String? csrfHeader;
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(
               req, body: '<meta name="csrf-token" content="tok-123">');
           return;
@@ -199,7 +199,7 @@ void main() {
 
     test('a repeated same-day save parses as an idempotent no-op', () async {
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req, body: '<meta name="csrf-token" content="t">');
           return;
         }

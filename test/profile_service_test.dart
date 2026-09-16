@@ -158,7 +158,7 @@ void main() {
       String? rawBody;
       String? csrf;
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req,
               body: '<meta name="csrf-token" content="tok-follow">');
         } else if (req.uri.path == '/api/v1/profile') {
@@ -184,7 +184,7 @@ void main() {
 
     test('unfollow parses action=unfollowed', () async {
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req, body: '<meta name="csrf-token" content="t">');
         } else {
           Harness.respond(req,
@@ -361,7 +361,7 @@ void main() {
       String? rawBody;
       String? csrf;
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req,
               body: '<meta name="csrf-token" content="tok-update">');
         } else if (req.uri.path == '/api/v1/profile') {
@@ -395,7 +395,7 @@ void main() {
     test('changePassword sends the three fields', () async {
       String? rawBody;
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req, body: '<meta name="csrf-token" content="t">');
         } else if (req.uri.path == '/api/v1/profile') {
           rawBody = await utf8.decoder.bind(req).join();
@@ -420,7 +420,7 @@ void main() {
         () async {
       String? rawBody;
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req, body: '<meta name="csrf-token" content="t">');
         } else if (req.uri.path == '/api/v1/profile') {
           rawBody = await utf8.decoder.bind(req).join();

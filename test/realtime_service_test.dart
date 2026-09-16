@@ -74,7 +74,7 @@ class RealtimeHarness {
           },
           onDone: () => h.wsClients.remove(ws),
         );
-      } else if (req.uri.path == '/feed') {
+      } else if (req.uri.path.startsWith('/feed')) {
         h.feedRequests.add(req.uri.path);
         if (h.feedFailures > 0) {
           h.feedFailures--;

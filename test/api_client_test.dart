@@ -360,7 +360,7 @@ void main() {
     final h = await Harness.start(
       (req) async {
         // The CSRF scrape is a GET and may retry; the write itself must not.
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req,
               body: '<meta name="csrf-token" content="csrf123">');
           return;
