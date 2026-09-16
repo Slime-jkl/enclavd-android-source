@@ -115,8 +115,6 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // stretch gives every child the full width, and a glyph in a
-                      // full-width box paints at its left, so centre it explicitly.
                       const Center(
                         child: FaIcon(FontAwesomeIcons.screwdriverWrench,
                             color: Color(0xFFFCD34D), size: 44),
