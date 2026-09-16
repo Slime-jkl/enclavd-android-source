@@ -127,6 +127,7 @@ Map<String, dynamic> _postJson() => {
       'created_at': _opCreatedAt,
       'feed_score': null,
       'like_count': 1,
+      'ignite_count': 2,
       'comment_count': 2,
       'user_liked': false,
       'warning_count': 0,
