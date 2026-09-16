@@ -7,6 +7,7 @@ import '../screens/profile_screen.dart';
 import '../theme/enclavd_theme.dart';
 import 'error_view.dart';
 import 'enclavd_avatar.dart';
+import 'ignite_flame_overlay.dart';
 import 'personality_chip.dart';
 import 'rank_badge.dart';
 import 'shimmer.dart';
@@ -185,6 +186,14 @@ class _LikerRow extends StatelessWidget {
                       const SizedBox(width: 6),
                       // Rank badge: the site's getRankStyles() chip.
                       RankBadge(rank: liker.rank),
+                      // Igniters carry the fire, right of the name and rank.
+                      if (liker.ignited) ...[
+                        const SizedBox(width: 6),
+                        const Tooltip(
+                          message: 'Ignited this post',
+                          child: IgniteFlameIcon(size: 20),
+                        ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 2),

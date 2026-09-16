@@ -114,7 +114,7 @@ void main() {
       String? postedBody;
       final h = await Harness.start((req) async {
         // postJson fetches the CSRF token from /feed's meta first.
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(
               req, body: '<meta name="csrf-token" content="csrf123">');
           return;
@@ -146,7 +146,7 @@ void main() {
 
     test('server business errors surface as ApiException', () async {
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req, body: '<meta name="csrf-token" content="t">');
           return;
         }

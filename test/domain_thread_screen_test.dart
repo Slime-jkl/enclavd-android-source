@@ -13,6 +13,7 @@ import 'package:enclavd/theme/enclavd_theme.dart';
 import 'package:enclavd/utils/db_time.dart';
 import 'package:enclavd/widgets/enclavd_avatar.dart';
 import 'package:enclavd/widgets/comment_quote_card.dart';
+import 'package:enclavd/widgets/ignite_flame_overlay.dart';
 import 'package:enclavd/widgets/post_card.dart'; // PostCard (must be ABSENT)
 import 'package:enclavd/widgets/shimmer.dart';
 import 'package:enclavd/widgets/thread_connector.dart';
@@ -102,6 +103,14 @@ class _FakeSocial extends SocialService {
 
   @override
   Future<int> deleteComment(int commentId, int postId) async => 0;
+
+  int igniteCalls = 0;
+
+  @override
+  Future<IgniteResult> ignite(int postId) async {
+    igniteCalls++;
+    return const IgniteResult(status: 'ignited', likeCount: 4);
+  }
 }
 
 class _FakePosts extends PostsService {
@@ -118,6 +127,7 @@ Map<String, dynamic> _postJson() => {
       'created_at': _opCreatedAt,
       'feed_score': null,
       'like_count': 1,
+      'ignite_count': 2,
       'comment_count': 2,
       'user_liked': false,
       'warning_count': 0,
@@ -208,6 +218,28 @@ void main() {
     expect(social.pageRequests, [0]);
     // Single-page threads skip the pager bars.
     expect(find.textContaining('Page '), findsNothing);
+  });
+
+  testWidgets('the OP carries the ignite and spends it', (tester) async {
+    final social = _FakeSocial(replies: const []);
+    await tester.pumpWidget(wrap(DomainThreadScreen(
+      domains: _FakeDomains(_detail()),
+      postId: 218,
+      social: social,
+      posts: _FakePosts(),
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // One fire: the OP's action row. Replies are not ignitable.
+    expect(find.byKey(const ValueKey('ignite-fire')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('ignite-fire')));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(social.igniteCalls, 1);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.byKey(const ValueKey('ignite-flame')), findsOneWidget);
+    expect(find.byType(IgniteFlameOverlay), findsOneWidget,
+        reason: 'the thread plays the same flame the feed card does');
   });
 
   testWidgets('sending a reply appends it and bumps the count',

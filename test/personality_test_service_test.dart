@@ -71,7 +71,7 @@ void main() {
       String? rawBody;
       String? csrf;
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req,
               body: '<meta name="csrf-token" content="tok-test">');
         } else if (req.uri.path == '/api/v1/personality_test') {
@@ -117,7 +117,7 @@ void main() {
     test('409 surfaces as ApiException (test already completed)',
         () async {
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req, body: '<meta name="csrf-token" content="t">');
         } else {
           Harness.respond(

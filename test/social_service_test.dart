@@ -17,7 +17,7 @@ void main() {
       var feedHits = 0;
 
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           feedHits++;
           Harness.respond(
             req,
@@ -53,7 +53,7 @@ void main() {
       var feedHits = 0;
       var posts = 0;
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           feedHits++;
           Harness.respond(
             req,
@@ -85,7 +85,7 @@ void main() {
 
     test('non-2xx surfaces the server error message', () async {
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req, body: '<meta name="csrf-token" content="tok">');
         } else {
           Harness.respond(req,
@@ -114,7 +114,7 @@ void main() {
       // After clear, the next postJson must refetch (no stale token reuse).
       var fetched = 0;
       final h2 = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           fetched++;
           Harness.respond(req,
               body: '<meta name="csrf-token" content="tok-2">');
@@ -135,7 +135,7 @@ void main() {
   group('SocialService', () {
     test('toggleLike parses the server response', () async {
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req, body: '<meta name="csrf-token" content="t">');
         } else if (req.uri.path == '/api/v1/likes') {
           Harness.respond(req,
@@ -229,7 +229,7 @@ void main() {
 
     test('createComment returns the comment + new count', () async {
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req, body: '<meta name="csrf-token" content="t">');
         } else if (req.uri.path == '/api/v1/comments') {
           Harness.respond(
@@ -269,7 +269,7 @@ void main() {
 
     test('deleteComment returns the new count', () async {
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req, body: '<meta name="csrf-token" content="t">');
         } else if (req.uri.path == '/api/v1/comments') {
           Harness.respond(req,
@@ -377,7 +377,7 @@ void main() {
       final store = MemorySessionStoreSeed();
       final h = await Harness.start(
         (req) async {
-          if (req.uri.path == '/feed') {
+          if (req.uri.path.startsWith('/feed')) {
             Harness.respond(req, body: '<meta name="csrf-token" content="ct">');
           } else if (req.uri.path == '/api/v1/auth') {
             contentType = req.headers.contentType?.mimeType;

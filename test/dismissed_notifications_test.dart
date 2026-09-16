@@ -42,7 +42,7 @@ void main() {
       );
       server.listen((req) async {
         requests.add('${req.method} ${req.uri.path}');
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           req.response.write(
               '<html><head><meta name="csrf-token" content="tok123"></head></html>');
         } else if (req.uri.path == '/api/v1/notifications') {

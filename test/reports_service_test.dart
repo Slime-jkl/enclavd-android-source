@@ -133,7 +133,7 @@ void main() {
       String? rawBody;
       String? csrf;
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req, body: '<meta name="csrf-token" content="tok-r">');
         } else if (req.uri.path == '/api/v1/reports') {
           rawBody = await utf8.decoder.bind(req).join();
@@ -155,7 +155,7 @@ void main() {
     test('markSolved POSTs action=mark_solved', () async {
       String? rawBody;
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req, body: '<meta name="csrf-token" content="t">');
         } else if (req.uri.path == '/api/v1/reports') {
           rawBody = await utf8.decoder.bind(req).join();
@@ -176,7 +176,7 @@ void main() {
       String? rawBody;
       String? csrf;
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req, body: '<meta name="csrf-token" content="tok-r">');
         } else if (req.uri.path == '/api/v1/reports') {
           rawBody = await utf8.decoder.bind(req).join();
@@ -213,7 +213,7 @@ void main() {
 
     test('400 validation error surfaces with the site message', () async {
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req, body: '<meta name="csrf-token" content="t">');
         } else {
           Harness.respond(req,

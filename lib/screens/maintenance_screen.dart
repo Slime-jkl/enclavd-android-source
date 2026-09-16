@@ -115,8 +115,10 @@ class _MaintenanceScreenState extends State<MaintenanceScreen> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const FaIcon(FontAwesomeIcons.screwdriverWrench,
-                          color: Color(0xFFFCD34D), size: 44),
+                      const Center(
+                        child: FaIcon(FontAwesomeIcons.screwdriverWrench,
+                            color: Color(0xFFFCD34D), size: 44),
+                      ),
                       const SizedBox(height: 16),
                       const Text(
                         'Maintenance',

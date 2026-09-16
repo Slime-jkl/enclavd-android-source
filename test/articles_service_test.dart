@@ -179,7 +179,7 @@ void main() {
       final requests = <String>[];
       await serve((req) async {
         requests.add('${req.method} ${req.uri.path}');
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           // The CSRF token lives in the rendered page meta (header.php).
           req.response.write(
               '<html><head><meta name="csrf-token" content="tok123"></head></html>');

@@ -146,7 +146,7 @@ void main() {
     test('success via api/v1/register -> submitted + verification flag', () async {
       Map<String, dynamic>? jsonBody;
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           // CSRF meta for the pre-auth token scrape.
           Harness.respond(req,
               body: '<meta name="csrf-token" content="csrf123">');
@@ -196,7 +196,7 @@ void main() {
 
     test('422 with fields -> per-field errors surface', () async {
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req,
               body: '<meta name="csrf-token" content="csrf123">');
         } else if (req.uri.path == '/api/v1/register') {
@@ -233,7 +233,7 @@ void main() {
         'to RELATIVE "login" -> success', () async {
       var legacyHits = 0;
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req,
               body: '<meta name="csrf-token" content="csrf123">');
         } else if (req.uri.path == '/api/v1/register') {
@@ -267,7 +267,7 @@ void main() {
         'legacy failure: 302 back to RELATIVE "register" -> validation '
         'errors parsed from the flash page', () async {
       final h = await Harness.start((req) async {
-        if (req.uri.path == '/feed') {
+        if (req.uri.path.startsWith('/feed')) {
           Harness.respond(req,
               body: '<meta name="csrf-token" content="csrf123">');
         } else if (req.uri.path == '/api/v1/register') {
@@ -389,7 +389,7 @@ void main() {
       ]);
       final h = await Harness.start(
         (req) async {
-          if (req.uri.path == '/feed') {
+          if (req.uri.path.startsWith('/feed')) {
             Harness.respond(
               req,
               body: '<meta name="csrf-token" content="csrf-tok">',
