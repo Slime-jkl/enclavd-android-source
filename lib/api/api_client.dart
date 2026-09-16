@@ -337,7 +337,9 @@ class ApiClient {
   /// Parses the CSRF token from a page's meta tag (header.php emits it on
   /// every page).
   Future<String?> _fetchCsrfToken() async {
-    final resp = await getPage('/feed');
+    // The trailing slash matters: /feed answers 301, and a redirect that is not
+    // followed leaves no meta to scrape, which strands every POST without a token.
+    final resp = await getPage('/feed/');
     if (resp.status != 200) return null;
     final match = RegExp(
       r'<meta\s+name="csrf-token"\s+content="([^"]+)"',
