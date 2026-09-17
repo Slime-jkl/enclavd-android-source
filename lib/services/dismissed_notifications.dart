@@ -45,7 +45,7 @@ class DismissedNotifications {
       var client = api;
       if (client == null) {
         final prefs = await SharedPreferences.getInstance();
-        client = ApiClient(store: PrefsSessionStore(prefs));
+        client = installApiClient(prefs);
         await client.restoreSession();
         if (!client.hasSession) {
           debugPrint('dismissed: no session, nothing marked');

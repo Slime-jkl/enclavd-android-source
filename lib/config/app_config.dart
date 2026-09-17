@@ -102,6 +102,7 @@ class AppConfig {
   /// HTTP header names used by the API layer.
   static const String hdrCsrf = 'X-CSRF-Token';
   static const String hdrCookie = 'Cookie';
+  static const String hdrDeviceId = 'X-Device-Id';
   static const String hdrUserAgent = 'User-Agent';
 
   /// Redirect limit for the login/register POST flows (server 302s to

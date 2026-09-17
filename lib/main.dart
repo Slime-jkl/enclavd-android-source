@@ -198,7 +198,7 @@ class AppServices {
     unawaited(MessageNotificationSource.setChatOpenPrefs(prefs, false));
     unawaited(SocialNotificationSource.setDrawerOpenPrefs(prefs, false));
     final store = PrefsSessionStore(prefs);
-    final api = ApiClient(store: store);
+    final api = ApiClient(store: store, deviceId: store.deviceId());
     await api.restoreSession();
     final auth = AuthService(api, apiBaseUrl: AppConfig.apiBaseUrl);
     // One plugin-backed notifier shared by Message and Social

@@ -192,7 +192,7 @@ Future<void> replyFromNotification(NotificationResponse response) async {
   if (conversationId == null) return;
   try {
     final prefs = await SharedPreferences.getInstance();
-    final api = ApiClient(store: PrefsSessionStore(prefs));
+    final api = installApiClient(prefs);
     await api.restoreSession();
     final csrf = await api.fetchCsrfToken();
     if (csrf == null) return;
