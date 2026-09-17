@@ -17,6 +17,7 @@ class EnclavdImage extends StatelessWidget {
     this.borderRadius,
     this.placeholderHeight,
     this.placeholderShape = BoxShape.rectangle,
+    this.shimmer = true,
   });
 
   final String url;
@@ -29,6 +30,10 @@ class EnclavdImage extends StatelessWidget {
 
   /// Shimmer shape; avatars pass [BoxShape.circle].
   final BoxShape placeholderShape;
+
+  /// Off for marks that must not flash a block (logos): the space is held
+  /// empty until the first frame decodes.
+  final bool shimmer;
 
   @override
   Widget build(BuildContext context) {
@@ -55,7 +60,11 @@ class EnclavdImage extends StatelessWidget {
           opacity: frame == null ? 0 : 1,
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeOut,
-          child: frame == null ? _placeholder() : child,
+          child: frame == null
+              ? (shimmer
+                  ? _placeholder()
+                  : SizedBox(width: width, height: placeholderHeight ?? height))
+              : child,
         );
       },
       errorBuilder: (context, error, stack) => _fallback(context),

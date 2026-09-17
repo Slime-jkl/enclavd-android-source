@@ -18,6 +18,7 @@ import '../services/realtime_service.dart';
 import '../services/social_notifications.dart';
 import '../services/sound_service.dart';
 import '../theme/enclavd_theme.dart';
+import '../widgets/brand_logo.dart';
 import '../widgets/enclavd_avatar.dart';
 import '../widgets/error_view.dart';
 import '../widgets/post_card.dart';
@@ -851,12 +852,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                     ),
                   ),
                 )
-              : Image.asset(
-                  Theme.of(context).brightness == Brightness.light
-                      ? 'assets/images/enclavd-logo-dark.png'
-                      : 'assets/images/enclavd-logo-white.png',
-                  height: 22,
-                  key: const ValueKey('header-logo')),
+              : const BrandLogo(height: 22, key: ValueKey('header-logo')),
         ),
         actions: [
           // Search button expands into the inline field above.

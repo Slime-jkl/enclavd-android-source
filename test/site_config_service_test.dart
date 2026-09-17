@@ -2,10 +2,13 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:enclavd/api/site_config_service.dart';
+import 'package:enclavd/services/branding_service.dart';
 
 import 'api_client_test.dart' show Harness;
 
 void main() {
+  tearDown(() => BrandingService.instance.update());
+
   group('SiteConfigService.fetch', () {
     test('parses the full site config', () async {
       final h = await Harness.start((req) async {
@@ -29,6 +32,10 @@ void main() {
                 'lock_at': 10,
                 'lock_duration': 900,
                 'applies_to': ['login', 'register'],
+              },
+              'branding': {
+                'seasonal_logo': '/assets/enclavd-xmas-logo.png',
+                'seasonal_logo_light': null,
               },
               'nav': [
                 {'url': '', 'text': 'Home', 'public': true},
@@ -61,6 +68,11 @@ void main() {
       expect(cfg.nav[1].text, 'Updates');
       expect(cfg.nav[2].url, 'domain');
       expect(cfg.nav[2].public, isFalse);
+      expect(cfg.seasonalLogo, '/assets/enclavd-xmas-logo.png');
+      expect(cfg.seasonalLogoLight, isNull);
+      // The app's wordmark follows the config that just arrived.
+      expect(BrandingService.instance.wordmark.value,
+          '/assets/enclavd-xmas-logo.png');
 
       await h.close();
     });
@@ -78,6 +90,9 @@ void main() {
       expect(cfg.rateLimit.enabled, isTrue);
       expect(cfg.rateLimit.cooldowns, isEmpty);
       expect(cfg.nav, isEmpty);
+      expect(cfg.seasonalLogo, isNull);
+      expect(cfg.seasonalLogoLight, isNull);
+      expect(BrandingService.instance.wordmark.value, isNull);
 
       await h.close();
     });

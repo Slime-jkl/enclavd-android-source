@@ -9,6 +9,7 @@ import '../api/api_client.dart';
 import '../config/app_config.dart';
 import '../main.dart';
 import '../theme/enclavd_theme.dart';
+import '../widgets/brand_logo.dart';
 import '../widgets/auth_password_field.dart';
 import '../widgets/field_icon.dart';
 import 'login_screen.dart';
@@ -441,16 +442,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     size: 20),
                               ),
                             ),
-                            Center(
-                              child: Image.asset(
-                                Theme.of(context).brightness == Brightness.light
-                                    ? 'assets/images/enclavd-logo-dark.png'
-                                    : 'assets/images/enclavd-logo-white.png',
-                                height: 42,
-                                errorBuilder: (_, __, ___) =>
-                                    const SizedBox(height: 42),
-                              ),
-                            ),
+                            const Center(child: BrandLogo(height: 42)),
                             const SizedBox(height: 24),
                             const Text(
                               'Create your account',

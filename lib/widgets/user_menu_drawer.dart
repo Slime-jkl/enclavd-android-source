@@ -13,6 +13,7 @@ import '../screens/quote_settings_screen.dart';
 import '../screens/report_issue_screen.dart';
 import '../screens/settings_screen.dart';
 import '../theme/enclavd_theme.dart';
+import 'brand_logo.dart';
 import 'enclavd_avatar.dart';
 import 'personality_chip.dart';
 import 'rank_badge.dart';
@@ -148,12 +149,7 @@ class _UserMenuDrawerState extends State<UserMenuDrawer> {
                     ),
                     child: Column(
                       children: [
-                        Image.asset(
-                          Theme.of(context).brightness == Brightness.light
-                              ? 'assets/images/enclavd-logo-dark.png'
-                              : 'assets/images/enclavd-logo-white.png',
-                          height: 22,
-                        ),
+                        const BrandLogo(height: 22),
                         const SizedBox(height: 10),
                         const Text('iOS/Android native app',
                             style: TextStyle(

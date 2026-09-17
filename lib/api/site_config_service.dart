@@ -1,4 +1,5 @@
 import 'api_client.dart';
+import '../services/branding_service.dart';
 
 // site-wide config from GET /api/v1/site_config (public, no auth)
 class SiteConfig {
@@ -9,6 +10,8 @@ class SiteConfig {
     required this.rateLimit,
     this.nav = const [],
     this.features = const {},
+    this.seasonalLogo,
+    this.seasonalLogoLight,
   });
 
   final bool isInvitationRequired;
@@ -25,6 +28,12 @@ class SiteConfig {
 
   final Map<String, String> features;
 
+  /// Seasonal wordmark the site is serving right now (site-relative path);
+  /// null means the app keeps its own mark. The light variant is the
+  /// dark-ink art for light backgrounds.
+  final String? seasonalLogo;
+  final String? seasonalLogoLight;
+
   String feature(String key) => features[key] ?? 'on';
 
   // Whether the feature renders for this user: 'on' for everyone,
@@ -36,25 +45,29 @@ class SiteConfig {
     return true;
   }
 
-  factory SiteConfig.fromJson(Map<String, dynamic> json) => SiteConfig(
-        isInvitationRequired: json['isInvitationRequired'] as bool? ?? false,
-        requireEmailVerification:
-            json['requireEmailVerification'] as bool? ?? false,
-        maintenance: MaintenanceConfig.fromJson(
-            (json['maintenance'] as Map?)?.cast<String, dynamic>() ??
-                const {}),
-        rateLimit: RateLimitConfig.fromJson(
-            (json['rate_limit'] as Map?)?.cast<String, dynamic>() ??
-                const {}),
-        nav: (json['nav'] as List?)
-            ?.map((e) => NavLink.fromJson(
-                (e as Map?)?.cast<String, dynamic>() ?? const {}))
-            .toList() ??
-            const [],
-        features: (json['features'] as Map?)
-            ?.map<String, String>((k, v) => MapEntry('$k', '$v')) ??
-            const {},
-      );
+  factory SiteConfig.fromJson(Map<String, dynamic> json) {
+    final branding =
+        (json['branding'] as Map?)?.cast<String, dynamic>() ?? const {};
+    return SiteConfig(
+      isInvitationRequired: json['isInvitationRequired'] as bool? ?? false,
+      requireEmailVerification:
+          json['requireEmailVerification'] as bool? ?? false,
+      maintenance: MaintenanceConfig.fromJson(
+          (json['maintenance'] as Map?)?.cast<String, dynamic>() ?? const {}),
+      rateLimit: RateLimitConfig.fromJson(
+          (json['rate_limit'] as Map?)?.cast<String, dynamic>() ?? const {}),
+      nav: (json['nav'] as List?)
+              ?.map((e) => NavLink.fromJson(
+                  (e as Map?)?.cast<String, dynamic>() ?? const {}))
+              .toList() ??
+          const [],
+      features: (json['features'] as Map?)
+              ?.map<String, String>((k, v) => MapEntry('$k', '$v')) ??
+          const {},
+      seasonalLogo: branding['seasonal_logo'] as String?,
+      seasonalLogoLight: branding['seasonal_logo_light'] as String?,
+    );
+  }
 }
 
 class NavLink {
@@ -199,7 +212,11 @@ class SiteConfigService {
     if (config is! Map<String, dynamic>) {
       throw const ApiException('Invalid config from server');
     }
-    return SiteConfig.fromJson(config);
+    final parsed = SiteConfig.fromJson(config);
+    // Config is the one place branding arrives, so the app's marks follow it.
+    BrandingService.instance
+        .update(dark: parsed.seasonalLogo, light: parsed.seasonalLogoLight);
+    return parsed;
   }
 
   // Current rate-limit state for a context login/register
