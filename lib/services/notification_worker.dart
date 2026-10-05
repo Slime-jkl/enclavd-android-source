@@ -73,7 +73,7 @@ void notificationDispatcher() {
 /// exercise it without the platform plugin.
 Future<void> runBackgroundSources(List<NotificationSource> sources) async {
   final prefs = await SharedPreferences.getInstance();
-  final api = ApiClient(store: PrefsSessionStore(prefs));
+  final api = installApiClient(prefs);
   await api.restoreSession();
   if (api.sessionCookies.isEmpty) {
     debugPrint('worker: no session, skipping');

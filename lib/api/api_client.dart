@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
@@ -32,10 +33,26 @@ abstract class SessionStore {
 /// Production store: SharedPreferences-backed, app-private.
 class PrefsSessionStore implements SessionStore {
   static const String _prefsKey = 'enclavd_session_cookies';
+  static const String _devicePrefsKey = 'enclavd_device_id';
 
   PrefsSessionStore(this._prefs);
 
   final SharedPreferences _prefs;
+
+  /// This install's id: random once, then stable. Sent as X-Device-Id so a
+  /// session row can be pinned to the install that minted it. Read straight
+  /// from prefs (synchronous once the instance exists) so background isolates
+  /// pin their requests to the same install. Not part of SessionStore: test
+  /// fakes have no install identity.
+  String deviceId() {
+    final existing = _prefs.getString(_devicePrefsKey);
+    if (existing != null && existing.length >= 16) return existing;
+    final rnd = Random.secure();
+    final id =
+        List.generate(32, (_) => rnd.nextInt(16).toRadixString(16)).join();
+    unawaited(_prefs.setString(_devicePrefsKey, id));
+    return id;
+  }
 
   @override
   Future<List<SessionCookie>> load() async {
@@ -64,6 +81,13 @@ class PrefsSessionStore implements SessionStore {
   Future<void> clear() async {
     await _prefs.remove(_prefsKey);
   }
+}
+
+/// Client for THIS install: the stored session jar plus this install's id, so
+/// a row minted here is not accepted from anywhere else.
+ApiClient installApiClient(SharedPreferences prefs) {
+  final store = PrefsSessionStore(prefs);
+  return ApiClient(store: store, deviceId: store.deviceId());
 }
 
 /// Result of a raw HTTP exchange: status, headers we care about, body bytes.
@@ -106,7 +130,9 @@ String friendlyErrorText(Object e) {
 /// request with a different UA gets 401 AND destroys the session row, so
 /// every request here goes out with AppConfig.userAgent. Two cookies travel
 /// together (`sid` + `enclavd_sid`); Set-Cookie is captured on every
-/// response and the jar persisted so sessions survive app restarts.
+/// response and the jar persisted so sessions survive app restarts. A cookie
+/// the server clears (Max-Age 0 / past expiry) is dropped from the jar, never
+/// stored, because the expiry is what deletes it in a browser.
 class ApiClient {
   ApiClient({
     required this.store,
@@ -115,7 +141,9 @@ class ApiClient {
     Duration? requestTimeout,
     Duration? uploadTimeout,
     int? retries,
-  })  : _httpClientFactory = httpClientFactory ?? _defaultHttpClient,
+    String? deviceId,
+  })  : deviceId = deviceId ?? '',
+        _httpClientFactory = httpClientFactory ?? _defaultHttpClient,
         _apiBaseUrl = apiBaseUrl ?? AppConfig.apiBaseUrl,
         _requestTimeout = requestTimeout ?? AppConfig.receiveTimeout,
         _uploadTimeout = uploadTimeout ?? AppConfig.uploadTimeout,
@@ -143,6 +171,9 @@ class ApiClient {
   String get apiBaseUrl => _apiBaseUrl;
 
   List<SessionCookie> _jar = const [];
+
+  /// Per-install id sent as X-Device-Id; a session row is pinned to it.
+  final String deviceId;
 
   static HttpClient _defaultHttpClient() {
     final client = HttpClient();
@@ -434,6 +465,10 @@ class ApiClient {
         _jar.map((c) => '${c.name}=${c.value}').join('; '),
       );
     }
+    final device = deviceId;
+    if (device.isNotEmpty) {
+      request.headers.set(AppConfig.hdrDeviceId, device);
+    }
     headers?.forEach(request.headers.set);
     if (formFields != null) {
       if (multipart) {
@@ -469,24 +504,37 @@ class ApiClient {
     // First byte still gets its own (tighter) deadline, so a POST that
     // never reaches a server fails in receiveTimeout, not uploadTimeout.
     final response = await request.close().timeout(AppConfig.receiveTimeout);
-    // Capture Set-Cookie (multiple may be present); keep only name=value.
+    // Capture Set-Cookie (multiple may be present). A header that CLEARS the
+    // cookie (Max-Age 0, past expiry, empty or the "deleted" placeholder PHP
+    // writes) removes it from the jar: a browser deletes it on that expiry, so
+    // storing the value would keep sending a dead session.
     final setCookies = <SessionCookie>[];
+    final cleared = <String>{};
     for (final raw
         in response.headers[HttpHeaders.setCookieHeader] ?? <String>[]) {
       final pair = raw.split(';').first;
       final eq = pair.indexOf('=');
-      if (eq > 0) {
-        setCookies.add(SessionCookie(
-          name: pair.substring(0, eq).trim(),
-          value: pair.substring(eq + 1).trim(),
-        ));
+      if (eq <= 0) continue;
+      final name = pair.substring(0, eq).trim();
+      final value = pair.substring(eq + 1).trim();
+      if (_isClearHeader(raw, value)) {
+        cleared.add(name);
+      } else {
+        setCookies.add(SessionCookie(name: name, value: value));
       }
     }
-    if (setCookies.isNotEmpty) {
-      final changed = _mergeCookies(setCookies);
+    if (setCookies.isNotEmpty || cleared.isNotEmpty) {
+      var changed = _dropCookies(cleared);
+      if (setCookies.isNotEmpty && _mergeCookies(setCookies)) changed = true;
       if (changed) {
-        // Persist immediately so a valid session survives app restarts.
-        await store.save(_jar);
+        // Persist immediately so a valid session survives app restarts, and
+        // empty the store outright when the jar did (save() keeps the last
+        // non-empty jar on purpose).
+        if (_jar.isEmpty) {
+          await store.clear();
+        } else {
+          await store.save(_jar);
+        }
       }
     }
 
@@ -516,6 +564,37 @@ class ApiClient {
         : Uri.parse('$base${location.startsWith('/') ? location : '/$location'}');
     if (target.host != base.host) return null;
     return '${target.path}${target.hasQuery ? '?${target.query}' : ''}';
+  }
+
+  /// True when a Set-Cookie header is the server clearing the cookie: a
+  /// non-positive Max-Age, an expiry already past, or an empty/"deleted" value.
+  static bool _isClearHeader(String raw, String value) {
+    if (value.isEmpty || value == 'deleted') return true;
+
+    final lower = raw.toLowerCase();
+    final maxAge = RegExp(r'max-age=\s*(-?\d+)').firstMatch(lower);
+    if (maxAge != null && int.parse(maxAge.group(1)!) <= 0) return true;
+
+    final expires = RegExp(r'expires=\s*([^;]+)').firstMatch(lower);
+    if (expires != null) {
+      try {
+        if (!HttpDate.parse(expires.group(1)!.trim()).isAfter(DateTime.now())) {
+          return true;
+        }
+      } catch (_) {
+        // Unreadable expiry: keep the cookie rather than guess.
+      }
+    }
+    return false;
+  }
+
+  /// Drops the named cookies. Returns true when the jar changed.
+  bool _dropCookies(Set<String> names) {
+    if (names.isEmpty) return false;
+    final next = _jar.where((c) => !names.contains(c.name)).toList();
+    if (next.length == _jar.length) return false;
+    _jar = next;
+    return true;
   }
 
   /// Merges fresh cookies into the jar. Returns true when the jar changed

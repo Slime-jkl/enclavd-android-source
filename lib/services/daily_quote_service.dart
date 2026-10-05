@@ -162,7 +162,7 @@ class DailyQuoteService {
         debugPrint('quote widget: rollover - no widget pinned, skipping');
         return;
       }
-      final api = ApiClient(store: PrefsSessionStore(prefs));
+      final api = installApiClient(prefs);
       await api.restoreSession();
       if (!api.hasSession) {
         debugPrint('quote widget: rollover - no session, skipping');
@@ -191,7 +191,7 @@ class DailyQuoteService {
       return;
     }
 
-    final api = ApiClient(store: PrefsSessionStore(prefs));
+    final api = installApiClient(prefs);
     await api.restoreSession();
     if (!api.hasSession) {
       debugPrint('daily quote: no session, skipping');
@@ -267,7 +267,7 @@ class DailyQuoteService {
     final prefs = await SharedPreferences.getInstance();
     if (!isEnabled(prefs)) return;
     if (prefs.getString(widgetDatePrefsKey) == _todayKey()) return; // fresh
-    final api = ApiClient(store: PrefsSessionStore(prefs));
+    final api = installApiClient(prefs);
     await api.restoreSession();
     if (!api.hasSession) return;
     final today = await _fetchToday(api);
@@ -285,7 +285,7 @@ class DailyQuoteService {
     }
     final prefs = await SharedPreferences.getInstance();
     if (!isEnabled(prefs)) return;
-    final api = ApiClient(store: PrefsSessionStore(prefs));
+    final api = installApiClient(prefs);
     await api.restoreSession();
     if (!api.hasSession) {
       debugPrint('quote widget: no session, rating dropped');
@@ -342,7 +342,7 @@ class DailyQuoteService {
   static Future<TodayQuote?> fetchToday() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final api = ApiClient(store: PrefsSessionStore(prefs));
+      final api = installApiClient(prefs);
       await api.restoreSession();
       if (!api.hasSession) return null;
       return await _fetchToday(api);

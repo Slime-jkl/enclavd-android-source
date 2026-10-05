@@ -38,6 +38,7 @@ class Harness {
     Duration? requestTimeout,
     Duration? uploadTimeout,
     int? retries,
+    String? deviceId,
   }) async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     final effectiveStore = store ?? MemorySessionStore(seedCookies);
@@ -47,6 +48,7 @@ class Harness {
       requestTimeout: requestTimeout,
       uploadTimeout: uploadTimeout,
       retries: retries,
+      deviceId: deviceId,
       httpClientFactory: () {
         final c = HttpClient();
         c.userAgent = 'EnclavdNative/1.0';
@@ -378,6 +380,57 @@ void main() {
     ).timeout(const Duration(seconds: 10));
     // One write attempt only: a retried POST would duplicate an action.
     expect(h.requests.where((r) => r.method == 'POST').length, 1);
+
+    await h.close();
+  });
+
+  test('a cleared Set-Cookie is dropped, never stored or re-sent', () async {
+    final store = MemorySessionStore();
+    final h = await Harness.start(
+      (req) async {
+        if (req.uri.path == '/login') {
+          Harness.respond(req,
+              setCookie: 'enclavd_sid=abc123; Path=/', body: 'in');
+          return;
+        }
+        if (req.uri.path == '/out') {
+          // Exactly what PHP sends when it clears the cookie.
+          Harness.respond(
+            req,
+            setCookie: 'enclavd_sid=deleted; '
+                'expires=Thu, 01-Jan-1970 00:00:01 GMT; Max-Age=0; path=/',
+            body: 'out',
+          );
+          return;
+        }
+        Harness.respond(req, body: 'ok');
+      },
+      store: store,
+    );
+
+    await h.client.getPage('/login');
+    expect(h.client.hasSession, isTrue);
+
+    await h.client.getPage('/out');
+    expect(h.client.sessionCookies, isEmpty);
+    // The store must be emptied too, or a restart restores the dead value.
+    expect(store.contents, isEmpty);
+
+    await h.client.getPage('/after');
+    expect(h.requests.last.headers.value('cookie'), isNull);
+
+    await h.close();
+  });
+
+  test('sends the install device id on every request', () async {
+    final h = await Harness.start(
+      (req) async => Harness.respond(req, body: 'ok'),
+      deviceId: 'deadbeefdeadbeefdeadbeefdeadbeef',
+    );
+
+    await h.client.getPage('/feed');
+    expect(h.requests.last.headers.value('x-device-id'),
+        'deadbeefdeadbeefdeadbeefdeadbeef');
 
     await h.close();
   });

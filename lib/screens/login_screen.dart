@@ -10,6 +10,7 @@ import '../main.dart';
 import '../services/daily_quote_service.dart';
 import '../services/notification_taps.dart';
 import '../theme/enclavd_theme.dart';
+import '../widgets/brand_logo.dart';
 import '../widgets/auth_password_field.dart';
 import '../widgets/field_icon.dart';
 import 'ban_screen.dart';
@@ -240,16 +241,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Center(
-                              child: Image.asset(
-                                Theme.of(context).brightness == Brightness.light
-                                    ? 'assets/images/enclavd-logo-dark.png'
-                                    : 'assets/images/enclavd-logo-white.png',
-                                height: 42,
-                                errorBuilder: (_, __, ___) =>
-                                    const SizedBox(height: 42),
-                              ),
-                            ),
+                            const Center(child: BrandLogo(height: 42)),
                             const SizedBox(height: 28),
                             const Text(
                               'Welcome back',
