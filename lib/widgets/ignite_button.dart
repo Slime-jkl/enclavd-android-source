@@ -84,11 +84,7 @@ class _IgniteButtonState extends State<IgniteButton> {
     setState(() {
       _busy = false;
       _ignited = true;
-      if (result.igniteCount > 0) {
-        _count = result.igniteCount;
-      } else if (result.granted) {
-        _count += 1;
-      }
+      _count = result.countAfter(_count);
     });
     widget.onResult?.call(result);
   }

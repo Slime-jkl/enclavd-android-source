@@ -241,7 +241,7 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
         _replyPages = result.pages;
         _replyBusy = false;
         _repliesLoading = false;
-        _post = _withCommentCount(post, result.total);
+        _setCommentCount(result.total);
         // A freshly loaded newest page shows its tail first.
         if (result.page == result.pages && widget.highlightReplyId == null) {
           _jumpToRepliesEnd = true;
@@ -311,8 +311,7 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
         _quoting = null;
         _jumpToRepliesEnd = true;
         // Keep the OP card's count in sync.
-        final post = _post;
-        if (post != null) _post = _withCommentCount(post, newCount);
+        _setCommentCount(newCount);
       });
       _scheduleRepliesEndJump();
       _replyController.clear();
@@ -356,8 +355,7 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
       if (!mounted) return;
       setState(() {
         _dropSubtree(comment.id);
-        final post = _post;
-        if (post != null) _post = _withCommentCount(post, newCount);
+        _setCommentCount(newCount);
       });
     } catch (_) {
       if (!mounted) return;
@@ -365,24 +363,19 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
     }
   }
 
-  static Post _withCommentCount(Post post, int count) => Post(
-        id: post.id,
-        authorId: post.authorId,
-        content: post.content,
-        createdAt: post.createdAt,
-        feedScore: post.feedScore,
-        likeCount: post.likeCount,
-        commentCount: count,
-        userLiked: post.userLiked,
-        warningCount: post.warningCount,
-        username: post.username,
-        profilePictureUrl: post.profilePictureUrl,
-        personalityType: post.personalityType,
-        isActive: post.isActive,
-        rank: post.rank,
-        image: post.image,
-        isOwner: post.isOwner,
-      );
+  /// Only the reply count moves here: the OP card owns what it shows for likes
+  /// and ignites, and reports those back separately.
+  void _setCommentCount(int count) {
+    final post = _post;
+    if (post != null) _post = post.copyWithEngagement(commentCount: count);
+  }
+
+  /// The OP card changed its own like/ignite state; hold the copy a rebuilt
+  /// card reads (the card is disposed like any other when it leaves the cache
+  /// extent, including behind a long reply list).
+  void _postUpdated(Post post) {
+    setState(() => _post = post);
+  }
 
   void _toast(String message) {
     ScaffoldMessenger.of(context)
@@ -492,6 +485,7 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
           social: _social,
           onEditPost: _editPost,
           onDeletePost: _deletePost,
+          onPostUpdated: _postUpdated,
         ),
         const SizedBox(height: 14),
         // Reply composer at the top of the replies, hidden until the
@@ -605,6 +599,7 @@ class _ForumPostCard extends StatefulWidget {
     required this.social,
     this.onEditPost,
     this.onDeletePost,
+    this.onPostUpdated,
   });
 
   final Post post;
@@ -614,6 +609,11 @@ class _ForumPostCard extends StatefulWidget {
   final void Function(Post post)? onEditPost;
   final void Function(Post post)? onDeletePost;
 
+  /// Reports the engagement this card shows back to the screen, which holds the
+  /// post: the State below dies with the card when it scrolls out of the cache
+  /// extent, and the rebuild reads the screen's copy.
+  final void Function(Post post)? onPostUpdated;
+
   @override
   State<_ForumPostCard> createState() => _ForumPostCardState();
 }
@@ -622,6 +622,8 @@ class _ForumPostCardState extends State<_ForumPostCard>
     with IgniteFlamePlayer<_ForumPostCard> {
   late int _likeCount;
   late bool _liked;
+  late int _igniteCount;
+  late bool _ignited;
   bool _likeBusy = false;
 
   // Cached per CONTENT, not State lifetime: an edit must invalidate them.
@@ -637,6 +639,18 @@ class _ForumPostCardState extends State<_ForumPostCard>
     super.initState();
     _likeCount = post.likeCount;
     _liked = post.userLiked;
+    _igniteCount = post.igniteCount;
+    _ignited = post.userIgnited;
+  }
+
+  /// Hand the screen what this card shows now, so a rebuilt card restores it.
+  void _reportUp() {
+    widget.onPostUpdated?.call(post.copyWithEngagement(
+      likeCount: _likeCount,
+      userLiked: _liked,
+      igniteCount: _igniteCount,
+      userIgnited: _ignited,
+    ));
   }
 
   @override
@@ -645,6 +659,16 @@ class _ForumPostCardState extends State<_ForumPostCard>
     if (oldWidget.post.content != post.content) {
       _cachedSpans = null;
       _cachedContent = null;
+    }
+    // A reload is authoritative while no like is in flight.
+    final old = oldWidget.post;
+    if (!_likeBusy) {
+      if (old.userLiked != post.userLiked) _liked = post.userLiked;
+      if (old.likeCount != post.likeCount) _likeCount = post.likeCount;
+      if (old.userIgnited != post.userIgnited) _ignited = post.userIgnited;
+      if (old.igniteCount != post.igniteCount) {
+        _igniteCount = post.igniteCount;
+      }
     }
   }
 
@@ -703,8 +727,11 @@ class _ForumPostCardState extends State<_ForumPostCard>
     setState(() {
       if (result.likeCount > 0) _likeCount = result.likeCount;
       if (result.granted) _liked = true;
+      _ignited = true;
+      _igniteCount = result.countAfter(_igniteCount);
     });
     playIgniteFlame();
+    _reportUp();
   }
 
   Future<void> _toggleLike() async {
@@ -714,6 +741,7 @@ class _ForumPostCardState extends State<_ForumPostCard>
       _liked = !_liked;
       _likeCount += _liked ? 1 : -1;
     });
+    _reportUp();
     if (_liked) {
       SoundService.instance.like();
     }
@@ -725,6 +753,7 @@ class _ForumPostCardState extends State<_ForumPostCard>
         _likeCount = result.likeCount;
         _likeBusy = false;
       });
+      _reportUp();
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -732,6 +761,7 @@ class _ForumPostCardState extends State<_ForumPostCard>
         _likeCount += _liked ? 1 : -1;
         _likeBusy = false;
       });
+      _reportUp();
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
@@ -961,8 +991,8 @@ class _ForumPostCardState extends State<_ForumPostCard>
               const SizedBox(width: 18),
               IgniteButton(
                 postId: post.id,
-                ignited: post.userIgnited,
-                count: post.igniteCount,
+                ignited: _ignited,
+                count: _igniteCount,
                 social: widget.social,
                 size: 20,
                 onResult: _onIgniteResult,

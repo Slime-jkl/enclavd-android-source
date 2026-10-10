@@ -62,6 +62,18 @@ class ActivityItem {
 
   bool get opensPost => type != ActivityType.follow && post != null;
 
+  /// The card on an activity row changes its post's engagement; the row has to
+  /// carry the updated copy so a rebuilt card restores it.
+  ActivityItem copyWith({Post? post}) => ActivityItem(
+        type: type,
+        id: id,
+        createdAt: createdAt,
+        post: post ?? this.post,
+        commentContent: commentContent,
+        parentCommentId: parentCommentId,
+        user: user,
+      );
+
   factory ActivityItem.fromJson(Map<String, dynamic> json) {
     final type = ActivityType.fromWire(json['type'] as String?);
     final postRaw = json['post'];

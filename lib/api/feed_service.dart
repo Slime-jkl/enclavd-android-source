@@ -126,6 +126,47 @@ class Post {
 
   bool get isBlocked => isActive == 'false';
 
+  /// The engagement a viewer can change under a card: liked, comment and
+  /// ignite. Everything else about a post is fixed once it is loaded (an edit
+  /// refetches), so this is the whole override set.
+  Post copyWithEngagement({
+    int? likeCount,
+    int? commentCount,
+    bool? userLiked,
+    int? igniteCount,
+    bool? userIgnited,
+  }) =>
+      Post(
+        id: id,
+        authorId: authorId,
+        content: content,
+        createdAt: createdAt,
+        feedScore: feedScore,
+        likeCount: likeCount ?? this.likeCount,
+        igniteCount: igniteCount ?? this.igniteCount,
+        commentCount: commentCount ?? this.commentCount,
+        userLiked: userLiked ?? this.userLiked,
+        userIgnited: userIgnited ?? this.userIgnited,
+        warningCount: warningCount,
+        username: username,
+        profilePictureUrl: profilePictureUrl,
+        personalityType: personalityType,
+        isActive: isActive,
+        rank: rank,
+        image: image,
+        images: images,
+        isOwner: isOwner,
+        lastReplyAt: lastReplyAt,
+        lastReplyUsername: lastReplyUsername,
+        lastReplyRank: lastReplyRank,
+        lastReplyActive: lastReplyActive,
+        hasDomain: hasDomain,
+        domainBy: domainBy,
+        promoterUsername: promoterUsername,
+        domainName: domainName,
+        domainSlug: domainSlug,
+      );
+
   /// Slides to render: [images], or the single [image] when the post was
   /// built without the list (older code paths and tests).
   List<String> get galleryImages => images.isNotEmpty

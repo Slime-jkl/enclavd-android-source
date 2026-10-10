@@ -18,6 +18,7 @@ import '../services/realtime_service.dart';
 import '../services/social_notifications.dart';
 import '../services/sound_service.dart';
 import '../theme/enclavd_theme.dart';
+import '../utils/post_list.dart';
 import '../widgets/brand_logo.dart';
 import '../widgets/enclavd_avatar.dart';
 import '../widgets/error_view.dart';
@@ -751,6 +752,13 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// A card changed its own like/comment/ignite state: the list keeps the
+  /// record, so the next rebuild of that card (a scroll out and back) restores
+  /// it instead of the snapshot the feed loaded.
+  void _postUpdated(Post post) {
+    setState(() => replacePost(_posts, post));
+  }
+
   void _toast(String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -1134,6 +1142,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
               social: _services!.social,
               onEditPost: _editPost,
               onDeletePost: _deletePost,
+              onPostUpdated: _postUpdated,
             );
           },
         ),

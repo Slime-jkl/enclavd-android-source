@@ -37,6 +37,11 @@ class IgniteResult {
   bool get alreadyIgnited => status == 'already_ignited';
   bool get limitReached => status == 'limit_reached';
 
+  /// The post's igniter count after this attempt: the server's number when it
+  /// sent one, else the viewer's own grant adds one to [current].
+  int countAfter(int current) =>
+      igniteCount > 0 ? igniteCount : current + (granted ? 1 : 0);
+
   factory IgniteResult.fromJson(Map<String, dynamic> json) => IgniteResult(
         status: json['status'] as String? ?? '',
         message: json['message'] as String? ?? '',

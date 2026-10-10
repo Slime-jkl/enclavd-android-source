@@ -26,6 +26,13 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   bool _loading = true;
   String? _error;
 
+  /// The card owns the like/comment state it shows; hold its copy here so a
+  /// rebuild of the card (it is thrown away and rebuilt like any other) keeps
+  /// what the viewer did.
+  void _postUpdated(Post post) {
+    setState(() => _post = post);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -168,6 +175,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
           social: services.social,
           onEditPost: _editPost,
           onDeletePost: _deletePost,
+          onPostUpdated: _postUpdated,
         ),
       ],
     );

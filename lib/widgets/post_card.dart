@@ -37,6 +37,7 @@ class PostCard extends StatefulWidget {
     required this.social,
     this.onEditPost,
     this.onDeletePost,
+    this.onPostUpdated,
   });
 
   final Post post;
@@ -47,6 +48,12 @@ class PostCard extends StatefulWidget {
   final void Function(Post post)? onEditPost;
   final void Function(Post post)? onDeletePost;
 
+  /// Fires whenever this card changes the engagement it shows (like, comment,
+  /// ignite). The list the card came from owns the post, so it has to take the
+  /// new copy: this State is thrown away when the card scrolls out of the cache
+  /// extent, and the rebuild seeds from that list, not from here.
+  final void Function(Post post)? onPostUpdated;
+
   @override
   State<PostCard> createState() => _PostCardState();
 }
@@ -56,6 +63,8 @@ class _PostCardState extends State<PostCard>
   late int _likeCount;
   late bool _liked;
   late int _commentCount;
+  late int _igniteCount;
+  late bool _ignited;
 
   // True while a like toggle is in flight (blocks double-taps).
   bool _likeBusy = false;
@@ -69,6 +78,8 @@ class _PostCardState extends State<PostCard>
     _likeCount = widget.post.likeCount;
     _liked = widget.post.userLiked;
     _commentCount = widget.post.commentCount;
+    _igniteCount = widget.post.igniteCount;
+    _ignited = widget.post.userIgnited;
   }
 
   @override
@@ -83,10 +94,26 @@ class _PostCardState extends State<PostCard>
     if (!_likeBusy) {
       if (old.userLiked != fresh.userLiked) _liked = fresh.userLiked;
       if (old.likeCount != fresh.likeCount) _likeCount = fresh.likeCount;
+      if (old.userIgnited != fresh.userIgnited) _ignited = fresh.userIgnited;
+      if (old.igniteCount != fresh.igniteCount) {
+        _igniteCount = fresh.igniteCount;
+      }
     }
     if (old.commentCount != fresh.commentCount) {
       _commentCount = fresh.commentCount;
     }
+  }
+
+  /// Mirror what this card shows into the list that owns the post. A card
+  /// scrolled past the cache extent is disposed; the rebuild reads the list.
+  void _reportUp() {
+    widget.onPostUpdated?.call(widget.post.copyWithEngagement(
+      likeCount: _likeCount,
+      commentCount: _commentCount,
+      userLiked: _liked,
+      igniteCount: _igniteCount,
+      userIgnited: _ignited,
+    ));
   }
 
   Future<void> _toggleLike() async {
@@ -96,6 +123,7 @@ class _PostCardState extends State<PostCard>
       _liked = !_liked;
       _likeCount += _liked ? 1 : -1;
     });
+    _reportUp();
     if (_liked) {
       SoundService.instance.like();
     }
@@ -108,6 +136,7 @@ class _PostCardState extends State<PostCard>
         _likeCount = result.likeCount;
         _likeBusy = false;
       });
+      _reportUp();
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -115,6 +144,7 @@ class _PostCardState extends State<PostCard>
         _likeCount += _liked ? 1 : -1;
         _likeBusy = false;
       });
+      _reportUp();
       _toast('Could not update the like. Try again.');
     }
   }
@@ -135,8 +165,11 @@ class _PostCardState extends State<PostCard>
     setState(() {
       if (result.likeCount > 0) _likeCount = result.likeCount;
       if (result.granted) _liked = true;
+      _ignited = true;
+      _igniteCount = result.countAfter(_igniteCount);
     });
     playIgniteFlame();
+    _reportUp();
   }
 
   void _showBurst() {
@@ -182,6 +215,7 @@ class _PostCardState extends State<PostCard>
     // count in sync (covers comments added while it was open).
     if (newCount != null && mounted) {
       setState(() => _commentCount = newCount);
+      _reportUp();
     }
   }
 
@@ -267,8 +301,8 @@ class _PostCardState extends State<PostCard>
                     onComments: _openComments,
                     ignite: IgniteButton(
                       postId: widget.post.id,
-                      ignited: widget.post.userIgnited,
-                      count: widget.post.igniteCount,
+                      ignited: _ignited,
+                      count: _igniteCount,
                       social: widget.social,
                       onResult: _onIgniteResult,
                     ),
