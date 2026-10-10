@@ -6,6 +6,7 @@ import '../api/feed_service.dart';
 import '../config/app_config.dart';
 import '../main.dart';
 import '../theme/enclavd_theme.dart';
+import '../utils/post_list.dart';
 import '../widgets/error_view.dart';
 import '../widgets/post_card.dart';
 import '../widgets/shimmer.dart';
@@ -127,6 +128,12 @@ class _HashtagScreenState extends State<HashtagScreen> {
   }
 
   Future<void> _refresh() => _loadFirst();
+
+  /// Cards are disposed when they scroll out of view; the list holds what a
+  /// rebuilt card restores, so keep it in step with the card.
+  void _postUpdated(Post post) {
+    setState(() => replacePost(_posts, post));
+  }
 
   Future<void> _editPost(Post post) async {
     final saved = await Navigator.of(context).push<bool>(
@@ -271,6 +278,7 @@ class _HashtagScreenState extends State<HashtagScreen> {
           social: _services.social,
           onEditPost: _editPost,
           onDeletePost: _deletePost,
+          onPostUpdated: _postUpdated,
         );
       },
     );

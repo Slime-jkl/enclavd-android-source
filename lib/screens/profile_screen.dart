@@ -9,6 +9,7 @@ import '../api/profile_service.dart';
 import '../config/app_config.dart';
 import '../main.dart';
 import '../theme/enclavd_theme.dart';
+import '../utils/post_list.dart';
 import '../widgets/activity_card.dart';
 import '../widgets/enclavd_avatar.dart';
 import '../widgets/error_view.dart';
@@ -317,6 +318,19 @@ class _ProfileScreenState extends State<ProfileScreen>
     if (saved == true && mounted) _loadFirstPosts();
   }
 
+  /// A card reported its own like/comment/ignite state: the list owns the copy
+  /// a rebuilt card reads, so take it here or the card reverts on scroll.
+  void _postUpdated(Post post) {
+    setState(() => replacePost(_posts, post));
+  }
+
+  void _activityPostUpdated(Post post) {
+    setState(() {
+      final i = _activity.indexWhere((a) => a.post?.id == post.id);
+      if (i != -1) _activity[i] = _activity[i].copyWith(post: post);
+    });
+  }
+
   Future<void> _deletePost(Post post) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -583,6 +597,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           social: _services.social,
           onEditPost: _editPost,
           onDeletePost: _deletePost,
+          onPostUpdated: _postUpdated,
         );
       },
     );
@@ -606,6 +621,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         social: _services.social,
         onEditPost: _editPost,
         onDeletePost: _deletePost,
+        onPostUpdated: _activityPostUpdated,
       );
     }
     return Column(
