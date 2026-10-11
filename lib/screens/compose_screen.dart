@@ -333,8 +333,8 @@ class _ComposeScreenState extends State<ComposeScreen> {
             focusNode: _focus,
             minLines: 3,
             maxLines: 8,
-            // Hard 2000-char cap (the site's MAX_CHARS / api limit).
-            maxLength: 2000,
+            // Hard 20000-char cap (the site's MAX_CHARS / api limit).
+            maxLength: 20000,
             textCapitalization: TextCapitalization.sentences,
             style: base,
             cursorColor: context.enclavd.textPrimary,
@@ -356,13 +356,13 @@ class _ComposeScreenState extends State<ComposeScreen> {
             ),
           ),
           const SizedBox(height: 4),
-          // Mirrors post_form.php's "N/2000 characters" (textSecondary, right).
+          // Mirrors post_form.php's "N/20000 characters" (textSecondary, right).
           Align(
             alignment: Alignment.centerRight,
             child: ValueListenableBuilder<TextEditingValue>(
               valueListenable: _controller,
               builder: (context, value, _) => Text(
-                '${value.text.characters.length}/2000 characters',
+                '${value.text.characters.length}/20000 characters',
                 style: TextStyle(
                     color: context.enclavd.textSecondary, fontSize: 12),
               ),
