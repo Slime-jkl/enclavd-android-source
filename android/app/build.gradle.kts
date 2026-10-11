@@ -76,6 +76,8 @@ android {
         release {
             // findByName returns null when unconfigured: unsigned build, not debug-signed.
             signingConfig = signingConfigs.findByName("release")
+            // Resources stay untouched: ic_stat_enclavd is resolved by name at runtime.
+            isShrinkResources = false
         }
     }
 
