@@ -280,6 +280,25 @@ jobs:
         if: matrix.flavor == 'play' && github.event.inputs.build_type != 'debug'
         run: flutter build appbundle --flavor play --release $DEFINES
 
+      # Play's technical quality thresholds measure DEX obfuscation/shrinking (25%
+      # each from Feb 2027, apps over 10MB DEX); a silent shrink=false regression
+      # would only surface in Play Console after a release, so gate it here.
+      - name: Verify R8 ran (obfuscation mapping present)
+        if: matrix.flavor == 'play' && github.event.inputs.build_type != 'debug'
+        run: |
+          MAP=$(find build/app/outputs/mapping -name mapping.txt 2>/dev/null | head -1)
+          if [ -z "$MAP" ]; then
+            echo "FAIL: no R8 mapping.txt - release built without minification (check shrink in android/gradle.properties)"
+            exit 1
+          fi
+          echo "R8 mapping: $MAP ($(wc -l < "$MAP") lines)"
+          AAB=build/app/outputs/bundle/playRelease/app-play-release.aab
+          if unzip -l "$AAB" | grep -q "BUNDLE-METADATA.*obfuscation"; then
+            echo "AAB carries the mapping in BUNDLE-METADATA: Play deobfuscates crashes"
+          else
+            echo "note: AAB carries no mapping in BUNDLE-METADATA"
+          fi
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
