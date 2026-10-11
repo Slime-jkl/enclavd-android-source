@@ -102,6 +102,13 @@ jobs:
       - name: Resolve dependencies
         run: flutter pub get
 
+      # The fdroid flavor hand-maintains its plugin registrant (the generated
+      # file references firebase classes absent from that classpath), so a new
+      # plugin gets registered everywhere EXCEPT fdroid - a runtime-only gap
+      # visible in the shipped F-Droid APK alone. Caught here instead.
+      - name: F-Droid plugin registrant covers every plugin
+        run: python3 tool/check_fdroid_registrant.py
+
       # Raw FaIcon in a decoration slot paints its glyph at the slot's
       # top-left (FaIcon is a bare RichText, unlike Icon which centers)
       # -> the classic offset/clipped field icon. FieldIcon centers.
