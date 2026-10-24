@@ -38,7 +38,9 @@ class _DomainsScreenState extends State<DomainsScreen> {
   Map<int, List<DomainCategory>> _children = const {};
   bool _chipsLoaded = false;
 
-  int? _selectedId;
+  /// Selected domain filters; a domain brings its subtree, subdomains
+  /// expand inline under it while it is selected.
+  final Set<int> _selected = {};
   final List<DomainThread> _threads = [];
   final _scrollController = ScrollController();
   bool _loading = false;
@@ -46,6 +48,7 @@ class _DomainsScreenState extends State<DomainsScreen> {
   bool _hasMore = false;
   int _offset = 0;
   int _total = 0;
+  int _requestId = 0;
   String? _error;
 
   @override
@@ -93,26 +96,39 @@ class _DomainsScreenState extends State<DomainsScreen> {
     }
   }
 
-  /// Selected domain and its ancestors, root first.
-  List<DomainCategory> _pathOf(int? id) {
-    final chain = <DomainCategory>[];
-    var node = id == null ? null : _index[id];
-    while (node != null && chain.length < 8) {
-      chain.insert(0, node);
-      node = _index[node.parent];
-    }
-    return chain;
-  }
-
-  void _select(int? id) {
-    if (_selectedId == id) return;
+  void _toggle(int id) {
     setState(() {
-      _selectedId = id;
-      _threads.clear();
-      _initialLoadDone = false;
-      _error = null;
+      if (_selected.contains(id)) {
+        _selected.remove(id);
+        _dropSubtree(id); // collapsing hides the subdomain chips
+      } else {
+        _selected.add(id);
+      }
+      _resetFeedState();
     });
     _loadFeed(reset: true);
+  }
+
+  void _clearFilters() {
+    if (_selected.isEmpty) return;
+    setState(() {
+      _selected.clear();
+      _resetFeedState();
+    });
+    _loadFeed(reset: true);
+  }
+
+  void _resetFeedState() {
+    _threads.clear();
+    _initialLoadDone = false;
+    _error = null;
+  }
+
+  void _dropSubtree(int id) {
+    for (final child in _children[id] ?? const <DomainCategory>[]) {
+      _selected.remove(child.id);
+      _dropSubtree(child.id);
+    }
   }
 
   void _onScroll() {
@@ -124,17 +140,19 @@ class _DomainsScreenState extends State<DomainsScreen> {
   }
 
   Future<void> _loadFeed({required bool reset}) async {
-    if (_loading || (!reset && !_hasMore)) return;
+    if (!reset && (_loading || !_hasMore)) return;
+    // Rapid filter taps: the newest request wins, stale pages are dropped.
+    final request = ++_requestId;
     setState(() {
       _loading = true;
       if (reset) _error = null;
     });
     try {
       final page = await widget.domains.feed(
-        domainId: _selectedId,
+        domainIds: Set<int>.from(_selected),
         offset: reset ? 0 : _offset,
       );
-      if (!mounted) return;
+      if (!mounted || request != _requestId) return;
       setState(() {
         if (reset) {
           _threads
@@ -151,14 +169,14 @@ class _DomainsScreenState extends State<DomainsScreen> {
         _initialLoadDone = true;
       });
     } on ApiException catch (e) {
-      if (!mounted) return;
+      if (!mounted || request != _requestId) return;
       setState(() {
         _loading = false;
         _initialLoadDone = true;
         if (_threads.isEmpty) _error = e.message;
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || request != _requestId) return;
       setState(() {
         _loading = false;
         _initialLoadDone = true;
@@ -253,9 +271,11 @@ class _DomainsScreenState extends State<DomainsScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            _selectedId == null
+            _selected.isEmpty
                 ? 'Posts promoted to a domain will show up here.'
-                : 'Nothing has been promoted to this domain yet.',
+                : _selected.length == 1
+                    ? 'Nothing has been promoted to this domain yet.'
+                    : 'Nothing has been promoted to these domains yet.',
             textAlign: TextAlign.center,
             style:
                 TextStyle(fontSize: 12.5, color: context.enclavd.textSecondary),
@@ -313,8 +333,8 @@ class _DomainsScreenState extends State<DomainsScreen> {
     );
   }
 
-  /// Root categories only. Whatever is selected unfolds one row per level
-  /// below it, so a subdomain is never listed before its category is picked.
+  /// One flat chip row: root domains, with a selected domain's subdomains
+  /// unfolded inline right after it.
   Widget _buildChips() {
     if (!_chipsLoaded) {
       return const Padding(
@@ -331,72 +351,59 @@ class _DomainsScreenState extends State<DomainsScreen> {
         ),
       );
     }
-    final path = _pathOf(_selectedId);
-    final inPath = <int>{
-      for (final node in path)
-        if (node.id != _selectedId) node.id,
-    };
-    final rows = <Widget>[
-      _chipRow([
-        _DomainChip(
-          label: 'All',
-          icon: FontAwesomeIcons.tableCellsLarge,
-          iconColor: context.enclavd.link,
-          selected: _selectedId == null,
-          onTap: () => _select(null),
-        ),
-        for (final root in _roots) _chipFor(root, inPath: inPath),
-      ]),
+    final chips = <Widget>[
+      _DomainChip(
+        label: 'All',
+        icon: FontAwesomeIcons.tableCellsLarge,
+        iconColor: context.enclavd.link,
+        selected: _selected.isEmpty,
+        onTap: _clearFilters,
+      ),
     ];
-    for (final node in path) {
-      final children = _children[node.id];
-      if (children == null || children.isEmpty) continue;
-      rows.add(_chipRow([
-        _DomainChip(
-          label: 'Everything',
-          icon: domainIconFor(node.icon, codePoint: node.iconCode),
-          iconColor:
-              context.enclavd.accentGlyph(domainColorFromHex(node.color)),
-          selected: _selectedId == node.id,
-          onTap: () => _select(node.id),
-        ),
-        for (final child in children) _chipFor(child),
-      ]));
+    void addNode(DomainCategory node, {required bool sub}) {
+      final kids = _children[node.id] ?? const <DomainCategory>[];
+      chips.add(_DomainChip(
+        label: node.name,
+        icon: domainIconFor(node.icon, codePoint: node.iconCode),
+        iconColor: context.enclavd.accentGlyph(domainColorFromHex(node.color)),
+        selected: _selected.contains(node.id),
+        sub: sub,
+        expanded: kids.isEmpty ? null : _selected.contains(node.id),
+        onTap: () => _toggle(node.id),
+      ));
+      if (!_selected.contains(node.id)) return;
+      for (final kid in kids) {
+        addNode(kid, sub: true);
+      }
+    }
+
+    for (final root in _roots) {
+      addNode(root, sub: false);
     }
     return AnimatedSize(
       duration: const Duration(milliseconds: 160),
       curve: Curves.easeOutCubic,
-      alignment: Alignment.topCenter,
+      alignment: Alignment.topLeft,
       child: Padding(
-        padding: const EdgeInsets.only(bottom: 4),
-        child: Column(children: rows),
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+        child: Wrap(spacing: 8, runSpacing: 8, children: chips),
       ),
     );
   }
 
-  Widget _chipRow(List<Widget> chips) => Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-        child: Wrap(spacing: 8, runSpacing: 8, children: chips),
-      );
-
-  Widget _chipFor(DomainCategory cat, {Set<int> inPath = const {}}) =>
-      _DomainChip(
-        label: cat.name,
-        icon: domainIconFor(cat.icon, codePoint: cat.iconCode),
-        iconColor: context.enclavd.accentGlyph(domainColorFromHex(cat.color)),
-        selected: _selectedId == cat.id,
-        inPath: inPath.contains(cat.id),
-        onTap: () => _select(cat.id),
-      );
-
   Widget _buildFeedHeader() {
-    final selected = _selectedId == null ? null : _index[_selectedId];
+    final filters = _selected;
+    final title = filters.isEmpty
+        ? 'Latest Posts'
+        : filters.length == 1
+            ? 'Posts in ${_index[filters.first]?.name ?? ''}'
+            : 'Posts in ${filters.length} domains';
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 2),
       child: Row(
         children: [
           Text(
-            selected != null ? 'Posts in ${selected.name}' : 'Latest Posts',
+            title,
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
@@ -423,7 +430,8 @@ class _DomainChip extends StatelessWidget {
     required this.iconColor,
     required this.selected,
     required this.onTap,
-    this.inPath = false,
+    this.sub = false,
+    this.expanded,
   });
 
   final String label;
@@ -431,8 +439,11 @@ class _DomainChip extends StatelessWidget {
   final Color iconColor;
   final bool selected;
 
-  /// Ancestor of the current selection: tinted label, no fill.
-  final bool inPath;
+  /// Subdomain chip: smaller, and it sits inline after its domain.
+  final bool sub;
+
+  /// Set on a domain that has subdomains: null hides the chevron.
+  final bool? expanded;
   final VoidCallback onTap;
 
   @override
@@ -440,14 +451,15 @@ class _DomainChip extends StatelessWidget {
     final bg = selected
         ? context.enclavd.link.withValues(alpha: 0.14)
         : context.enclavd.cardSecondary;
-    final fg = selected || inPath
-        ? context.enclavd.link
-        : context.enclavd.textSecondary;
+    final fg = selected ? context.enclavd.link : context.enclavd.textSecondary;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+        padding: EdgeInsets.symmetric(
+          horizontal: sub ? 9 : 11,
+          vertical: sub ? 5 : 7,
+        ),
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(8),
@@ -455,18 +467,26 @@ class _DomainChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            FaIcon(icon, size: 11, color: selected ? fg : iconColor),
-            const SizedBox(width: 6),
+            FaIcon(icon, size: sub ? 10 : 11, color: selected ? fg : iconColor),
+            SizedBox(width: sub ? 5 : 6),
             Text(
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: sub ? 11.5 : 12,
                 fontWeight: FontWeight.w600,
                 color: fg,
               ),
             ),
+            if (expanded != null) ...[
+              const SizedBox(width: 4),
+              AnimatedRotation(
+                turns: expanded! ? 0.5 : 0,
+                duration: const Duration(milliseconds: 160),
+                child: FaIcon(FontAwesomeIcons.chevronDown, size: 8, color: fg),
+              ),
+            ],
           ],
         ),
       ),

@@ -1,7 +1,6 @@
 import 'api_client.dart';
 import 'feed_service.dart'; // Post.fromJson: threads share the feed shape
 
-
 class DomainCategory {
   const DomainCategory({
     required this.id,
@@ -38,8 +37,7 @@ class DomainCategory {
   bool get isRoot => parent == null;
   bool get hasChildren => children.isNotEmpty;
 
-  factory DomainCategory.fromJson(Map<String, dynamic> json) =>
-      DomainCategory(
+  factory DomainCategory.fromJson(Map<String, dynamic> json) => DomainCategory(
         id: (json['id'] as num?)?.toInt() ?? 0,
         name: json['name'] as String? ?? '',
         slug: json['slug'] as String? ?? '',
@@ -54,7 +52,6 @@ class DomainCategory {
         lastPostAuthor: json['last_post_author'] as String?,
         lastPostUserId: (json['last_post_user_id'] as num?)?.toInt(),
       );
-
 
   static List<DomainCategory> buildTree(List<DomainCategory> flat) {
     final indexed = <int, DomainCategory>{for (final c in flat) c.id: c};
@@ -100,7 +97,6 @@ class DomainCategory {
     );
   }
 }
-
 
 class DomainThread {
   const DomainThread({
@@ -179,7 +175,6 @@ class DomainThreadPage {
   }
 }
 
-
 class DomainFeedPage {
   const DomainFeedPage({
     required this.threads,
@@ -227,7 +222,6 @@ class DomainThreadDetail {
   }
 }
 
-
 class DomainsService {
   DomainsService(this._api);
 
@@ -244,15 +238,22 @@ class DomainsService {
     ];
   }
 
-
+  /// Latest-activity feed, optionally narrowed to a set of domains (a
+  /// domain brings its subdomains with it server-side). One id keeps the
+  /// older single-domain wire form; two or more send domain_ids.
   Future<DomainFeedPage> feed({
-    int? domainId,
+    Set<int> domainIds = const {},
     int limit = 20,
     int offset = 0,
   }) async {
+    final ids = [
+      for (final id in domainIds)
+        if (id > 0) id,
+    ];
     final json = await _api.getJson('/api/v1/domains', query: {
       'feed': '1',
-      if (domainId != null && domainId > 0) 'domain_id': '$domainId',
+      if (ids.length == 1) 'domain_id': '${ids.first}',
+      if (ids.length > 1) 'domain_ids': ids.join(','),
       'limit': '$limit',
       'offset': '$offset',
     });
@@ -273,10 +274,9 @@ class DomainsService {
     return DomainThreadPage.fromJson(json);
   }
 
-
   Future<DomainThreadDetail> thread(int postId) async {
-    final json = await _api.getJson('/api/v1/domains',
-        query: {'post_id': '$postId'});
+    final json =
+        await _api.getJson('/api/v1/domains', query: {'post_id': '$postId'});
     return DomainThreadDetail.fromJson(json);
   }
 }

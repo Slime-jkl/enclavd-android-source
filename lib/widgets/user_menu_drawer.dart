@@ -224,8 +224,10 @@ class _UserHeader extends StatelessWidget {
                 shape: BoxShape.circle,
                 color: context.enclavd.cardSecondary,
               ),
-              child: FaIcon(FontAwesomeIcons.user,
-                  size: 18, color: context.enclavd.textSecondary),
+              child: Center(
+                child: FaIcon(FontAwesomeIcons.user,
+                    size: 18, color: context.enclavd.textSecondary),
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(

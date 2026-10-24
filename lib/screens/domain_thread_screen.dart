@@ -193,28 +193,26 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
     await _loadReplies();
   }
 
-  /// Initial reply load: the newest (last) page, scrolled to its end so
-  /// the latest reply is in view on busy threads.
+  /// Initial reply load: the first page, so a thread always opens at the
+  /// top of the discussion.
   Future<void> _loadReplies() async {
-    // With a target to land on, the highlight's scroll is the only motion.
-    _jumpToRepliesEnd = widget.highlightReplyId == null;
-    await _fetchReplyPage(0);
+    await _fetchReplyPage(1);
     await _seekHighlight();
   }
 
-  /// The reply a notification pointed at can be pushed off the newest page
-  /// by later replies: step back until it loads, then scroll onto it.
+  /// The reply a notification pointed at can sit on a later page: step
+  /// forward until it loads, then scroll onto it.
   Future<void> _seekHighlight() async {
     final target = widget.highlightReplyId;
     if (target == null) return;
     var tries = 0;
     while (mounted &&
         tries < _highlightMaxPages &&
-        _replyPage > 1 &&
+        _replyPage < _replyPages &&
         !_replies.any((r) => r.id == target)) {
       tries++;
       final before = _replies.length;
-      await _fetchReplyPage(_replyPage - 1);
+      await _fetchReplyPage(_replyPage + 1);
       if (_replies.length == before) return; // a failed fetch: stop here
     }
     _scheduleHighlightScroll();
@@ -245,10 +243,6 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
         _replyBusy = false;
         _repliesLoading = false;
         _setCommentCount(result.total);
-        // A freshly loaded newest page shows its tail first.
-        if (result.page == result.pages && widget.highlightReplyId == null) {
-          _jumpToRepliesEnd = true;
-        }
       });
       _scheduleRepliesEndJump();
     } catch (_) {
@@ -382,8 +376,7 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
     if (saved == null || !mounted) return;
     setState(() {
       _replies = [
-        for (final r in _replies)
-          r.id == comment.id ? r.withContent(saved) : r,
+        for (final r in _replies) r.id == comment.id ? r.withContent(saved) : r,
       ];
     });
     _toast('Reply updated');
@@ -464,22 +457,6 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_title),
-        actions: [
-          if (_post != null)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Center(
-                child: Text(
-                  '#${_post!.id}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontFamily: 'monospace',
-                    color: context.enclavd.textSecondary,
-                  ),
-                ),
-              ),
-            ),
-        ],
       ),
       body: SafeArea(child: _buildBody()),
     );
@@ -616,8 +593,8 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
       ],
     );
   }
-
 }
+
 class _ForumPostCard extends StatefulWidget {
   const _ForumPostCard({
     super.key,
@@ -1277,8 +1254,7 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
         // The reply a notification landed on wears the tint + the accent
         // border; every other card keeps the plain border.
         color: widget.highlighted
-            ? Color.alphaBlend(
-                const Color(0x1A3B82F6), context.enclavd.card)
+            ? Color.alphaBlend(const Color(0x1A3B82F6), context.enclavd.card)
             : context.enclavd.card,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(

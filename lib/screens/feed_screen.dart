@@ -804,8 +804,10 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                       shape: BoxShape.circle,
                       color: context.enclavd.cardSecondary,
                     ),
-                    child: FaIcon(FontAwesomeIcons.user,
-                        size: 15, color: context.enclavd.textSecondary),
+                    child: Center(
+                      child: FaIcon(FontAwesomeIcons.user,
+                          size: 15, color: context.enclavd.textSecondary),
+                    ),
                   ),
           ),
         ),
