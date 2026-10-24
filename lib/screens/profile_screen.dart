@@ -13,6 +13,7 @@ import '../utils/post_list.dart';
 import '../widgets/activity_card.dart';
 import '../widgets/enclavd_avatar.dart';
 import '../widgets/error_view.dart';
+import '../widgets/invitation_info.dart';
 import '../widgets/personality_chip.dart';
 import '../widgets/post_card.dart';
 import '../widgets/rank_badge.dart';
@@ -403,6 +404,10 @@ class _ProfileScreenState extends State<ProfileScreen>
           isFollowing: result.following,
           isFollowingYou: profile.isFollowingYou,
           isOwn: profile.isOwn,
+          hasInviteInfo: profile.hasInviteInfo,
+          invitedById: profile.invitedById,
+          invitedByUsername: profile.invitedByUsername,
+          invitedMembers: profile.invitedMembers,
         );
         _followBusy = false;
       });
@@ -1078,6 +1083,15 @@ class _ProfileHeader extends StatelessWidget {
               if (profile.warnings.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 for (final w in profile.warnings) _WarningCard(warning: w),
+              ],
+              // Invitations (site: invited-by line + invited members links).
+              if (profile.hasInviteInfo) ...[
+                const SizedBox(height: 12),
+                InvitationInfo(
+                  invitedById: profile.invitedById,
+                  invitedByUsername: profile.invitedByUsername,
+                  members: profile.invitedMembers,
+                ),
               ],
               // View personality
               if (profile.personalityType != null) ...[

@@ -54,6 +54,22 @@ void main() {
                 'is_following': false,
                 'is_following_you': true,
                 'is_own': false,
+                'invited_by': 1,
+                'invited_by_username': 'Slimejkl',
+                'invited_members': [
+                  {
+                    'id': 21,
+                    'username': 'jags',
+                    'rank': 'Obsolete',
+                    'is_active': 'true',
+                  },
+                  {
+                    'id': 42,
+                    'username': 'testuser1',
+                    'rank': 'Member',
+                    'is_active': 'false',
+                  },
+                ],
               },
             }),
           );
@@ -91,6 +107,13 @@ void main() {
       expect(p.isFollowingYou, true);
       expect(p.isOwn, false);
       expect(p.isBlocked, false);
+      expect(p.hasInviteInfo, true);
+      expect(p.invitedById, 1);
+      expect(p.invitedByUsername, 'Slimejkl');
+      expect(p.invitedMembers, hasLength(2));
+      expect(p.invitedMembers.first.username, 'jags');
+      expect(p.invitedMembers.first.isBlocked, false);
+      expect(p.invitedMembers.last.isBlocked, true);
 
       await h.close();
     });
@@ -135,6 +158,8 @@ void main() {
       expect(p.isBlocked, true);
       expect(p.blockReason, 'Repeated harassment');
       expect(p.warnings, isEmpty);
+      // No invitation keys on the wire (older endpoint) -> block hidden.
+      expect(p.hasInviteInfo, false);
 
       await h.close();
     });
@@ -309,8 +334,7 @@ void main() {
   });
 
   group('ProfileService account editing', () {
-    test('fetchSelf GETs ?self=1 and parses the full account row',
-        () async {
+    test('fetchSelf GETs ?self=1 and parses the full account row', () async {
       String? query;
       final h = await Harness.start((req) async {
         if (req.uri.path == '/api/v1/profile') {
@@ -410,14 +434,14 @@ void main() {
         newPassword: 'newpass123',
         confirmPassword: 'newpass123',
       );
-      expect(rawBody,
+      expect(
+          rawBody,
           contains('"current_password":"old","new_password":"newpass123",'
               '"confirm_password":"newpass123"'));
       await h.close();
     });
 
-    test('uploadAvatar sends the data URL and returns the new path',
-        () async {
+    test('uploadAvatar sends the data URL and returns the new path', () async {
       String? rawBody;
       final h = await Harness.start((req) async {
         if (req.uri.path.startsWith('/feed')) {
@@ -490,8 +514,8 @@ void main() {
         }
       });
 
-      final page = await ProfileService(h.client).listFollows(
-          userId: 7, kind: FollowListKind.followers);
+      final page = await ProfileService(h.client)
+          .listFollows(userId: 7, kind: FollowListKind.followers);
       expect(query, 'user_id=7&list=followers&limit=20&offset=0');
       expect(page.users, hasLength(2));
       expect(page.total, 2);
@@ -531,10 +555,7 @@ void main() {
       });
 
       final page = await ProfileService(h.client).listFollows(
-          userId: 1,
-          kind: FollowListKind.following,
-          limit: 5,
-          offset: 5);
+          userId: 1, kind: FollowListKind.following, limit: 5, offset: 5);
       expect(query, 'user_id=1&list=following&limit=5&offset=5');
       expect(page.users, isEmpty);
       expect(page.total, 15);
