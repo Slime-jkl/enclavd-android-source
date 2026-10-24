@@ -7,14 +7,13 @@ import '../api/social_service.dart';
 import '../theme/enclavd_theme.dart';
 import '../utils/domain_icons.dart';
 import '../widgets/domain_thread_row.dart';
-import '../widgets/error_view.dart';
 import '../widgets/shimmer.dart';
 import 'domain_thread_screen.dart';
 
-/// The Domains tab home - mirrors the site's new board: squared domain
-/// filter buttons at the top and a latest-posts feed below (newest
-/// activity first). Selecting a chip filters the feed to that domain and
-/// its subcategories; "All" shows every domain's posts.
+/// The Domains tab home: the root categories as filter buttons with a
+/// latest-posts feed below (newest activity first). A category's domains
+/// stay collapsed until it is picked, then they appear in their own row;
+/// "All" shows every domain's posts.
 class DomainsScreen extends StatefulWidget {
   const DomainsScreen({
     super.key,
@@ -34,7 +33,9 @@ class DomainsScreen extends StatefulWidget {
 }
 
 class _DomainsScreenState extends State<DomainsScreen> {
-  List<DomainCategory> _categories = const [];
+  List<DomainCategory> _roots = const [];
+  Map<int, DomainCategory> _index = const {};
+  Map<int, List<DomainCategory>> _children = const {};
   bool _chipsLoaded = false;
 
   int? _selectedId;
@@ -64,9 +65,22 @@ class _DomainsScreenState extends State<DomainsScreen> {
   Future<void> _loadChips() async {
     try {
       final flat = await widget.domains.board();
+      final index = <int, DomainCategory>{for (final c in flat) c.id: c};
+      final children = <int, List<DomainCategory>>{};
+      final roots = <DomainCategory>[];
+      for (final c in flat) {
+        final parent = c.parent;
+        if (parent != null && index.containsKey(parent)) {
+          children.putIfAbsent(parent, () => []).add(c);
+        } else {
+          roots.add(c);
+        }
+      }
       if (!mounted) return;
       setState(() {
-        _categories = flat;
+        _index = index;
+        _children = children;
+        _roots = roots;
         _chipsLoaded = true;
       });
     } on ApiException {
@@ -77,6 +91,17 @@ class _DomainsScreenState extends State<DomainsScreen> {
       if (!mounted) return;
       setState(() => _chipsLoaded = true);
     }
+  }
+
+  /// Selected domain and its ancestors, root first.
+  List<DomainCategory> _pathOf(int? id) {
+    final chain = <DomainCategory>[];
+    var node = id == null ? null : _index[id];
+    while (node != null && chain.length < 8) {
+      chain.insert(0, node);
+      node = _index[node.parent];
+    }
+    return chain;
   }
 
   void _select(int? id) {
@@ -162,7 +187,7 @@ class _DomainsScreenState extends State<DomainsScreen> {
   }
 
   Widget _buildBody() {
-    if (!_initialLoadDone && _loading) {
+    if (!_chipsLoaded) {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(vertical: 8),
@@ -175,9 +200,11 @@ class _DomainsScreenState extends State<DomainsScreen> {
         ],
       );
     }
-    if (_error != null && _threads.isEmpty) {
-      return ErrorView(message: _error!, onRetry: () => _loadFeed(reset: true));
-    }
+    // Chips stay mounted while the feed reloads, so drilling down never
+    // blanks the row you just opened.
+    final showEmpty = _initialLoadDone && _threads.isEmpty && _error == null;
+    final showError = _initialLoadDone && _threads.isEmpty && _error != null;
+    final showSkeleton = _threads.isEmpty && !showEmpty && !showError;
     return RefreshIndicator(
       onRefresh: () => _loadFeed(reset: true),
       color: context.enclavd.link,
@@ -185,46 +212,18 @@ class _DomainsScreenState extends State<DomainsScreen> {
         controller: _scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount:
-            _threads.isEmpty ? 3 : 1 + 1 + _threads.length + (_loading ? 1 : 0),
+        itemCount: 2 +
+            (showEmpty || showError || showSkeleton
+                ? 1
+                : _threads.length + (_loading ? 1 : 0)),
         itemBuilder: (context, index) {
           if (index == 0) return _buildChips();
           if (index == 1) return _buildFeedHeader();
+          if (showError) return _buildFeedError();
+          if (showEmpty) return _buildEmpty();
+          if (showSkeleton) return _buildRowsSkeleton();
           final threadIndex = index - 2;
-          if (_threads.isEmpty) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 48),
-              child: Column(
-                children: [
-                  FaIcon(FontAwesomeIcons.comments,
-                      color: context.enclavd.textSecondary, size: 28),
-                  const SizedBox(height: 10),
-                  Text(
-                    'No posts yet',
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: context.enclavd.textPrimary),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _selectedId == null
-                        ? 'Posts promoted to a domain will show up here.'
-                        : 'Nothing has been promoted to this domain yet.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                        fontSize: 12.5, color: context.enclavd.textSecondary),
-                  ),
-                ],
-              ),
-            );
-          }
-          if (threadIndex >= _threads.length) {
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 12),
-              child: Center(child: ShimmerBox(width: 160, height: 22)),
-            );
-          }
+          if (threadIndex >= _threads.length) return _buildLoadingRow();
           final thread = _threads[threadIndex];
           return DomainThreadRow(
             key: ValueKey(thread.post.id),
@@ -237,6 +236,85 @@ class _DomainsScreenState extends State<DomainsScreen> {
     );
   }
 
+  Widget _buildEmpty() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 48),
+      child: Column(
+        children: [
+          FaIcon(FontAwesomeIcons.comments,
+              color: context.enclavd.textSecondary, size: 28),
+          const SizedBox(height: 10),
+          Text(
+            'No posts yet',
+            style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: context.enclavd.textPrimary),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _selectedId == null
+                ? 'Posts promoted to a domain will show up here.'
+                : 'Nothing has been promoted to this domain yet.',
+            textAlign: TextAlign.center,
+            style:
+                TextStyle(fontSize: 12.5, color: context.enclavd.textSecondary),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeedError() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
+      child: Column(
+        children: [
+          FaIcon(FontAwesomeIcons.cloudArrowDown,
+              size: 32, color: context.enclavd.textSecondary),
+          const SizedBox(height: 12),
+          Text(
+            _error!,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                fontSize: 13,
+                height: 1.4,
+                color: context.enclavd.textSecondary),
+          ),
+          const SizedBox(height: 6),
+          TextButton(
+            onPressed: () => _loadFeed(reset: true),
+            style: TextButton.styleFrom(
+              foregroundColor: context.enclavd.link,
+              textStyle:
+                  const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            child: const Text('Try again'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRowsSkeleton() {
+    return const Column(
+      children: [
+        DomainThreadRowSkeleton(),
+        DomainThreadRowSkeleton(),
+        DomainThreadRowSkeleton(),
+      ],
+    );
+  }
+
+  Widget _buildLoadingRow() {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 12),
+      child: Center(child: ShimmerBox(width: 160, height: 22)),
+    );
+  }
+
+  /// Root categories only. Whatever is selected unfolds one row per level
+  /// below it, so a subdomain is never listed before its category is picked.
   Widget _buildChips() {
     if (!_chipsLoaded) {
       return const Padding(
@@ -253,41 +331,66 @@ class _DomainsScreenState extends State<DomainsScreen> {
         ),
       );
     }
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          _DomainChip(
-            label: 'All',
-            icon: FontAwesomeIcons.tableCellsLarge,
-            iconColor: context.enclavd.link,
-            selected: _selectedId == null,
-            onTap: () => _select(null),
-          ),
-          for (final cat in _categories)
-            _DomainChip(
-              label: cat.name,
-              icon: domainIconFor(cat.icon, codePoint: cat.iconCode),
-              iconColor:
-                  context.enclavd.accentGlyph(domainColorFromHex(cat.color)),
-              selected: _selectedId == cat.id,
-              onTap: () => _select(cat.id),
-            ),
-        ],
+    final path = _pathOf(_selectedId);
+    final inPath = <int>{
+      for (final node in path)
+        if (node.id != _selectedId) node.id,
+    };
+    final rows = <Widget>[
+      _chipRow([
+        _DomainChip(
+          label: 'All',
+          icon: FontAwesomeIcons.tableCellsLarge,
+          iconColor: context.enclavd.link,
+          selected: _selectedId == null,
+          onTap: () => _select(null),
+        ),
+        for (final root in _roots) _chipFor(root, inPath: inPath),
+      ]),
+    ];
+    for (final node in path) {
+      final children = _children[node.id];
+      if (children == null || children.isEmpty) continue;
+      rows.add(_chipRow([
+        _DomainChip(
+          label: 'Everything',
+          icon: domainIconFor(node.icon, codePoint: node.iconCode),
+          iconColor:
+              context.enclavd.accentGlyph(domainColorFromHex(node.color)),
+          selected: _selectedId == node.id,
+          onTap: () => _select(node.id),
+        ),
+        for (final child in children) _chipFor(child),
+      ]));
+    }
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: Column(children: rows),
       ),
     );
   }
 
+  Widget _chipRow(List<Widget> chips) => Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+        child: Wrap(spacing: 8, runSpacing: 8, children: chips),
+      );
+
+  Widget _chipFor(DomainCategory cat, {Set<int> inPath = const {}}) =>
+      _DomainChip(
+        label: cat.name,
+        icon: domainIconFor(cat.icon, codePoint: cat.iconCode),
+        iconColor: context.enclavd.accentGlyph(domainColorFromHex(cat.color)),
+        selected: _selectedId == cat.id,
+        inPath: inPath.contains(cat.id),
+        onTap: () => _select(cat.id),
+      );
+
   Widget _buildFeedHeader() {
-    DomainCategory? selected;
-    for (final c in _categories) {
-      if (c.id == _selectedId) {
-        selected = c;
-        break;
-      }
-    }
+    final selected = _selectedId == null ? null : _index[_selectedId];
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 2),
       child: Row(
@@ -320,20 +423,26 @@ class _DomainChip extends StatelessWidget {
     required this.iconColor,
     required this.selected,
     required this.onTap,
+    this.inPath = false,
   });
 
   final String label;
   final FaIconData icon;
   final Color iconColor;
   final bool selected;
+
+  /// Ancestor of the current selection: tinted label, no fill.
+  final bool inPath;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final bg = selected
-        ? context.enclavd.link.withValues(alpha: 0.16)
+        ? context.enclavd.link.withValues(alpha: 0.14)
         : context.enclavd.cardSecondary;
-    final fg = selected ? context.enclavd.link : context.enclavd.textSecondary;
+    final fg = selected || inPath
+        ? context.enclavd.link
+        : context.enclavd.textSecondary;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
@@ -342,11 +451,6 @@ class _DomainChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: selected
-                ? context.enclavd.link.withValues(alpha: 0.5)
-                : context.enclavd.border,
-          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,

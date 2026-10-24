@@ -12,7 +12,8 @@ import 'package:enclavd/widgets/shimmer.dart';
 
 class _FakeDomains extends DomainsService {
   _FakeDomains({this.flat = const [], this.pages = const {}})
-      : super(ApiClient(store: _NoopStore(), apiBaseUrl: 'https://example.com'));
+      : super(
+            ApiClient(store: _NoopStore(), apiBaseUrl: 'https://example.com'));
 
   final List<DomainCategory> flat;
 
@@ -22,6 +23,7 @@ class _FakeDomains extends DomainsService {
   Completer<void>? gate;
   int? lastFeedDomainId;
   int feedCalls = 0;
+  bool failFeed = false;
 
   @override
   Future<List<DomainCategory>> board() async {
@@ -38,6 +40,7 @@ class _FakeDomains extends DomainsService {
   }) async {
     final g = gate;
     if (g != null) await g.future;
+    if (failFeed) throw const ApiException('Network unreachable');
     lastFeedDomainId = domainId;
     feedCalls++;
     return pages[domainId] ??
@@ -122,8 +125,7 @@ void main() {
         home: Scaffold(body: child),
       );
 
-  testWidgets('shows skeletons while the board and feed load',
-      (tester) async {
+  testWidgets('shows skeletons while the board and feed load', (tester) async {
     final gate = Completer<void>();
     final service = _FakeDomains(flat: [_cat(id: 1, name: 'General')])
       ..gate = gate;
@@ -241,6 +243,89 @@ void main() {
     await tester.pumpAndSettle();
     expect(opened, [218]);
     expect(find.text('THREAD SCREEN'), findsOneWidget);
+  });
+
+  testWidgets('subdomains stay collapsed until their category is picked',
+      (tester) async {
+    final service = _FakeDomains(
+      flat: [
+        _cat(id: 1, name: 'General', icon: 'fa-lightbulb'),
+        _cat(id: 3, name: 'Entertainment', icon: 'fa-fire'),
+        _cat(id: 5, name: 'Movies', parent: '3', icon: 'fa-film'),
+      ],
+      pages: {
+        null: DomainFeedPage(
+          threads: [_thread(218, domain: 'General')],
+          total: 1,
+          hasMore: false,
+        ),
+        3: DomainFeedPage(
+          threads: [_thread(300, domain: 'Entertainment')],
+          total: 1,
+          hasMore: false,
+        ),
+        5: DomainFeedPage(
+          threads: [_thread(310, domain: 'Movies', domainIcon: 'fa-film')],
+          total: 1,
+          hasMore: false,
+        ),
+      },
+    );
+
+    await tester.pumpWidget(wrap(DomainsScreen(domains: service)));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // Root categories only, no "Everything" row.
+    expect(find.text('General'), findsWidgets); // chip + row badge
+    expect(find.text('Entertainment'), findsOneWidget);
+    expect(find.text('Movies'), findsNothing);
+    expect(find.text('Everything'), findsNothing);
+
+    await tester.tap(find.text('Entertainment'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(service.lastFeedDomainId, 3);
+    expect(find.text('Everything'), findsOneWidget);
+    expect(find.text('Movies'), findsOneWidget);
+    expect(find.text('Posts in Entertainment'), findsOneWidget);
+
+    await tester.tap(find.text('Movies'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(service.lastFeedDomainId, 5);
+    expect(find.text('Posts in Movies'), findsOneWidget);
+
+    // Everything puts the filter back on the category itself.
+    await tester.tap(find.text('Everything'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(service.lastFeedDomainId, 3);
+
+    // And "All" folds the extra row away again.
+    await tester.tap(find.text('All'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(service.lastFeedDomainId, isNull);
+    expect(find.text('Everything'), findsNothing);
+    expect(find.text('Movies'), findsNothing);
+  });
+
+  testWidgets('a failed feed keeps the chips mounted and offers a retry',
+      (tester) async {
+    final service = _FakeDomains(flat: [_cat(id: 1, name: 'General')])
+      ..failFeed = true;
+
+    await tester.pumpWidget(wrap(DomainsScreen(domains: service)));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('General'), findsOneWidget);
+    expect(find.text('Network unreachable'), findsOneWidget);
+    expect(find.text('Try again'), findsOneWidget);
+    expect(find.text('No posts yet'), findsNothing);
   });
 
   testWidgets('empty feed shows the empty state', (tester) async {
