@@ -17,11 +17,12 @@ class _FakeDomains extends DomainsService {
 
   final List<DomainCategory> flat;
 
-  /// Feed pages keyed by the selected domain id (null = All).
-  final Map<int?, DomainFeedPage> pages;
+  /// Feed pages keyed by the filter ('all', or the sorted ids '1,3').
+  final Map<String, DomainFeedPage> pages;
 
   Completer<void>? gate;
-  int? lastFeedDomainId;
+  Set<int> lastFeedDomainIds = const {};
+  String lastFeedKey = 'all';
   int feedCalls = 0;
   bool failFeed = false;
 
@@ -34,17 +35,24 @@ class _FakeDomains extends DomainsService {
 
   @override
   Future<DomainFeedPage> feed({
-    int? domainId,
+    Set<int> domainIds = const {},
     int limit = 20,
     int offset = 0,
   }) async {
     final g = gate;
     if (g != null) await g.future;
     if (failFeed) throw const ApiException('Network unreachable');
-    lastFeedDomainId = domainId;
+    lastFeedDomainIds = Set<int>.from(domainIds);
+    lastFeedKey = _key(domainIds);
     feedCalls++;
-    return pages[domainId] ??
+    return pages[lastFeedKey] ??
         const DomainFeedPage(threads: [], total: 0, hasMore: false);
+  }
+
+  static String _key(Set<int> ids) {
+    if (ids.isEmpty) return 'all';
+    final sorted = ids.toList()..sort();
+    return sorted.join(',');
   }
 }
 
@@ -147,7 +155,7 @@ void main() {
         _cat(id: 3, name: 'Entertainment', icon: 'fa-fire'),
       ],
       pages: {
-        null: DomainFeedPage(
+        'all': DomainFeedPage(
           threads: [
             _thread(
               218,
@@ -184,12 +192,12 @@ void main() {
         _cat(id: 3, name: 'Entertainment'),
       ],
       pages: {
-        null: DomainFeedPage(
+        'all': DomainFeedPage(
           threads: [_thread(218)],
           total: 2,
           hasMore: false,
         ),
-        3: DomainFeedPage(
+        '3': DomainFeedPage(
           threads: [
             _thread(
               188,
@@ -211,7 +219,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(service.lastFeedDomainId, 3);
+    expect(service.lastFeedDomainIds, {3});
     expect(find.text('Posts in Entertainment'), findsOneWidget);
     expect(find.text('Title line'), findsOneWidget); // filtered row
   });
@@ -221,7 +229,7 @@ void main() {
     final service = _FakeDomains(
       flat: [_cat(id: 1, name: 'General')],
       pages: {
-        null: DomainFeedPage(
+        'all': DomainFeedPage(
           threads: [_thread(218, lastReplyUser: 'Developer')],
           total: 1,
           hasMore: false,
@@ -245,8 +253,13 @@ void main() {
     expect(find.text('THREAD SCREEN'), findsOneWidget);
   });
 
-  testWidgets('subdomains stay collapsed until their category is picked',
+  testWidgets('subdomains stay collapsed until their domain is picked',
       (tester) async {
+    // Wide surface: a domain and its subdomains must share one row.
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+
     final service = _FakeDomains(
       flat: [
         _cat(id: 1, name: 'General', icon: 'fa-lightbulb'),
@@ -254,18 +267,18 @@ void main() {
         _cat(id: 5, name: 'Movies', parent: '3', icon: 'fa-film'),
       ],
       pages: {
-        null: DomainFeedPage(
+        'all': DomainFeedPage(
           threads: [_thread(218, domain: 'General')],
           total: 1,
           hasMore: false,
         ),
-        3: DomainFeedPage(
-          threads: [_thread(300, domain: 'Entertainment')],
+        '3': DomainFeedPage(
+          threads: [_thread(300, domain: 'Music')],
           total: 1,
           hasMore: false,
         ),
-        5: DomainFeedPage(
-          threads: [_thread(310, domain: 'Movies', domainIcon: 'fa-film')],
+        '3,5': DomainFeedPage(
+          threads: [_thread(310, domain: 'Cinema')],
           total: 1,
           hasMore: false,
         ),
@@ -275,43 +288,80 @@ void main() {
     await tester.pumpWidget(wrap(DomainsScreen(domains: service)));
     await tester.pump(const Duration(milliseconds: 50));
 
-    // Root categories only, no "Everything" row.
-    expect(find.text('General'), findsWidgets); // chip + row badge
+    // Collapsed: only the root domains are on the row.
     expect(find.text('Entertainment'), findsOneWidget);
     expect(find.text('Movies'), findsNothing);
-    expect(find.text('Everything'), findsNothing);
 
     await tester.tap(find.text('Entertainment'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(service.lastFeedDomainId, 3);
-    expect(find.text('Everything'), findsOneWidget);
+    expect(service.lastFeedDomainIds, {3});
     expect(find.text('Movies'), findsOneWidget);
+    final parentTop = tester.getTopLeft(find.text('Entertainment')).dy;
+    final subTop = tester.getTopLeft(find.text('Movies')).dy;
+    expect((subTop - parentTop).abs() <= 8, isTrue,
+        reason: 'the subdomain unfolds inline, not on a row underneath');
     expect(find.text('Posts in Entertainment'), findsOneWidget);
 
+    // Picking a subdomain ADDS a filter; the domain keeps its subtree.
     await tester.tap(find.text('Movies'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(service.lastFeedDomainId, 5);
-    expect(find.text('Posts in Movies'), findsOneWidget);
+    expect(service.lastFeedDomainIds, {3, 5});
+    expect(find.text('Posts in 2 domains'), findsOneWidget);
 
-    // Everything puts the filter back on the category itself.
-    await tester.tap(find.text('Everything'));
+    // Collapsing the domain drops the subdomain filter with it.
+    await tester.tap(find.text('Entertainment'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(service.lastFeedDomainId, 3);
+    expect(service.lastFeedDomainIds, isEmpty);
+    expect(find.text('Movies'), findsNothing);
+  });
 
-    // And "All" folds the extra row away again.
+  testWidgets('two domains filter the feed together', (tester) async {
+    final service = _FakeDomains(
+      flat: [
+        _cat(id: 1, name: 'General'),
+        _cat(id: 3, name: 'Entertainment'),
+      ],
+      pages: {
+        'all': DomainFeedPage(
+          threads: [_thread(218, domain: 'Random')],
+          total: 9,
+          hasMore: false,
+        ),
+        '1,3': DomainFeedPage(
+          threads: [_thread(400, domain: 'Crossover')],
+          total: 7,
+          hasMore: false,
+        ),
+      },
+    );
+
+    await tester.pumpWidget(wrap(DomainsScreen(domains: service)));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await tester.tap(find.text('General'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.tap(find.text('Entertainment'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(service.lastFeedDomainIds, {1, 3});
+    expect(service.lastFeedKey, '1,3');
+    expect(find.text('Posts in 2 domains'), findsOneWidget);
+    expect(find.text('7 total'), findsOneWidget);
+
+    // "All" clears every filter.
     await tester.tap(find.text('All'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
-
-    expect(service.lastFeedDomainId, isNull);
-    expect(find.text('Everything'), findsNothing);
-    expect(find.text('Movies'), findsNothing);
+    expect(service.lastFeedDomainIds, isEmpty);
+    expect(find.text('Latest Posts'), findsOneWidget);
   });
 
   testWidgets('a failed feed keeps the chips mounted and offers a retry',

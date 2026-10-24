@@ -32,7 +32,8 @@ class _NoopStore implements SessionStore {
 
 class _FakeDomains extends DomainsService {
   _FakeDomains(this._detail)
-      : super(ApiClient(store: _NoopStore(), apiBaseUrl: 'https://example.com'));
+      : super(
+            ApiClient(store: _NoopStore(), apiBaseUrl: 'https://example.com'));
 
   final DomainThreadDetail _detail;
 
@@ -42,7 +43,8 @@ class _FakeDomains extends DomainsService {
 
 class _FakeSocial extends SocialService {
   _FakeSocial({this.replies = const []})
-      : super(ApiClient(store: _NoopStore(), apiBaseUrl: 'https://example.com'));
+      : super(
+            ApiClient(store: _NoopStore(), apiBaseUrl: 'https://example.com'));
 
   final List<Comment> replies;
 
@@ -125,7 +127,8 @@ class _FakeSocial extends SocialService {
 
 class _FakePosts extends PostsService {
   _FakePosts()
-      : super(ApiClient(store: _NoopStore(), apiBaseUrl: 'https://example.com'));
+      : super(
+            ApiClient(store: _NoopStore(), apiBaseUrl: 'https://example.com'));
 }
 
 const _opCreatedAt = '2026-08-12 10:32:59';
@@ -159,8 +162,12 @@ DomainThreadDetail _detail() => DomainThreadDetail.fromJson({
     });
 
 Comment _reply(int id, String text,
-        {bool own = false, String rank = 'Member', int? parent,
-        bool warnings = false, String? parentName, String? parentExcerpt}) =>
+        {bool own = false,
+        String rank = 'Member',
+        int? parent,
+        bool warnings = false,
+        String? parentName,
+        String? parentExcerpt}) =>
     Comment(
       id: id,
       postId: 218,
@@ -185,13 +192,11 @@ Finder _highlightedCard() => find.byWidgetPredicate((w) =>
     w is Container &&
     w.decoration is BoxDecoration &&
     (w.decoration! as BoxDecoration).color ==
-        Color.alphaBlend(
-            const Color(0x1A3B82F6), EnclavdPalette.dark.card));
+        Color.alphaBlend(const Color(0x1A3B82F6), EnclavdPalette.dark.card));
 
 /// Long press a reply and pick [label] from the action menu. Returns once the
 /// menu (and whatever it opened) has settled.
-Future<void> pickAction(
-    WidgetTester tester, Finder reply, String label) async {
+Future<void> pickAction(WidgetTester tester, Finder reply, String label) async {
   await tester.longPress(reply);
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 250));
@@ -238,8 +243,8 @@ void main() {
     await tester.tap(find.byKey(const Key('replyToggle')));
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.byType(TextField), findsOneWidget);
-    // The thread opens on the newest page (0 = last); 2 rows fit one.
-    expect(social.pageRequests, [0]);
+    // The thread opens on the first page (1 = oldest reply).
+    expect(social.pageRequests, [1]);
     // Single-page threads skip the pager bars.
     expect(find.textContaining('Page '), findsNothing);
   });
@@ -308,8 +313,7 @@ void main() {
     expect(find.text('The OP of the thread'), findsOneWidget);
   });
 
-  testWidgets('sending a reply appends it and bumps the count',
-      (tester) async {
+  testWidgets('sending a reply appends it and bumps the count', (tester) async {
     final social = _FakeSocial();
     await tester.pumpWidget(wrap(DomainThreadScreen(
       domains: _FakeDomains(_detail()),
@@ -343,7 +347,8 @@ void main() {
     expect(find.textContaining('No replies yet'), findsOneWidget);
   });
 
-  testWidgets('deleting an own reply asks first, then removes it', (tester) async {
+  testWidgets('deleting an own reply asks first, then removes it',
+      (tester) async {
     final social = _FakeSocial(replies: [
       _reply(1, 'First reply'),
       _reply(2, 'My own reply', own: true),
@@ -472,7 +477,8 @@ void main() {
 
   testWidgets('a reply whose target sits on another page keeps its quote',
       (tester) async {
-    // 21 replies -> the thread opens on page 2 (just row 21). Row 21 answers
+    // 21 replies: the thread opens on page 1, and the notification-style
+    // target on row 21 walks the screen forward to page 2. Row 21 answers
     // row 1, which is on page 1: the row still renders (flat list) with the
     // quote the server resolved for it.
     final social = _FakeSocial(replies: [
@@ -485,6 +491,7 @@ void main() {
       postId: 218,
       social: social,
       posts: _FakePosts(),
+      highlightReplyId: 21,
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
@@ -554,14 +561,15 @@ void main() {
     expect(find.text(long2), findsOneWidget);
   });
 
-  testWidgets('the reply a notification landed on is paged back to and tinted',
+  testWidgets(
+      'the reply a notification landed on is paged forward to and tinted',
       (tester) async {
     tester.view.physicalSize = const Size(800, 3800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
     // 45 replies -> 3 pages (20/20/5). The target sits on page 2 (#31), one
-    // page back from the newest, so the thread has to walk back to it.
+    // page forward from where the thread opens, so it has to page to it.
     final social = _FakeSocial(replies: [
       for (var n = 1; n <= 45; n++) _reply(n, 'Reply $n'),
     ]);
@@ -574,17 +582,17 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(social.pageRequests, [0, 2],
-        reason: 'the newest page first, then one page back');
+    expect(social.pageRequests, [1, 2],
+        reason: 'the first page first, then one page forward');
     expect(find.text('Reply 31'), findsOneWidget);
     expect(find.text('Page 2 of 3'), findsNWidgets(2));
     expect(_highlightedCard(), findsOneWidget,
         reason: 'the landed-on reply wears the tint');
   });
 
-  testWidgets('a target already on the newest page needs no extra fetch',
+  testWidgets('a target already on the first page needs no extra fetch',
       (tester) async {
-    // Tall viewport so the newest page's rows are all built and findable.
+    // Tall viewport so the page's rows are all built and findable.
     tester.view.physicalSize = const Size(800, 3800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -597,15 +605,15 @@ void main() {
       postId: 218,
       social: social,
       posts: _FakePosts(),
-      highlightReplyId: 44,
+      highlightReplyId: 5,
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(social.pageRequests, [0]);
+    expect(social.pageRequests, [1]);
     expect(_highlightedCard(), findsOneWidget);
   });
 
-  testWidgets('opens on the newest page and pages back through replies',
+  testWidgets('opens on the first page and pages forward through replies',
       (tester) async {
     // Tall viewport: a full 20-card page must render without lazy
     // disposal, so every row and both pager bars stay findable.
@@ -614,7 +622,7 @@ void main() {
     addTearDown(tester.view.reset);
 
     // 45 replies -> 3 pages (20/20/5); the thread must open showing the
-    // LAST page (newest replies).
+    // FIRST page (oldest replies) so the discussion reads from the top.
     final social = _FakeSocial(replies: [
       for (var n = 1; n <= 45; n++) _reply(n, 'Reply $n'),
     ]);
@@ -626,44 +634,43 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    // Newest page 3: rows #41..#45; pager bars top and bottom.
-    expect(social.pageRequests, [0], reason: 'open must fetch the last page');
-    expect(find.text('Reply 41'), findsOneWidget);
-    expect(find.text('Reply 45'), findsOneWidget);
-    expect(find.text('Reply 1'), findsNothing);
-    expect(find.text('#41'), findsOneWidget);
-    expect(find.text('#45'), findsOneWidget);
-    expect(find.text('Page 3 of 3'), findsNWidgets(2));
+    // Page 1: rows #1..#20; pager bars top and bottom.
+    expect(social.pageRequests, [1], reason: 'open must fetch the first page');
+    expect(find.text('Reply 1'), findsOneWidget);
+    expect(find.text('Reply 20'), findsOneWidget);
+    expect(find.text('Reply 21'), findsNothing);
+    expect(find.text('#1'), findsOneWidget);
+    expect(find.text('#20'), findsOneWidget);
+    expect(find.text('Page 1 of 3'), findsNWidgets(2));
 
-    // Prev walks to page 2 (#21..), then page 1 (#1..#20).
-    await tester.tap(find.byTooltip('Older replies').first);
+    // Next walks to page 2 (#21..), then page 3 (#41..#45).
+    await tester.tap(find.byTooltip('Newer replies').first);
     await tester.pump(const Duration(milliseconds: 50));
-    expect(social.pageRequests, [0, 2]);
+    expect(social.pageRequests, [1, 2]);
     expect(find.text('Page 2 of 3'), findsNWidgets(2));
     expect(find.text('Reply 21'), findsOneWidget);
     expect(find.text('Reply 40'), findsOneWidget);
-    expect(find.text('Reply 45'), findsNothing);
+    expect(find.text('Reply 1'), findsNothing);
 
+    await tester.tap(find.byTooltip('Newer replies').first);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.text('Page 3 of 3'), findsNWidgets(2));
+    expect(find.text('Reply 45'), findsOneWidget);
+    expect(find.text('Reply 1'), findsNothing);
+
+    // Next is disabled on the last page: tapping does not refetch.
+    final before = social.pageRequests.length;
+    await tester.tap(find.byTooltip('Newer replies').first);
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(social.pageRequests.length, before);
+
+    // Older walks back toward the top.
+    await tester.tap(find.byTooltip('Older replies').first);
+    await tester.pump(const Duration(milliseconds: 50));
     await tester.tap(find.byTooltip('Older replies').first);
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('Page 1 of 3'), findsNWidgets(2));
     expect(find.text('Reply 1'), findsOneWidget);
-    expect(find.text('#1'), findsOneWidget);
-    expect(find.text('Reply 45'), findsNothing);
-
-    // Prev is disabled on page 1: tapping does not refetch.
-    final before = social.pageRequests.length;
-    await tester.tap(find.byTooltip('Older replies').first);
-    await tester.pump(const Duration(milliseconds: 50));
-    expect(social.pageRequests.length, before);
-
-    // Next walks forward again to the newest page.
-    await tester.tap(find.byTooltip('Newer replies').first);
-    await tester.pump(const Duration(milliseconds: 50));
-    await tester.tap(find.byTooltip('Newer replies').first);
-    await tester.pump(const Duration(milliseconds: 50));
-    expect(find.text('Page 3 of 3'), findsNWidgets(2));
-    expect(find.text('Reply 45'), findsOneWidget);
   });
 
   testWidgets('OP is a forum card: rank badge, large avatar, no PostCard',
@@ -683,14 +690,18 @@ void main() {
     expect(find.text('Member'), findsOneWidget);
     // Rank badge sits ABOVE the username on both the OP and every
     // reply card (the two-line identity block they share).
-    expect(tester.getTopLeft(find.text('SysOp')).dy <
+    expect(
+        tester.getTopLeft(find.text('SysOp')).dy <
             tester.getTopLeft(find.text('Developer')).dy,
-        isTrue, reason: 'OP rank badge above its username');
-    expect(tester.getTopLeft(find.text('Member')).dy <
+        isTrue,
+        reason: 'OP rank badge above its username');
+    expect(
+        tester.getTopLeft(find.text('Member')).dy <
             tester.getTopLeft(find.text('Someone')).dy,
-        isTrue, reason: 'reply rank badge above its username');
-    EnclavdAvatar avatarOf(String urlPart) => tester.widget<EnclavdAvatar>(
-        find.byWidgetPredicate(
+        isTrue,
+        reason: 'reply rank badge above its username');
+    EnclavdAvatar avatarOf(String urlPart) =>
+        tester.widget<EnclavdAvatar>(find.byWidgetPredicate(
             (w) => w is EnclavdAvatar && w.url.contains(urlPart)));
     expect(avatarOf('dev.png').size, 54, reason: 'OP avatar is forum-large');
     expect(avatarOf('x.png').size, 48, reason: 'reply avatar is forum-large');
@@ -728,15 +739,18 @@ void main() {
     final opName = tester.getTopLeft(find.text('Developer'));
     expect(opWarn.dy >= opName.dy - 1 && opWarn.dy <= opName.dy + 10, isTrue,
         reason: 'OP warnings sit on the username line');
-    expect(opWarn.dx >= tester.getTopRight(find.text('Developer')).dx - 1,
-        isTrue, reason: 'OP warnings start right of the username');
+    expect(
+        opWarn.dx >= tester.getTopRight(find.text('Developer')).dx - 1, isTrue,
+        reason: 'OP warnings start right of the username');
     final replyWarn = tester.getTopLeft(icons.at(1));
     final replyName = tester.getTopLeft(find.text('Someone'));
-    expect(replyWarn.dy >= replyName.dy - 1 &&
-            replyWarn.dy <= replyName.dy + 10,
-        isTrue, reason: 'reply warnings sit on the username line');
-    expect(replyWarn.dx >= tester.getTopRight(find.text('Someone')).dx - 1,
-        isTrue, reason: 'reply warnings start right of the username');
+    expect(
+        replyWarn.dy >= replyName.dy - 1 && replyWarn.dy <= replyName.dy + 10,
+        isTrue,
+        reason: 'reply warnings sit on the username line');
+    expect(
+        replyWarn.dx >= tester.getTopRight(find.text('Someone')).dx - 1, isTrue,
+        reason: 'reply warnings start right of the username');
   });
 
   testWidgets('reply body starts under the avatar; time rides the rank line',
@@ -920,10 +934,13 @@ void main() {
     expect(find.byType(RailDrop), findsNothing);
     final left = tester.getTopLeft(find.text('Root reply')).dx;
     expect((tester.getTopLeft(find.text('Child reply')).dx - left).abs() < 1.0,
-        isTrue, reason: 'flat replies share the card left edge');
+        isTrue,
+        reason: 'flat replies share the card left edge');
     expect(
-        (tester.getTopLeft(find.text('Grandchild reply')).dx - left).abs() < 1.0,
-        isTrue, reason: 'a reply to a reply is not indented either');
+        (tester.getTopLeft(find.text('Grandchild reply')).dx - left).abs() <
+            1.0,
+        isTrue,
+        reason: 'a reply to a reply is not indented either');
     expect(find.text('Replying to @Someone'), findsNothing);
     // Quoting still works from any row (its parent id rides along).
     await tester.ensureVisible(find.text('Grandchild reply'));
@@ -932,8 +949,7 @@ void main() {
     expect(find.text('Replying to @Someone'), findsOneWidget); // banner
   });
 
-  testWidgets('quoting a reply arms its parent id on send',
-      (tester) async {
+  testWidgets('quoting a reply arms its parent id on send', (tester) async {
     final social = _FakeSocial(replies: [
       _reply(1, 'Root reply'),
       _reply(2, 'Child reply', parent: 1),
@@ -1049,7 +1065,8 @@ class _FailingDomains extends DomainsService {
 
 class _GatedDomains extends DomainsService {
   _GatedDomains(this._detail)
-      : super(ApiClient(store: _NoopStore(), apiBaseUrl: 'https://example.com'));
+      : super(
+            ApiClient(store: _NoopStore(), apiBaseUrl: 'https://example.com'));
 
   final DomainThreadDetail _detail;
   Completer<void>? gate;
@@ -1061,6 +1078,7 @@ class _GatedDomains extends DomainsService {
     return _detail;
   }
 }
+
 /// FaIcon stores FaIconData as plain IconData; finders must compare code points (11.x quirk).
 Finder findFa(FaIconData icon) => find.byWidgetPredicate((w) =>
     w is FaIcon && w.icon != null && w.icon!.codePoint == icon.codePoint);

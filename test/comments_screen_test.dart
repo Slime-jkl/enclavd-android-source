@@ -25,7 +25,8 @@ class _NoopStore implements SessionStore {
 
 class _FakeSocial extends SocialService {
   _FakeSocial({this.comments = const []})
-      : super(ApiClient(store: _NoopStore(), apiBaseUrl: 'https://example.com'));
+      : super(
+            ApiClient(store: _NoopStore(), apiBaseUrl: 'https://example.com'));
 
   final List<Comment> comments;
   final List<String> sent = [];
@@ -33,7 +34,9 @@ class _FakeSocial extends SocialService {
 
   @override
   Future<CommentPage> listComments(int postId,
-      {bool asc = false, int limit = SocialService.pageSize, int offset = 0}) async {
+      {bool asc = false,
+      int limit = SocialService.pageSize,
+      int offset = 0}) async {
     return CommentPage(
       comments: offset == 0 ? comments : const [],
       total: comments.length,
@@ -219,10 +222,50 @@ void main() {
     expect(_highlightTint(), findsNothing);
   });
 
-  testWidgets('long post stays out of the way of the thread and composer',
+  testWidgets('the post heads the thread, above the comments', (tester) async {
+    final social = _FakeSocial(comments: [_comment(1, 'Root comment')]);
+    final post = _post();
+    await tester.pumpWidget(wrap(CommentsScreen(
+      postId: post.id,
+      initialCount: post.commentCount,
+      social: social,
+      apiBaseUrl: 'https://example.com',
+      post: post,
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // Author + body of the post, then the thread under it.
+    expect(find.byType(PostAuthorRow), findsOneWidget);
+    expect(find.byType(PostContent), findsOneWidget);
+    expect(find.text('The post content'), findsOneWidget);
+    expect(find.text('Root comment'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.text('The post content')).dy <
+          tester.getTopLeft(find.text('Root comment')).dy,
+      isTrue,
+      reason: 'the post sits above the comments',
+    );
+  });
+
+  testWidgets('the post header carries its carousel', (tester) async {
+    final social = _FakeSocial(comments: [_comment(1, 'Root comment')]);
+    final post = Post.fromJson(_postJson()
+      ..['image'] = '/public/gallery/a.jpg'
+      ..['images'] = ['/public/gallery/a.jpg', '/public/gallery/b.jpg']);
+    await tester.pumpWidget(wrap(CommentsScreen(
+      postId: post.id,
+      initialCount: post.commentCount,
+      social: social,
+      apiBaseUrl: 'https://example.com',
+      post: post,
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.byType(PostCarousel), findsOneWidget);
+  });
+
+  testWidgets('a long post collapses but never hides the composer',
       (tester) async {
-    // Regression: the post preview used to sit above the thread and, with a
-    // long post, squeezed it until the keyboard pushed the composer off-screen.
     final social = _FakeSocial(comments: [_comment(1, 'Root comment')]);
     final post = Post.fromJson(_postJson()..['content'] = 'word ' * 200);
     await tester.pumpWidget(wrap(CommentsScreen(
@@ -230,13 +273,14 @@ void main() {
       initialCount: post.commentCount,
       social: social,
       apiBaseUrl: 'https://example.com',
+      post: post,
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(find.text('Root comment'), findsOneWidget);
     expect(find.byType(TextField), findsOneWidget); // composer still there
-    expect(find.textContaining('word word'), findsNothing); // no post body
-    expect(find.text('Show more'), findsNothing); // no clamp toggle either
+    // 4-line clamp with the toggle, so a long body cannot bury the thread.
+    expect(find.text('Show more'), findsOneWidget);
   });
 
   testWidgets('deleting an own comment asks first, then drops the subtree',
@@ -327,16 +371,13 @@ void main() {
         reason: 'multi-line reply must make the row tall');
 
     // The child avatar is the second x.png one (root first, child after).
-    final childAvatar = find.byWidgetPredicate((w) =>
-        w is EnclavdAvatar &&
-        w.url.contains('x.png') &&
-        w.size == 28);
+    final childAvatar = find.byWidgetPredicate(
+        (w) => w is EnclavdAvatar && w.url.contains('x.png') && w.size == 28);
     final avatarBox = tester.renderObject<RenderBox>(childAvatar.last);
     final rowTop = elbowBox.localToGlobal(Offset.zero).dy;
     final avatarTop = avatarBox.localToGlobal(Offset.zero).dy;
-    final avatarCenter = avatarBox
-        .localToGlobal(Offset(0, avatarBox.size.height / 2))
-        .dy;
+    final avatarCenter =
+        avatarBox.localToGlobal(Offset(0, avatarBox.size.height / 2)).dy;
 
     expect(avatarBox.size.height, 28);
     expect(avatarTop - rowTop, closeTo(6, 1), reason: 'avatar top pad');
@@ -356,9 +397,7 @@ void main() {
         reason: 'bridge starts a gap below the avatar bottom (34 + 4)');
     final rootAvatarBox = tester.renderObject<RenderBox>(childAvatar.first);
     final rootTop = rootAvatarBox.localToGlobal(Offset.zero).dy;
-    final railStart = railBox
-        .localToGlobal(Offset(0, rail.startY))
-        .dy;
+    final railStart = railBox.localToGlobal(Offset(0, rail.startY)).dy;
     expect(railStart, greaterThan(rootTop + 28),
         reason: 'bridge must clear the avatar, not touch its rim');
     expect(railStart, closeTo(rootTop + 32, 1),
@@ -366,17 +405,17 @@ void main() {
     final railX = railBox.localToGlobal(Offset(rail.railX, 0)).dx;
     expect(
         railX,
-        closeTo(rootAvatarBox
-            .localToGlobal(Offset(rootAvatarBox.size.width / 2, 0))
-            .dx, 0.5),
+        closeTo(
+            rootAvatarBox
+                .localToGlobal(Offset(rootAvatarBox.size.width / 2, 0))
+                .dx,
+            0.5),
         reason: 'stem passes through the avatar middle, not beside it');
-    final elbowX = elbowBox
-        .localToGlobal(Offset(elbowBox.size.width / 2, 0))
-        .dx;
+    final elbowX =
+        elbowBox.localToGlobal(Offset(elbowBox.size.width / 2, 0)).dx;
     expect(elbowX, closeTo(railX, 0.5),
         reason: 'child rail continues the bridge at the same x');
-    expect(
-        railBox.localToGlobal(Offset(0, railBox.size.height)).dy,
+    expect(railBox.localToGlobal(Offset(0, railBox.size.height)).dy,
         closeTo(rowTop, 0.5),
         reason: 'bridge bottom must be flush with the first elbow');
   });

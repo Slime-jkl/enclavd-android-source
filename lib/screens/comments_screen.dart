@@ -2,17 +2,22 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
 
 import '../api/api_client.dart'; // friendlyErrorText
+import '../api/feed_service.dart'; // Post
 import '../api/social_service.dart';
+import '../main.dart';
 import '../theme/enclavd_theme.dart';
 import '../utils/content_spans.dart';
 import '../utils/submit_lock.dart';
 import '../widgets/comment_editor_sheet.dart';
 import '../widgets/comment_section.dart';
+import '../widgets/post_card.dart'
+    show PostAuthorRow, PostContent, PostCarousel;
+import '../widgets/shimmer.dart';
 
-/// Full-screen comments for a post (smooth zoom-in transition) with the
-/// composer pinned at the bottom. No post preview: a tall post squeezed
-/// the thread and pushed the composer under the keyboard. Pops with the
-/// latest comment count so the feed card stays in sync.
+/// Full-screen comments for a post with the composer pinned at the bottom.
+/// The post itself heads the list (author, body, image/carousel) so the
+/// thread reads in context; it scrolls away, it is not pinned. Pops with
+/// the latest comment count so the feed card stays in sync.
 class CommentsScreen extends StatefulWidget {
   const CommentsScreen({
     super.key,
@@ -21,6 +26,7 @@ class CommentsScreen extends StatefulWidget {
     required this.social,
     required this.apiBaseUrl,
     this.highlightCommentId,
+    this.post,
   });
 
   final int postId;
@@ -36,6 +42,10 @@ class CommentsScreen extends StatefulWidget {
   /// it is loaded, then scrolls to it and tints it.
   final int? highlightCommentId;
 
+  /// The post the comments belong to. A feed card already holds it; the
+  /// notification path passes null and the screen fetches it.
+  final Post? post;
+
   /// Zoom-in route: the page scales + fades in from the card, and
   /// reverses (zoom-out) when the back button closes it.
   static Route<int> route({
@@ -44,6 +54,7 @@ class CommentsScreen extends StatefulWidget {
     required SocialService social,
     required String apiBaseUrl,
     int? highlightCommentId,
+    Post? post,
   }) {
     return PageRouteBuilder<int>(
       transitionDuration: const Duration(milliseconds: 340),
@@ -54,6 +65,7 @@ class CommentsScreen extends StatefulWidget {
         social: social,
         apiBaseUrl: apiBaseUrl,
         highlightCommentId: highlightCommentId,
+        post: post,
       ),
       transitionsBuilder: (_, animation, __, child) {
         final curved = CurvedAnimation(
@@ -98,6 +110,11 @@ class _CommentsScreenState extends State<CommentsScreen> {
 
   int _commentCount = 0;
 
+  /// Header post: handed in by the feed card, fetched on the notification
+  /// path where only the id is known.
+  Post? _post;
+  bool _postLoading = false;
+
   /// How many extra pages the highlight seek may pull before giving up: a
   /// stale target (deleted comment) must not page through the whole thread.
   static const int _highlightMaxPages = 6;
@@ -106,7 +123,26 @@ class _CommentsScreenState extends State<CommentsScreen> {
   void initState() {
     super.initState();
     _commentCount = widget.initialCount;
+    _post = widget.post;
     _loadComments();
+    if (_post == null) _loadPost();
+  }
+
+  Future<void> _loadPost() async {
+    setState(() => _postLoading = true);
+    try {
+      final services = AppServices.current ?? await AppServices.create();
+      final post = await services.feed.fetchPost(widget.postId);
+      if (!mounted) return;
+      setState(() {
+        _post = post;
+        _postLoading = false;
+      });
+    } catch (_) {
+      // The thread still works without the header.
+      if (!mounted) return;
+      setState(() => _postLoading = false);
+    }
   }
 
   @override
@@ -312,6 +348,21 @@ class _CommentsScreenState extends State<CommentsScreen> {
 
   void _close() => Navigator.of(context).pop(_commentCount);
 
+  /// The post heading the thread: author row, body, then its image or
+  /// carousel. Part of the scroll, so a long post never pins the list.
+  List<Widget> _header(Post post) => [
+        PostAuthorRow(post: post, apiBaseUrl: widget.apiBaseUrl),
+        const SizedBox(height: 10),
+        PostContent(post: post),
+        if (post.galleryImages.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          PostCarousel(post: post, apiBaseUrl: widget.apiBaseUrl),
+        ],
+        const SizedBox(height: 14),
+        Divider(height: 1, color: context.enclavd.divider),
+        const SizedBox(height: 6),
+      ];
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -324,6 +375,8 @@ class _CommentsScreenState extends State<CommentsScreen> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                 children: [
+                  if (_post != null) ..._header(_post!),
+                  if (_postLoading) const _HeaderSkeleton(),
                   if (_comments.isEmpty &&
                       !_commentsLoading &&
                       _commentsError == null)
@@ -377,10 +430,37 @@ class _CommentsScreenState extends State<CommentsScreen> {
   }
 }
 
+/// Header placeholder while the notification path resolves its post.
+class _HeaderSkeleton extends StatelessWidget {
+  const _HeaderSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              ShimmerBox(width: 35, height: 35, shape: BoxShape.circle),
+              SizedBox(width: 8),
+              ShimmerBox(width: 110, height: 12),
+            ],
+          ),
+          SizedBox(height: 14),
+          ShimmerBox(width: 240, height: 12),
+          SizedBox(height: 8),
+          ShimmerBox(width: 180, height: 12),
+        ],
+      ),
+    );
+  }
+}
+
 /// Slim top bar: back button + a live comment count.
 class _TopBar extends StatelessWidget {
   const _TopBar({required this.commentCount, required this.onClose});
-
   final int commentCount;
   final VoidCallback onClose;
 

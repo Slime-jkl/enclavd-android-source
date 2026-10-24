@@ -59,8 +59,7 @@ class PostCard extends StatefulWidget {
   State<PostCard> createState() => _PostCardState();
 }
 
-class _PostCardState extends State<PostCard>
-    with IgniteFlamePlayer<PostCard> {
+class _PostCardState extends State<PostCard> with IgniteFlamePlayer<PostCard> {
   late int _likeCount;
   late bool _liked;
   late int _commentCount;
@@ -210,6 +209,7 @@ class _PostCardState extends State<PostCard>
         initialCount: widget.post.commentCount,
         social: widget.social,
         apiBaseUrl: widget.apiBaseUrl,
+        post: widget.post,
       ),
     );
     // The full-screen view pops with the latest total; keep the card
@@ -280,7 +280,7 @@ class _PostCardState extends State<PostCard>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _AuthorRow(
+                  PostAuthorRow(
                     post: widget.post,
                     apiBaseUrl: widget.apiBaseUrl,
                   ),
@@ -296,7 +296,7 @@ class _PostCardState extends State<PostCard>
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _PostContent(post: widget.post),
+                      PostContent(post: widget.post),
                       // First YouTube link in the post renders between
                       // the text and the image.
                       if (extractYouTubeId(widget.post.content) case final id?)
@@ -404,8 +404,9 @@ class _HeartBurst extends StatelessWidget {
   }
 }
 
-class _AuthorRow extends StatelessWidget {
-  const _AuthorRow({
+class PostAuthorRow extends StatelessWidget {
+  const PostAuthorRow({
+    super.key,
     required this.post,
     required this.apiBaseUrl,
   });
@@ -488,16 +489,16 @@ class _AuthorRow extends StatelessWidget {
   }
 }
 
-class _PostContent extends StatefulWidget {
-  const _PostContent({required this.post});
+class PostContent extends StatefulWidget {
+  const PostContent({super.key, required this.post});
 
   final Post post;
 
   @override
-  State<_PostContent> createState() => _PostContentState();
+  State<PostContent> createState() => PostContentState();
 }
 
-class _PostContentState extends State<_PostContent> {
+class PostContentState extends State<PostContent> {
   bool _expanded = false;
 
   // Owned here so they get disposed; postContentSpans hands them over.
@@ -506,7 +507,7 @@ class _PostContentState extends State<_PostContent> {
   Color? _cachedLinkColor; // palette the cache was tokenized with
 
   @override
-  void didUpdateWidget(covariant _PostContent oldWidget) {
+  void didUpdateWidget(covariant PostContent oldWidget) {
     super.didUpdateWidget(oldWidget);
     // Post edits keep this State alive (cards are keyed by id); drop the
     // cached spans or the old text keeps rendering.
