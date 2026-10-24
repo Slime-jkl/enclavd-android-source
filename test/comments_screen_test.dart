@@ -7,6 +7,7 @@ import 'package:enclavd/api/social_service.dart';
 import 'package:enclavd/screens/comments_screen.dart';
 import 'package:enclavd/services/sound_service.dart';
 import 'package:enclavd/theme/enclavd_theme.dart';
+import 'package:enclavd/widgets/comment_actions.dart';
 import 'package:enclavd/widgets/enclavd_avatar.dart';
 import 'package:enclavd/widgets/post_card.dart';
 import 'package:enclavd/widgets/thread_connector.dart';
@@ -66,6 +67,15 @@ class _FakeSocial extends SocialService {
 
   @override
   Future<int> deleteComment(int commentId, int postId) async => 0;
+
+  /// (comment id, new body) pairs the screen asked the server to store.
+  final List<(int, String)> edits = [];
+
+  @override
+  Future<void> updateComment(int commentId, String content,
+      {String originalContent = ''}) async {
+    edits.add((commentId, content));
+  }
 }
 
 Map<String, dynamic> _postJson() => {
@@ -111,6 +121,20 @@ Comment _comment(int id, String text, {int? parent, bool own = false}) =>
       isOwner: own,
       parentCommentId: parent,
     );
+
+/// Long press a comment and pick [label] from the action menu. Returns once
+/// the menu (and whatever it opened) has settled.
+Future<void> pickAction(
+    WidgetTester tester, Finder comment, String label) async {
+  await tester.longPress(comment);
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 250));
+  await tester.tap(find.descendant(
+      of: find.byType(PopupMenuItem<CommentAction>),
+      matching: find.text(label)));
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 250));
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -230,8 +254,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     // Cancel keeps the thread intact (nested reply still behind its toggle).
-    await tester.tap(findFa(FontAwesomeIcons.trashCan));
-    await tester.pump(const Duration(milliseconds: 50));
+    await pickAction(tester, find.text('My comment'), 'Delete');
     expect(find.text('Delete this comment?'), findsOneWidget);
     await tester.tap(find.text('Cancel'));
     await tester.pump(const Duration(milliseconds: 50));
@@ -239,13 +262,43 @@ void main() {
     expect(find.text('1 reply'), findsOneWidget);
 
     // Confirming removes the comment and its replies together.
-    await tester.tap(findFa(FontAwesomeIcons.trashCan));
-    await tester.pump(const Duration(milliseconds: 50));
+    await pickAction(tester, find.text('My comment'), 'Delete');
     await tester.tap(find.descendant(
         of: find.byType(AlertDialog), matching: find.text('Delete')));
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('My comment'), findsNothing);
     expect(find.text('1 reply'), findsNothing);
+  });
+
+  testWidgets('an own comment can be edited in place', (tester) async {
+    final social = _FakeSocial(comments: [_comment(1, 'My typo', own: true)]);
+    await tester.pumpWidget(wrap(CommentsScreen(
+      postId: _post().id,
+      initialCount: _post().commentCount,
+      social: social,
+      apiBaseUrl: 'https://example.com',
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await pickAction(tester, find.text('My typo'), 'Edit');
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // The sheet opens on the stored text, cursor at the end.
+    final field =
+        tester.widget<TextField>(find.byKey(const Key('commentEditorField')));
+    expect(field.controller!.text, 'My typo');
+
+    await tester.enterText(
+        find.byKey(const Key('commentEditorField')), 'My fixed text');
+    await tester.pump();
+    await tester.tap(find.text('Save'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(social.edits, [(1, 'My fixed text')]);
+    // The row repainted from the new body (the span cache is keyed to it).
+    expect(find.text('My fixed text'), findsOneWidget);
+    expect(find.text('My typo'), findsNothing);
   });
 
   testWidgets('nested avatar stays top-aligned so the L hits its center',
@@ -340,8 +393,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     // Reply to the root: the chip appears above the composer.
-    await tester.tap(findFa(FontAwesomeIcons.reply).first);
-    await tester.pump(const Duration(milliseconds: 50));
+    await pickAction(tester, find.text('Root comment'), 'Reply');
     expect(find.text('Replying to @Someone'), findsOneWidget); // chip
 
     // The mention prefill stays in the field; type after it (enterText

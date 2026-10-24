@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import '../api/api_client.dart'; // friendlyErrorText
 import '../api/social_service.dart';
 import '../theme/enclavd_theme.dart';
+import '../utils/content_spans.dart';
 import '../utils/submit_lock.dart';
+import '../widgets/comment_editor_sheet.dart';
 import '../widgets/comment_section.dart';
 
 /// Full-screen comments for a post (smooth zoom-in transition) with the
@@ -276,6 +278,32 @@ class _CommentsScreenState extends State<CommentsScreen> {
     }
   }
 
+  /// Opens the edit sheet on your own comment. The sheet keeps the typed
+  /// text if the server rejects it (a mention you are not allowed to add,
+  /// for instance), so the failure is recoverable in place.
+  Future<void> _editComment(Comment comment) async {
+    final saved = await showCommentEditor(
+      context,
+      title: 'Edit comment',
+      // The quote above a reply is built from its target, never stored, so
+      // only the body goes in the field.
+      initialText: parseCommentQuote(comment.content)?.body ?? comment.content,
+      onSubmit: (text) => widget.social.updateComment(
+        comment.id,
+        text,
+        originalContent: comment.content,
+      ),
+    );
+    if (saved == null || !mounted) return;
+    setState(() {
+      _comments = [
+        for (final c in _comments)
+          c.id == comment.id ? c.withContent(saved) : c,
+      ];
+    });
+    _toast('Comment updated');
+  }
+
   void _toast(String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -316,6 +344,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
                     loadingMore: _commentsLoadingMore,
                     onLoadMore: _loadMoreComments,
                     onDelete: _deleteComment,
+                    onEdit: _editComment,
                     onReply: _replyToComment,
                     apiBaseUrl: widget.apiBaseUrl,
                     highlightId: widget.highlightCommentId,

@@ -26,6 +26,7 @@ class Post {
     this.authorId = 0,
     required this.content,
     required this.createdAt,
+    this.editedAt,
     required this.feedScore,
     required this.likeCount,
     this.igniteCount = 0,
@@ -56,6 +57,10 @@ class Post {
   final int authorId;
   final String content;
   final String createdAt;
+
+  /// Last edit stamp (raw db time). Null when the post was never edited, and
+  /// for every post written before the column existed.
+  final String? editedAt;
   final double? feedScore;
   final int likeCount;
   final int igniteCount;
@@ -96,6 +101,9 @@ class Post {
         content:
             decodeHtmlEntities(json['content'] as String? ?? ''),
         createdAt: json['created_at'] as String? ?? '',
+        editedAt: (json['edited_at'] as String?)?.isNotEmpty == true
+            ? json['edited_at'] as String
+            : null,
         feedScore: (json['feed_score'] as num?)?.toDouble(),
         likeCount: (json['like_count'] as num?)?.toInt() ?? 0,
         igniteCount: (json['ignite_count'] as num?)?.toInt() ?? 0,
@@ -141,6 +149,7 @@ class Post {
         authorId: authorId,
         content: content,
         createdAt: createdAt,
+        editedAt: editedAt,
         feedScore: feedScore,
         likeCount: likeCount ?? this.likeCount,
         igniteCount: igniteCount ?? this.igniteCount,

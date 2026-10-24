@@ -30,3 +30,18 @@ String relativeTime(String dbDateTime) {
   if (days < 365) return '${days ~/ 30}m';
   return '${days ~/ 365}y';
 }
+
+/// Absolute stamp for the post drawer: "22 Oct 2026, 07:16" in the device's
+/// zone. DB times are UTC, same as everywhere else in this file.
+String absoluteTime(String dbDateTime) {
+  final parsed = parseDbTime(dbDateTime);
+  if (parsed == null) return dbDateTime.trim();
+  final local = parsed.toLocal();
+  const months = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+  final hh = local.hour.toString().padLeft(2, '0');
+  final mm = local.minute.toString().padLeft(2, '0');
+  return '${local.day} ${months[local.month - 1]} ${local.year}, $hh:$mm';
+}

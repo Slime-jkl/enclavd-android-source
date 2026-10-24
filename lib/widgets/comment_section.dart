@@ -11,6 +11,7 @@ import '../theme/enclavd_theme.dart';
 import '../utils/confirm_dialog.dart';
 import '../utils/content_spans.dart';
 import '../utils/db_time.dart';
+import 'comment_actions.dart';
 import 'comment_quote_card.dart';
 import 'enclavd_avatar.dart';
 import 'replies_toggle.dart';
@@ -30,6 +31,7 @@ class CommentsSection extends StatefulWidget {
     required this.loadingMore,
     required this.onLoadMore,
     required this.onDelete,
+    required this.onEdit,
     required this.onReply,
     required this.apiBaseUrl,
     this.highlightId,
@@ -43,6 +45,7 @@ class CommentsSection extends StatefulWidget {
   final bool loadingMore;
   final VoidCallback onLoadMore;
   final void Function(Comment) onDelete;
+  final void Function(Comment) onEdit;
   final void Function(Comment) onReply;
   final String apiBaseUrl;
 
@@ -141,6 +144,7 @@ class _CommentsSectionState extends State<CommentsSection> {
             parentUsernames: tree.parentUsernames,
             apiBaseUrl: widget.apiBaseUrl,
             onDelete: widget.onDelete,
+            onEdit: widget.onEdit,
             onReply: widget.onReply,
             expandedId: _expandedCommentId,
             onToggle: (id) => setState(() {
@@ -332,6 +336,7 @@ class CommentThread extends StatelessWidget {
     required this.parentUsernames,
     required this.apiBaseUrl,
     required this.onDelete,
+    required this.onEdit,
     required this.onReply,
     required this.expandedId,
     required this.onToggle,
@@ -346,6 +351,7 @@ class CommentThread extends StatelessWidget {
   final Map<int, String> parentUsernames;
   final String apiBaseUrl;
   final void Function(Comment) onDelete;
+  final void Function(Comment) onEdit;
   final void Function(Comment) onReply;
   final int? expandedId;
   final void Function(int id) onToggle;
@@ -371,6 +377,7 @@ class CommentThread extends StatelessWidget {
       comment: root,
       apiBaseUrl: apiBaseUrl,
       onDelete: onDelete,
+      onEdit: onEdit,
       onReply: onReply,
       expanded: root.id == expandedId,
       onToggle: () => onToggle(root.id),
@@ -426,6 +433,7 @@ class CommentThread extends StatelessWidget {
                             replyToUsername: parentUsernames[children[i].id],
                             apiBaseUrl: apiBaseUrl,
                             onDelete: onDelete,
+                            onEdit: onEdit,
                             onReply: onReply,
                             expanded: children[i].id == expandedId,
                             onToggle: () => onToggle(children[i].id),
@@ -465,6 +473,7 @@ class CommentRow extends StatefulWidget {
     required this.comment,
     required this.apiBaseUrl,
     required this.onDelete,
+    required this.onEdit,
     required this.onReply,
     required this.expanded,
     required this.onToggle,
@@ -475,6 +484,7 @@ class CommentRow extends StatefulWidget {
   final Comment comment;
   final String apiBaseUrl;
   final void Function(Comment) onDelete;
+  final void Function(Comment) onEdit;
 
   final void Function(Comment) onReply;
 
@@ -512,6 +522,18 @@ class _CommentRowState extends State<CommentRow> {
   }
 
   Comment get comment => widget.comment;
+
+  @override
+  void didUpdateWidget(CommentRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.comment.content != widget.comment.content) {
+      // Edited text: the span cache and the parsed quote describe the old
+      // body, and would paint it again.
+      _cachedSpans = null;
+      _cachedFor = null;
+      _parsedQuote = null;
+    }
+  }
 
   Future<void> _confirmDelete() async {
     final confirmed = await confirmDelete(
@@ -595,6 +617,25 @@ class _CommentRowState extends State<CommentRow> {
     }
   }
 
+  /// Long press is the only way into the actions: the rows stay clean.
+  Future<void> _openActions(LongPressStartDetails details) async {
+    final action = await showCommentActions(
+      context,
+      details.globalPosition,
+      canReply: !comment.isOwner,
+      isOwner: comment.isOwner,
+    );
+    if (!mounted || action == null) return;
+    switch (action) {
+      case CommentAction.reply:
+        widget.onReply(comment);
+      case CommentAction.edit:
+        widget.onEdit(comment);
+      case CommentAction.delete:
+        _confirmDelete();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final personality =
@@ -642,26 +683,6 @@ class _CommentRowState extends State<CommentRow> {
                       style: TextStyle(
                           color: context.enclavd.textSecondary, fontSize: 11),
                     ),
-                    if (!comment.isOwner) ...[
-                      const SizedBox(width: 6),
-                      GestureDetector(
-                        onTap: () => widget.onReply(comment),
-                        behavior: HitTestBehavior.opaque,
-                        child: Padding(
-                          padding: const EdgeInsets.all(2),
-                          child: FaIcon(FontAwesomeIcons.reply,
-                              size: 13, color: context.enclavd.textSecondary),
-                        ),
-                      ),
-                    ],
-                    if (comment.isOwner) ...[
-                      const SizedBox(width: 6),
-                      GestureDetector(
-                        onTap: () => _confirmDelete(),
-                        child: FaIcon(FontAwesomeIcons.trashCan,
-                            size: 14, color: context.enclavd.textSecondary),
-                      ),
-                    ],
                   ],
                 ),
                 const SizedBox(height: 2),
@@ -706,7 +727,13 @@ class _CommentRowState extends State<CommentRow> {
         ],
       ),
     );
-    if (!widget.highlighted) return row;
+    // Long press opens the actions; plain taps still reach the username,
+    // the mentions and the read-more inside.
+    final pressable = GestureDetector(
+      onLongPressStart: _openActions,
+      child: row,
+    );
+    if (!widget.highlighted) return pressable;
     // No extra padding: the reply rail's geometry is tuned to the avatar's
     // position, so the tint and the rounding carry the marker on their own.
     return Container(
@@ -714,7 +741,7 @@ class _CommentRowState extends State<CommentRow> {
         color: const Color(0x1A3B82F6), // site: bg-blue-500/10
         borderRadius: BorderRadius.circular(10),
       ),
-      child: row,
+      child: pressable,
     );
   }
 

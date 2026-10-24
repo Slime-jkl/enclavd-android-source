@@ -12,6 +12,7 @@ import 'package:enclavd/services/sound_service.dart';
 import 'package:enclavd/theme/enclavd_theme.dart';
 import 'package:enclavd/utils/db_time.dart';
 import 'package:enclavd/widgets/enclavd_avatar.dart';
+import 'package:enclavd/widgets/comment_actions.dart';
 import 'package:enclavd/widgets/comment_quote_card.dart';
 import 'package:enclavd/widgets/ignite_flame_overlay.dart';
 import 'package:enclavd/widgets/post_card.dart'; // PostCard (must be ABSENT)
@@ -104,6 +105,15 @@ class _FakeSocial extends SocialService {
   @override
   Future<int> deleteComment(int commentId, int postId) async => 0;
 
+  /// (reply id, new body) pairs the screen asked the server to store.
+  final List<(int, String)> edits = [];
+
+  @override
+  Future<void> updateComment(int commentId, String content,
+      {String originalContent = ''}) async {
+    edits.add((commentId, content));
+  }
+
   int igniteCalls = 0;
 
   @override
@@ -178,6 +188,20 @@ Finder _highlightedCard() => find.byWidgetPredicate((w) =>
         Color.alphaBlend(
             const Color(0x1A3B82F6), EnclavdPalette.dark.card));
 
+/// Long press a reply and pick [label] from the action menu. Returns once the
+/// menu (and whatever it opened) has settled.
+Future<void> pickAction(
+    WidgetTester tester, Finder reply, String label) async {
+  await tester.longPress(reply);
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 250));
+  await tester.tap(find.descendant(
+      of: find.byType(PopupMenuItem<CommentAction>),
+      matching: find.text(label)));
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 250));
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -242,6 +266,48 @@ void main() {
         reason: 'the thread plays the same flame the feed card does');
   });
 
+  testWidgets('long press on the OP opens the post drawer', (tester) async {
+    final social = _FakeSocial(replies: [_reply(1, 'First reply')]);
+    // Own thread: the drawer carries the edit/delete rows.
+    final ownThread = DomainThreadDetail.fromJson({
+      'success': true,
+      'post': _postJson()..['is_owner'] = true,
+      'breadcrumb': [
+        {'id': 1, 'name': 'General', 'slug': 'general', 'parent': null},
+      ],
+    });
+    await tester.pumpWidget(wrap(DomainThreadScreen(
+      domains: _FakeDomains(ownThread),
+      postId: 218,
+      social: social,
+      posts: _FakePosts(),
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // No menu button on the card any more: the press is the way in.
+    await tester.longPress(find.text('The OP of the thread'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // The thread bar carries the id too, so look inside the sheet.
+    expect(
+        find.descendant(
+            of: find.byType(BottomSheet), matching: find.text('#218')),
+        findsOneWidget);
+    expect(find.textContaining('Posted '), findsOneWidget);
+    expect(find.text('Edit post'), findsOneWidget);
+    expect(find.text('Delete post'), findsOneWidget);
+
+    // Delete routes to the thread's own confirm dialog.
+    await tester.tap(find.text('Delete post'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(find.text('Delete this thread?'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(find.text('The OP of the thread'), findsOneWidget);
+  });
+
   testWidgets('sending a reply appends it and bumps the count',
       (tester) async {
     final social = _FakeSocial();
@@ -290,28 +356,59 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    // The trash icon appears only on own replies (one).
-    final trash = findFa(FontAwesomeIcons.trashCan);
-    expect(trash, findsOneWidget);
-
-    // Cancel keeps the reply.
-    await tester.tap(trash);
-    await tester.pump(const Duration(milliseconds: 50));
+    // Long press is the only way to the actions; the menu offers edit and
+    // delete on an own reply.
+    await tester.longPress(find.text('My own reply'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    await tester.tap(find.descendant(
+        of: find.byType(PopupMenuItem<CommentAction>),
+        matching: find.text('Delete')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
     expect(find.text('Delete this reply?'), findsOneWidget);
     await tester.tap(find.text('Cancel'));
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('My own reply'), findsOneWidget);
 
-    // Confirming removes it. The row itself labels Delete too, so pick
-    // the dialog's own action button.
-    await tester.tap(trash);
-    await tester.pump(const Duration(milliseconds: 50));
+    // Confirming removes it. The dialog's own button, not the menu entry.
+    await pickAction(tester, find.text('My own reply'), 'Delete');
     await tester.tap(find.descendant(
         of: find.byType(AlertDialog), matching: find.text('Delete')));
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(find.text('My own reply'), findsNothing);
     expect(find.text('First reply'), findsOneWidget);
+  });
+
+  testWidgets('an own reply can be edited in place', (tester) async {
+    final social = _FakeSocial(replies: [_reply(2, 'My typo', own: true)]);
+    await tester.pumpWidget(wrap(DomainThreadScreen(
+      domains: _FakeDomains(_detail()),
+      postId: 218,
+      social: social,
+      posts: _FakePosts(),
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    await pickAction(tester, find.text('My typo'), 'Edit');
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Edit reply'), findsOneWidget);
+
+    final field =
+        tester.widget<TextField>(find.byKey(const Key('commentEditorField')));
+    expect(field.controller!.text, 'My typo');
+
+    await tester.enterText(
+        find.byKey(const Key('commentEditorField')), 'My fixed reply');
+    await tester.pump();
+    await tester.tap(find.text('Save'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(social.edits, [(2, 'My fixed reply')]);
+    expect(find.text('My fixed reply'), findsOneWidget);
+    expect(find.text('My typo'), findsNothing);
   });
 
   testWidgets('a reply quotes the reply it answers', (tester) async {
@@ -699,10 +796,23 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(find.byKey(const Key('replyToggle')), findsOneWidget);
-    expect(find.text('Delete'), findsNothing);
 
-    await tester.tap(find.byKey(const Key('replyQuote-1')));
-    await tester.pump(const Duration(milliseconds: 50));
+    // Someone else's reply offers the reply action only.
+    await tester.longPress(find.text('First reply'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(
+        find.descendant(
+            of: find.byType(PopupMenuItem<CommentAction>),
+            matching: find.text('Reply')),
+        findsOneWidget);
+    expect(find.text('Edit'), findsNothing);
+    expect(find.text('Delete'), findsNothing);
+    await tester.tap(find.descendant(
+        of: find.byType(PopupMenuItem<CommentAction>),
+        matching: find.text('Reply')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
 
     // Quote banner names the target above the composer (card + banner = two occurrences).
     expect(find.text('Replying to @Someone'), findsOneWidget);
@@ -816,10 +926,9 @@ void main() {
         isTrue, reason: 'a reply to a reply is not indented either');
     expect(find.text('Replying to @Someone'), findsNothing);
     // Quoting still works from any row (its parent id rides along).
-    await tester.ensureVisible(find.byKey(const Key('replyQuote-3')));
+    await tester.ensureVisible(find.text('Grandchild reply'));
     await tester.pump(const Duration(milliseconds: 300));
-    await tester.tap(find.byKey(const Key('replyQuote-3')));
-    await tester.pump(const Duration(milliseconds: 50));
+    await pickAction(tester, find.text('Grandchild reply'), 'Reply');
     expect(find.text('Replying to @Someone'), findsOneWidget); // banner
   });
 
@@ -838,8 +947,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     // Reply rows are always visible flat; quoting any row arms its id.
-    await tester.tap(find.byKey(const Key('replyQuote-2')));
-    await tester.pump(const Duration(milliseconds: 50));
+    await pickAction(tester, find.text('Child reply'), 'Reply');
     expect(find.text('Replying to @Someone'), findsOneWidget); // banner
 
     await tester.enterText(find.byType(TextField), 'Deep reply');
@@ -860,8 +968,7 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    await tester.tap(find.byKey(const Key('replyQuote-1')));
-    await tester.pump(const Duration(milliseconds: 50));
+    await pickAction(tester, find.text('First reply'), 'Reply');
     expect(find.text('Replying to @Someone'), findsOneWidget);
 
     await tester.tap(findFa(FontAwesomeIcons.xmark));
