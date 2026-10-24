@@ -141,7 +141,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
-      expect(find.text('#218'), findsOneWidget);
+      expect(find.text('Post #218'), findsOneWidget);
       expect(find.textContaining('Posted '), findsOneWidget);
       expect(find.textContaining('Edited '), findsOneWidget);
 
@@ -158,7 +158,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
-      expect(find.text('#7'), findsOneWidget);
+      expect(find.text('Post #7'), findsOneWidget);
       expect(find.textContaining('Edited '), findsNothing);
       expect(find.text('Delete post'), findsNothing); // no handler passed
     });
@@ -170,7 +170,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
-      expect(find.text('#9'), findsOneWidget);
+      expect(find.text('Post #9'), findsOneWidget);
       expect(find.text('Edit post'), findsNothing);
       expect(find.text('Delete post'), findsNothing);
     });

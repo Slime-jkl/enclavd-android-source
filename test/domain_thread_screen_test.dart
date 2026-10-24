@@ -292,7 +292,7 @@ void main() {
     // The thread bar carries the id too, so look inside the sheet.
     expect(
         find.descendant(
-            of: find.byType(BottomSheet), matching: find.text('#218')),
+            of: find.byType(BottomSheet), matching: find.text('Post #218')),
         findsOneWidget);
     expect(find.textContaining('Posted '), findsOneWidget);
     expect(find.text('Edit post'), findsOneWidget);
@@ -1010,6 +1010,30 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('The OP of the thread'), findsOneWidget);
   });
+  testWidgets('the OP renders every carousel slide the payload carries',
+      (tester) async {
+    // The thread endpoint used to send only the cover `image`, so a carousel
+    // thread painted one slide. The card must render whatever `images` holds.
+    final carouselThread = DomainThreadDetail.fromJson({
+      'success': true,
+      'post': _postJson()
+        ..['image'] = 'a.jpg'
+        ..['images'] = ['a.jpg', 'b.jpg', 'c.jpg'],
+      'breadcrumb': [
+        {'id': 1, 'name': 'General', 'slug': 'general', 'parent': null},
+      ],
+    });
+    await tester.pumpWidget(wrap(DomainThreadScreen(
+      domains: _FakeDomains(carouselThread),
+      postId: 218,
+      social: _FakeSocial(replies: const []),
+      posts: _FakePosts(),
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final carousel = tester.widget<PostCarousel>(find.byType(PostCarousel));
+    expect(carousel.post.images, ['a.jpg', 'b.jpg', 'c.jpg']);
+  });
 }
 
 class _FailingDomains extends DomainsService {
@@ -1037,7 +1061,6 @@ class _GatedDomains extends DomainsService {
     return _detail;
   }
 }
-
 /// FaIcon stores FaIconData as plain IconData; finders must compare code points (11.x quirk).
 Finder findFa(FaIconData icon) => find.byWidgetPredicate((w) =>
     w is FaIcon && w.icon != null && w.icon!.codePoint == icon.codePoint);
