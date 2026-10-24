@@ -9,8 +9,9 @@ const int kMaxBioChars = 250;
 /// (GET /api/v1/profile?user_id=N). Fields: id, username, full_name,
 /// profile_picture_url, personality_type, rank, bio, prestige,
 /// date_created, is_online, is_active, block_reason, post_count,
-/// warning_count, warnings:[...], follower_count, following_count,
-/// is_following, is_following_you, is_own.
+/// warning_count, warnings:[...], invited_by, invited_by_username,
+/// invited_members:[...], follower_count, following_count, is_following,
+/// is_following_you, is_own.
 class Profile {
   const Profile({
     required this.id,
@@ -33,6 +34,10 @@ class Profile {
     required this.isFollowing,
     required this.isFollowingYou,
     required this.isOwn,
+    this.hasInviteInfo = false,
+    this.invitedById = 0,
+    this.invitedByUsername = '',
+    this.invitedMembers = const [],
   });
 
   final int id;
@@ -55,6 +60,17 @@ class Profile {
   final bool isFollowing;
   final bool isFollowingYou;
   final bool isOwn;
+
+  /// The invitation block is only rendered when the server sent it - an
+  /// app update can ship before the endpoint does.
+  final bool hasInviteInfo;
+
+  /// Inviter account id: 0 = created by the system ("[System]").
+  final int invitedById;
+
+  /// '' when the inviter account is gone (site: "Unknown") or absent.
+  final String invitedByUsername;
+  final List<InvitedMember> invitedMembers; // oldest first
 
   bool get isBlocked => isActive == 'false';
 
@@ -83,6 +99,37 @@ class Profile {
         isFollowing: json['is_following'] as bool? ?? false,
         isFollowingYou: json['is_following_you'] as bool? ?? false,
         isOwn: json['is_own'] as bool? ?? false,
+        hasInviteInfo: json.containsKey('invited_by'),
+        invitedById: (json['invited_by'] as num?)?.toInt() ?? 0,
+        invitedByUsername: json['invited_by_username'] as String? ?? '',
+        invitedMembers: [
+          for (final m in (json['invited_members'] as List? ?? const []))
+            if (m is Map<String, dynamic>) InvitedMember.fromJson(m),
+        ],
+      );
+}
+
+/// One member this account invited (the site's "Invited Members" links).
+class InvitedMember {
+  const InvitedMember({
+    required this.id,
+    required this.username,
+    required this.rank,
+    required this.isActive,
+  });
+
+  final int id;
+  final String username;
+  final String rank;
+  final String isActive; // 'true' / 'false' -> renders as Barred
+
+  bool get isBlocked => isActive == 'false';
+
+  factory InvitedMember.fromJson(Map<String, dynamic> json) => InvitedMember(
+        id: (json['id'] as num?)?.toInt() ?? 0,
+        username: json['username'] as String? ?? '',
+        rank: json['rank'] as String? ?? 'Member',
+        isActive: json['is_active'] as String? ?? 'true',
       );
 }
 
