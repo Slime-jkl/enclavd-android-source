@@ -15,12 +15,15 @@ Post _post({
   String content = 'hello world',
   String? image,
   int commentCount = 0,
+  bool owner = false,
+  String? editedAt,
 }) =>
     Post.fromJson({
       'id': id,
       'author_id': 2,
       'content': content,
       'created_at': '2026-08-20 09:00:00',
+      'edited_at': editedAt,
       'feed_score': 1.5,
       'like_count': likeCount,
       'comment_count': commentCount,
@@ -32,7 +35,7 @@ Post _post({
       'is_active': 'true',
       'rank': 'Member',
       'image': image,
-      'is_owner': false,
+      'is_owner': owner,
     });
 
 class _FakeSocial extends SocialService {
@@ -100,6 +103,78 @@ void main() {
     ));
     return social;
   }
+
+  group('post drawer', () {
+    Future<void> pumpOwned(
+      WidgetTester tester,
+      Post post, {
+      void Function(Post)? onEdit,
+      void Function(Post)? onDelete,
+    }) async {
+      await tester.pumpWidget(MaterialApp(
+        theme: buildEnclavdTheme(),
+        home: Scaffold(
+          body: PostCard(
+            post: post,
+            apiBaseUrl: 'https://example.com',
+            social: _FakeSocial(),
+            onEditPost: onEdit,
+            onDeletePost: onDelete,
+          ),
+        ),
+      ));
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+
+    testWidgets('long press opens the drawer with the id and both stamps',
+        (tester) async {
+      Post? edited;
+      Post? deleted;
+      await pumpOwned(
+        tester,
+        _post(id: 218, owner: true, editedAt: '2026-08-21 11:30:00'),
+        onEdit: (p) => edited = p,
+        onDelete: (p) => deleted = p,
+      );
+
+      await tester.longPress(find.text('hello world'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Post #218'), findsOneWidget);
+      expect(find.textContaining('Posted '), findsOneWidget);
+      expect(find.textContaining('Edited '), findsOneWidget);
+
+      await tester.tap(find.text('Edit post'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(edited?.id, 218);
+      expect(deleted, isNull);
+    });
+
+    testWidgets('a never-edited post shows no edited stamp', (tester) async {
+      await pumpOwned(tester, _post(id: 7, owner: true), onEdit: (_) {});
+      await tester.longPress(find.text('hello world'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Post #7'), findsOneWidget);
+      expect(find.textContaining('Edited '), findsNothing);
+      expect(find.text('Delete post'), findsNothing); // no handler passed
+    });
+
+    testWidgets('someone else\'s post gets the stamps and no actions',
+        (tester) async {
+      await pumpOwned(tester, _post(id: 9), onEdit: (_) {}, onDelete: (_) {});
+      await tester.longPress(find.text('hello world'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Post #9'), findsOneWidget);
+      expect(find.text('Edit post'), findsNothing);
+      expect(find.text('Delete post'), findsNothing);
+    });
+  });
 
   group('like gestures', () {
     testWidgets('tap on an UNLIKED heart likes it', (tester) async {

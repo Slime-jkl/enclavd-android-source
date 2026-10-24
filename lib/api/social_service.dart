@@ -97,6 +97,27 @@ class Comment {
   final String createdAtUtc;
   final String rank;
 
+  /// The same row carrying new text: an edit keeps the id, the reply target
+  /// and everything the server resolved for it.
+  Comment withContent(String content) => Comment(
+        id: id,
+        postId: postId,
+        userId: userId,
+        username: username,
+        profilePictureUrl: profilePictureUrl,
+        personalityType: personalityType,
+        nameColor: nameColor,
+        hasWarnings: hasWarnings,
+        createdAt: createdAt,
+        content: content,
+        isOwner: isOwner,
+        parentCommentId: parentCommentId,
+        parentUsername: parentUsername,
+        parentExcerpt: parentExcerpt,
+        rank: rank,
+        createdAtUtc: createdAtUtc,
+      );
+
   factory Comment.fromJson(Map<String, dynamic> json) => Comment(
         id: (json['id'] as num?)?.toInt() ?? 0,
         postId: (json['post_id'] as num?)?.toInt() ?? 0,
@@ -334,6 +355,8 @@ class CommentTree {
 ///        (optional &limit=N&offset=M&order=asc; total stays the FULL count)
 ///   POST /api/v1/comments {action:create, post_id, content,
 ///        parent_comment_id?} -> {comment, comment_count}
+///   POST /api/v1/comments {action:update, comment_id, content,
+///        original_content} -> {success, content_html}
 ///   POST /api/v1/comments {action:delete, comment_id, post_id} -> {comment_count}
 ///   GET  /api/v1/suggestions -> {suggestions:[...]}
 ///
@@ -484,5 +507,18 @@ class SocialService {
       'post_id': postId,
     });
     return (json['comment_count'] as num?)?.toInt() ?? 0;
+  }
+
+  /// Edits the body of your own comment (or one below your admin level).
+  /// The reply target is untouched, and only mentions the edit NEWLY adds
+  /// notify anyone. [originalContent] is what the moderator audit log keeps.
+  Future<void> updateComment(int commentId, String content,
+      {String originalContent = ''}) async {
+    await _api.postJson('/api/v1/comments', {
+      'action': 'update',
+      'comment_id': commentId,
+      'content': content,
+      'original_content': originalContent,
+    });
   }
 }

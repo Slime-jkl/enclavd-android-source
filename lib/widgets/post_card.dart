@@ -28,6 +28,7 @@ import 'ignite_button.dart';
 import 'ignite_flame_overlay.dart';
 import 'likers_sheet.dart';
 import 'personality_chip.dart';
+import 'post_actions_sheet.dart';
 
 class PostCard extends StatefulWidget {
   const PostCard({
@@ -239,6 +240,23 @@ class _PostCardState extends State<PostCard>
     );
   }
 
+  Future<void> _openPostActions(LongPressStartDetails details) async {
+    final post = widget.post;
+    final action = await showPostActions(
+      context,
+      post: post,
+      canEdit: post.isOwner && widget.onEditPost != null,
+      canDelete: post.isOwner && widget.onDeletePost != null,
+    );
+    if (!mounted || action == null) return;
+    switch (action) {
+      case PostAction.edit:
+        widget.onEditPost?.call(post);
+      case PostAction.delete:
+        widget.onDeletePost?.call(post);
+    }
+  }
+
   void _toast(String message) {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
@@ -250,9 +268,11 @@ class _PostCardState extends State<PostCard>
     return Card(
       clipBehavior: Clip.antiAlias,
       child: GestureDetector(
-        // Double-tap likes (never unlikes).
+        // Double-tap likes (never unlikes); long press opens the post
+        // drawer (id, stamps, and edit/delete on your own posts).
         behavior: HitTestBehavior.opaque,
         onDoubleTap: _likeFromGesture,
+        onLongPressStart: _openPostActions,
         child: Stack(
           children: [
             Padding(
@@ -263,8 +283,6 @@ class _PostCardState extends State<PostCard>
                   _AuthorRow(
                     post: widget.post,
                     apiBaseUrl: widget.apiBaseUrl,
-                    onEdit: widget.onEditPost,
-                    onDelete: widget.onDeletePost,
                   ),
                   if (widget.post.hasDomain &&
                       (widget.post.domainName?.isNotEmpty ?? false)) ...[
@@ -390,14 +408,10 @@ class _AuthorRow extends StatelessWidget {
   const _AuthorRow({
     required this.post,
     required this.apiBaseUrl,
-    this.onEdit,
-    this.onDelete,
   });
 
   final Post post;
   final String apiBaseUrl;
-  final void Function(Post post)? onEdit;
-  final void Function(Post post)? onDelete;
 
   @override
   Widget build(BuildContext context) {
@@ -462,46 +476,6 @@ class _AuthorRow extends StatelessWidget {
           relativeTime(post.createdAt),
           style: TextStyle(color: context.enclavd.textSecondary, fontSize: 12),
         ),
-        // Own-post Edit/Delete menu (site's post_menu.php).
-        if (post.isOwner && (onEdit != null || onDelete != null))
-          PopupMenuButton<String>(
-            icon: FaIcon(FontAwesomeIcons.ellipsis,
-                size: 16, color: context.enclavd.textSecondary),
-            padding: EdgeInsets.zero,
-            style: IconButton.styleFrom(
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                minimumSize: Size.zero),
-            onSelected: (value) {
-              if (value == 'edit' && onEdit != null) onEdit!(post);
-              if (value == 'delete' && onDelete != null) onDelete!(post);
-            },
-            itemBuilder: (context) => [
-              if (onEdit != null)
-                PopupMenuItem(
-                  value: 'edit',
-                  child: Row(
-                    children: [
-                      FaIcon(FontAwesomeIcons.pen,
-                          size: 14, color: context.enclavd.textSecondary),
-                      const SizedBox(width: 8),
-                      const Text('Edit Post'),
-                    ],
-                  ),
-                ),
-              if (onDelete != null)
-                PopupMenuItem(
-                  value: 'delete',
-                  child: Row(
-                    children: [
-                      FaIcon(FontAwesomeIcons.trashCan,
-                          size: 14, color: context.enclavd.textSecondary),
-                      const SizedBox(width: 8),
-                      const Text('Delete Post'),
-                    ],
-                  ),
-                ),
-            ],
-          ),
       ],
     );
   }

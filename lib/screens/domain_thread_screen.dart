@@ -19,10 +19,13 @@ import '../utils/content_spans.dart'; // postContentSpans + commentContentSpans
 import '../utils/db_time.dart';
 import '../utils/submit_lock.dart';
 import '../widgets/enclavd_avatar.dart';
+import '../widgets/comment_actions.dart';
+import '../widgets/comment_editor_sheet.dart';
 import '../widgets/comment_quote_card.dart';
 import '../widgets/error_view.dart';
 import '../widgets/ignite_button.dart';
 import '../widgets/ignite_flame_overlay.dart';
+import '../widgets/post_actions_sheet.dart';
 import '../widgets/post_card.dart'; // PostCardSkeleton, PostCarousel,
 // rankColorFromCssClass
 import '../widgets/rank_badge.dart';
@@ -363,6 +366,29 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
     }
   }
 
+  /// Edits your own reply. The quote above it comes from the reply target,
+  /// not the stored text, so only the body is handed to the sheet.
+  Future<void> _editReply(Comment comment) async {
+    final saved = await showCommentEditor(
+      context,
+      title: 'Edit reply',
+      initialText: parseCommentQuote(comment.content)?.body ?? comment.content,
+      onSubmit: (text) => _social.updateComment(
+        comment.id,
+        text,
+        originalContent: comment.content,
+      ),
+    );
+    if (saved == null || !mounted) return;
+    setState(() {
+      _replies = [
+        for (final r in _replies)
+          r.id == comment.id ? r.withContent(saved) : r,
+      ];
+    });
+    _toast('Reply updated');
+  }
+
   /// Only the reply count moves here: the OP card owns what it shows for likes
   /// and ignites, and reports those back separately.
   void _setCommentCount(int count) {
@@ -566,6 +592,7 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
               number: (_replyPage - 1) * _repliesPerPage + i + 1,
               apiBaseUrl: AppConfig.apiBaseUrl,
               onDelete: _deleteReply,
+              onEdit: _editReply,
               onReply: _quoteReply,
               expanded: _replies[i].id == _expandedReplyId,
               highlighted: _replies[i].id == widget.highlightReplyId,
@@ -769,12 +796,32 @@ class _ForumPostCardState extends State<_ForumPostCard>
     }
   }
 
+  Future<void> _openPostActions(LongPressStartDetails details) async {
+    final action = await showPostActions(
+      context,
+      post: post,
+      canEdit: post.isOwner && widget.onEditPost != null,
+      canDelete: post.isOwner && widget.onDeletePost != null,
+    );
+    if (!mounted || action == null) return;
+    switch (action) {
+      case PostAction.edit:
+        widget.onEditPost?.call(post);
+      case PostAction.delete:
+        widget.onDeletePost?.call(post);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        _card(context),
+        // Long press opens the post drawer (id, stamps, edit/delete).
+        GestureDetector(
+          onLongPressStart: _openPostActions,
+          child: _card(context),
+        ),
         // The site's ignite flame, over the card it was played on.
         if (flamePlaying)
           Positioned.fill(
@@ -816,8 +863,8 @@ class _ForumPostCardState extends State<_ForumPostCard>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Rank line: badge left, time + own-post menu in
-                    // the card's top-right corner.
+                    // Rank line: badge left, time in the card's
+                    // top-right corner. Actions live behind a long press.
                     Row(
                       children: [
                         RankBadge(rank: post.rank),
@@ -828,57 +875,6 @@ class _ForumPostCardState extends State<_ForumPostCard>
                               color: context.enclavd.textSecondary,
                               fontSize: 11.5),
                         ),
-                        if (post.isOwner &&
-                            (widget.onEditPost != null ||
-                                widget.onDeletePost != null)) ...[
-                          const SizedBox(width: 2),
-                          PopupMenuButton<String>(
-                            icon: FaIcon(FontAwesomeIcons.ellipsis,
-                                size: 15, color: context.enclavd.textSecondary),
-                            padding: EdgeInsets.zero,
-                            style: IconButton.styleFrom(
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                minimumSize: Size.zero),
-                            onSelected: (value) {
-                              if (value == 'edit' &&
-                                  widget.onEditPost != null) {
-                                widget.onEditPost!(post);
-                              }
-                              if (value == 'delete' &&
-                                  widget.onDeletePost != null) {
-                                widget.onDeletePost!(post);
-                              }
-                            },
-                            itemBuilder: (context) => [
-                              if (widget.onEditPost != null)
-                                PopupMenuItem(
-                                  value: 'edit',
-                                  child: Row(
-                                    children: [
-                                      FaIcon(FontAwesomeIcons.pen,
-                                          size: 14,
-                                          color: context.enclavd.textSecondary),
-                                      const SizedBox(width: 8),
-                                      const Text('Edit Post'),
-                                    ],
-                                  ),
-                                ),
-                              if (widget.onDeletePost != null)
-                                PopupMenuItem(
-                                  value: 'delete',
-                                  child: Row(
-                                    children: [
-                                      FaIcon(FontAwesomeIcons.trashCan,
-                                          size: 14,
-                                          color: context.enclavd.textSecondary),
-                                      const SizedBox(width: 8),
-                                      const Text('Delete Post'),
-                                    ],
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ],
                       ],
                     ),
                     const SizedBox(height: 4),
@@ -1108,6 +1104,7 @@ class _ForumReplyCard extends StatefulWidget {
     required this.number,
     required this.apiBaseUrl,
     required this.onDelete,
+    required this.onEdit,
     required this.onReply,
     required this.expanded,
     required this.onToggle,
@@ -1120,6 +1117,7 @@ class _ForumReplyCard extends StatefulWidget {
   final int number;
   final String apiBaseUrl;
   final void Function(Comment) onDelete;
+  final void Function(Comment) onEdit;
 
   final void Function(Comment) onReply;
 
@@ -1152,6 +1150,19 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
   }
 
   Comment get reply => widget.reply;
+
+  @override
+  void didUpdateWidget(_ForumReplyCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.reply.content != widget.reply.content) {
+      // Edited text: the span cache and the resolved quote belong to the
+      // old body.
+      _cachedSpans = null;
+      _cachedFor = null;
+      _parsedQuote = null;
+      _quoteResolved = false;
+    }
+  }
 
   Future<void> _confirmDelete() async {
     final confirmed = await confirmDelete(
@@ -1259,7 +1270,7 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
   @override
   Widget build(BuildContext context) {
     final personality = context.enclavd.personalityColor(reply.personalityType);
-    return Container(
+    final card = Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -1378,72 +1389,43 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
               ),
             ),
           const SizedBox(height: 8),
-          // Footer actions: Quote-reply / Delete + reply number.
-          Row(
-            children: [
-              if (!reply.isOwner)
-                InkWell(
-                  key: Key('replyQuote-${reply.id}'),
-                  onTap: () => widget.onReply(reply),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                    child: Row(
-                      children: [
-                        FaIcon(FontAwesomeIcons.quoteLeft,
-                            size: 12, color: context.enclavd.link),
-                        const SizedBox(width: 5),
-                        Text(
-                          'Reply',
-                          style: TextStyle(
-                            color: context.enclavd.link,
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              if (reply.isOwner)
-                InkWell(
-                  onTap: () => _confirmDelete(),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                    child: Row(
-                      children: [
-                        FaIcon(FontAwesomeIcons.trashCan,
-                            size: 12, color: context.enclavd.likeActive),
-                        const SizedBox(width: 5),
-                        Text(
-                          'Delete',
-                          style: TextStyle(
-                            color: context.enclavd.likeActive,
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              const Spacer(),
-              Text(
-                '#${widget.number}',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontFamily: 'monospace',
-                  color: context.enclavd.textSecondary,
-                ),
+          // The reply number only: reply/edit/delete live behind a long
+          // press, so the card carries no buttons of its own.
+          Align(
+            alignment: Alignment.centerRight,
+            child: Text(
+              '#${widget.number}',
+              style: TextStyle(
+                fontSize: 11,
+                fontFamily: 'monospace',
+                color: context.enclavd.textSecondary,
               ),
-            ],
+            ),
           ),
         ],
       ),
     );
+    // Long press anywhere on the card opens reply/edit/delete.
+    return GestureDetector(onLongPressStart: _openActions, child: card);
+  }
+
+  /// Long press is the only way into the actions: the card carries none.
+  Future<void> _openActions(LongPressStartDetails details) async {
+    final action = await showCommentActions(
+      context,
+      details.globalPosition,
+      canReply: !reply.isOwner,
+      isOwner: reply.isOwner,
+    );
+    if (!mounted || action == null) return;
+    switch (action) {
+      case CommentAction.reply:
+        widget.onReply(reply);
+      case CommentAction.edit:
+        widget.onEdit(reply);
+      case CommentAction.delete:
+        _confirmDelete();
+    }
   }
 
   void _openProfile(BuildContext context, int authorId) {
