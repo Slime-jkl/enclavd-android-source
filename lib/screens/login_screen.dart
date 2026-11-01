@@ -2,10 +2,12 @@ import 'dart:async';
 
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../api/auth_service.dart';
 import '../api/site_config_service.dart';
 import '../api/api_client.dart';
+import '../config/app_config.dart';
 import '../main.dart';
 import '../services/daily_quote_service.dart';
 import '../services/notification_taps.dart';
@@ -161,6 +163,17 @@ class _LoginScreenState extends State<LoginScreen> {
         _busy = false;
         _error = friendlyErrorText(e);
       });
+    }
+  }
+
+  Future<void> _openRecovery() async {
+    try {
+      await launchUrl(
+        Uri.parse('${AppConfig.apiBaseUrl}/reset-password'),
+        mode: LaunchMode.externalApplication,
+      );
+    } catch (_) {
+
     }
   }
 
@@ -380,7 +393,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                       ],
                                     ),
                             ),
-                            const SizedBox(height: 24),
+                            const SizedBox(height: 8),
+                            TextButton(
+                              onPressed: _busy ? null : _openRecovery,
+                              child: const Text(
+                                'Forgot password? Recover account',
+                              ),
+                            ),
+                            const SizedBox(height: 8),
                             const Divider(),
                             const SizedBox(height: 16),
                             TextButton(
