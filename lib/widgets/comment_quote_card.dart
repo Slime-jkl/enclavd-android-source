@@ -36,8 +36,8 @@ class CommentQuoteCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 2),
-          Text(
-            collapsed,
+          Text.rich(
+            TextSpan(children: plainEmojiSpans(collapsed)),
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
             style:

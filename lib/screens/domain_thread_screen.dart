@@ -22,6 +22,7 @@ import '../widgets/enclavd_avatar.dart';
 import '../widgets/comment_actions.dart';
 import '../widgets/comment_editor_sheet.dart';
 import '../widgets/comment_quote_card.dart';
+import '../widgets/emoji_picker_sheet.dart';
 import '../widgets/error_view.dart';
 import '../widgets/ignite_button.dart';
 import '../widgets/ignite_flame_overlay.dart';
@@ -1490,6 +1491,11 @@ class _ReplyComposer extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 4),
+              EmojiPickerButton(
+                controller: controller,
+                focusNode: focusNode,
+                maxLength: 1000,
+              ),
               IconButton(
                 onPressed: locked ? null : onSend,
                 icon: sending
@@ -1547,8 +1553,8 @@ class _QuoteBanner extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  collapsed,
+                Text.rich(
+                  TextSpan(children: plainEmojiSpans(collapsed)),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(

@@ -13,6 +13,7 @@ import '../utils/content_spans.dart';
 import '../utils/db_time.dart';
 import 'comment_actions.dart';
 import 'comment_quote_card.dart';
+import 'emoji_picker_sheet.dart';
 import 'enclavd_avatar.dart';
 import 'replies_toggle.dart';
 import 'shimmer.dart';
@@ -302,6 +303,11 @@ class CommentComposer extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 4),
+            EmojiPickerButton(
+              controller: controller,
+              focusNode: focusNode,
+              maxLength: 1000,
+            ),
             IconButton(
               onPressed: locked ? null : onSend,
               icon: sending

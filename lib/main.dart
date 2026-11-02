@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show FlutterError, kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:home_widget/home_widget.dart';
+import 'package:lottie/lottie.dart' show Lottie;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
 
@@ -57,6 +58,9 @@ import 'theme/enclavd_theme.dart';
 /// the UI.
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Emoji compositions are reused while scrolling, but a 1000-entry cache
+  // would pin every animation ever shown; keep a working set instead.
+  Lottie.cache.maximumSize = 48;
   // In-app error channel -> Grafana/Loki (mirror only, never Plausible).
   // Fire-and-forget with a null-safe guard: a dead monitoring stack, or
   // an error before AppServices.create, changes nothing the user sees.
