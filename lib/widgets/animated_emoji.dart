@@ -4,10 +4,10 @@ import 'package:lottie/lottie.dart';
 import '../theme/enclavd_theme.dart';
 import 'shimmer.dart';
 
-/// Inline animated emoji. Compositions live in the bundle, so there is no
-/// network hop: the only wait is parsing a JSON, and the shimmer covers it.
-/// Lottie's own cache (capped in main) keeps parsed compositions around
-/// while the emoji stays on screen.
+/// Inline animated emoji. Compositions live in the bundle as zipped dotLottie
+/// assets, so there is no network hop: the only wait is unpacking and parsing
+/// one, and the shimmer covers it. Lottie's own cache (capped in main) keeps
+/// parsed compositions around while the emoji stays on screen.
 class AnimatedEmoji extends StatelessWidget {
   const AnimatedEmoji({super.key, required this.name, this.size = 18});
 
@@ -20,7 +20,7 @@ class AnimatedEmoji extends StatelessWidget {
       width: size,
       height: size,
       child: Lottie.asset(
-        'assets/gifs/emojis/$name.json',
+        'assets/gifs/emojis/$name.lottie',
         width: size,
         height: size,
         fit: BoxFit.contain,
