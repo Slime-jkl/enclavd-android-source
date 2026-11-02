@@ -66,18 +66,19 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
   Future<void> _decode() async {
     try {
       final bytes = await File(widget.imagePath).readAsBytes();
-      final decoded = img.decodeImage(bytes);
+      // Every format the device can read, not just the ones package:image
+      // parses (HEIC/HEIF/AVIF come through the platform decoder).
+      final decoded = await decodeAnyImage(bytes);
       if (!mounted) return;
       setState(() {
         _source = decoded;
         _transformReady = false;
-        if (decoded == null) {
-          _error = 'Unsupported image format.';
-        } else {
-          final thumb = img.copyResize(decoded, width: 160);
-          _thumbBytes = Uint8List.fromList(img.encodeJpg(thumb, quality: 70));
-        }
+        final thumb = img.copyResize(decoded, width: 160);
+        _thumbBytes = Uint8List.fromList(img.encodeJpg(thumb, quality: 70));
       });
+    } on ImageFormatException {
+      if (!mounted) return;
+      setState(() => _error = 'Unsupported image format.');
     } catch (_) {
       if (!mounted) return;
       setState(() => _error = 'Could not read the image.');
@@ -195,11 +196,17 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
       final w = crop.width.round().clamp(1, src.width - x);
       final h = crop.height.round().clamp(1, src.height - y);
 
-      var out = img.copyCrop(src, x: x, y: y, width: w, height: h);
-      if (_filter.id != 'normal') {
-        IedFilter.applyToImage(out, _filter.matrix());
-      }
-      final bytes = bakeJpeg(out, maxEdge: ImageEditorScreen.maxOutput);
+      // Crop, filter and encode in one isolate hop: a per-pixel pass over a
+      // multi-megapixel frame would freeze the preview for a second or more.
+      final bytes = await bakeCropAsync(
+        src,
+        x: x,
+        y: y,
+        width: w,
+        height: h,
+        filter: _filter.id == 'normal' ? null : _filter.matrix(),
+        maxEdge: ImageEditorScreen.maxOutput,
+      );
       if (!mounted) return;
       Navigator.of(context).pop(bytes);
     } catch (_) {
@@ -237,8 +244,19 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
   }
 
   Widget _buildBody() {
+    // Loading, error and editor fade into each other instead of popping.
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 240),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      child: _bodyState(),
+    );
+  }
+
+  Widget _bodyState() {
     if (_error != null) {
       return Center(
+        key: const ValueKey('error'),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -255,9 +273,17 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
     }
     if (_source == null) {
       return Center(
-          child: CircularProgressIndicator(color: context.enclavd.link));
+        key: const ValueKey('loading'),
+        child: SizedBox(
+          width: 26,
+          height: 26,
+          child: CircularProgressIndicator(
+              strokeWidth: 2.5, color: context.enclavd.link),
+        ),
+      );
     }
     return Column(
+      key: const ValueKey('editor'),
       children: [
         // Card-backed preview so letterboxed areas never look transparent.
         Expanded(
@@ -308,10 +334,22 @@ class _ImageEditorScreenState extends State<ImageEditorScreen> {
                   width: size.width,
                   height: size.height,
                   child: Center(
-                    child: Image.file(File(widget.imagePath),
-                        fit: BoxFit.contain,
-                        width: size.width,
-                        height: size.height),
+                    child: Image.file(
+                      File(widget.imagePath),
+                      fit: BoxFit.contain,
+                      width: size.width,
+                      height: size.height,
+                      // Fade the decoded frame in rather than flashing it.
+                      frameBuilder: (context, child, frame, sync) {
+                        if (sync) return child;
+                        return AnimatedOpacity(
+                          opacity: frame == null ? 0 : 1,
+                          duration: const Duration(milliseconds: 220),
+                          curve: Curves.easeOutCubic,
+                          child: child,
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),

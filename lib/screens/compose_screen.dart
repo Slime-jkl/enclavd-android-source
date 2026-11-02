@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -15,16 +14,20 @@ import '../theme/enclavd_theme.dart';
 import '../utils/image_bake.dart';
 import '../utils/submit_lock.dart';
 import '../widgets/enclavd_image.dart';
+import '../widgets/shimmer.dart';
 import 'image_editor_screen.dart';
 import '../services/analytics_service.dart';
 
-/// One attached slide: the baked bytes that get uploaded, plus the picked
-/// file they came from so the editor can re-open it.
+/// One attached slide. [baked] is null while the pick is still being
+/// decoded and standardised; the slot exists from the tap so the strip never
+/// sits empty.
 class _ComposeSlide {
-  _ComposeSlide({required this.baked, this.sourcePath});
+  _ComposeSlide({this.sourcePath});
 
-  Uint8List baked;
+  Uint8List? baked;
   final String? sourcePath;
+
+  bool get pending => baked == null;
 }
 
 class ComposeScreen extends StatefulWidget {
@@ -51,6 +54,8 @@ class _ComposeScreenState extends State<ComposeScreen> {
 
   final List<_ComposeSlide> _slides = [];
   bool _baking = false;
+  int _bakeDone = 0;
+  int _bakeTotal = 0;
 
   bool _busy = false;
   // One attempt at a time plus a cooldown (site: the post button locks
@@ -77,9 +82,11 @@ class _ComposeScreenState extends State<ComposeScreen> {
     super.dispose();
   }
 
-  /// Picks one or more images and bakes each one. A single first image still
-  /// goes straight into the editor; the rest land in the strip, where a tap
-  /// re-opens the editor for that slide.
+  /// Picks one or more images and standardises each one. Every pick drops a
+  /// placeholder into the strip on the same frame as the tap, then fills in
+  /// as its file finishes, so a slow decode still feels responsive. A single
+  /// first image still goes straight into the editor; the rest land in the
+  /// strip, where a tap re-opens the editor for that slide.
   Future<void> _pickImages() async {
     if (_busy || _baking) return;
 
@@ -92,35 +99,52 @@ class _ComposeScreenState extends State<ComposeScreen> {
       return;
     }
 
+    final placeholders = [for (final f in picked) _ComposeSlide(sourcePath: f.path)];
     setState(() {
       _baking = true;
+      _bakeDone = 0;
+      _bakeTotal = picked.length;
       _error = null;
+      _slides.addAll(placeholders);
     });
 
-    try {
-      final baked = <_ComposeSlide>[];
-      for (final file in picked) {
-        final bytes = await file.readAsBytes();
-        baked.add(_ComposeSlide(
-          baked: bakePickedBytes(bytes),
-          sourcePath: file.path,
-        ));
+    var failed = 0;
+    for (var i = 0; i < picked.length; i++) {
+      final slide = placeholders[i];
+      try {
+        final bytes = await picked[i].readAsBytes();
+        final baked = await bakePickedBytes(bytes);
+        if (!mounted) return;
+        // The slide may have been removed while its file was decoding.
+        if (!_slides.contains(slide)) continue;
+        setState(() {
+          slide.baked = baked;
+          _bakeDone++;
+        });
+      } catch (_) {
+        failed++;
+        if (!mounted) return;
+        setState(() {
+          _slides.remove(slide);
+          _bakeDone++;
+        });
       }
-      if (!mounted) return;
-      setState(() {
-        _baking = false;
-        _slides.addAll(baked);
-      });
-      // The single-image flow behaves exactly as before: pick, then edit.
-      if (baked.length == 1 && _slides.length == 1) {
-        await _editSlide(0);
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _baking = false;
+      if (failed > 0) {
+        _error = picked.length == 1
+            ? 'Could not read that image.'
+            : '$failed of ${picked.length} images could not be read.';
       }
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _baking = false;
-        _error = 'Could not read that image.';
-      });
+    });
+    if (failed > 0) return;
+
+    // The single-image flow behaves exactly as before: pick, then edit.
+    if (picked.length == 1 && _slides.length == 1) {
+      await _editSlide(0);
     }
   }
 
@@ -128,9 +152,10 @@ class _ComposeScreenState extends State<ComposeScreen> {
       ImagePicker().pickMultiImage();
 
   Future<void> _editSlide(int index) async {
+    if (index < 0 || index >= _slides.length) return;
     final slide = _slides[index];
     final path = slide.sourcePath;
-    if (path == null) return;
+    if (path == null || slide.pending) return; // still decoding
 
     final edited = await Navigator.of(context).push<Uint8List>(
       MaterialPageRoute(builder: (_) => ImageEditorScreen(imagePath: path)),
@@ -138,11 +163,12 @@ class _ComposeScreenState extends State<ComposeScreen> {
     if (edited == null || !mounted) return; // cancelled in the editor
 
     setState(() {
-      _slides[index] = _ComposeSlide(baked: edited, sourcePath: path);
+      slide.baked = edited;
     });
   }
 
   void _removeSlide(int index) {
+    if (_baking && _slides[index].pending) return; // finishing anyway
     setState(() => _slides.removeAt(index));
   }
 
@@ -177,7 +203,7 @@ class _ComposeScreenState extends State<ComposeScreen> {
           content: content,
           images: [
             for (final slide in _slides)
-              XFile.fromData(slide.baked,
+              XFile.fromData(slide.baked!,
                   name: 'edited.jpg', mimeType: 'image/jpeg'),
           ],
         );
@@ -220,37 +246,36 @@ class _ComposeScreenState extends State<ComposeScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _composerField(),
-              if (_error != null) ...[
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF87171).withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                        color: const Color(0xFFF87171).withValues(alpha: 0.25)),
-                  ),
-                  child: Text(_error!,
-                      style: const TextStyle(
-                          color: Color(0xFFF87171), fontSize: 13)),
+              AnimatedSize(
+                duration: const Duration(milliseconds: 220),
+                curve: Curves.easeOutCubic,
+                alignment: Alignment.topCenter,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  switchInCurve: Curves.easeOutCubic,
+                  switchOutCurve: Curves.easeInCubic,
+                  child: _errorBanner(),
                 ),
-              ],
+              ),
               const SizedBox(height: 16),
               // Image area: picker + preview in create mode, read-only
               // existing images in edit mode.
               if (!_isEdit) ...[
-                if (_slides.length == 1)
-                  _ImagePreview(
-                    path: _slides.first.sourcePath,
-                    bytes: _slides.first.baked,
-                    onRemove: () => _removeSlide(0),
-                  )
-                else if (_slides.length > 1)
-                  _ImageStrip(
-                    slides: _slides,
-                    onEdit: _editSlide,
-                    onRemove: _removeSlide,
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 240),
+                  curve: Curves.easeOutCubic,
+                  alignment: Alignment.topCenter,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 220),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    layoutBuilder: (current, previous) => Stack(
+                      alignment: Alignment.topCenter,
+                      children: [...previous, if (current != null) current],
+                    ),
+                    child: _attachmentArea(),
                   ),
+                ),
                 if (_slides.isEmpty || _canAddMore) ...[
                   if (_slides.isNotEmpty) const SizedBox(height: 10),
                   OutlinedButton.icon(
@@ -309,6 +334,58 @@ class _ComposeScreenState extends State<ComposeScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _errorBanner() {
+    if (_error == null) return const SizedBox.shrink(key: ValueKey('none'));
+    return Padding(
+      key: const ValueKey('error'),
+      padding: const EdgeInsets.only(top: 8),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF87171).withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+              color: const Color(0xFFF87171).withValues(alpha: 0.25)),
+        ),
+        child: Text(_error!,
+            style: const TextStyle(color: Color(0xFFF87171), fontSize: 13)),
+      ),
+    );
+  }
+
+  /// The attached-image area. Placeholders appear the instant the picker
+  /// returns and every state change is a fade, never a pop.
+  Widget _attachmentArea() {
+    if (_slides.isEmpty) {
+      return const SizedBox.shrink(key: ValueKey('none'));
+    }
+    if (_slides.length == 1) {
+      final slide = _slides.first;
+      return AnimatedSwitcher(
+        key: const ValueKey('single'),
+        duration: const Duration(milliseconds: 260),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        child: slide.pending
+            ? const _PendingPreview(key: ValueKey('pending'))
+            : _ImagePreview(
+                key: const ValueKey('ready'),
+                bytes: slide.baked!,
+                onRemove: () => _removeSlide(0),
+              ),
+      );
+    }
+    return _ImageStrip(
+      key: const ValueKey('strip'),
+      slides: _slides,
+      baking: _baking,
+      done: _bakeDone,
+      total: _bakeTotal,
+      onEdit: _editSlide,
+      onRemove: _removeSlide,
     );
   }
 
@@ -374,15 +451,15 @@ class _ComposeScreenState extends State<ComposeScreen> {
   }
 }
 
+/// Single attached image, faded in once its bytes exist.
 class _ImagePreview extends StatelessWidget {
   const _ImagePreview({
-    required this.path,
+    super.key,
     required this.bytes,
     required this.onRemove,
   });
 
-  final String? path;
-  final Uint8List? bytes;
+  final Uint8List bytes;
   final VoidCallback onRemove;
 
   @override
@@ -393,11 +470,21 @@ class _ImagePreview extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxHeight: 300),
-            child: bytes != null
-                ? Image.memory(bytes!,
-                    fit: BoxFit.contain, width: double.infinity)
-                : Image.file(File(path!),
-                    fit: BoxFit.contain, width: double.infinity),
+            child: Image.memory(
+              bytes,
+              fit: BoxFit.contain,
+              width: double.infinity,
+              gaplessPlayback: true,
+              frameBuilder: (context, child, frame, sync) {
+                if (sync) return child;
+                return AnimatedOpacity(
+                  opacity: frame == null ? 0 : 1,
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutCubic,
+                  child: child,
+                );
+              },
+            ),
           ),
         ),
         Positioned(
@@ -421,21 +508,74 @@ class _ImagePreview extends StatelessWidget {
   }
 }
 
+/// A picked file that is still being decoded: same footprint as the final
+/// preview so the layout does not jump.
+class _PendingPreview extends StatelessWidget {
+  const _PendingPreview({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: SizedBox(
+        height: 220,
+        width: double.infinity,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            const ShimmerBox(
+                width: double.infinity, height: 220, borderRadius: 10),
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2.5,
+                        color: context.enclavd.textSecondary),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Preparing image...',
+                    style: TextStyle(
+                        color: context.enclavd.textSecondary, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Several attached images: thumbnails in post order, tap to edit, x to
-/// remove (the website composer's strip).
+/// remove (the website composer's strip). A thumbnail still decoding shows
+/// the shimmer in its place.
 class _ImageStrip extends StatelessWidget {
   const _ImageStrip({
+    super.key,
     required this.slides,
+    required this.baking,
+    required this.done,
+    required this.total,
     required this.onEdit,
     required this.onRemove,
   });
 
   final List<_ComposeSlide> slides;
+  final bool baking;
+  final int done;
+  final int total;
   final ValueChanged<int> onEdit;
   final ValueChanged<int> onRemove;
 
   @override
   Widget build(BuildContext context) {
+    final progress = total > 0 ? (done + 1).clamp(1, total) : 1;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -445,18 +585,36 @@ class _ImageStrip extends StatelessWidget {
             scrollDirection: Axis.horizontal,
             itemCount: slides.length,
             separatorBuilder: (_, __) => const SizedBox(width: 8),
-            itemBuilder: (context, i) => _Thumb(
-              bytes: slides[i].baked,
-              label: '${i + 1}',
-              onTap: slides[i].sourcePath == null ? null : () => onEdit(i),
-              onRemove: () => onRemove(i),
-            ),
+            itemBuilder: (context, i) {
+              final slide = slides[i];
+              final baked = slide.baked;
+              if (baked == null) {
+                return const SizedBox(
+                  width: 88,
+                  height: 88,
+                  child: ShimmerBox(
+                      width: 88, height: 88, borderRadius: 8),
+                );
+              }
+              return _Thumb(
+                bytes: baked,
+                label: '${i + 1}',
+                onTap: slide.sourcePath == null ? null : () => onEdit(i),
+                onRemove: () => onRemove(i),
+              );
+            },
           ),
         ),
         const SizedBox(height: 6),
-        Text(
-          '${slides.length}/${ComposeScreen.maxImages} images - tap to edit',
-          style: TextStyle(color: context.enclavd.textSecondary, fontSize: 12),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 200),
+          child: Text(
+            baking && total > 0
+                ? 'Preparing $progress of $total...'
+                : '${slides.length}/${ComposeScreen.maxImages} images - tap to edit',
+            key: ValueKey(baking && total > 0),
+            style: TextStyle(color: context.enclavd.textSecondary, fontSize: 12),
+          ),
         ),
       ],
     );
@@ -537,6 +695,16 @@ class _Thumb extends StatelessWidget {
               width: 88,
               height: 88,
               fit: BoxFit.cover,
+              gaplessPlayback: true,
+              frameBuilder: (context, child, frame, sync) {
+                if (sync) return child;
+                return AnimatedOpacity(
+                  opacity: frame == null ? 0 : 1,
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOutCubic,
+                  child: child,
+                );
+              },
             ),
           ),
         ),
