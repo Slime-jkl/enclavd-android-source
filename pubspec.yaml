@@ -1,7 +1,7 @@
 name: enclavd
 description: "Enclavd - Personality Social Network"
 publish_to: "none"
-version: 2.2.7+227
+version: 2.2.9+229
 
 environment:
   sdk: ^3.6.0
@@ -59,3 +59,6 @@ flutter:
     - assets/images/quote-widget-logo-dark.png
     - assets/animations/
     - assets/sounds/
+    - assets/gifs/emojis/
+    - assets/gifs/emojis/LICENSES/CC-BY-4.0.txt
+    - assets/gifs/emojis/LICENSES/MIT-Microsoft-Fluent.txt

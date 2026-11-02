@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../api/api_client.dart'; // friendlyErrorText
 import '../theme/enclavd_theme.dart';
+import 'emoji_picker_sheet.dart';
 
 /// Bottom-sheet editor for a comment or a forum reply. The sheet owns the
 /// request, so a rejected edit keeps the typed text on screen instead of
@@ -171,6 +172,12 @@ class _CommentEditorSheetState extends State<_CommentEditorSheet> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
+                    EmojiPickerButton(
+                      controller: _controller,
+                      focusNode: _focus,
+                      maxLength: _limit,
+                    ),
+                    const Spacer(),
                     TextButton(
                       onPressed:
                           _saving ? null : () => Navigator.of(context).pop(),

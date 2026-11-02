@@ -13,6 +13,7 @@ import '../services/sound_service.dart';
 import '../theme/enclavd_theme.dart';
 import '../utils/image_bake.dart';
 import '../utils/submit_lock.dart';
+import '../widgets/emoji_picker_sheet.dart';
 import '../widgets/enclavd_image.dart';
 import '../widgets/shimmer.dart';
 import 'image_editor_screen.dart';
@@ -434,16 +435,19 @@ class _ComposeScreenState extends State<ComposeScreen> {
           ),
           const SizedBox(height: 4),
           // Mirrors post_form.php's "N/20000 characters" (textSecondary, right).
-          Align(
-            alignment: Alignment.centerRight,
-            child: ValueListenableBuilder<TextEditingValue>(
-              valueListenable: _controller,
-              builder: (context, value, _) => Text(
-                '${value.text.characters.length}/20000 characters',
-                style: TextStyle(
-                    color: context.enclavd.textSecondary, fontSize: 12),
+          Row(
+            children: [
+              EmojiPickerButton(controller: _controller, focusNode: _focus),
+              const Spacer(),
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _controller,
+                builder: (context, value, _) => Text(
+                  '${value.text.characters.length}/20000 characters',
+                  style: TextStyle(
+                      color: context.enclavd.textSecondary, fontSize: 12),
+                ),
               ),
-            ),
+            ],
           ),
         ],
       ),

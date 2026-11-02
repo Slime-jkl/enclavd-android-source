@@ -4,6 +4,7 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import '../api/search_service.dart';
 import '../config/app_config.dart';
 import '../theme/enclavd_theme.dart';
+import '../utils/content_spans.dart'; // plainEmojiSpans
 import '../widgets/error_view.dart';
 import '../widgets/enclavd_avatar.dart';
 import '../widgets/personality_chip.dart';
@@ -251,8 +252,11 @@ class _Subtitle extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(r.content,
-                maxLines: 3, overflow: TextOverflow.ellipsis, style: secondary),
+            Text.rich(
+                TextSpan(children: plainEmojiSpans(r.content, emojiSize: 16)),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: secondary),
             const SizedBox(height: 3),
             Row(
               children: [
@@ -277,11 +281,18 @@ class _Subtitle extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(r.content,
-                maxLines: 3, overflow: TextOverflow.ellipsis, style: secondary),
+            Text.rich(
+                TextSpan(children: plainEmojiSpans(r.content, emojiSize: 16)),
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: secondary),
             if (r.postContent.isNotEmpty) ...[
               const SizedBox(height: 3),
-              Text('On: ${r.postContent}',
+              Text.rich(
+                  TextSpan(children: [
+                    const TextSpan(text: 'On: '),
+                    ...plainEmojiSpans(r.postContent, emojiSize: 15),
+                  ]),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(

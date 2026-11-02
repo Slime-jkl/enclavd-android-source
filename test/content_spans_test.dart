@@ -1,5 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/painting.dart';
+import 'package:flutter/widgets.dart' show WidgetSpan;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:enclavd/theme/enclavd_theme.dart';
 import 'package:enclavd/utils/content_spans.dart';
@@ -275,6 +276,55 @@ void main() {
     test('plain content without the prefix returns null', () {
       expect(parseCommentQuote('just a normal comment'), isNull);
       expect(parseCommentQuote('@alice wrote: hi\n\nno quotes'), isNull);
+    });
+  });
+
+  group('emoji shortcodes', () {
+    test('known shortcode becomes an emoji token', () {
+      final tokens = tokenizePostContent('hi :smile: there');
+      expect(tokens.map((t) => '${t.kind}:${t.text}'), [
+        'plain:hi ',
+        'emoji::smile:',
+        'plain: there',
+      ]);
+      expect(tokens[1].emojiName, 'smile');
+    });
+
+    test('unknown shortcode stays plain text', () {
+      final tokens = tokenizePostContent('x :not_an_emoji: y');
+      expect(tokens.every((t) => t.kind == 'plain'), isTrue);
+      expect(tokens.map((t) => t.text).join(), 'x :not_an_emoji: y');
+    });
+
+    test('shortcode glued to a word is not an emoji', () {
+      expect(tokenizePostContent('a:smile:').single.kind, 'plain');
+    });
+
+    test('adjacent shortcodes both tokenize', () {
+      expect(tokenizePostContent(':smile::fire:').map((t) => t.kind),
+          ['emoji', 'emoji']);
+    });
+
+    test('comments tokenize emoji between mentions and urls', () {
+      final tokens = tokenizeCommentContent('@alice :fire: https://x.io');
+      expect(tokens.map((t) => t.kind),
+          ['mention', 'plain', 'emoji', 'plain', 'url']);
+    });
+
+    test('spans swap the shortcode for a widget and keep links working', () {
+      final recognizers = <TapGestureRecognizer>[];
+      final spans = postContentSpans(
+        ':smile: #tag',
+        linkColor: const Color(0xFF0000FF),
+        onHashtag: (_) {},
+        onUrl: (_) {},
+        recognizers: recognizers,
+      );
+      expect(spans.whereType<WidgetSpan>(), hasLength(1));
+      expect(recognizers, hasLength(1));
+      for (final r in recognizers) {
+        r.dispose();
+      }
     });
   });
 }

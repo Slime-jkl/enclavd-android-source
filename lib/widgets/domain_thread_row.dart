@@ -7,6 +7,7 @@ import '../api/social_service.dart';
 import '../config/app_config.dart';
 import '../services/sound_service.dart';
 import '../theme/enclavd_theme.dart';
+import '../utils/content_spans.dart'; // plainEmojiSpans
 import '../utils/db_time.dart';
 import '../utils/domain_icons.dart';
 import 'enclavd_avatar.dart';
@@ -121,8 +122,8 @@ class _DomainThreadRowState extends State<DomainThreadRow> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  title,
+                Text.rich(
+                  TextSpan(children: plainEmojiSpans(title, emojiSize: 17)),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -134,8 +135,8 @@ class _DomainThreadRowState extends State<DomainThreadRow> {
                 ),
                 if (body.isNotEmpty) ...[
                   const SizedBox(height: 3),
-                  Text(
-                    body,
+                  Text.rich(
+                    TextSpan(children: plainEmojiSpans(body, emojiSize: 15)),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
