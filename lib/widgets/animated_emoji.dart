@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 
 import '../theme/enclavd_theme.dart';
+import 'onscreen_ticker.dart';
 import 'shimmer.dart';
 
 /// Inline animated emoji. Compositions live in the bundle as zipped dotLottie
@@ -16,21 +17,23 @@ class AnimatedEmoji extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: Lottie.asset(
-        'assets/gifs/emojis/$name.lottie',
+    return OnscreenTicker(
+      child: SizedBox(
         width: size,
         height: size,
-        fit: BoxFit.contain,
-        repeat: true,
-        frameBuilder: (context, child, composition) => composition == null
-            ? ShimmerBox(width: size, height: size, borderRadius: size * 0.22)
-            : child,
-        errorBuilder: (context, error, stack) => _Missing(
-          label: ':$name:',
-          size: size,
+        child: Lottie.asset(
+          'assets/gifs/emojis/$name.lottie',
+          width: size,
+          height: size,
+          fit: BoxFit.contain,
+          repeat: true,
+          frameBuilder: (context, child, composition) => composition == null
+              ? ShimmerBox(width: size, height: size, borderRadius: size * 0.22)
+              : child,
+          errorBuilder: (context, error, stack) => _Missing(
+            label: ':$name:',
+            size: size,
+          ),
         ),
       ),
     );
