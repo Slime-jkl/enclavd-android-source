@@ -1,77 +1,67 @@
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // HapticFeedback
 
 import '../theme/enclavd_theme.dart';
 
-/// What a long press on a comment offers. Built per row: reply to someone
-/// else's comment, edit or delete your own.
-enum CommentAction { reply, edit, delete }
-
-/// Opens the action menu at the point that was pressed. A long press is the
-/// only way in - comment rows carry no buttons - so it also gives the light
-/// haptic tick that tells the user the press landed.
+/// The reply / edit / delete controls that sit on a comment row.
 ///
-/// Returns the chosen action, or null when dismissed.
-Future<CommentAction?> showCommentActions(
-  BuildContext context,
-  Offset globalPosition, {
-  required bool canReply,
-  required bool isOwner,
-}) async {
-  final overlay = Overlay.of(context).context.findRenderObject();
-  if (overlay is! RenderBox) return null;
-  // Only owners act on their own rows; everyone else can answer them.
-  if (!isOwner && !canReply) return null;
+/// These used to hide behind a long press on the row, which nobody found.
+/// They are plain icon buttons on the row now: reply on anyone's comment,
+/// edit and delete on your own.
+class CommentActionsBar extends StatelessWidget {
+  const CommentActionsBar({
+    super.key,
+    required this.commentId,
+    required this.canReply,
+    required this.isOwner,
+    required this.onReply,
+    required this.onEdit,
+    required this.onDelete,
+    this.iconSize = 13,
+  });
 
-  HapticFeedback.mediumImpact();
-  final palette = context.enclavd;
-  final chosen = await showMenu<CommentAction>(
-    context: context,
-    // Anchored where the finger is, not to a widget: rows are small and a
-    // menu pinned to one corner reads as unrelated to the press.
-    position: RelativeRect.fromLTRB(
-      globalPosition.dx,
-      globalPosition.dy,
-      overlay.size.width - globalPosition.dx,
-      overlay.size.height - globalPosition.dy,
-    ),
-    color: palette.card,
-    elevation: 8,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(12),
-      side: BorderSide(color: palette.border),
-    ),
-    items: [
-      if (canReply)
-        _item(CommentAction.reply, 'Reply', FontAwesomeIcons.reply,
-            palette.textPrimary),
-      if (isOwner) ...[
-        _item(CommentAction.edit, 'Edit', FontAwesomeIcons.pen,
-            palette.textPrimary),
-        _item(CommentAction.delete, 'Delete', FontAwesomeIcons.trashCan,
-            palette.likeActive),
-      ],
-    ],
-  );
-  return chosen;
-}
+  /// Row id, only used to key the buttons so a test (or a host) can aim at
+  /// the right row when several are on screen.
+  final int commentId;
+  final bool canReply;
+  final bool isOwner;
+  final VoidCallback onReply;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+  final double iconSize;
 
-PopupMenuItem<CommentAction> _item(
-    CommentAction action, String label, FaIconData icon, Color color) {
-  return PopupMenuItem<CommentAction>(
-    value: action,
-    height: 42,
-    child: Row(
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.enclavd;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        FaIcon(icon, size: 13, color: color),
-        const SizedBox(width: 10),
-        Text(
-          label,
-          style: TextStyle(
-              color: color, fontSize: 13.5, fontWeight: FontWeight.w600),
-        ),
+        if (canReply)
+          _button(Key('comment-reply-$commentId'), FontAwesomeIcons.reply,
+              'Reply', palette.textSecondary, onReply),
+        if (isOwner) ...[
+          _button(Key('comment-edit-$commentId'), FontAwesomeIcons.pen, 'Edit',
+              palette.textSecondary, onEdit),
+          _button(Key('comment-delete-$commentId'), FontAwesomeIcons.trashCan,
+              'Delete', palette.likeActive, onDelete),
+        ],
       ],
-    ),
-  );
+    );
+  }
+
+  Widget _button(Key key, FaIconData icon, String label, Color color,
+      VoidCallback onTap) {
+    return Tooltip(
+      message: label,
+      child: InkWell(
+        key: key,
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          child: FaIcon(icon, size: iconSize, color: color),
+        ),
+      ),
+    );
+  }
 }

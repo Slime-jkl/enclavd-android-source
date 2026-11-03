@@ -623,25 +623,6 @@ class _CommentRowState extends State<CommentRow> {
     }
   }
 
-  /// Long press is the only way into the actions: the rows stay clean.
-  Future<void> _openActions(LongPressStartDetails details) async {
-    final action = await showCommentActions(
-      context,
-      details.globalPosition,
-      canReply: !comment.isOwner,
-      isOwner: comment.isOwner,
-    );
-    if (!mounted || action == null) return;
-    switch (action) {
-      case CommentAction.reply:
-        widget.onReply(comment);
-      case CommentAction.edit:
-        widget.onEdit(comment);
-      case CommentAction.delete:
-        _confirmDelete();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final personality =
@@ -727,19 +708,23 @@ class _CommentRowState extends State<CommentRow> {
                       ),
                     ),
                   ),
+                const SizedBox(height: 2),
+                // Actions are visible: reply anyone, edit/delete your own.
+                CommentActionsBar(
+                  commentId: comment.id,
+                  canReply: !comment.isOwner,
+                  isOwner: comment.isOwner,
+                  onReply: () => widget.onReply(comment),
+                  onEdit: () => widget.onEdit(comment),
+                  onDelete: _confirmDelete,
+                ),
               ],
             ),
           ),
         ],
       ),
     );
-    // Long press opens the actions; plain taps still reach the username,
-    // the mentions and the read-more inside.
-    final pressable = GestureDetector(
-      onLongPressStart: _openActions,
-      child: row,
-    );
-    if (!widget.highlighted) return pressable;
+    if (!widget.highlighted) return row;
     // No extra padding: the reply rail's geometry is tuned to the avatar's
     // position, so the tint and the rounding carry the marker on their own.
     return Container(
@@ -747,7 +732,7 @@ class _CommentRowState extends State<CommentRow> {
         color: const Color(0x1A3B82F6), // site: bg-blue-500/10
         borderRadius: BorderRadius.circular(10),
       ),
-      child: pressable,
+      child: row,
     );
   }
 
