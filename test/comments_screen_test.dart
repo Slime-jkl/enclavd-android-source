@@ -7,7 +7,6 @@ import 'package:enclavd/api/social_service.dart';
 import 'package:enclavd/screens/comments_screen.dart';
 import 'package:enclavd/services/sound_service.dart';
 import 'package:enclavd/theme/enclavd_theme.dart';
-import 'package:enclavd/widgets/comment_actions.dart';
 import 'package:enclavd/widgets/enclavd_avatar.dart';
 import 'package:enclavd/widgets/post_card.dart';
 import 'package:enclavd/widgets/thread_connector.dart';
@@ -125,16 +124,14 @@ Comment _comment(int id, String text, {int? parent, bool own = false}) =>
       parentCommentId: parent,
     );
 
-/// Long press a comment and pick [label] from the action menu. Returns once
-/// the menu (and whatever it opened) has settled.
+/// Tap the visible [action] button ('reply' | 'edit' | 'delete') on the
+/// comment row [commentId]. Returns once whatever it opened has settled.
 Future<void> pickAction(
-    WidgetTester tester, Finder comment, String label) async {
-  await tester.longPress(comment);
-  await tester.pump();
-  await tester.pump(const Duration(milliseconds: 250));
-  await tester.tap(find.descendant(
-      of: find.byType(PopupMenuItem<CommentAction>),
-      matching: find.text(label)));
+    WidgetTester tester, int commentId, String action) async {
+  final button = find.byKey(Key('comment-$action-$commentId'));
+  await tester.ensureVisible(button);
+  await tester.pump(const Duration(milliseconds: 50));
+  await tester.tap(button);
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 250));
 }
@@ -298,7 +295,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     // Cancel keeps the thread intact (nested reply still behind its toggle).
-    await pickAction(tester, find.text('My comment'), 'Delete');
+    await pickAction(tester, 1, 'delete');
     expect(find.text('Delete this comment?'), findsOneWidget);
     await tester.tap(find.text('Cancel'));
     await tester.pump(const Duration(milliseconds: 50));
@@ -306,7 +303,7 @@ void main() {
     expect(find.text('1 reply'), findsOneWidget);
 
     // Confirming removes the comment and its replies together.
-    await pickAction(tester, find.text('My comment'), 'Delete');
+    await pickAction(tester, 1, 'delete');
     await tester.tap(find.descendant(
         of: find.byType(AlertDialog), matching: find.text('Delete')));
     await tester.pump(const Duration(milliseconds: 50));
@@ -324,7 +321,7 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    await pickAction(tester, find.text('My typo'), 'Edit');
+    await pickAction(tester, 1, 'edit');
     await tester.pump(const Duration(milliseconds: 300));
 
     // The sheet opens on the stored text, cursor at the end.
@@ -432,7 +429,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     // Reply to the root: the chip appears above the composer.
-    await pickAction(tester, find.text('Root comment'), 'Reply');
+    await pickAction(tester, 1, 'reply');
     expect(find.text('Replying to @Someone'), findsOneWidget); // chip
 
     // The mention prefill stays in the field; type after it (enterText

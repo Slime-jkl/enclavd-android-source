@@ -12,7 +12,6 @@ import 'package:enclavd/services/sound_service.dart';
 import 'package:enclavd/theme/enclavd_theme.dart';
 import 'package:enclavd/utils/db_time.dart';
 import 'package:enclavd/widgets/enclavd_avatar.dart';
-import 'package:enclavd/widgets/comment_actions.dart';
 import 'package:enclavd/widgets/comment_quote_card.dart';
 import 'package:enclavd/widgets/ignite_flame_overlay.dart';
 import 'package:enclavd/widgets/post_card.dart'; // PostCard (must be ABSENT)
@@ -194,15 +193,14 @@ Finder _highlightedCard() => find.byWidgetPredicate((w) =>
     (w.decoration! as BoxDecoration).color ==
         Color.alphaBlend(const Color(0x1A3B82F6), EnclavdPalette.dark.card));
 
-/// Long press a reply and pick [label] from the action menu. Returns once the
-/// menu (and whatever it opened) has settled.
-Future<void> pickAction(WidgetTester tester, Finder reply, String label) async {
-  await tester.longPress(reply);
-  await tester.pump();
-  await tester.pump(const Duration(milliseconds: 250));
-  await tester.tap(find.descendant(
-      of: find.byType(PopupMenuItem<CommentAction>),
-      matching: find.text(label)));
+/// Tap the visible [action] button ('reply' | 'edit' | 'delete') on the
+/// reply card [replyId]. Returns once whatever it opened has settled.
+Future<void> pickAction(
+    WidgetTester tester, int replyId, String action) async {
+  final button = find.byKey(Key('comment-$action-$replyId'));
+  await tester.ensureVisible(button);
+  await tester.pump(const Duration(milliseconds: 50));
+  await tester.tap(button);
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 250));
 }
@@ -361,23 +359,19 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    // Long press is the only way to the actions; the menu offers edit and
-    // delete on an own reply.
-    await tester.longPress(find.text('My own reply'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 250));
-    await tester.tap(find.descendant(
-        of: find.byType(PopupMenuItem<CommentAction>),
-        matching: find.text('Delete')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 250));
+    // The card carries its actions: edit and delete on an own reply, no
+    // reply button (you cannot answer yourself).
+    expect(find.byKey(const Key('comment-reply-2')), findsNothing);
+    expect(find.byKey(const Key('comment-edit-2')), findsOneWidget);
+    expect(find.byKey(const Key('comment-delete-2')), findsOneWidget);
+    await pickAction(tester, 2, 'delete');
     expect(find.text('Delete this reply?'), findsOneWidget);
     await tester.tap(find.text('Cancel'));
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('My own reply'), findsOneWidget);
 
-    // Confirming removes it. The dialog's own button, not the menu entry.
-    await pickAction(tester, find.text('My own reply'), 'Delete');
+    // Confirming removes it. The dialog's own button.
+    await pickAction(tester, 2, 'delete');
     await tester.tap(find.descendant(
         of: find.byType(AlertDialog), matching: find.text('Delete')));
     await tester.pump(const Duration(milliseconds: 50));
@@ -396,7 +390,7 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    await pickAction(tester, find.text('My typo'), 'Edit');
+    await pickAction(tester, 2, 'edit');
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('Edit reply'), findsOneWidget);
 
@@ -812,21 +806,10 @@ void main() {
     expect(find.byKey(const Key('replyToggle')), findsOneWidget);
 
     // Someone else's reply offers the reply action only.
-    await tester.longPress(find.text('First reply'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 250));
-    expect(
-        find.descendant(
-            of: find.byType(PopupMenuItem<CommentAction>),
-            matching: find.text('Reply')),
-        findsOneWidget);
-    expect(find.text('Edit'), findsNothing);
-    expect(find.text('Delete'), findsNothing);
-    await tester.tap(find.descendant(
-        of: find.byType(PopupMenuItem<CommentAction>),
-        matching: find.text('Reply')));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 250));
+    expect(find.byKey(const Key('comment-reply-1')), findsOneWidget);
+    expect(find.byKey(const Key('comment-edit-1')), findsNothing);
+    expect(find.byKey(const Key('comment-delete-1')), findsNothing);
+    await pickAction(tester, 1, 'reply');
 
     // Quote banner names the target above the composer (card + banner = two occurrences).
     expect(find.text('Replying to @Someone'), findsOneWidget);
@@ -945,7 +928,7 @@ void main() {
     // Quoting still works from any row (its parent id rides along).
     await tester.ensureVisible(find.text('Grandchild reply'));
     await tester.pump(const Duration(milliseconds: 300));
-    await pickAction(tester, find.text('Grandchild reply'), 'Reply');
+    await pickAction(tester, 3, 'reply');
     expect(find.text('Replying to @Someone'), findsOneWidget); // banner
   });
 
@@ -963,7 +946,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     // Reply rows are always visible flat; quoting any row arms its id.
-    await pickAction(tester, find.text('Child reply'), 'Reply');
+    await pickAction(tester, 2, 'reply');
     expect(find.text('Replying to @Someone'), findsOneWidget); // banner
 
     await tester.enterText(find.byType(TextField), 'Deep reply');
@@ -984,7 +967,7 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    await pickAction(tester, find.text('First reply'), 'Reply');
+    await pickAction(tester, 1, 'reply');
     expect(find.text('Replying to @Someone'), findsOneWidget);
 
     await tester.tap(findFa(FontAwesomeIcons.xmark));

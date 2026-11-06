@@ -1366,43 +1366,34 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
               ),
             ),
           const SizedBox(height: 8),
-          // The reply number only: reply/edit/delete live behind a long
-          // press, so the card carries no buttons of its own.
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              '#${widget.number}',
-              style: TextStyle(
-                fontSize: 11,
-                fontFamily: 'monospace',
-                color: context.enclavd.textSecondary,
+          // Reply/edit/delete sit on the card itself, with the reply
+          // number on the opposite side.
+          Row(
+            children: [
+              CommentActionsBar(
+                commentId: reply.id,
+                canReply: !reply.isOwner,
+                isOwner: reply.isOwner,
+                iconSize: 14,
+                onReply: () => widget.onReply(reply),
+                onEdit: () => widget.onEdit(reply),
+                onDelete: _confirmDelete,
               ),
-            ),
+              const Spacer(),
+              Text(
+                '#${widget.number}',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontFamily: 'monospace',
+                  color: context.enclavd.textSecondary,
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
-    // Long press anywhere on the card opens reply/edit/delete.
-    return GestureDetector(onLongPressStart: _openActions, child: card);
-  }
-
-  /// Long press is the only way into the actions: the card carries none.
-  Future<void> _openActions(LongPressStartDetails details) async {
-    final action = await showCommentActions(
-      context,
-      details.globalPosition,
-      canReply: !reply.isOwner,
-      isOwner: reply.isOwner,
-    );
-    if (!mounted || action == null) return;
-    switch (action) {
-      case CommentAction.reply:
-        widget.onReply(reply);
-      case CommentAction.edit:
-        widget.onEdit(reply);
-      case CommentAction.delete:
-        _confirmDelete();
-    }
+    return card;
   }
 
   void _openProfile(BuildContext context, int authorId) {
