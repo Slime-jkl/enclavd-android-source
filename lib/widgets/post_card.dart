@@ -1158,7 +1158,7 @@ class _ActionRow extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                   child: FaIcon(
-                    FontAwesomeIcons.heart,
+                    FontAwesomeIcons.solidHeart,
                     key: const ValueKey('like-heart'),
                     color: liked
                         ? context.enclavd.likeActive
@@ -1193,8 +1193,8 @@ class _ActionRow extends StatelessWidget {
                     children: [
                       FaIcon(
                         commentCount > 0
-                            ? FontAwesomeIcons.comments
-                            : FontAwesomeIcons.comment,
+                            ? FontAwesomeIcons.solidComments
+                            : FontAwesomeIcons.solidComment,
                         color: context.enclavd.textSecondary,
                         size: 20,
                       ),

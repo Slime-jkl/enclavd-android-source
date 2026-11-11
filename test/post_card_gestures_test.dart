@@ -430,7 +430,7 @@ void main() {
       // it must not crash and must not open inline comments.
       await pumpPost(tester, domainPost());
 
-      await tester.tap(findFa(FontAwesomeIcons.comments));
+      await tester.tap(findFa(FontAwesomeIcons.solidComments));
       await tester.pump(const Duration(milliseconds: 400));
 
       expect(find.text('View in Domains (3 replies)'), findsOneWidget);
