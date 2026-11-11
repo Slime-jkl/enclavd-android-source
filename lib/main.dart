@@ -49,6 +49,7 @@ import 'services/realtime_service.dart';
 import 'services/social_notification_source.dart';
 import 'services/social_notifications.dart';
 import 'theme/enclavd_theme.dart';
+import 'widgets/cached_image.dart';
 // microdot off
 // import 'widgets/microdot_overlay.dart';
 
@@ -58,6 +59,8 @@ import 'theme/enclavd_theme.dart';
 /// the UI.
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Bound the decoded-image working set alongside the emoji cache.
+  CachedNetworkImageProvider.configureMemoryCache();
   // Emoji compositions are reused while scrolling, but a 1000-entry cache
   // would pin every animation ever shown; keep a working set instead.
   Lottie.cache.maximumSize = 48;
