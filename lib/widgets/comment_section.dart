@@ -665,6 +665,18 @@ class _CommentRowState extends State<CommentRow> {
                       ),
                     ),
                     const SizedBox(width: 6),
+                    // Reply anyone, edit/delete your own, just before the
+                    // timestamp.
+                    CommentActionsBar(
+                      commentId: comment.id,
+                      canReply: !comment.isOwner,
+                      isOwner: comment.isOwner,
+                      iconSize: 15,
+                      onReply: () => widget.onReply(comment),
+                      onEdit: () => widget.onEdit(comment),
+                      onDelete: _confirmDelete,
+                    ),
+                    const SizedBox(width: 6),
                     Text(
                       relativeTime(comment.createdAtUtc),
                       style: TextStyle(
@@ -708,16 +720,6 @@ class _CommentRowState extends State<CommentRow> {
                       ),
                     ),
                   ),
-                const SizedBox(height: 2),
-                // Actions are visible: reply anyone, edit/delete your own.
-                CommentActionsBar(
-                  commentId: comment.id,
-                  canReply: !comment.isOwner,
-                  isOwner: comment.isOwner,
-                  onReply: () => widget.onReply(comment),
-                  onEdit: () => widget.onEdit(comment),
-                  onDelete: _confirmDelete,
-                ),
               ],
             ),
           ),

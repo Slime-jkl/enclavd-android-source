@@ -1292,6 +1292,17 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                       children: [
                         RankBadge(rank: reply.rank),
                         const Spacer(),
+                        // Reply/edit/delete sit just before the timestamp.
+                        CommentActionsBar(
+                          commentId: reply.id,
+                          canReply: !reply.isOwner,
+                          isOwner: reply.isOwner,
+                          iconSize: 15,
+                          onReply: () => widget.onReply(reply),
+                          onEdit: () => widget.onEdit(reply),
+                          onDelete: _confirmDelete,
+                        ),
+                        const SizedBox(width: 6),
                         Text(
                           relativeTime(reply.createdAtUtc),
                           style: TextStyle(
@@ -1366,19 +1377,9 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
               ),
             ),
           const SizedBox(height: 8),
-          // Reply/edit/delete sit on the card itself, with the reply
-          // number on the opposite side.
+          // The reply number sits at the bottom-right of the card body.
           Row(
             children: [
-              CommentActionsBar(
-                commentId: reply.id,
-                canReply: !reply.isOwner,
-                isOwner: reply.isOwner,
-                iconSize: 14,
-                onReply: () => widget.onReply(reply),
-                onEdit: () => widget.onEdit(reply),
-                onDelete: _confirmDelete,
-              ),
               const Spacer(),
               Text(
                 '#${widget.number}',

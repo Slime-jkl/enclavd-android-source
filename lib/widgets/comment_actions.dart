@@ -42,8 +42,9 @@ class CommentActionsBar extends StatelessWidget {
         if (isOwner) ...[
           _button(Key('comment-edit-$commentId'), FontAwesomeIcons.pen, 'Edit',
               palette.textSecondary, onEdit),
-          _button(Key('comment-delete-$commentId'), FontAwesomeIcons.trashCan,
-              'Delete', palette.likeActive, onDelete),
+          _button(Key('comment-delete-$commentId'),
+              FontAwesomeIcons.solidTrashCan, 'Delete', palette.likeActive,
+              onDelete),
         ],
       ],
     );
