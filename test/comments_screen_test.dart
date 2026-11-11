@@ -108,15 +108,19 @@ Finder _highlightTint() => find.byWidgetPredicate((w) =>
     w.decoration is BoxDecoration &&
     (w.decoration! as BoxDecoration).color == const Color(0x1A3B82F6));
 
-Comment _comment(int id, String text, {int? parent, bool own = false}) =>
+Comment _comment(int id, String text,
+        {int? parent,
+        bool own = false,
+        String username = '',
+        String nameColor = 'text-gray-400'}) =>
     Comment(
       id: id,
       postId: 218,
       userId: own ? 1 : 2,
-      username: own ? 'Me' : 'Someone',
+      username: username.isNotEmpty ? username : (own ? 'Me' : 'Someone'),
       profilePictureUrl: '/public/avatars/x.png',
       personalityType: null,
-      nameColor: 'text-gray-400',
+      nameColor: nameColor,
       hasWarnings: false,
       createdAt: '5m',
       content: text,
@@ -554,6 +558,26 @@ void main() {
 
     expect(find.byType(CommentsScreen), findsOneWidget);
     expect(find.text('Root comment'), findsOneWidget);
+  });
+
+  testWidgets('a banned author name is struck through', (tester) async {
+    final social = _FakeSocial(comments: [
+      _comment(1, 'Banned comment',
+          username: 'Banned',
+          nameColor:
+              'text-neutral-500 line-through hover:text-neutral-400'),
+    ]);
+    await tester.pumpWidget(wrap(CommentsScreen(
+      postId: _post().id,
+      initialCount: _post().commentCount,
+      social: social,
+      apiBaseUrl: 'https://example.com',
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final name = tester.widget<Text>(find.text('Banned'));
+    expect(name.style!.decoration, TextDecoration.lineThrough);
+    expect(name.style!.color, EnclavdPalette.dark.rankName('Blocked'));
   });
 }
 

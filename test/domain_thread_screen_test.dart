@@ -166,15 +166,17 @@ Comment _reply(int id, String text,
         int? parent,
         bool warnings = false,
         String? parentName,
-        String? parentExcerpt}) =>
+        String? parentExcerpt,
+        String username = '',
+        String nameColor = 'text-gray-400'}) =>
     Comment(
       id: id,
       postId: 218,
       userId: own ? 1 : 2,
-      username: own ? 'Me' : 'Someone',
+      username: username.isNotEmpty ? username : (own ? 'Me' : 'Someone'),
       profilePictureUrl: '/public/avatars/x.png',
       personalityType: null,
-      nameColor: 'text-gray-400',
+      nameColor: nameColor,
       hasWarnings: warnings,
       createdAt: '5m',
       createdAtUtc: '5m', // raw db string the time badge renders
@@ -1032,6 +1034,26 @@ void main() {
 
     final carousel = tester.widget<PostCarousel>(find.byType(PostCarousel));
     expect(carousel.post.images, ['a.jpg', 'b.jpg', 'c.jpg']);
+  });
+
+  testWidgets('a banned reply author name is struck through', (tester) async {
+    final social = _FakeSocial(replies: [
+      _reply(1, 'Banned reply',
+          username: 'Banned',
+          nameColor:
+              'text-neutral-500 line-through hover:text-neutral-400'),
+    ]);
+    await tester.pumpWidget(wrap(DomainThreadScreen(
+      domains: _FakeDomains(_detail()),
+      postId: 218,
+      social: social,
+      posts: _FakePosts(),
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final name = tester.widget<Text>(find.text('Banned'));
+    expect(name.style!.decoration, TextDecoration.lineThrough);
+    expect(name.style!.color, EnclavdPalette.dark.rankName('Blocked'));
   });
 }
 

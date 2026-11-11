@@ -1248,6 +1248,10 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
   @override
   Widget build(BuildContext context) {
     final personality = context.enclavd.personalityColor(reply.personalityType);
+    final blocked = reply.isBlocked;
+    final nameColor = blocked
+        ? context.enclavd.rankName('Blocked')
+        : context.enclavd.rankNameFromCss(reply.nameColor);
     final card = Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
@@ -1326,10 +1330,13 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
-                                      color: context.enclavd
-                                          .rankNameFromCss(reply.nameColor),
+                                      color: nameColor,
                                       fontWeight: FontWeight.w600,
                                       fontSize: 13.5,
+                                      decoration: blocked
+                                          ? TextDecoration.lineThrough
+                                          : null,
+                                      decorationColor: nameColor,
                                     ),
                                   ),
                                 ),
