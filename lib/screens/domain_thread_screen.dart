@@ -888,6 +888,7 @@ class _ForumPostCardState extends State<_ForumPostCard>
                                   const SizedBox(width: 6),
                                   FaIcon(FontAwesomeIcons.triangleExclamation,
                                       color: context.enclavd.warning, size: 13),
+                                  const SizedBox(width: 3),
                                   Text('${post.warningCount}',
                                       style: TextStyle(
                                           color: context.enclavd.warning,
