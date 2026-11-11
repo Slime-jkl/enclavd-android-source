@@ -137,12 +137,16 @@ class EnclavdPalette extends ThemeExtension<EnclavdPalette> {
   Color rankName(String rank) =>
       rankNameColors[rank] ?? rankNameColors['Member']!;
 
-  /// Maps the server's Tailwind name_color class to our palette.
+  /// Maps the server's Tailwind name_color class to our palette. Banned
+  /// authors come through as `text-neutral-500 line-through ...`.
   Color rankNameFromCss(String cssClass) {
     if (cssClass.contains('purple')) return rankName('SysOp');
     if (cssClass.contains('red')) return rankName('Admin');
     if (cssClass.contains('blue')) return rankName('Officer');
     if (cssClass.contains('yellow')) return rankName('Founding Member');
+    if (cssClass.contains('neutral') || cssClass.contains('line-through')) {
+      return rankName('Blocked');
+    }
     return rankName('Member');
   }
 

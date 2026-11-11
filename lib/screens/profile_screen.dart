@@ -869,6 +869,7 @@ class _ProfileHeader extends StatelessWidget {
                               const SizedBox(width: 6),
                               FaIcon(FontAwesomeIcons.triangleExclamation,
                                   color: context.enclavd.warning, size: 14),
+                              const SizedBox(width: 3),
                               Text(
                                 '${profile.warningCount}',
                                 style: TextStyle(

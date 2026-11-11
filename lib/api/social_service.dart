@@ -97,6 +97,10 @@ class Comment {
   final String createdAtUtc;
   final String rank;
 
+  /// The server folds a banned author's rank into the Blocked style, whose
+  /// `name_color` carries Tailwind's `line-through`; mirror that in the cards.
+  bool get isBlocked => nameColor.contains('line-through');
+
   /// The same row carrying new text: an edit keeps the id, the reply target
   /// and everything the server resolved for it.
   Comment withContent(String content) => Comment(

@@ -462,6 +462,7 @@ class PostAuthorRow extends StatelessWidget {
                       const SizedBox(width: 6),
                       FaIcon(FontAwesomeIcons.triangleExclamation,
                           color: context.enclavd.warning, size: 14),
+                      const SizedBox(width: 3),
                       Text('${post.warningCount}',
                           style: TextStyle(
                               color: context.enclavd.warning, fontSize: 10)),
@@ -798,6 +799,11 @@ class _PostCarouselState extends State<PostCarousel> {
                         PageView.builder(
                           controller: _controller,
                           itemCount: urls.length,
+                          // Build the neighbouring slides ahead of the swipe
+                          // so their images start downloading while the
+                          // current slide is still on screen. The skeleton
+                          // fills any slide that has not decoded yet.
+                          allowImplicitScrolling: true,
                           onPageChanged: (i) => setState(() => _index = i),
                           itemBuilder: (context, i) => EnclavdImage(
                             urls[i],
@@ -947,13 +953,18 @@ class _ImageViewerState extends State<_ImageViewer> {
             child: PageView.builder(
               controller: _controller,
               itemCount: urls.length,
+              allowImplicitScrolling: true,
               onPageChanged: (i) => setState(() => _index = i),
               itemBuilder: (context, i) => InteractiveViewer(
                 maxScale: 5,
-                child: Center(
-                  child: Image(
-                    image: CachedNetworkImageProvider(urls[i]),
+                // Same shimmer contract as the card: swiping the fullscreen
+                // pager must hold a skeleton, not a blank page, until the
+                // slide decodes.
+                child: SizedBox.expand(
+                  child: EnclavdImage(
+                    urls[i],
                     fit: BoxFit.contain,
+                    errorAsset: 'assets/images/no-image.jpg',
                   ),
                 ),
               ),
@@ -1148,7 +1159,7 @@ class _ActionRow extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
                   child: FaIcon(
-                    FontAwesomeIcons.heart,
+                    FontAwesomeIcons.solidHeart,
                     key: const ValueKey('like-heart'),
                     color: liked
                         ? context.enclavd.likeActive
@@ -1183,8 +1194,8 @@ class _ActionRow extends StatelessWidget {
                     children: [
                       FaIcon(
                         commentCount > 0
-                            ? FontAwesomeIcons.comments
-                            : FontAwesomeIcons.comment,
+                            ? FontAwesomeIcons.solidComments
+                            : FontAwesomeIcons.solidComment,
                         color: context.enclavd.textSecondary,
                         size: 20,
                       ),

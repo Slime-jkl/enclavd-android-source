@@ -52,19 +52,30 @@ class EnclavdImage extends StatelessWidget {
       width: width,
       height: height,
       fit: fit,
-      // frameBuilder fires once the frame is decoded; shimmer until then,
-      // then fade in.
+      // frameBuilder fires once the frame is decoded. Until then the
+      // placeholder must stay *visible* (it used to fade from opacity 0,
+      // which is why a slow image looked like an empty white/black gap);
+      // once the frame lands the skeleton fades out and the image fades in.
       frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
         if (wasSynchronouslyLoaded) return child;
-        return AnimatedOpacity(
-          opacity: frame == null ? 0 : 1,
+        return AnimatedSwitcher(
           duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOut,
+          switchInCurve: Curves.easeOut,
+          switchOutCurve: Curves.easeIn,
           child: frame == null
-              ? (shimmer
-                  ? _placeholder()
-                  : SizedBox(width: width, height: placeholderHeight ?? height))
-              : child,
+              ? KeyedSubtree(
+                  key: const ValueKey('enclavd-image-placeholder'),
+                  child: shimmer
+                      ? _placeholder()
+                      : SizedBox(
+                          width: width,
+                          height: placeholderHeight ?? height,
+                        ),
+                )
+              : KeyedSubtree(
+                  key: const ValueKey('enclavd-image-frame'),
+                  child: child,
+                ),
         );
       },
       errorBuilder: (context, error, stack) => _fallback(context),
@@ -75,11 +86,24 @@ class EnclavdImage extends StatelessWidget {
   }
 
   Widget _placeholder() {
-    return ShimmerBox(
-      width: width,
-      height: placeholderHeight ?? height ?? 140,
-      borderRadius: 8,
-      shape: placeholderShape,
+    // Fill whichever dimension the caller left to the layout. Call sites like
+    // the article hero/cover pass no width/height and rely on their parent
+    // SizedBox, so a fixed 140px block would leave a visible gap while the
+    // bitmap downloads.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = width ??
+            (constraints.maxWidth.isFinite ? constraints.maxWidth : null);
+        final h = placeholderHeight ??
+            height ??
+            (constraints.maxHeight.isFinite ? constraints.maxHeight : 140);
+        return ShimmerBox(
+          width: w,
+          height: h,
+          borderRadius: 8,
+          shape: placeholderShape,
+        );
+      },
     );
   }
 

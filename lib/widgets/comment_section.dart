@@ -627,6 +627,10 @@ class _CommentRowState extends State<CommentRow> {
   Widget build(BuildContext context) {
     final personality =
         context.enclavd.personalityColor(comment.personalityType);
+    final blocked = comment.isBlocked;
+    final nameColor = blocked
+        ? context.enclavd.rankName('Blocked')
+        : context.enclavd.rankNameFromCss(comment.nameColor);
     final row = Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
@@ -656,13 +660,27 @@ class _CommentRowState extends State<CommentRow> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: context.enclavd
-                                .rankNameFromCss(comment.nameColor),
+                            color: nameColor,
                             fontWeight: FontWeight.w600,
                             fontSize: 13,
+                            decoration:
+                                blocked ? TextDecoration.lineThrough : null,
+                            decorationColor: nameColor,
                           ),
                         ),
                       ),
+                    ),
+                    const SizedBox(width: 6),
+                    // Reply anyone, edit/delete your own, just before the
+                    // timestamp.
+                    CommentActionsBar(
+                      commentId: comment.id,
+                      canReply: !comment.isOwner,
+                      isOwner: comment.isOwner,
+                      iconSize: 15,
+                      onReply: () => widget.onReply(comment),
+                      onEdit: () => widget.onEdit(comment),
+                      onDelete: _confirmDelete,
                     ),
                     const SizedBox(width: 6),
                     Text(
@@ -708,16 +726,6 @@ class _CommentRowState extends State<CommentRow> {
                       ),
                     ),
                   ),
-                const SizedBox(height: 2),
-                // Actions are visible: reply anyone, edit/delete your own.
-                CommentActionsBar(
-                  commentId: comment.id,
-                  canReply: !comment.isOwner,
-                  isOwner: comment.isOwner,
-                  onReply: () => widget.onReply(comment),
-                  onEdit: () => widget.onEdit(comment),
-                  onDelete: _confirmDelete,
-                ),
               ],
             ),
           ),

@@ -888,6 +888,7 @@ class _ForumPostCardState extends State<_ForumPostCard>
                                   const SizedBox(width: 6),
                                   FaIcon(FontAwesomeIcons.triangleExclamation,
                                       color: context.enclavd.warning, size: 13),
+                                  const SizedBox(width: 3),
                                   Text('${post.warningCount}',
                                       style: TextStyle(
                                           color: context.enclavd.warning,
@@ -1248,6 +1249,10 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
   @override
   Widget build(BuildContext context) {
     final personality = context.enclavd.personalityColor(reply.personalityType);
+    final blocked = reply.isBlocked;
+    final nameColor = blocked
+        ? context.enclavd.rankName('Blocked')
+        : context.enclavd.rankNameFromCss(reply.nameColor);
     final card = Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
@@ -1292,6 +1297,17 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                       children: [
                         RankBadge(rank: reply.rank),
                         const Spacer(),
+                        // Reply/edit/delete sit just before the timestamp.
+                        CommentActionsBar(
+                          commentId: reply.id,
+                          canReply: !reply.isOwner,
+                          isOwner: reply.isOwner,
+                          iconSize: 15,
+                          onReply: () => widget.onReply(reply),
+                          onEdit: () => widget.onEdit(reply),
+                          onDelete: _confirmDelete,
+                        ),
+                        const SizedBox(width: 6),
                         Text(
                           relativeTime(reply.createdAtUtc),
                           style: TextStyle(
@@ -1315,10 +1331,13 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
-                                      color: context.enclavd
-                                          .rankNameFromCss(reply.nameColor),
+                                      color: nameColor,
                                       fontWeight: FontWeight.w600,
                                       fontSize: 13.5,
+                                      decoration: blocked
+                                          ? TextDecoration.lineThrough
+                                          : null,
+                                      decorationColor: nameColor,
                                     ),
                                   ),
                                 ),
@@ -1366,19 +1385,9 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
               ),
             ),
           const SizedBox(height: 8),
-          // Reply/edit/delete sit on the card itself, with the reply
-          // number on the opposite side.
+          // The reply number sits at the bottom-right of the card body.
           Row(
             children: [
-              CommentActionsBar(
-                commentId: reply.id,
-                canReply: !reply.isOwner,
-                isOwner: reply.isOwner,
-                iconSize: 14,
-                onReply: () => widget.onReply(reply),
-                onEdit: () => widget.onEdit(reply),
-                onDelete: _confirmDelete,
-              ),
               const Spacer(),
               Text(
                 '#${widget.number}',
