@@ -31,17 +31,15 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
-  flutter_launcher_icons: ^0.14.3
+  # flutter_launcher_icons: ^0.14.3
+  # ^ Only needed to regenerate the app icons (see the commented block at the
+  #   bottom of this file). Kept disabled: the icons are already generated and
+  #   committed, and keeping the package enabled adds a dev dependency that
+  #   pubspec-fdroid.lock does not contain - which makes the F-Droid job fail
+  #   at `flutter pub get --enforce-lockfile`.
 
 flutter:
   uses-material-design: true
-
-flutter_launcher_icons:
-  android: true
-  ios: true
-  image_path: "assets/icon.png"
-  adaptive_icon_background: "assets/icon_background.png" # Or a hex color like "#FFFFFF"
-  adaptive_icon_foreground: "assets/icon_foreground.png"
 
   fonts:
     - family: Montserrat
@@ -70,3 +68,16 @@ flutter_launcher_icons:
     - assets/gifs/emojis/
     - assets/gifs/emojis/LICENSES/CC-BY-4.0.txt
     - assets/gifs/emojis/LICENSES/MIT-Microsoft-Fluent.txt
+
+# App-icon generator config (flutter_launcher_icons). The icons were generated
+# once and are committed under android/app/src/main/res/ and
+# ios/Runner/Assets.xcassets, so normal builds don't need this. To regenerate
+# after changing assets/icon.png: uncomment this block AND the dev dependency
+# above, run `dart run flutter_launcher_icons`, then re-comment both and
+# `git checkout -- pubspec.lock` (the generator's pub get rewrites the lock).
+# flutter_launcher_icons:
+#   android: true
+#   ios: true
+#   image_path: "assets/icon.png"
+#   adaptive_icon_background: "assets/icon_background.png"
+#   adaptive_icon_foreground: "assets/icon_foreground.png"
