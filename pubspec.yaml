@@ -1,7 +1,7 @@
 name: enclavd
 description: "Enclavd - Personality Social Network"
 publish_to: "none"
-version: 2.3.0+230
+version: 2.3.1+231
 
 environment:
   sdk: ^3.6.0
@@ -31,9 +31,17 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.3
 
 flutter:
   uses-material-design: true
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon.png"
+  adaptive_icon_background: "assets/icon_background.png" # Or a hex color like "#FFFFFF"
+  adaptive_icon_foreground: "assets/icon_foreground.png"
 
   fonts:
     - family: Montserrat
