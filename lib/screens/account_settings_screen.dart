@@ -63,6 +63,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
 
   String _gender = 'NONE';
   String? _birthdate; // 'Y-m-d'
+  bool _privacyLocation = true;
+  bool _privacyGender = true;
+  bool _privacyBirthday = true;
   int? _countryId;
   int? _regionId;
   int? _cityId;
@@ -111,6 +114,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
       _bioController.text = account.bio;
       _gender = account.gender.isEmpty ? 'NONE' : account.gender;
       _birthdate = account.birthdate;
+      _privacyLocation = account.privacyLocation;
+      _privacyGender = account.privacyGender;
+      _privacyBirthday = account.privacyBirthday;
       _countryId = account.geoCountry;
       _regionId = account.geoRegion;
       _cityId = account.geoCity;
@@ -312,6 +318,9 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
         geoCountry: _countryId,
         geoRegion: _regionId,
         geoCity: _cityId,
+        privacyLocation: _privacyLocation,
+        privacyGender: _privacyGender,
+        privacyBirthday: _privacyBirthday,
       );
     } catch (e) {
       if (!mounted) return;
@@ -688,6 +697,47 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
           ),
         ],
         const SizedBox(height: 20),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: context.enclavd.cardSecondary,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: context.enclavd.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Profile Privacy',
+                  style: TextStyle(
+                      color: context.enclavd.textPrimary,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              Text(
+                'Choose which details appear in the About tab of your profile.',
+                style: TextStyle(
+                    color: context.enclavd.textSecondary, fontSize: 12),
+              ),
+              const SizedBox(height: 4),
+              _PrivacyCheck(
+                label: 'Location',
+                value: _privacyLocation,
+                onChanged: (v) => setState(() => _privacyLocation = v),
+              ),
+              _PrivacyCheck(
+                label: 'Gender',
+                value: _privacyGender,
+                onChanged: (v) => setState(() => _privacyGender = v),
+              ),
+              _PrivacyCheck(
+                label: 'Birthday',
+                value: _privacyBirthday,
+                onChanged: (v) => setState(() => _privacyBirthday = v),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
         FilledButton.icon(
           onPressed: _saving ? null : _save,
           icon: _saving
@@ -992,6 +1042,42 @@ class _CityPickerSheetState extends State<_CityPickerSheet> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _PrivacyCheck extends StatelessWidget {
+  const _PrivacyCheck({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String label;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () => onChanged(!value),
+      borderRadius: BorderRadius.circular(8),
+      child: Row(
+        children: [
+          Checkbox(
+            value: value,
+            onChanged: (v) => onChanged(v ?? false),
+            activeColor: context.enclavd.primaryButton,
+            side: BorderSide(color: context.enclavd.border),
+            visualDensity: VisualDensity.compact,
+          ),
+          Expanded(
+            child: Text(label,
+                style: TextStyle(
+                    color: context.enclavd.textPrimary, fontSize: 13.5)),
+          ),
+        ],
       ),
     );
   }

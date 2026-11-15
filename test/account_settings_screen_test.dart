@@ -24,6 +24,7 @@ class _FakeProfile extends ProfileService {
 
   int updateProfileCalls = 0;
   String? lastBio;
+  bool? lastPrivacyLocation;
 
   @override
   Future<AccountSettings> fetchSelf() async => account!;
@@ -37,9 +38,13 @@ class _FakeProfile extends ProfileService {
     int? geoCountry,
     int? geoRegion,
     int? geoCity,
+    bool? privacyLocation,
+    bool? privacyGender,
+    bool? privacyBirthday,
   }) async {
     updateProfileCalls++;
     lastBio = bio;
+    lastPrivacyLocation = privacyLocation;
     if (updateProfileError != null) throw updateProfileError!;
   }
 
@@ -126,6 +131,30 @@ void main() {
     await tester.pump();
     expect(find.text('Save Changes'), findsOneWidget);
     expect(find.text('Change Password'), findsOneWidget);
+  });
+
+  testWidgets('privacy card saves the toggled visibility flags',
+      (tester) async {
+    final fake = _FakeProfile(account: _account);
+    await _pump(tester, fake);
+
+    await tester.drag(find.byType(ListView), const Offset(0, -1600));
+    await tester.pump();
+    expect(find.text('Profile Privacy'), findsOneWidget);
+    expect(
+        find.text(
+            'Choose which details appear in the About tab of your profile.'),
+        findsOneWidget);
+
+    // The account fixture defaults to visible; tapping hides Location.
+    await tester.tap(find.text('Location').last);
+    await tester.pump();
+    await tester.tap(find.text('Save Changes'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(fake.updateProfileCalls, 1);
+    expect(fake.lastPrivacyLocation, isFalse);
   });
 
   testWidgets('server 4xx on save shows the server message verbatim',
