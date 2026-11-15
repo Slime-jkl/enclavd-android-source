@@ -475,6 +475,7 @@ class _VoteCard extends StatelessWidget {
                 url: vote.creatorAvatar.startsWith('/')
                     ? '${AppConfig.apiBaseUrl}${vote.creatorAvatar}'
                     : vote.creatorAvatar,
+                rank: vote.creatorRank,
               ),
               const SizedBox(width: 7),
               Text(

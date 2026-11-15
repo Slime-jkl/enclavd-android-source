@@ -67,8 +67,8 @@ void main() {
   }
 
   testWidgets(
-      'rows render feed-style: rank color, personality pill, '
-      'rank badge, personality-bordered circular avatar', (tester) async {
+      'rows render site-style: rank color, personality pill, '
+      'rank badge, rank-bordered circular avatar', (tester) async {
     await pumpSheet(tester);
 
     // Username carries its rank color (SysOp -> purple-400).
@@ -82,12 +82,12 @@ void main() {
     expect(find.text('Founding Member'), findsOneWidget);
     expect(find.text('vaporycoder'), findsOneWidget);
 
-    // Avatar: ClipOval inside the ring container, ring colored by personality.
+    // Avatar: ClipOval inside the ring container, ring colored by rank.
     final avatars =
         tester.widgetList<EnclavdAvatar>(find.byType(EnclavdAvatar));
     expect(avatars.length, 2);
-    final first = avatars.first;
-    expect(first.borderColor, EnclavdPalette.dark.personalityColor('INTJ'));
+    expect(avatars.first.rank, 'SysOp');
+    expect(avatars.last.rank, 'Founding Member');
     expect(find.byType(ClipOval), findsNWidgets(2),
         reason: 'images clip via ClipOval, never a raw square');
   });

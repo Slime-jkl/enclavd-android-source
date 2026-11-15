@@ -229,7 +229,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
           participantId: conversation.participantId,
           participantName: conversation.participantName,
           participantAvatar: conversation.participantAvatar,
-          participantPersonality: conversation.participantPersonality,
+          participantRank: conversation.participantRank,
           participantIsOnline: conversation.isOnline,
         ),
       ),
@@ -424,8 +424,7 @@ class _ConversationRow extends StatelessWidget {
                   size: 40, // w-10 h-10
                   url: resolveAvatarUrl(
                       AppConfig.apiBaseUrl, conversation.participantAvatar),
-                  // Site ring: border-white/[0.1] (no personality color).
-                  borderColor: context.enclavd.border,
+                  rank: conversation.participantRank,
                 ),
                 Positioned(
                   bottom: 0,

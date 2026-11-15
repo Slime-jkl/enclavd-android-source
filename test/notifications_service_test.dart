@@ -41,6 +41,7 @@ Map<String, dynamic> _bundle({
       'from_user_id': 7,
       'from_username': username,
       'from_user_avatar': '/public/avatars/alice.png',
+      'from_user_rank': 'Officer',
       'actor_count': actors,
       'read': read,
       'created_at': '2026-08-21 09:30:00',
@@ -57,6 +58,7 @@ void main() {
     expect(n.id, 12);
     expect(n.message, 'alice & 2 others liked your post');
     expect(n.contentType, 'post-like');
+    expect(n.fromUserRank, 'Officer');
     expect(n.contentId, 5);
     expect(n.fromUserId, 7);
     expect(n.fromUsername, 'alice');

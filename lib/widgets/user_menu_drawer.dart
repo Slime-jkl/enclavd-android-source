@@ -278,7 +278,7 @@ class _UserHeader extends StatelessWidget {
             EnclavdAvatar(
               size: 46,
               url: u.avatarUrl(AppConfig.apiBaseUrl),
-              borderColor: personality ?? context.enclavd.border,
+              rank: u.banned ? 'Blocked' : u.rank,
             ),
             const SizedBox(width: 12),
             Expanded(

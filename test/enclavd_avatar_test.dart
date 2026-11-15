@@ -60,4 +60,33 @@ void main() {
     expect(tester.getSize(boxFinder), const Size(inner, inner),
         reason: 'SizedBox must pin the image box to a square');
   });
+
+  testWidgets('rank picks the site avatar_border shade over borderColor',
+      (tester) async {
+    await tester.pumpWidget(const MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: EnclavdAvatar(
+            size: 40,
+            url: 'https://enclavd.com/public/avatars/probe.jpg',
+            rank: 'SysOp',
+            borderColor: Color(0xFF00FF00),
+          ),
+        ),
+      ),
+    ));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final ringFinder = find.descendant(
+        of: find.byType(EnclavdAvatar),
+        matching: find.byWidgetPredicate((w) =>
+            w is Container &&
+            (w.decoration is BoxDecoration) &&
+            (w.decoration! as BoxDecoration).shape == BoxShape.circle &&
+            (w.decoration! as BoxDecoration).border != null));
+    final ring = tester.widget<Container>(ringFinder);
+    final border = (ring.decoration! as BoxDecoration).border!;
+    expect(border.top.color, const Color(0xFFA855F7),
+        reason: 'SysOp ring is purple-500, not the personality borderColor');
+  });
 }

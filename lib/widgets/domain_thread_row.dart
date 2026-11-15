@@ -95,8 +95,7 @@ class _DomainThreadRowState extends State<DomainThreadRow> {
                       size: 24,
                       url: resolveMediaUrl(AppConfig.apiBaseUrl,
                           avatarPath: post.profilePictureUrl),
-                      borderColor: context.enclavd
-                          .personalityColor(post.personalityType),
+                      rank: post.isBlocked ? 'Blocked' : post.rank,
                       square: true,
                     ),
                     const SizedBox(width: 8),

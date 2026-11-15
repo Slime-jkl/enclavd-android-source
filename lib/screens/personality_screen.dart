@@ -282,7 +282,7 @@ class _SynergyCard extends StatelessWidget {
               children: [
                 Expanded(
                     child:
-                        _IdentityColumn(person: viewer!, type: compat.myType)),
+                        _IdentityColumn(person: viewer!)),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   child: _TypeMatch(
@@ -293,8 +293,7 @@ class _SynergyCard extends StatelessWidget {
                   ),
                 ),
                 Expanded(
-                    child: _IdentityColumn(
-                        person: profile!, type: compat.theirType)),
+                    child: _IdentityColumn(person: profile!)),
               ],
             ),
           if (percentage != null) ...[
@@ -361,14 +360,12 @@ class _SynergyCard extends StatelessWidget {
    they never clip the card.
    */
 class _IdentityColumn extends StatelessWidget {
-  const _IdentityColumn({required this.person, required this.type});
+  const _IdentityColumn({required this.person});
 
   final PersonalityIdentity person;
-  final String type;
 
   @override
   Widget build(BuildContext context) {
-    final typeColor = context.enclavd.personalityColor(type);
     final blocked = person.rank == 'Blocked';
     final rankColor = context.enclavd.rankName(person.rank);
     return Column(
@@ -383,7 +380,7 @@ class _IdentityColumn extends StatelessWidget {
           size: 56,
           url: resolveMediaUrl(AppConfig.apiBaseUrl,
               avatarPath: person.profilePictureUrl),
-          borderColor: typeColor ?? context.enclavd.border,
+          rank: person.rank,
         ),
         const SizedBox(height: 8),
         Text(

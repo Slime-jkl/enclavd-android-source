@@ -181,7 +181,7 @@ class _ResultRow extends StatelessWidget {
               url: r.avatar.startsWith('/')
                   ? '${AppConfig.apiBaseUrl}${r.avatar}'
                   : r.avatar,
-              borderColor: personality ?? context.enclavd.border,
+              rank: r.rank,
             ),
             const SizedBox(width: 12),
             Expanded(

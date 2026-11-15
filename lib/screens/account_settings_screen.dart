@@ -519,7 +519,7 @@ class _AccountSettingsScreenState extends State<AccountSettingsScreen> {
                 url: account.profilePictureUrl.startsWith('/')
                     ? '${AppConfig.apiBaseUrl}${account.profilePictureUrl}'
                     : account.profilePictureUrl,
-                borderColor: context.enclavd.border,
+                rank: account.rank,
               ),
             const SizedBox(width: 16),
             Expanded(

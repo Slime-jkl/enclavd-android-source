@@ -416,7 +416,6 @@ class PostAuthorRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final personality = context.enclavd.personalityColor(post.personalityType);
     return Row(
       children: [
         GestureDetector(
@@ -425,7 +424,7 @@ class PostAuthorRow extends StatelessWidget {
             size: 35,
             url:
                 resolveMediaUrl(apiBaseUrl, avatarPath: post.profilePictureUrl),
-            borderColor: personality,
+            rank: post.isBlocked ? 'Blocked' : post.rank,
           ),
         ),
         const SizedBox(width: 8),

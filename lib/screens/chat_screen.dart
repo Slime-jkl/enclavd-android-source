@@ -26,7 +26,7 @@ class ChatScreen extends StatefulWidget {
     this.participantId,
     this.participantName = '',
     this.participantAvatar,
-    this.participantPersonality,
+    this.participantRank,
     this.participantIsOnline = false,
   });
 
@@ -39,7 +39,10 @@ class ChatScreen extends StatefulWidget {
   final int? participantId;
   final String participantName;
   final String? participantAvatar; // root-relative path
-  final String? participantPersonality;
+
+  /// Rank of the other member; the header ring uses its avatar_border shade
+  /// ('Blocked' for deactivated accounts).
+  final String? participantRank;
   final bool participantIsOnline;
 
   /// Reconcile/fallback cadence while the thread is open (WS is primary).
@@ -582,8 +585,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   size: 32,
                   url: resolveAvatarUrl(
                       AppConfig.apiBaseUrl, widget.participantAvatar!),
-                  borderColor: context.enclavd
-                      .personalityColor(widget.participantPersonality),
+                  rank: widget.participantRank,
                 ),
               ),
             Expanded(

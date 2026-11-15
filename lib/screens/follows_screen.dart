@@ -387,7 +387,6 @@ class _UserRow extends StatelessWidget {
     final nameColor = blocked
         ? context.enclavd.rankName('Blocked')
         : context.enclavd.rankName(user.rank);
-    final personality = context.enclavd.personalityColor(user.personalityType);
     final subtitle = user.fullName.isNotEmpty ? user.fullName : user.bio;
     return Material(
       color: context.enclavd.card,
@@ -406,7 +405,7 @@ class _UserRow extends StatelessWidget {
                 size: 44,
                 url: resolveMediaUrl(AppConfig.apiBaseUrl,
                     avatarPath: user.profilePictureUrl),
-                borderColor: personality ?? context.enclavd.border,
+                rank: user.isBlocked ? 'Blocked' : user.rank,
               ),
               const SizedBox(width: 12),
               Expanded(

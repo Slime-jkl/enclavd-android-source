@@ -167,7 +167,9 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                 EnclavdAvatar(
                   size: 48,
                   url: _avatarUrl(detail.owner!.profilePictureUrl),
-                  borderColor: context.enclavd.rankName(detail.owner!.rank),
+                  rank: detail.owner!.isActive == 'false'
+                      ? 'Blocked'
+                      : detail.owner!.rank,
                 )
               else
                 FaIcon(FontAwesomeIcons.user,
@@ -443,7 +445,7 @@ class _ReplyBubble extends StatelessWidget {
           url: event.profilePictureUrl.startsWith('/')
               ? '${AppConfig.apiBaseUrl}${event.profilePictureUrl}'
               : event.profilePictureUrl,
-          borderColor: context.enclavd.border,
+          rank: event.rank,
         ),
         const SizedBox(width: 10),
         Expanded(

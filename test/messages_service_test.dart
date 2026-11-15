@@ -19,6 +19,7 @@ Map<String, dynamic> conversationJson({
   String participants = 'Alice',
   String avatar = '/public/avatars/a.jpg',
   String? personality = 'INTJ',
+  String participantRank = 'Officer',
   String lastActive = '2026-08-20 09:59:00',
   String lastMessage = 'hi there',
   int unreadCount = 0,
@@ -30,6 +31,7 @@ Map<String, dynamic> conversationJson({
       'participants': participants,
       'participant_avatar': avatar,
       'participant_personality': personality,
+      'participant_rank': participantRank,
       'last_active': lastActive,
       'last_message': lastMessage,
       'unread_count': unreadCount,
@@ -63,6 +65,7 @@ void main() {
       expect(c.participantName, 'Alice');
       expect(c.participantAvatar, '/public/avatars/a.jpg');
       expect(c.participantPersonality, 'INTJ');
+      expect(c.participantRank, 'Officer');
       expect(c.lastMessage, 'hi there');
       expect(c.unreadCount, 3);
       expect(c.hasUnread, isTrue);

@@ -625,8 +625,6 @@ class _CommentRowState extends State<CommentRow> {
 
   @override
   Widget build(BuildContext context) {
-    final personality =
-        context.enclavd.personalityColor(comment.personalityType);
     final blocked = comment.isBlocked;
     final nameColor = blocked
         ? context.enclavd.rankName('Blocked')
@@ -642,7 +640,7 @@ class _CommentRowState extends State<CommentRow> {
               size: 28,
               url: resolveMediaUrl(widget.apiBaseUrl,
                   avatarPath: comment.profilePictureUrl),
-              borderColor: personality,
+              rank: blocked ? 'Blocked' : comment.rank,
             ),
           ),
           const SizedBox(width: 8),

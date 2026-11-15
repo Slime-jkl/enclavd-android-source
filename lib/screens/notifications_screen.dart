@@ -302,6 +302,7 @@ class _NotificationRow extends StatelessWidget {
                 EnclavdAvatar(
                   size: 40,
                   url: n.avatarUrl(AppConfig.apiBaseUrl),
+                  rank: n.fromUserRank,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
