@@ -81,9 +81,36 @@ android {
         }
     }
 
+    // A flavor is mandatory. Flutter names APKs app-<flavor>-<buildtype>.apk, so
+    // a flavor-less `flutter run`/`flutter build` cannot find its output; worse,
+    // the aggregate assemble*/bundle* tasks also compile the fdroid variant,
+    // whose firebase-free registrant collides with the auto-generated main one.
+    // Fail fast with actionable text instead of three javac "duplicate class" errors.
+    val requestedTasks = project.gradle.startParameter.taskNames
+    val knownFlavors = listOf("play", "fdroid", "dev")
+    val flavorSelected = requestedTasks.any { task ->
+        knownFlavors.any { flavor -> task.contains(flavor, ignoreCase = true) }
+    }
+    val aggregateTask = requestedTasks.any { task ->
+        val name = task.substringAfterLast(':')
+        name.equals("build", ignoreCase = true) ||
+            name.startsWith("assemble", ignoreCase = true) ||
+            name.startsWith("bundle", ignoreCase = true)
+    }
+    if (aggregateTask && !flavorSelected) {
+        throw GradleException(
+            "Build with a flavor, e.g. `flutter run --flavor play` (or dev/fdroid). " +
+                "In Android Studio set 'Build flavor' in the Flutter run configuration. " +
+                "A flavor-less build expands assemble*/bundle* across every flavor, and the " +
+                "fdroid variant cannot compile against the auto-generated plugin registrant."
+        )
+    }
+
     // The generated registrant references firebase plugins the fdroid flavor
     // excludes; the committed src/fdroid copy replaces it, so drop it here.
-    if (project.gradle.startParameter.taskNames.any { it.contains("Fdroid", ignoreCase = true) }) {
+    // Only fdroid task names reach this point: the guard above rejects the
+    // flavor-less aggregate builds that would otherwise compile both copies.
+    if (requestedTasks.any { it.contains("Fdroid", ignoreCase = true) }) {
         project.file("src/main/java/io/flutter/plugins/GeneratedPluginRegistrant.java").delete()
     }
 }

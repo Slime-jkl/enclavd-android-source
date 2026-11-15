@@ -33,7 +33,7 @@ class EnclavdPalette extends ThemeExtension<EnclavdPalette> {
   });
 
   final Color background; // page bg (gray-950 / gray-200)
-  final Color card; // card + drawer + input fill (gray-900 / gray-100)
+  final Color card; // card + drawer (gray-900 / gray-100)
   final Color cardSecondary; // chips, secondary fills (gray-800 / gray-200)
   final Color border; // card borders (gray-800 / gray-300)
   final Color divider; // hairline dividers (gray-700 / gray-300)
@@ -363,9 +363,11 @@ ThemeData buildEnclavdTheme({bool light = false}) {
         textStyle: const TextStyle(fontWeight: FontWeight.w500),
       ),
     ),
+    // Inputs sit a step below their card: gray-950 on gray-900 cards,
+    // gray-200 on gray-100 cards, so fields read as recessed.
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: pal.card,
+      fillColor: pal.background,
       hintStyle: TextStyle(color: pal.textSecondary),
       labelStyle: TextStyle(color: pal.textSecondary),
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),

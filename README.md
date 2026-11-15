@@ -49,12 +49,33 @@ Every flavor-level switch is a compile-time dart-define read by
 
 ## Building
 
+A flavor is required on every Android build. Flutter writes the APK as
+`app-<flavor>-<buildtype>.apk`, so a flavor-less `flutter run`/`flutter build`
+cannot find its output, and a bare `assembleDebug` also tries to compile the
+`fdroid` variant, whose firebase-free plugin registrant conflicts with the
+auto-generated one.
+
 ```sh
 flutter pub get
 flutter analyze --fatal-infos
 flutter test
-flutter build apk --debug --dart-define=ENCLAVD_FLAVOR=dev
+flutter build apk --debug --flavor dev --dart-define=ENCLAVD_FLAVOR=dev
 ```
+
+## Running locally
+
+```sh
+flutter run --flavor dev --dart-define=ENCLAVD_FLAVOR=dev
+```
+
+`play` works the same way (`flutter run --flavor play`; its dart-defines default
+to the Play values). In Android Studio, open **Run > Edit Configurations**, pick
+the Flutter configuration and set **Build flavor** to `dev` or `play` - the
+Build Variants panel alone is not enough, because the Flutter plugin launches
+Gradle itself.
+
+`fdroid` is not a normal local-run flavor: CI and the F-Droid pipe build it
+after `tool/strip_firebase.py` rewrites the pubspec and lockfile.
 
 CI (`.github/workflows/build.yml`) runs all builds.
 

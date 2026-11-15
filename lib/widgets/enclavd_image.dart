@@ -113,7 +113,7 @@ class EnclavdImage extends StatelessWidget {
       errorAsset,
       width: width,
       height: placeholderHeight ?? height,
-      fit: BoxFit.cover,
+      fit: fit,
     );
   }
 }

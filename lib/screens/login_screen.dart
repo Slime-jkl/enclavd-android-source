@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../api/auth_service.dart';
@@ -12,9 +13,13 @@ import '../main.dart';
 import '../services/daily_quote_service.dart';
 import '../services/notification_taps.dart';
 import '../theme/enclavd_theme.dart';
-import '../widgets/brand_logo.dart';
-import '../widgets/auth_password_field.dart';
-import '../widgets/field_icon.dart';
+import '../widgets/auth/auth_scaffold.dart';
+import '../widgets/ui/app_button.dart';
+import '../widgets/ui/app_checkbox.dart';
+import '../widgets/ui/app_input_field.dart';
+import '../widgets/ui/app_link_button.dart';
+import '../widgets/ui/app_motion.dart';
+import '../widgets/ui/app_surface.dart';
 import 'ban_screen.dart';
 import 'feed_screen.dart';
 import 'maintenance_screen.dart';
@@ -43,8 +48,8 @@ class _LoginScreenState extends State<LoginScreen> {
   final _captchaFocus = FocusNode();
   bool _rememberMe = true;
   bool _busy = false;
+  bool _autovalidate = false;
   String? _error;
-  String? _success;
 
   RateLimitState? _rl;
   DateTime? _rlUntil; // cooldown or IP-lock end
@@ -80,7 +85,18 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _initRateLimit() async {
     final (_, config) = await _services();
+    // The public config carries the site's seasonal wordmark; without this
+    // a cold start straight to login would only ever show the bundled mark.
+    unawaited(_loadBranding(config));
     await _loadRateState(config);
+  }
+
+  Future<void> _loadBranding(SiteConfigService config) async {
+    try {
+      await config.fetch();
+    } catch (_) {
+      // Keep the bundled wordmark when the site can't be reached.
+    }
   }
 
   Future<void> _loadRateState(SiteConfigService config) async {
@@ -129,11 +145,14 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (_busy) return;
+    if (!_formKey.currentState!.validate()) {
+      if (!_autovalidate) setState(() => _autovalidate = true);
+      return;
+    }
     setState(() {
       _busy = true;
       _error = null;
-      _success = null;
     });
 
     try {
@@ -147,6 +166,8 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       if (!mounted) return;
       if (result.outcome == LoginOutcome.success) {
+        // Hand the filled credentials to the platform autofill provider.
+        TextInput.finishAutofillContext();
         _postLogin(auth, config);
       } else {
         setState(() {
@@ -173,7 +194,7 @@ class _LoginScreenState extends State<LoginScreen> {
         mode: LaunchMode.externalApplication,
       );
     } catch (_) {
-
+      // Defensive, like every other launcher call.
     }
   }
 
@@ -222,227 +243,191 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.enclavd;
     final rateMessage = _rateLimitMessage();
     final captchaNeeded = _rl?.captchaRequired ?? false;
-    return Scaffold(
-      body: Container(
-        // Navy hero only over the dark theme; light mode goes flat so the
-        // form stays readable.
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: Theme.of(context).brightness == Brightness.light
-                ? [context.enclavd.background, context.enclavd.background]
-                : [const Color(0xFF0B1628), context.enclavd.background],
-          ),
-        ),
-        child: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, viewport) {
-              return SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: ConstrainedBox(
-                  constraints:
-                      BoxConstraints(minHeight: viewport.maxHeight - 48),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 420),
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            const Center(child: BrandLogo(height: 42)),
-                            const SizedBox(height: 28),
-                            const Text(
-                              'Welcome back',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                  fontSize: 26, fontWeight: FontWeight.w700),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              'Sign in to continue to Enclavd',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                  color: context.enclavd.textSecondary,
-                                  fontSize: 14),
-                            ),
-                            const SizedBox(height: 32),
-                            if (_error != null) ...[
-                              _Banner(message: _error!, isError: true),
-                              const SizedBox(height: 16),
-                            ],
-                            if (_success != null) ...[
-                              _Banner(message: _success!, isError: false),
-                              const SizedBox(height: 16),
-                            ],
-                            if (rateMessage != null) ...[
-                              _Banner(message: rateMessage, isError: true),
-                              const SizedBox(height: 16),
-                            ],
-                            TextFormField(
-                              controller: _email,
-                              focusNode: _emailFocus,
-                              keyboardType: TextInputType.emailAddress,
-                              textInputAction: TextInputAction.next,
-                              decoration: const InputDecoration(
-                                labelText: 'Email address',
-                                hintText: 'you@example.com',
-                                prefixIcon:
-                                    FieldIcon(FontAwesomeIcons.envelope),
-                              ),
-                              validator: (v) => (v == null || v.trim().isEmpty)
-                                  ? 'Enter your email'
-                                  : null,
-                              onFieldSubmitted: (_) =>
-                                  _passwordFocus.requestFocus(),
-                            ),
-                            const SizedBox(height: 16),
-                            AuthPasswordField(
-                              controller: _password,
-                              focusNode: _passwordFocus,
-                              label: 'Password',
-                              validator: (v) => (v == null || v.isEmpty)
-                                  ? 'Enter your password'
-                                  : null,
-                              textInputAction: TextInputAction.done,
-                              onFieldSubmitted: (_) => _submit(),
-                            ),
-                            if (captchaNeeded) ...[
-                              const SizedBox(height: 20),
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFFCD34D)
-                                      .withValues(alpha: 0.08),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                      color: const Color(0xFFFCD34D)
-                                          .withValues(alpha: 0.3)),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const FaIcon(FontAwesomeIcons.shieldHalved,
-                                        size: 16, color: Color(0xFFFCD34D)),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        _rl?.captchaQuestion ??
-                                            'Security question',
-                                        style: const TextStyle(fontSize: 13),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              TextFormField(
-                                controller: _captcha,
-                                focusNode: _captchaFocus,
-                                textInputAction: TextInputAction.done,
-                                decoration: const InputDecoration(
-                                  labelText: 'Answer',
-                                  prefixIcon: FieldIcon(FontAwesomeIcons.key),
-                                ),
-                                validator: (_) => captchaNeeded &&
-                                        _captcha.text.trim().isEmpty
-                                    ? 'Answer the question above'
-                                    : null,
-                                onFieldSubmitted: (_) => _submit(),
-                              ),
-                            ],
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Checkbox(
-                                  value: _rememberMe,
-                                  onChanged: (v) =>
-                                      setState(() => _rememberMe = v ?? false),
-                                ),
-                                const Text('Remember me'),
-                              ],
-                            ),
-                            const SizedBox(height: 16),
-                            ElevatedButton(
-                              onPressed: (_busy || rateMessage != null)
-                                  ? null
-                                  : _submit,
-                              child: _busy
-                                  ? SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: context
-                                              .enclavd.primaryButtonText),
-                                    )
-                                  : Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        FaIcon(
-                                            FontAwesomeIcons
-                                                .arrowRightToBracket,
-                                            size: 15,
-                                            color: context
-                                                .enclavd.primaryButtonText),
-                                        const SizedBox(width: 8),
-                                        const Text('Login'),
-                                      ],
-                                    ),
-                            ),
-                            const SizedBox(height: 8),
-                            TextButton(
-                              onPressed: _busy ? null : _openRecovery,
-                              child: const Text(
-                                'Forgot password? Recover account',
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            const Divider(),
-                            const SizedBox(height: 16),
-                            TextButton(
-                              onPressed: () {
-                                Navigator.of(context).pushReplacementNamed(
-                                    RegisterScreen.routeName);
-                              },
-                              child: const Text(
-                                  "Don't have an account? Create one"),
-                            ),
-                          ],
+
+    // A rate-limit countdown is the live, authoritative message and replaces
+    // the server's frozen flash copy; otherwise the last failure shows.
+    final notice = rateMessage ?? _error;
+    final noticeTone =
+        rateMessage != null ? AuthNoticeTone.warning : AuthNoticeTone.error;
+    final canSubmit = !_busy && rateMessage == null;
+
+    return AuthScaffold(
+      title: 'Welcome back',
+      child: AutofillGroup(
+        child: Form(
+          key: _formKey,
+          autovalidateMode: _autovalidate
+              ? AutovalidateMode.onUserInteraction
+              : AutovalidateMode.disabled,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AnimatedSwitcher(
+                duration: AppMotion.fast,
+                switchInCurve: AppMotion.enter,
+                switchOutCurve: AppMotion.exit,
+                child: notice == null
+                    ? const SizedBox.shrink(key: ValueKey('notice-empty'))
+                    : Padding(
+                        key: ValueKey(
+                          rateMessage != null ? 'notice-rate' : 'notice-error',
                         ),
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: AuthNotice(message: notice, tone: noticeTone),
                       ),
-                    ),
+              ),
+              AppInputField(
+                key: const Key('login-email'),
+                controller: _email,
+                focusNode: _emailFocus,
+                enabled: !_busy,
+                label: 'Email address',
+                hintText: 'you@example.com',
+                prefixIcon: FontAwesomeIcons.envelope,
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                autofillHints: const [
+                  AutofillHints.username,
+                  AutofillHints.email,
+                ],
+                validator: (v) =>
+                    (v == null || v.trim().isEmpty) ? 'Enter your email' : null,
+                onFieldSubmitted: (_) => _passwordFocus.requestFocus(),
+              ),
+              const SizedBox(height: 14),
+              AppInputField(
+                key: const Key('login-password'),
+                controller: _password,
+                focusNode: _passwordFocus,
+                label: 'Password',
+                enabled: !_busy,
+                prefixIcon: FontAwesomeIcons.lock,
+                obscureText: true,
+                showObscureToggle: true,
+                autofillHints: const [AutofillHints.password],
+                validator: (v) =>
+                    (v == null || v.isEmpty) ? 'Enter your password' : null,
+                textInputAction: TextInputAction.done,
+                onFieldSubmitted: (_) => _submit(),
+              ),
+              if (captchaNeeded) ...[
+                const SizedBox(height: 16),
+                AppSurface(
+                  padding: const EdgeInsets.all(12),
+                  color: palette.warning.withValues(alpha: 0.07),
+                  borderColor: palette.warning.withValues(alpha: 0.28),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(top: 1),
+                            child: FaIcon(
+                              FontAwesomeIcons.shieldHalved,
+                              size: 13,
+                              color: palette.warning,
+                            ),
+                          ),
+                          const SizedBox(width: 9),
+                          Expanded(
+                            child: Text(
+                              _rl?.captchaQuestion ?? 'Security question',
+                              style: TextStyle(
+                                color: palette.warning,
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                                height: 1.35,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      AppInputField(
+                        key: const Key('login-captcha'),
+                        controller: _captcha,
+                        focusNode: _captchaFocus,
+                        enabled: !_busy,
+                        label: 'Answer',
+                        prefixIcon: FontAwesomeIcons.key,
+                        textInputAction: TextInputAction.done,
+                        validator: (_) =>
+                            captchaNeeded && _captcha.text.trim().isEmpty
+                                ? 'Answer the question above'
+                                : null,
+                        onFieldSubmitted: (_) => _submit(),
+                      ),
+                    ],
                   ),
                 ),
-              );
-            },
+              ],
+              const SizedBox(height: 10),
+              // Wrap, not Row: at large text scales the two controls stack
+              // instead of overflowing.
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                children: [
+                  AppCheckbox(
+                    value: _rememberMe,
+                    onChanged:
+                        _busy ? null : (v) => setState(() => _rememberMe = v),
+                    label: 'Remember me',
+                  ),
+                  AppLinkButton(
+                    key: const Key('login-forgot'),
+                    onPressed: _busy ? null : _openRecovery,
+                    label: 'Forgot password?',
+                    fontSize: 12.5,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              AppButton(
+                key: const Key('login-submit'),
+                label: 'Sign in',
+                icon: FontAwesomeIcons.arrowRightToBracket,
+                expand: true,
+                loading: _busy,
+                onPressed: canSubmit ? _submit : null,
+              ),
+              const SizedBox(height: 18),
+              const AppDivider(),
+              const SizedBox(height: 10),
+              Wrap(
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(
+                    'New to Enclavd?',
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontSize: 13,
+                    ),
+                  ),
+                  AppLinkButton(
+                    key: const Key('login-register'),
+                    onPressed: _busy
+                        ? null
+                        : () {
+                            Navigator.of(context)
+                                .pushReplacementNamed(RegisterScreen.routeName);
+                          },
+                    label: 'Create an account',
+                    fontSize: 13,
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
-    );
-  }
-}
-
-class _Banner extends StatelessWidget {
-  const _Banner({required this.message, required this.isError});
-
-  final String message;
-  final bool isError;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isError ? const Color(0xFFF87171) : const Color(0xFF4ADE80);
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
-      ),
-      child: Text(message, style: TextStyle(color: color, fontSize: 13)),
     );
   }
 }

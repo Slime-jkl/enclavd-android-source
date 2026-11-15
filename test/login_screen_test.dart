@@ -4,13 +4,17 @@ import 'package:enclavd/api/api_client.dart';
 import 'package:enclavd/api/auth_service.dart';
 import 'package:enclavd/api/site_config_service.dart';
 import 'package:enclavd/screens/login_screen.dart';
+import 'package:enclavd/widgets/ui/app_button.dart';
 
 import 'api_client_test.dart' show MemorySessionStore;
 
 class _FakeAuth extends AuthService {
   _FakeAuth()
       : super(
-          ApiClient(store: MemorySessionStore(), apiBaseUrl: 'http://127.0.0.1:1'),
+          ApiClient(
+            store: MemorySessionStore(),
+            apiBaseUrl: 'http://127.0.0.1:1',
+          ),
           apiBaseUrl: 'http://127.0.0.1:1',
         );
 
@@ -37,7 +41,10 @@ class _FakeAuth extends AuthService {
 class _FakeConfig extends SiteConfigService {
   _FakeConfig()
       : super(
-          ApiClient(store: MemorySessionStore(), apiBaseUrl: 'http://127.0.0.1:1'),
+          ApiClient(
+            store: MemorySessionStore(),
+            apiBaseUrl: 'http://127.0.0.1:1',
+          ),
         );
 
   SiteConfig config = const SiteConfig(
@@ -98,20 +105,46 @@ const _banned = CurrentUser(
   blockReason: 'Spam',
 );
 
+Future<void> _tapSubmit(WidgetTester tester) async {
+  final button = find.byKey(const Key('login-submit'));
+  await tester.ensureVisible(button);
+  await tester.pump();
+  await tester.tap(button);
+}
+
 void main() {
+  testWidgets('headline is a compact h3 with no redundant subtitle', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LoginScreen(auth: _FakeAuth(), siteConfig: _FakeConfig()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('Sign in to continue to Enclavd.'), findsNothing);
+    final title = tester.widget<Text>(find.text('Welcome back'));
+    expect(title.style?.fontSize, 20);
+  });
+
   testWidgets('password field has a visibility toggle', (tester) async {
     final auth = _FakeAuth();
     final config = _FakeConfig();
 
-    await tester.pumpWidget(MaterialApp(
-      home: LoginScreen(auth: auth, siteConfig: config),
-    ));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LoginScreen(auth: auth, siteConfig: config),
+      ),
+    );
     await tester.pump();
 
     EditableText passwordText() => tester.widget<EditableText>(
-        find.descendant(
+          find.descendant(
             of: find.byType(TextFormField).at(1),
-            matching: find.byType(EditableText)));
+            matching: find.byType(EditableText),
+          ),
+        );
     expect(passwordText().obscureText, isTrue);
 
     await tester.tap(find.byTooltip('Show password'));
@@ -123,8 +156,9 @@ void main() {
     expect(passwordText().obscureText, isTrue);
   });
 
-  testWidgets('cooldown: countdown banner shown, submit disabled',
-      (tester) async {
+  testWidgets('cooldown: countdown banner shown, submit disabled', (
+    tester,
+  ) async {
     final auth = _FakeAuth();
     final config = _FakeConfig()
       ..state = const RateLimitState(
@@ -135,14 +169,17 @@ void main() {
         lockRemaining: 0,
       );
 
-    await tester.pumpWidget(MaterialApp(
-      home: LoginScreen(auth: auth, siteConfig: config),
-    ));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LoginScreen(auth: auth, siteConfig: config),
+      ),
+    );
     await tester.pump();
 
     expect(find.textContaining('second(s)'), findsOneWidget);
-    final button =
-        tester.widget<ElevatedButton>(find.byType(ElevatedButton));
+    final button = tester.widget<AppButton>(
+      find.byKey(const Key('login-submit')),
+    );
     expect(button.onPressed, isNull, reason: 'submit locked during cooldown');
   });
 
@@ -157,14 +194,17 @@ void main() {
         lockRemaining: 900,
       );
 
-    await tester.pumpWidget(MaterialApp(
-      home: LoginScreen(auth: auth, siteConfig: config),
-    ));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LoginScreen(auth: auth, siteConfig: config),
+      ),
+    );
     await tester.pump();
 
     expect(find.textContaining('minute(s)'), findsOneWidget);
-    final button =
-        tester.widget<ElevatedButton>(find.byType(ElevatedButton));
+    final button = tester.widget<AppButton>(
+      find.byKey(const Key('login-submit')),
+    );
     expect(button.onPressed, isNull);
   });
 
@@ -172,40 +212,46 @@ void main() {
       'rate-limited failure: the live countdown replaces the static '
       'flash copy (no double banner)', (tester) async {
     // auth.php appends "Please wait N second(s)..." to the failure flash;
-    // that static text renders as a second, frozen red banner beside the countdown.
-    final auth = _FakeAuth()
-      ..onLogin = () => const LoginResult(
-            LoginOutcome.failure,
-            'Invalid e-mail or password. Please wait 5 second(s) before '
-            'trying again.',
-          );
-    final config = _FakeConfig()
-      ..state = const RateLimitState(
+    // that static text renders as a second, frozen red banner beside the
+    // countdown. Start unlocked so the submit actually reaches the server.
+    final auth = _FakeAuth();
+    final config = _FakeConfig();
+    auth.onLogin = () {
+      config.state = const RateLimitState(
         blocked: false,
         cooldown: 5,
         needsCaptcha: false,
         captchaOk: false,
         lockRemaining: 0,
       );
+      return const LoginResult(
+        LoginOutcome.failure,
+        'Invalid e-mail or password. Please wait 5 second(s) before '
+        'trying again.',
+      );
+    };
 
-    await tester.pumpWidget(MaterialApp(
-      home: LoginScreen(auth: auth, siteConfig: config),
-    ));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LoginScreen(auth: auth, siteConfig: config),
+      ),
+    );
     await tester.pump();
 
     await tester.enterText(find.byType(TextFormField).at(0), 'a@b.c');
     await tester.enterText(find.byType(TextFormField).at(1), 'pw');
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Login'));
-    await tester.pump(); // failure banner frame
-    await tester.pump(); // rate state lands
+    await _tapSubmit(tester);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400)); // banner swap
 
     // Exactly ONE red banner: the live countdown; the frozen flash copy is gone.
     expect(find.textContaining('second(s)'), findsOneWidget);
     expect(find.textContaining('Invalid e-mail or password'), findsNothing);
   });
 
-  testWidgets('non-rate failure keeps the server message banner',
-      (tester) async {
+  testWidgets('non-rate failure keeps the server message banner', (
+    tester,
+  ) async {
     final auth = _FakeAuth()
       ..onLogin = () => const LoginResult(
             LoginOutcome.failure,
@@ -213,57 +259,63 @@ void main() {
           );
     final config = _FakeConfig(); // cooldown 0, no rate banner
 
-    await tester.pumpWidget(MaterialApp(
-      home: LoginScreen(auth: auth, siteConfig: config),
-    ));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LoginScreen(auth: auth, siteConfig: config),
+      ),
+    );
     await tester.pump();
 
     await tester.enterText(find.byType(TextFormField).at(0), 'a@b.c');
     await tester.enterText(find.byType(TextFormField).at(1), 'pw');
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Login'));
+    await _tapSubmit(tester);
     await tester.pump();
-    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
 
     expect(find.text('Invalid e-mail or password.'), findsOneWidget);
     expect(find.textContaining('second(s)'), findsNothing);
   });
 
   testWidgets(
-      'captcha required: question shown, answer sent with the login POST',
-      (tester) async {
-    final auth = _FakeAuth()..meUser = _normal;
-    final config = _FakeConfig()
-      ..state = const RateLimitState(
-        blocked: false,
-        cooldown: 0,
-        needsCaptcha: true,
-        captchaOk: false,
-        lockRemaining: 0,
-        captchaQuestion: 'How many sides does a triangle have?',
+    'captcha required: question shown, answer sent with the login POST',
+    (tester) async {
+      final auth = _FakeAuth()..meUser = _normal;
+      final config = _FakeConfig()
+        ..state = const RateLimitState(
+          blocked: false,
+          cooldown: 0,
+          needsCaptcha: true,
+          captchaOk: false,
+          lockRemaining: 0,
+          captchaQuestion: 'How many sides does a triangle have?',
+        );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          routes: {
+            FeedScreenPlaceholder.routeName: (_) =>
+                const Scaffold(body: Text('FEED-PLACEHOLDER')),
+          },
+          home: LoginScreen(auth: auth, siteConfig: config),
+        ),
       );
+      await tester.pump();
 
-    await tester.pumpWidget(MaterialApp(
-      routes: {
-        FeedScreenPlaceholder.routeName: (_) =>
-            const Scaffold(body: Text('FEED-PLACEHOLDER')),
-      },
-      home: LoginScreen(auth: auth, siteConfig: config),
-    ));
-    await tester.pump();
+      expect(find.text('How many sides does a triangle have?'), findsOneWidget);
 
-    expect(find.text('How many sides does a triangle have?'), findsOneWidget);
+      await tester.enterText(find.byType(TextFormField).at(0), 'a@b.c');
+      await tester.enterText(find.byType(TextFormField).at(1), 'pw');
+      await tester.enterText(find.byType(TextFormField).at(2), '3');
+      await _tapSubmit(tester);
+      await tester.pumpAndSettle();
 
-    await tester.enterText(find.byType(TextFormField).at(0), 'a@b.c');
-    await tester.enterText(find.byType(TextFormField).at(1), 'pw');
-    await tester.enterText(find.byType(TextFormField).at(2), '3');
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Login'));
-    await tester.pumpAndSettle();
+      expect(auth.lastCaptchaAnswer, '3');
+    },
+  );
 
-    expect(auth.lastCaptchaAnswer, '3');
-  });
-
-  testWidgets('captcha required + empty answer -> validation blocks submit',
-      (tester) async {
+  testWidgets('captcha required + empty answer -> validation blocks submit', (
+    tester,
+  ) async {
     final auth = _FakeAuth();
     final config = _FakeConfig()
       ..state = const RateLimitState(
@@ -275,14 +327,16 @@ void main() {
         captchaQuestion: 'What is 5 plus 3?',
       );
 
-    await tester.pumpWidget(MaterialApp(
-      home: LoginScreen(auth: auth, siteConfig: config),
-    ));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: LoginScreen(auth: auth, siteConfig: config),
+      ),
+    );
     await tester.pump();
 
     await tester.enterText(find.byType(TextFormField).at(0), 'a@b.c');
     await tester.enterText(find.byType(TextFormField).at(1), 'pw');
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Login'));
+    await _tapSubmit(tester);
     await tester.pump();
 
     expect(find.text('Answer the question above'), findsOneWidget);
@@ -293,24 +347,27 @@ void main() {
     final auth = _FakeAuth()..meUser = _banned;
     final config = _FakeConfig();
 
-    await tester.pumpWidget(MaterialApp(
-      routes: {
-        BanScreenPlaceholder.routeName: (_) =>
-            const Scaffold(body: Text('BAN-PLACEHOLDER')),
-      },
-      home: LoginScreen(auth: auth, siteConfig: config),
-    ));
+    await tester.pumpWidget(
+      MaterialApp(
+        routes: {
+          BanScreenPlaceholder.routeName: (_) =>
+              const Scaffold(body: Text('BAN-PLACEHOLDER')),
+        },
+        home: LoginScreen(auth: auth, siteConfig: config),
+      ),
+    );
     await tester.pump();
 
     await tester.enterText(find.byType(TextFormField).at(0), 'a@b.c');
     await tester.enterText(find.byType(TextFormField).at(1), 'pw');
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Login'));
+    await _tapSubmit(tester);
     await tester.pumpAndSettle();
 
     expect(find.text('BAN-PLACEHOLDER'), findsOneWidget);
   });
 
-  testWidgets('post-login gate: maintenance on + rank not allowed -> '
+  testWidgets(
+      'post-login gate: maintenance on + rank not allowed -> '
       'maintenance screen', (tester) async {
     final auth = _FakeAuth()..meUser = _normal;
     final config = _FakeConfig()
@@ -332,25 +389,28 @@ void main() {
         ),
       );
 
-    await tester.pumpWidget(MaterialApp(
-      routes: {
-        MaintenancePlaceholder.routeName: (_) =>
-            const Scaffold(body: Text('MAINT-PLACEHOLDER')),
-      },
-      home: LoginScreen(auth: auth, siteConfig: config),
-    ));
+    await tester.pumpWidget(
+      MaterialApp(
+        routes: {
+          MaintenancePlaceholder.routeName: (_) =>
+              const Scaffold(body: Text('MAINT-PLACEHOLDER')),
+        },
+        home: LoginScreen(auth: auth, siteConfig: config),
+      ),
+    );
     await tester.pump();
 
     await tester.enterText(find.byType(TextFormField).at(0), 'a@b.c');
     await tester.enterText(find.byType(TextFormField).at(1), 'pw');
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Login'));
+    await _tapSubmit(tester);
     await tester.pumpAndSettle();
 
     expect(find.text('MAINT-PLACEHOLDER'), findsOneWidget);
   });
 
-  testWidgets('post-login gate: maintenance on + allowed rank -> feed',
-      (tester) async {
+  testWidgets('post-login gate: maintenance on + allowed rank -> feed', (
+    tester,
+  ) async {
     const admin = CurrentUser(
       id: 3,
       username: 'a',
@@ -383,18 +443,20 @@ void main() {
         ),
       );
 
-    await tester.pumpWidget(MaterialApp(
-      routes: {
-        FeedScreenPlaceholder.routeName: (_) =>
-            const Scaffold(body: Text('FEED-PLACEHOLDER')),
-      },
-      home: LoginScreen(auth: auth, siteConfig: config),
-    ));
+    await tester.pumpWidget(
+      MaterialApp(
+        routes: {
+          FeedScreenPlaceholder.routeName: (_) =>
+              const Scaffold(body: Text('FEED-PLACEHOLDER')),
+        },
+        home: LoginScreen(auth: auth, siteConfig: config),
+      ),
+    );
     await tester.pump();
 
     await tester.enterText(find.byType(TextFormField).at(0), 'a@b.c');
     await tester.enterText(find.byType(TextFormField).at(1), 'pw');
-    await tester.tap(find.widgetWithText(ElevatedButton, 'Login'));
+    await _tapSubmit(tester);
     await tester.pumpAndSettle();
 
     expect(find.text('FEED-PLACEHOLDER'), findsOneWidget);
