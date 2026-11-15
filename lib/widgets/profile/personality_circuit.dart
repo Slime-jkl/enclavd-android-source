@@ -42,19 +42,48 @@ class PersonalityCircuit extends StatelessWidget {
       ),
       child: const SizedBox.expand(),
     );
-    final faded = Opacity(
-      opacity: opacity,
-      child: blurSigma <= 0
-          ? painted
-          : ImageFiltered(
+    return IgnorePointer(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
+          final height = constraints.maxHeight;
+          Widget layer = painted;
+          if (blurSigma > 0) {
+            layer = ImageFiltered(
               imageFilter: ui.ImageFilter.blur(
                 sigmaX: blurSigma,
                 sigmaY: blurSigma,
               ),
-              child: painted,
+              child: layer,
+            );
+          }
+          // Fade the board out below the identity row so its bottom edge
+          // never cuts across the reason cards.
+          final band = 260 * (width / 800);
+          final fadeStart =
+              height <= 0 ? 0.0 : (band * 0.45 / height).clamp(0.0, 1.0);
+          final fadeEnd =
+              height <= 0 ? 1.0 : (band * 1.05 / height).clamp(0.0, 1.0);
+          return Opacity(
+            opacity: opacity,
+            child: ShaderMask(
+              blendMode: BlendMode.dstIn,
+              shaderCallback: (rect) => LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: const [
+                  Colors.white,
+                  Colors.white,
+                  Colors.transparent,
+                ],
+                stops: [0, fadeStart, fadeEnd],
+              ).createShader(rect),
+              child: layer,
             ),
+          );
+        },
+      ),
     );
-    return IgnorePointer(child: faded);
   }
 }
 
@@ -98,9 +127,14 @@ class _CircuitPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
-    final scale = math.max(size.width / 800, size.height / 260);
+    // Fit by width and centre vertically. `cover` cropped the 800-wide
+    // artwork down to its middle sliver on tall cards, which made the traces
+    // look broken; width-fit keeps the whole board readable.
+    final scale = size.width / 800;
     final dx = (size.width - 800 * scale) / 2;
-    final dy = (size.height - 260 * scale) / 2;
+    // Sit the board behind the identity row (like the web hero) rather than
+    // floating in the middle of a tall card.
+    final dy = -12 * scale;
     canvas.save();
     canvas.translate(dx, dy);
     canvas.scale(scale);
@@ -126,12 +160,12 @@ class _CircuitPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.6
       ..strokeCap = StrokeCap.round
-      ..color = color.withValues(alpha: 0.20);
+      ..color = color.withValues(alpha: 0.34);
     for (final points in paths) {
       canvas.drawPath(_path(points), base);
     }
 
-    final nodePaint = Paint()..color = color.withValues(alpha: 0.30);
+    final nodePaint = Paint()..color = color.withValues(alpha: 0.5);
     for (final node in nodes) {
       canvas.drawCircle(node, 3.4, nodePaint);
     }
@@ -141,14 +175,21 @@ class _CircuitPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 4.2
       ..strokeCap = StrokeCap.round
-      ..color = color.withValues(alpha: animate ? 0.95 : 0.55);
+      ..color = color.withValues(alpha: animate ? 1.0 : 0.55);
     for (var i = 0; i < delays.length; i++) {
       final metric = _path(paths[i]).computeMetrics().first;
       final length = metric.length;
       final head = ((progress - delays[i]) % 1 + 1) % 1;
       final start = head * length;
-      final segment = metric.extractPath(start, start + length * 0.22);
-      canvas.drawPath(segment, pulsePaint);
+      final end = start + length * 0.22;
+      if (end <= length) {
+        canvas.drawPath(metric.extractPath(start, end), pulsePaint);
+      } else {
+        // Wrap the pulse around the end of the trace instead of clamping it
+        // into a stationary blob.
+        canvas.drawPath(metric.extractPath(start, length), pulsePaint);
+        canvas.drawPath(metric.extractPath(0, end - length), pulsePaint);
+      }
     }
   }
 

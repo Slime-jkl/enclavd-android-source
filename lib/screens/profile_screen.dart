@@ -559,18 +559,9 @@ class _ProfileScreenState extends State<ProfileScreen>
   Widget build(BuildContext context) {
     final profile = _profile;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(profile?.username ?? 'Profile'),
-        actions: [
-          if (profile != null && !profile.isOwn)
-            IconButton(
-              icon: FaIcon(FontAwesomeIcons.userPlus,
-                  color: context.enclavd.link, size: 20),
-              tooltip: 'Follow',
-              onPressed: _toggleFollow,
-            ),
-        ],
-      ),
+      // The profile header already names the member and carries Follow, so
+      // the bar keeps only the shared back chevron.
+      appBar: AppBar(),
       body: RefreshIndicator(
         onRefresh: _refresh,
         color: context.enclavd.link,
@@ -2001,8 +1992,8 @@ class _PersonalityCompareCardState extends State<_PersonalityCompareCard>
                 viewerColor: viewerColor,
                 memberColor: memberColor,
                 progress: _trace.value,
-                blurSigma: 2.4,
-                opacity: 0.6,
+                blurSigma: 1.7,
+                opacity: 0.8,
               ),
             ),
           ),

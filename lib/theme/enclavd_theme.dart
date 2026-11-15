@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -317,6 +318,15 @@ ThemeData buildEnclavdTheme({bool light = false}) {
   );
 
   return base.copyWith(
+    // One back affordance everywhere: a slim chevron instead of the
+    // stock Material arrow (iOS-style, also used as the app's "back" look).
+    actionIconTheme: ActionIconThemeData(
+      backButtonIconBuilder: (context) => FaIcon(
+        FontAwesomeIcons.chevronLeft,
+        size: 18,
+        color: pal.textPrimary,
+      ),
+    ),
     appBarTheme: AppBarTheme(
       backgroundColor: pal.background,
       elevation: 0,
