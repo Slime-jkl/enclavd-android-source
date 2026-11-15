@@ -66,7 +66,7 @@ void main() {
     await tester.pump(AppMotion.fast);
 
     expect(_buttonColor(tester), isNot(initial));
-    expect(_scale(tester), 0.985);
+    expect(_scale(tester), 0.97);
 
     await gesture.up();
     await tester.pumpAndSettle();
