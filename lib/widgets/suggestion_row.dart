@@ -108,8 +108,7 @@ class _SuggestionCard extends StatelessWidget {
               size: 56,
               url: resolveMediaUrl(AppConfig.apiBaseUrl,
                   avatarPath: user.profilePictureUrl),
-              borderColor:
-                  context.enclavd.personalityColor(user.personalityType),
+              rank: user.rank,
             ),
           ),
           const SizedBox(height: 6),

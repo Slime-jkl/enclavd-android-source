@@ -173,7 +173,7 @@ void main() {
         // clock, so the shimmer placeholder animates forever and any
         // pumpAndSettle on the screen times out.
         participantAvatar: null,
-        participantPersonality: 'INTJ',
+        participantRank: 'Member',
         participantIsOnline: true,
       ),
     ));

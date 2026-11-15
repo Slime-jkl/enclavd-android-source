@@ -8,6 +8,7 @@ class EnclavdAvatar extends StatelessWidget {
     super.key,
     required this.size,
     required this.url,
+    this.rank,
     this.borderColor,
     this.fit = BoxFit.cover,
     this.square = false,
@@ -18,7 +19,12 @@ class EnclavdAvatar extends StatelessWidget {
   /// Resolved media URL (pass through resolveMediaUrl)
   final String url;
 
-  /// Personality accent for the ring ==> null falls back to the theme border
+  /// The member's rank (config/ranks.php). The ring uses that rank's
+  /// `avatar_border` shade, matching the website, e.g. purple-500 for SysOp.
+  /// Pass 'Blocked' for banned members. Null falls back to [borderColor].
+  final String? rank;
+
+  /// Explicit ring color for non-rank uses and tests. [rank] wins when set.
   final Color? borderColor;
 
   final BoxFit fit;
@@ -28,6 +34,10 @@ class EnclavdAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final radius = BorderRadius.circular(size * 0.28);
+    // The ring is the rank's avatar_border color on the website.
+    final ringColor = rank != null
+        ? context.enclavd.rankAvatarBorder(rank!)
+        : (borderColor ?? context.enclavd.border);
     // Factors pin the box to the avatar size: a plain Align expands to
     // fill bounded heights (rows inside IntrinsicHeight/stretch), which
     // floats the avatar mid-row on multi-line items. Parents align it.
@@ -43,7 +53,7 @@ class EnclavdAvatar extends StatelessWidget {
           borderRadius: square ? radius : null,
           color: context.enclavd.cardSecondary,
           border: Border.all(
-            color: borderColor ?? context.enclavd.border,
+            color: ringColor,
             width: 2,
           ),
         ),

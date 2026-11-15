@@ -142,7 +142,6 @@ class _LikerRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final rankColor = context.enclavd.rankName(liker.rank);
-    final personality = context.enclavd.personalityColor(liker.personalityType);
     return InkWell(
       onTap: () {
         Navigator.of(context).pop(); // close the sheet first
@@ -154,13 +153,12 @@ class _LikerRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
-            // Personality border: the app's feed convention (the site
-            // modal uses the rank border).
+            // Rank border, matching the website's likers modal.
             EnclavdAvatar(
               size: 40,
               url: resolveMediaUrl(apiBaseUrl,
                   avatarPath: liker.profilePictureUrl),
-              borderColor: personality,
+              rank: liker.rank,
             ),
             const SizedBox(width: 12),
             Expanded(

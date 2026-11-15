@@ -146,6 +146,7 @@ class EnclavdPalette extends ThemeExtension<EnclavdPalette> {
         'Officer' => const Color(0xFF3B82F6), // blue-500
         'Founding Member' => const Color(0xFFEAB308), // yellow-500
         'Labcoat' => const Color(0xFF6B7280), // gray-500
+        'Obsolete' => const Color(0xFF374151), // gray-700
         'Blocked' => const Color(0xFF262626), // neutral-800
         _ => const Color(0xFF4B5563), // gray-600 (Member)
       };

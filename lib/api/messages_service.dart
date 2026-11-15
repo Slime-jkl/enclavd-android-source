@@ -4,9 +4,9 @@ export '../utils/db_time.dart';
 
 /// A conversation in the inbox (GET /api/v1/messages?conversations=1).
 /// Fields: id, updated_at, participant_id/participants/
-/// participant_avatar/participant_personality (the OTHER member(s) -
-/// 1-on-1 in practice), last_active, last_message ('' when none),
-/// unread_count.
+/// participant_avatar/participant_personality/participant_rank (the OTHER
+/// member(s) - 1-on-1 in practice), last_active, last_message ('' when
+/// none), unread_count.
 class Conversation {
   const Conversation({
     required this.id,
@@ -15,6 +15,7 @@ class Conversation {
     required this.participantName,
     required this.participantAvatar,
     required this.participantPersonality,
+    this.participantRank = 'Member',
     required this.lastActive,
     required this.lastMessage,
     required this.unreadCount,
@@ -26,6 +27,10 @@ class Conversation {
   final String participantName;
   final String participantAvatar; // root-relative path
   final String? participantPersonality;
+
+  /// Rank of the other member; the avatar ring uses that rank's
+  /// avatar_border shade ('Blocked' for deactivated accounts).
+  final String participantRank;
   final String lastActive; // DB UTC wall-clock
   final String lastMessage; // latest message preview
   final int unreadCount;
@@ -48,6 +53,7 @@ class Conversation {
         participantAvatar: json['participant_avatar'] as String? ??
             '/assets/default-avatar.png',
         participantPersonality: json['participant_personality'] as String?,
+        participantRank: json['participant_rank'] as String? ?? 'Member',
         lastActive: json['last_active'] as String? ?? '',
         lastMessage: json['last_message'] as String? ?? '',
         unreadCount: (json['unread_count'] as num?)?.toInt() ?? 0,

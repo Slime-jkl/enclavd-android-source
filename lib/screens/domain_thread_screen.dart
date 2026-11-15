@@ -810,7 +810,6 @@ class _ForumPostCardState extends State<_ForumPostCard>
   }
 
   Widget _card(BuildContext context) {
-    final personality = context.enclavd.personalityColor(post.personalityType);
     return Container(
       margin: const EdgeInsets.only(bottom: 4),
       padding: const EdgeInsets.all(16),
@@ -832,7 +831,7 @@ class _ForumPostCardState extends State<_ForumPostCard>
                   size: 54,
                   url: resolveMediaUrl(widget.apiBaseUrl,
                       avatarPath: post.profilePictureUrl),
-                  borderColor: personality,
+                  rank: post.isBlocked ? 'Blocked' : post.rank,
                   square: true,
                 ),
               ),
@@ -1248,7 +1247,6 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
 
   @override
   Widget build(BuildContext context) {
-    final personality = context.enclavd.personalityColor(reply.personalityType);
     final blocked = reply.isBlocked;
     final nameColor = blocked
         ? context.enclavd.rankName('Blocked')
@@ -1282,7 +1280,7 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                   size: 48,
                   url: resolveMediaUrl(widget.apiBaseUrl,
                       avatarPath: reply.profilePictureUrl),
-                  borderColor: personality,
+                  rank: reply.isBlocked ? 'Blocked' : reply.rank,
                   square: true,
                 ),
               ),

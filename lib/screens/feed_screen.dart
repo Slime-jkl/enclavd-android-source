@@ -794,8 +794,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
                 ? EnclavdAvatar(
                     size: 32,
                     url: me.avatarUrl(AppConfig.apiBaseUrl),
-                    borderColor:
-                        context.enclavd.personalityColor(me.personalityType),
+                    rank: me.banned ? 'Blocked' : me.rank,
                   )
                 : Container(
                     width: 32,

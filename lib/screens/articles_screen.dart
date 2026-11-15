@@ -243,6 +243,7 @@ class _ArticleCard extends StatelessWidget {
                         EnclavdAvatar(
                           size: 18,
                           url: a.avatarUrl(AppConfig.apiBaseUrl),
+                          rank: a.rank,
                         ),
                         const SizedBox(width: 6),
                         Flexible(

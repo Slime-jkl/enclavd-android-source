@@ -458,7 +458,8 @@ class _ProfileScreenState extends State<ProfileScreen>
             participantId: profile.id,
             participantName: profile.username,
             participantAvatar: profile.profilePictureUrl,
-            participantPersonality: profile.personalityType,
+            participantRank:
+                profile.isBlocked ? 'Blocked' : profile.rank,
             participantIsOnline: profile.isOnline,
           ),
         ),
@@ -863,10 +864,6 @@ class _ProfileHeader extends StatelessWidget {
     final rankColor = profile.isBlocked
         ? context.enclavd.rankName('Blocked')
         : context.enclavd.rankName(profile.rank);
-    // Site: the avatar ring is the rank's avatar_border shade.
-    final avatarBorder = profile.isBlocked
-        ? context.enclavd.rankAvatarBorder('Blocked')
-        : context.enclavd.rankAvatarBorder(profile.rank);
 
     // Blocked banner sits above the card (server truth on load).
     return Column(
@@ -897,7 +894,7 @@ class _ProfileHeader extends StatelessWidget {
                         size: 64,
                         url: resolveMediaUrl(AppConfig.apiBaseUrl,
                             avatarPath: profile.profilePictureUrl),
-                        borderColor: avatarBorder,
+                        rank: profile.isBlocked ? 'Blocked' : profile.rank,
                       ),
                       if (!profile.isOwn)
                         Positioned(
@@ -2282,7 +2279,7 @@ class _CompareIdentity extends StatelessWidget {
             AppConfig.apiBaseUrl,
             avatarPath: user?.profilePictureUrl,
           ),
-          borderColor: context.enclavd.rankAvatarBorder(rank),
+          rank: rank,
         ),
         const SizedBox(height: 6),
         if (user != null)

@@ -310,7 +310,6 @@ class _AuthorRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final a = article.summary;
     final rankColor = context.enclavd.rankName(a.rank);
-    final personality = context.enclavd.personalityColor(a.personalityType);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 8, 6),
       child: Row(
@@ -318,7 +317,7 @@ class _AuthorRow extends StatelessWidget {
           EnclavdAvatar(
             size: 42,
             url: a.avatarUrl(AppConfig.apiBaseUrl),
-            borderColor: personality,
+            rank: a.rank,
           ),
           const SizedBox(width: 12),
           Expanded(

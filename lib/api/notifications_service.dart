@@ -20,6 +20,7 @@ class AppNotification {
     required this.fromUserId,
     required this.fromUsername,
     required this.fromUserAvatar,
+    this.fromUserRank = 'Member',
     required this.actorCount,
     required this.read,
     required this.createdAt,
@@ -44,6 +45,10 @@ class AppNotification {
   final int fromUserId;
   final String fromUsername;
   final String fromUserAvatar; // root-relative ("/public/avatars/...")
+
+  /// Rank of the actor; the avatar ring uses that rank's avatar_border
+  /// shade ('Blocked' for deactivated accounts).
+  final String fromUserRank;
   final int actorCount;
   final bool read;
   final String createdAt; // DB UTC wall-clock 'YYYY-MM-DD HH:MM:SS'
@@ -106,6 +111,7 @@ class AppNotification {
       fromUsername: json['from_username'] as String? ?? '',
       fromUserAvatar: json['from_user_avatar'] as String? ??
           '/assets/default-avatar.png',
+      fromUserRank: json['from_user_rank'] as String? ?? 'Member',
       actorCount: (json['actor_count'] as num?)?.toInt() ?? 1,
       read: json['read'] as bool? ?? false,
       createdAt: json['created_at'] as String? ?? '',
