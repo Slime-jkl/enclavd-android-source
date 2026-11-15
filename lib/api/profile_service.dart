@@ -37,7 +37,18 @@ class Profile {
     this.hasInviteInfo = false,
     this.invitedById = 0,
     this.invitedByUsername = '',
+    this.invitedByRank = '',
     this.invitedMembers = const [],
+    this.gender,
+    this.birthdate,
+    this.location,
+    this.privacyLocation = true,
+    this.privacyGender = true,
+    this.privacyBirthday = true,
+    this.hasAboutInfo = false,
+    this.followedTags = const [],
+    this.featuredImages = const [],
+    this.galleryImages = const [],
   });
 
   final int id;
@@ -70,9 +81,91 @@ class Profile {
 
   /// '' when the inviter account is gone (site: "Unknown") or absent.
   final String invitedByUsername;
+
+  /// Rank of the inviter, used for the link colour like the web's
+  /// getRankStyles() username colour. '' when there is no inviter.
+  final String invitedByRank;
   final List<InvitedMember> invitedMembers; // oldest first
 
+  /// About-tab fields (only present once the API ships the profile rework).
+  final String? gender; // MALE / FEMALE; null = hidden or not set
+  final String? birthdate; // 'Y-m-d' when visible
+  final ProfileLocation? location; // null = hidden / not set
+  final bool privacyLocation;
+  final bool privacyGender;
+  final bool privacyBirthday;
+
+  /// False for servers that predate the About tab, so the client can hide
+  /// the whole panel instead of showing an empty one.
+  final bool hasAboutInfo;
+
+  final List<FollowedTag> followedTags;
+  final List<FeaturedImage> featuredImages; // max 6, newest first
+  final List<FeaturedImage> galleryImages; // own picker source only
+
   bool get isBlocked => isActive == 'false';
+
+  /// Web About tab: birthday renders as "F Y" (month + year).
+  String get birthdayText {
+    final raw = birthdate;
+    if (raw == null || raw.isEmpty) return '';
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return '';
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December',
+    ];
+    return '${months[parsed.month - 1]} ${parsed.year}';
+  }
+
+  /// Web About tab location line: city, else region, then country.
+  String get locationText => location?.displayText ?? '';
+
+  Profile copyWith({
+    String? bio,
+    bool? isFollowing,
+    int? followerCount,
+    int? followingCount,
+    List<FollowedTag>? followedTags,
+    List<FeaturedImage>? featuredImages,
+  }) =>
+      Profile(
+        id: id,
+        username: username,
+        fullName: fullName,
+        profilePictureUrl: profilePictureUrl,
+        personalityType: personalityType,
+        rank: rank,
+        bio: bio ?? this.bio,
+        prestige: prestige,
+        dateCreated: dateCreated,
+        isOnline: isOnline,
+        isActive: isActive,
+        blockReason: blockReason,
+        postCount: postCount,
+        warningCount: warningCount,
+        warnings: warnings,
+        followerCount: followerCount ?? this.followerCount,
+        followingCount: followingCount ?? this.followingCount,
+        isFollowing: isFollowing ?? this.isFollowing,
+        isFollowingYou: isFollowingYou,
+        isOwn: isOwn,
+        hasInviteInfo: hasInviteInfo,
+        invitedById: invitedById,
+        invitedByUsername: invitedByUsername,
+        invitedByRank: invitedByRank,
+        invitedMembers: invitedMembers,
+        gender: gender,
+        birthdate: birthdate,
+        location: location,
+        privacyLocation: privacyLocation,
+        privacyGender: privacyGender,
+        privacyBirthday: privacyBirthday,
+        hasAboutInfo: hasAboutInfo,
+        followedTags: followedTags ?? this.followedTags,
+        featuredImages: featuredImages ?? this.featuredImages,
+        galleryImages: galleryImages,
+      );
 
   factory Profile.fromJson(Map<String, dynamic> json) => Profile(
         id: (json['id'] as num?)?.toInt() ?? 0,
@@ -102,10 +195,124 @@ class Profile {
         hasInviteInfo: json.containsKey('invited_by'),
         invitedById: (json['invited_by'] as num?)?.toInt() ?? 0,
         invitedByUsername: json['invited_by_username'] as String? ?? '',
+        invitedByRank: json['invited_by_rank'] as String? ?? '',
         invitedMembers: [
           for (final m in (json['invited_members'] as List? ?? const []))
             if (m is Map<String, dynamic>) InvitedMember.fromJson(m),
         ],
+        gender: json['gender'] as String?,
+        birthdate: json['birthdate'] as String?,
+        location: json['location'] is Map<String, dynamic>
+            ? ProfileLocation.fromJson(json['location'] as Map<String, dynamic>)
+            : null,
+        privacyLocation: json['privacy_location'] as bool? ?? true,
+        privacyGender: json['privacy_gender'] as bool? ?? true,
+        privacyBirthday: json['privacy_birthday'] as bool? ?? true,
+        hasAboutInfo: json.containsKey('privacy_location'),
+        followedTags: [
+          for (final t in (json['followed_tags'] as List? ?? const []))
+            if (t is Map<String, dynamic>) FollowedTag.fromJson(t),
+        ],
+        featuredImages: [
+          for (final i in (json['featured_images'] as List? ?? const []))
+            if (i is Map<String, dynamic>) FeaturedImage.fromJson(i),
+        ],
+        galleryImages: [
+          for (final i in (json['gallery_images'] as List? ?? const []))
+            if (i is Map<String, dynamic>) FeaturedImage.fromJson(i),
+        ],
+      );
+}
+
+/// Location shown in the About tab (server withholds it under
+/// privacy_location=0).
+class ProfileLocation {
+  const ProfileLocation({
+    required this.city,
+    required this.region,
+    required this.country,
+    required this.countryCode,
+  });
+
+  final String city;
+  final String region;
+  final String country;
+  final String countryCode; // lowercase ISO-2, '' when unknown
+
+  String get displayText {
+    final place = city.isNotEmpty ? city : region;
+    if (place.isNotEmpty && country.isNotEmpty) return '$place, $country';
+    if (place.isNotEmpty) return place;
+    return country;
+  }
+
+  factory ProfileLocation.fromJson(Map<String, dynamic> json) =>
+      ProfileLocation(
+        city: json['city'] as String? ?? '',
+        region: json['region'] as String? ?? '',
+        country: json['country'] as String? ?? '',
+        countryCode: (json['country_code'] as String? ?? '').toLowerCase(),
+      );
+}
+
+/// One featured post cell (the site's Featured tab grid).
+class FeaturedImage {
+  const FeaturedImage({
+    required this.id,
+    required this.postId,
+    required this.image,
+    required this.likeCount,
+    required this.commentCount,
+    required this.featured,
+  });
+
+  final int id; // gallery row id
+  final int postId;
+  final String image; // filename under /public/gallery/
+  final int likeCount;
+  final int commentCount;
+  final bool featured;
+
+  factory FeaturedImage.fromJson(Map<String, dynamic> json) => FeaturedImage(
+        id: (json['id'] as num?)?.toInt() ?? 0,
+        postId: (json['post_id'] as num?)?.toInt() ?? 0,
+        image: json['image'] as String? ?? '',
+        likeCount: (json['like_count'] as num?)?.toInt() ?? 0,
+        commentCount: (json['comment_count'] as num?)?.toInt() ?? 0,
+        featured: json['featured'] as bool? ?? false,
+      );
+}
+
+/// A hashtag this member follows.
+class FollowedTag {
+  const FollowedTag({required this.id, required this.tagName});
+
+  final int id;
+  final String tagName;
+
+  factory FollowedTag.fromJson(Map<String, dynamic> json) => FollowedTag(
+        id: (json['id'] as num?)?.toInt() ?? 0,
+        tagName: json['tag_name'] as String? ?? '',
+      );
+}
+
+/// A hashtag search hit with the viewer's follow state.
+class TagSearchResult {
+  const TagSearchResult({
+    required this.id,
+    required this.tagName,
+    required this.isFollowing,
+  });
+
+  final int id;
+  final String tagName;
+  final bool isFollowing;
+
+  factory TagSearchResult.fromJson(Map<String, dynamic> json) =>
+      TagSearchResult(
+        id: (json['id'] as num?)?.toInt() ?? 0,
+        tagName: json['tag_name'] as String? ?? '',
+        isFollowing: json['is_following'] as bool? ?? false,
       );
 }
 
@@ -286,6 +493,9 @@ class AccountSettings {
     required this.geoCountry,
     required this.geoRegion,
     required this.geoCity,
+    this.privacyLocation = true,
+    this.privacyGender = true,
+    this.privacyBirthday = true,
   });
 
   final int id;
@@ -301,6 +511,11 @@ class AccountSettings {
   final int? geoCountry;
   final int? geoRegion;
   final int? geoCity;
+
+  /// About-tab visibility switches (1 = visible).
+  final bool privacyLocation;
+  final bool privacyGender;
+  final bool privacyBirthday;
 
   factory AccountSettings.fromJson(Map<String, dynamic> json) =>
       AccountSettings(
@@ -318,6 +533,9 @@ class AccountSettings {
         geoCountry: (json['geo_country'] as num?)?.toInt(),
         geoRegion: (json['geo_region'] as num?)?.toInt(),
         geoCity: (json['geo_city'] as num?)?.toInt(),
+        privacyLocation: json['privacy_location'] as bool? ?? true,
+        privacyGender: json['privacy_gender'] as bool? ?? true,
+        privacyBirthday: json['privacy_birthday'] as bool? ?? true,
       );
 }
 
@@ -407,8 +625,11 @@ class ProfileService {
     int? geoCountry,
     int? geoRegion,
     int? geoCity,
+    bool? privacyLocation,
+    bool? privacyGender,
+    bool? privacyBirthday,
   }) async {
-    await _api.postJson('/api/v1/profile', {
+    final body = <String, dynamic>{
       'action': 'update_profile',
       'full_name': fullName,
       'bio': bio,
@@ -417,7 +638,54 @@ class ProfileService {
       'geo_country': geoCountry,
       'geo_region': geoRegion,
       'geo_city': geoCity,
+    };
+    // Only the new edit form submits the privacy block; omitting it keeps
+    // older callers from resetting the member's switches.
+    if (privacyLocation != null ||
+        privacyGender != null ||
+        privacyBirthday != null) {
+      body['privacy_present'] = 1;
+      body['privacy_location'] = privacyLocation == true ? 1 : 0;
+      body['privacy_gender'] = privacyGender == true ? 1 : 0;
+      body['privacy_birthday'] = privacyBirthday == true ? 1 : 0;
+    }
+    await _api.postJson('/api/v1/profile', body);
+  }
+
+  /// Updates just the bio (the profile header's inline editor).
+  Future<void> updateBio(String bio) async {
+    await _api.postJson('/api/v1/profile', {
+      'action': 'bio',
+      'bio': bio,
     });
+  }
+
+  /// Replaces the featured posts grid (unique post ids, server caps at 6).
+  Future<void> setFeaturedImages(List<int> postIds) async {
+    await _api.postJson('/api/v1/profile', {
+      'action': 'set_featured',
+      'post_ids': postIds,
+    });
+  }
+
+  /// Hashtag search for the profile's tags sheet.
+  Future<List<TagSearchResult>> searchTags(String query) async {
+    final json = await _api.getJson('/api/v1/profile',
+        query: {'tag_search': query});
+    final raw = json['tags'] as List<dynamic>? ?? const [];
+    return [
+      for (final t in raw)
+        if (t is Map<String, dynamic>) TagSearchResult.fromJson(t),
+    ];
+  }
+
+  /// Toggles a hashtag follow; returns true when now following.
+  Future<bool> followTag(int tagId) async {
+    final json = await _api.postJson('/api/v1/profile', {
+      'action': 'follow_tag',
+      'tag_id': tagId,
+    });
+    return (json['action'] as String?) == 'followed';
   }
 
   /// Changes the password (server validates current + match + length).

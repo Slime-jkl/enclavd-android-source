@@ -13,12 +13,17 @@ class InvitationInfo extends StatelessWidget {
     super.key,
     required this.invitedById,
     required this.invitedByUsername,
+    this.invitedByRank = 'Member',
     required this.members,
     this.onOpenProfile,
   });
 
   final int invitedById;
   final String invitedByUsername;
+
+  /// Rank of the inviter; the link uses the rank's username colour, like
+  /// the web's getRankStyles().
+  final String invitedByRank;
   final List<InvitedMember> members;
 
   /// Test seam: replaces the pushed profile screen.
@@ -52,20 +57,27 @@ class InvitationInfo extends StatelessWidget {
             const SizedBox(width: 6),
             Text('Invited by',
                 style: TextStyle(color: secondary, fontSize: 13)),
-            const SizedBox(width: 8),
-            if (invitedById <= 0)
-              Text('[System]', style: TextStyle(color: secondary, fontSize: 13))
-            else if (invitedByUsername.isEmpty)
-              Text('Unknown', style: TextStyle(color: secondary, fontSize: 13))
-            else
-              Flexible(
-                child: _MemberLink(
-                  label: '$invitedByUsername#$invitedById',
-                  color: context.enclavd.link,
-                  onTap: () => _openProfile(context, invitedById),
-                ),
-              ),
           ],
+        ),
+        // The inviter gets its own line: in a narrow column the label used
+        // to squeeze the username link and clip it.
+        const SizedBox(height: 4),
+        Padding(
+          padding: const EdgeInsets.only(left: 19),
+          child: invitedById <= 0
+              ? Text('[System]',
+                  style: TextStyle(color: secondary, fontSize: 13))
+              : invitedByUsername.isEmpty
+                  ? Text('Unknown',
+                      style: TextStyle(color: secondary, fontSize: 13))
+                  : _MemberLink(
+                      label: '$invitedByUsername#$invitedById',
+                      color: context.enclavd
+                          .rankName(invitedByRank.isEmpty
+                              ? 'Member'
+                              : invitedByRank),
+                      onTap: () => _openProfile(context, invitedById),
+                    ),
         ),
         if (members.isNotEmpty) ...[
           const SizedBox(height: 10),

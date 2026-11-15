@@ -565,6 +565,154 @@ void main() {
     });
   });
 
+  group('Profile rework fields', () {
+    test('parses about, privacy, featured and followed tags', () async {
+      final h = await Harness.start((req) async {
+        if (req.uri.path == '/api/v1/profile') {
+          Harness.respond(
+            req,
+            body: jsonEncode({
+              'success': true,
+              'profile': {
+                'id': 7,
+                'username': 'Dev',
+                'rank': 'Member',
+                'is_own': false,
+                'privacy_location': false,
+                'privacy_gender': true,
+                'privacy_birthday': false,
+                'gender': 'FEMALE',
+                'birthdate': '1995-01-18',
+                'location': {
+                  'city': 'London',
+                  'region': 'England',
+                  'country': 'United Kingdom',
+                  'country_code': 'GB',
+                },
+                'followed_tags': [
+                  {'id': 3, 'tag_name': 'dart'},
+                  {'id': 4, 'tag_name': 'flutter'},
+                ],
+                'featured_images': [
+                  {
+                    'id': 11,
+                    'post_id': 9,
+                    'image': 'a.jpg',
+                    'like_count': 2,
+                    'comment_count': 1,
+                    'featured': true,
+                  },
+                ],
+                'gallery_images': <Object>[],
+              },
+            }),
+          );
+        } else {
+          Harness.respond(req, status: 404);
+        }
+      });
+
+      final p = await ProfileService(h.client).fetchProfile(7);
+      expect(p.hasAboutInfo, isTrue);
+      expect(p.privacyLocation, isFalse);
+      expect(p.privacyGender, isTrue);
+      expect(p.privacyBirthday, isFalse);
+      expect(p.gender, 'FEMALE');
+      expect(p.birthdate, '1995-01-18');
+      expect(p.locationText, 'London, United Kingdom');
+      expect(p.location?.countryCode, 'gb');
+      expect(p.followedTags.map((t) => t.tagName), ['dart', 'flutter']);
+      expect(p.featuredImages.single.postId, 9);
+      expect(p.featuredImages.single.likeCount, 2);
+      await h.close();
+    });
+
+    test('updateProfile sends privacy flags with privacy_present', () async {
+      String? rawBody;
+      final h = await Harness.start((req) async {
+        if (req.uri.path.startsWith('/feed')) {
+          Harness.respond(req, body: '<meta name="csrf-token" content="t">');
+        } else if (req.uri.path == '/api/v1/profile') {
+          rawBody = await utf8.decoder.bind(req).join();
+          Harness.respond(req, body: '{"success":true}');
+        } else {
+          Harness.respond(req, status: 404);
+        }
+      });
+
+      await ProfileService(h.client).updateProfile(
+        fullName: 'Dev',
+        bio: 'bio',
+        privacyLocation: false,
+        privacyGender: true,
+        privacyBirthday: false,
+      );
+      expect(rawBody, contains('"privacy_present":1'));
+      expect(rawBody, contains('"privacy_location":0'));
+      expect(rawBody, contains('"privacy_gender":1'));
+      expect(rawBody, contains('"privacy_birthday":0'));
+      await h.close();
+    });
+
+    test('setFeaturedImages posts the selected post ids', () async {
+      String? rawBody;
+      final h = await Harness.start((req) async {
+        if (req.uri.path.startsWith('/feed')) {
+          Harness.respond(req, body: '<meta name="csrf-token" content="t">');
+        } else if (req.uri.path == '/api/v1/profile') {
+          rawBody = await utf8.decoder.bind(req).join();
+          Harness.respond(req, body: '{"success":true}');
+        } else {
+          Harness.respond(req, status: 404);
+        }
+      });
+
+      await ProfileService(h.client).setFeaturedImages([3, 5]);
+      expect(rawBody, contains('"action":"set_featured"'));
+      expect(rawBody, contains('"post_ids":[3,5]'));
+      await h.close();
+    });
+
+    test('searchTags and followTag use the tag endpoints', () async {
+      String? query;
+      String? rawBody;
+      final h = await Harness.start((req) async {
+        if (req.uri.path.startsWith('/feed')) {
+          Harness.respond(req, body: '<meta name="csrf-token" content="t">');
+        } else if (req.uri.path == '/api/v1/profile' &&
+            req.method == 'GET') {
+          query = req.uri.query;
+          Harness.respond(
+            req,
+            body: jsonEncode({
+              'success': true,
+              'tags': [
+                {'id': 8, 'tag_name': 'dart', 'is_following': true},
+              ],
+            }),
+          );
+        } else if (req.uri.path == '/api/v1/profile') {
+          rawBody = await utf8.decoder.bind(req).join();
+          Harness.respond(req,
+              body: '{"success":true,"action":"followed","followers":4}');
+        } else {
+          Harness.respond(req, status: 404);
+        }
+      });
+
+      final results = await ProfileService(h.client).searchTags('dar');
+      expect(query, 'tag_search=dar');
+      expect(results.single.tagName, 'dart');
+      expect(results.single.isFollowing, isTrue);
+
+      final following = await ProfileService(h.client).followTag(8);
+      expect(following, isTrue);
+      expect(rawBody, contains('"action":"follow_tag"'));
+      expect(rawBody, contains('"tag_id":8'));
+      await h.close();
+    });
+  });
+
   group('formatJoinedDate', () {
     test("ports profile.php's 'M j, Y'", () {
       expect(formatJoinedDate('2024-11-20 21:05:59'), 'Nov 20, 2024');

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -136,6 +137,18 @@ class EnclavdPalette extends ThemeExtension<EnclavdPalette> {
 
   Color rankName(String rank) =>
       rankNameColors[rank] ?? rankNameColors['Member']!;
+
+  /// Avatar ring color from config/ranks.php's avatar_border (the site uses
+  /// the rank's -500 shade, distinct from the name color).
+  Color rankAvatarBorder(String rank) => switch (rank) {
+        'SysOp' => const Color(0xFFA855F7), // purple-500
+        'Admin' => const Color(0xFFEF4444), // red-500
+        'Officer' => const Color(0xFF3B82F6), // blue-500
+        'Founding Member' => const Color(0xFFEAB308), // yellow-500
+        'Labcoat' => const Color(0xFF6B7280), // gray-500
+        'Blocked' => const Color(0xFF262626), // neutral-800
+        _ => const Color(0xFF4B5563), // gray-600 (Member)
+      };
 
   /// Maps the server's Tailwind name_color class to our palette. Banned
   /// authors come through as `text-neutral-500 line-through ...`.
@@ -305,6 +318,15 @@ ThemeData buildEnclavdTheme({bool light = false}) {
   );
 
   return base.copyWith(
+    // One back affordance everywhere: a slim chevron instead of the
+    // stock Material arrow (iOS-style, also used as the app's "back" look).
+    actionIconTheme: ActionIconThemeData(
+      backButtonIconBuilder: (context) => FaIcon(
+        FontAwesomeIcons.chevronLeft,
+        size: 18,
+        color: pal.textPrimary,
+      ),
+    ),
     appBarTheme: AppBarTheme(
       backgroundColor: pal.background,
       elevation: 0,
