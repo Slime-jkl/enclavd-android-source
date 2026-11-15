@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../config/app_config.dart';
 import 'image_cache_policy.dart';
 
 /// Disk-backed ImageProvider for remote images.
@@ -785,6 +786,10 @@ class CachedNetworkImageProvider
     final client = HttpClient();
     client.userAgent = 'EnclavdApp/1.0';
     client.autoUncompress = true;
+    // Dev stack runs on a self-signed cert; match ApiClient's opt-in.
+    if (AppConfig.allowInsecureTls) {
+      client.badCertificateCallback = (cert, host, port) => true;
+    }
     client.maxConnectionsPerHost = 8;
     client.idleTimeout = const Duration(seconds: 30);
     _sharedClient = client;

@@ -1,11 +1,10 @@
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
 
-import '../theme/enclavd_theme.dart';
-import '../widgets/field_icon.dart';
+import 'ui/app_input_field.dart';
 
 /// Password input with a visibility toggle, shared by login/register.
-class AuthPasswordField extends StatefulWidget {
+class AuthPasswordField extends StatelessWidget {
   const AuthPasswordField({
     super.key,
     required this.controller,
@@ -17,6 +16,8 @@ class AuthPasswordField extends StatefulWidget {
     this.onFieldSubmitted,
     this.onChanged,
     this.prefixIcon = FontAwesomeIcons.lock,
+    this.enabled = true,
+    this.autofillHints,
   });
 
   final TextEditingController controller;
@@ -31,37 +32,26 @@ class AuthPasswordField extends StatefulWidget {
   final ValueChanged<String>? onChanged;
   final FaIconData prefixIcon;
 
-  @override
-  State<AuthPasswordField> createState() => _AuthPasswordFieldState();
-}
-
-class _AuthPasswordFieldState extends State<AuthPasswordField> {
-  bool _obscure = true;
+  /// Disables the input (and its toggle) while a submit is in flight.
+  final bool enabled;
+  final Iterable<String>? autofillHints;
 
   @override
   Widget build(BuildContext context) {
-    return TextFormField(
-      controller: widget.controller,
-      focusNode: widget.focusNode,
-      obscureText: _obscure,
-      validator: widget.validator,
-      textInputAction: widget.textInputAction,
-      onFieldSubmitted: widget.onFieldSubmitted,
-      onChanged: widget.onChanged,
-      decoration: InputDecoration(
-        labelText: widget.label,
-        errorText: widget.errorText,
-        prefixIcon: FieldIcon(widget.prefixIcon),
-        suffixIcon: IconButton(
-          onPressed: () => setState(() => _obscure = !_obscure),
-          tooltip: _obscure ? 'Show password' : 'Hide password',
-          icon: FaIcon(
-            _obscure ? FontAwesomeIcons.eye : FontAwesomeIcons.eyeSlash,
-            size: 18,
-            color: context.enclavd.textSecondary,
-          ),
-        ),
-      ),
+    return AppInputField(
+      controller: controller,
+      label: label,
+      focusNode: focusNode,
+      validator: validator,
+      errorText: errorText,
+      textInputAction: textInputAction,
+      onFieldSubmitted: onFieldSubmitted,
+      onChanged: onChanged,
+      prefixIcon: prefixIcon,
+      enabled: enabled,
+      autofillHints: autofillHints,
+      obscureText: true,
+      showObscureToggle: true,
     );
   }
 }

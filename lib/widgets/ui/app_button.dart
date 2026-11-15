@@ -1,5 +1,6 @@
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../theme/enclavd_theme.dart';
 import 'app_motion.dart';
@@ -13,7 +14,7 @@ enum AppButtonSize { medium, small }
 /// Pill buttons, bare `TextButton`s and one-off `FilledButton`s should not be
 /// introduced any more - pick a variant here so radius, height, padding and
 /// the loading treatment stay identical everywhere.
-class AppButton extends StatelessWidget {
+class AppButton extends StatefulWidget {
   const AppButton({
     super.key,
     required this.label,
@@ -37,19 +38,52 @@ class AppButton extends StatelessWidget {
   final Widget? trailing;
   final String? semanticLabel;
 
-  bool get _enabled => onPressed != null && !loading;
+  @override
+  State<AppButton> createState() => _AppButtonState();
+}
+
+class _AppButtonState extends State<AppButton> {
+  bool _hovered = false;
+  bool _pressed = false;
+
+  bool get _enabled => widget.onPressed != null && !widget.loading;
+
+  @override
+  void didUpdateWidget(covariant AppButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A tap can disable the button (e.g. loading) before the pointer lifts;
+    // drop stale interaction state so it doesn't stay pressed-looking.
+    if (!_enabled) {
+      _hovered = false;
+      _pressed = false;
+    }
+  }
+
+  void _handleTap() {
+    HapticFeedback.lightImpact();
+    widget.onPressed!();
+  }
+
+  Color _hoverColor(EnclavdPalette palette, Color base) {
+    return switch (widget.variant) {
+      AppButtonVariant.primary => palette.primaryButtonHover,
+      AppButtonVariant.secondary => Color.lerp(base, Colors.white, 0.06)!,
+      AppButtonVariant.ghost => palette.cardSecondary.withValues(alpha: 0.55),
+      AppButtonVariant.danger => Color.lerp(base, Colors.black, 0.08)!,
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
     final palette = context.enclavd;
-    final height = size == AppButtonSize.medium ? 44.0 : 34.0;
-    final fontSize = size == AppButtonSize.medium ? 14.0 : 12.5;
+    final height = widget.size == AppButtonSize.medium ? 44.0 : 34.0;
+    final fontSize = widget.size == AppButtonSize.medium ? 14.0 : 12.5;
 
     late Color background;
     late Color foreground;
     Border? border;
 
-    switch (variant) {
+    switch (widget.variant) {
       case AppButtonVariant.primary:
         background = palette.primaryButton;
         foreground = palette.primaryButtonText;
@@ -68,13 +102,19 @@ class AppButton extends StatelessWidget {
     if (!_enabled) {
       background = background.withValues(alpha: 0.45);
       foreground = foreground.withValues(alpha: 0.6);
+    } else {
+      final hovered = _hoverColor(palette, background);
+      if (_hovered) background = hovered;
+      if (_pressed) {
+        background = Color.lerp(background, Colors.black, 0.14)!;
+      }
     }
 
     final content = Row(
-      mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
+      mainAxisSize: widget.expand ? MainAxisSize.max : MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        if (loading)
+        if (widget.loading)
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: SizedBox(
@@ -86,14 +126,14 @@ class AppButton extends StatelessWidget {
               ),
             ),
           )
-        else if (icon != null)
+        else if (widget.icon != null)
           Padding(
             padding: const EdgeInsets.only(right: 8),
-            child: FaIcon(icon!, size: fontSize, color: foreground),
+            child: FaIcon(widget.icon!, size: fontSize, color: foreground),
           ),
         Flexible(
           child: Text(
-            label,
+            widget.label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
@@ -104,7 +144,7 @@ class AppButton extends StatelessWidget {
             ),
           ),
         ),
-        if (trailing != null) trailing!,
+        if (widget.trailing != null) widget.trailing!,
       ],
     );
 
@@ -113,7 +153,7 @@ class AppButton extends StatelessWidget {
       curve: AppMotion.enter,
       height: height,
       padding: EdgeInsets.symmetric(
-        horizontal: size == AppButtonSize.medium ? 16 : 12,
+        horizontal: widget.size == AppButtonSize.medium ? 16 : 12,
       ),
       decoration: BoxDecoration(
         color: background,
@@ -125,11 +165,26 @@ class AppButton extends StatelessWidget {
 
     return Semantics(
       button: true,
-      label: semanticLabel ?? label,
+      enabled: _enabled,
+      label: widget.semanticLabel ?? widget.label,
       child: InkWell(
-        onTap: _enabled ? onPressed : null,
+        onTap: _enabled ? _handleTap : null,
+        onHover:
+            _enabled ? (hovered) => setState(() => _hovered = hovered) : null,
+        onHighlightChanged:
+            _enabled ? (pressed) => setState(() => _pressed = pressed) : null,
         borderRadius: BorderRadius.circular(10),
-        child: expand ? SizedBox(width: double.infinity, child: button) : button,
+        overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+        splashFactory: NoSplash.splashFactory,
+        enableFeedback: false,
+        child: AnimatedScale(
+          scale: _enabled && _pressed ? 0.985 : 1,
+          duration: _pressed ? AppMotion.instant : AppMotion.fast,
+          curve: _pressed ? AppMotion.exit : AppMotion.emphasized,
+          child: widget.expand
+              ? SizedBox(width: double.infinity, child: button)
+              : button,
+        ),
       ),
     );
   }
@@ -186,6 +241,8 @@ class AppIconButton extends StatelessWidget {
       borderRadius: BorderRadius.circular(10),
       child: child,
     );
-    return tooltip == null ? tappable : Tooltip(message: tooltip!, child: tappable);
+    return tooltip == null
+        ? tappable
+        : Tooltip(message: tooltip!, child: tappable);
   }
 }

@@ -21,24 +21,30 @@ void main() {
   tearDown(() => BrandingService.instance.update());
 
   test('site-relative paths resolve against the host this build talks to', () {
-    expect(BrandingService.resolveUrl('/assets/enclavd-xmas-logo.png'),
-        'https://enclavd.com/assets/enclavd-xmas-logo.png');
-    expect(BrandingService.resolveUrl('https://cdn.example/x.png'),
-        'https://cdn.example/x.png');
+    expect(
+      BrandingService.resolveUrl('/assets/enclavd-xmas-logo.png'),
+      'https://enclavd.com/assets/enclavd-xmas-logo.png',
+    );
+    expect(
+      BrandingService.resolveUrl('https://cdn.example/x.png'),
+      'https://cdn.example/x.png',
+    );
     expect(BrandingService.resolveUrl(''), isNull);
     expect(BrandingService.resolveUrl(null), isNull);
   });
 
-  testWidgets('bundled wordmark when the site serves no seasonal art',
-      (tester) async {
+  testWidgets('bundled wordmark when the site serves no seasonal art', (
+    tester,
+  ) async {
     await tester.pumpWidget(_host(const BrandLogo(height: 22)));
 
     expect(find.byType(EnclavdImage), findsNothing);
     expect(_bundledAsset(tester), 'assets/images/enclavd-logo-white.png');
   });
 
-  testWidgets('swaps in the seasonal art when config lands after first paint',
-      (tester) async {
+  testWidgets('swaps in the seasonal art when config lands after first paint', (
+    tester,
+  ) async {
     await tester.pumpWidget(_host(const BrandLogo(height: 22)));
     expect(find.byType(EnclavdImage), findsNothing);
 
@@ -47,27 +53,35 @@ void main() {
 
     final image = tester.widget<EnclavdImage>(find.byType(EnclavdImage));
     expect(image.url, 'https://enclavd.com/assets/enclavd-xmas-logo.png');
-    // Twice the wordmark height: the art carries decoration above and below
-    // the letters, so the same height would read smaller.
+    // Seasonal art keeps its own ratio inside the wordmark's width footprint,
+    // with twice the wordmark height available for decoration.
+    expect(image.width, closeTo(22 * 1584 / 231, 0.01));
     expect(image.height, 44);
+    expect(image.fit, BoxFit.contain);
   });
 
-  testWidgets('light theme keeps the bundled dark-ink mark without a variant',
-      (tester) async {
+  testWidgets('light theme keeps the bundled dark-ink mark without a variant', (
+    tester,
+  ) async {
     BrandingService.instance.update(dark: '/assets/enclavd-xmas-logo.png');
     await tester.pumpWidget(
-        _host(const BrandLogo(height: 22), brightness: Brightness.light));
+      _host(const BrandLogo(height: 22), brightness: Brightness.light),
+    );
 
     expect(find.byType(EnclavdImage), findsNothing);
     expect(_bundledAsset(tester), 'assets/images/enclavd-logo-dark.png');
   });
 
-  testWidgets('light theme takes the variant when the site ships one',
-      (tester) async {
-    BrandingService.instance
-        .update(dark: '/assets/xmas.png', light: '/assets/xmas-dark.png');
+  testWidgets('light theme takes the variant when the site ships one', (
+    tester,
+  ) async {
+    BrandingService.instance.update(
+      dark: '/assets/xmas.png',
+      light: '/assets/xmas-dark.png',
+    );
     await tester.pumpWidget(
-        _host(const BrandLogo(height: 22), brightness: Brightness.light));
+      _host(const BrandLogo(height: 22), brightness: Brightness.light),
+    );
 
     final image = tester.widget<EnclavdImage>(find.byType(EnclavdImage));
     expect(image.url, 'https://enclavd.com/assets/xmas-dark.png');
