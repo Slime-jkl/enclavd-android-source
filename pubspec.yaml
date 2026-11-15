@@ -1,7 +1,7 @@
 name: enclavd
 description: "Enclavd - Personality Social Network"
 publish_to: "none"
-version: 2.3.2+232
+version: 2.3.3+233
 
 environment:
   sdk: ^3.6.0
