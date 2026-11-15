@@ -93,23 +93,25 @@ Future<void> _fillRequiredFields(WidgetTester tester) async {
   await tester.enterText(find.byType(TextFormField).at(3), 'secret1');
 }
 
-/// Ticks both agreement checkboxes (the client-side submit gate) and
-/// scrolls with a left-margin drag so the tiles sit at a settled position.
+/// Ticks both agreement checkboxes (the client-side submit gate).
+///
+/// The register rework swapped `CheckboxListTile`s for `AppCheckbox` rows, so
+/// they are addressed by key instead of by widget type.
 Future<void> _checkAgreements(WidgetTester tester) async {
-  await tester.dragFrom(const Offset(8, 500), const Offset(0, -500));
-  await tester.pumpAndSettle();
-  for (var i = 0; i < 2; i++) {
-    await tester.tap(find.descendant(
-      of: find.byType(CheckboxListTile).at(i),
-      matching: find.byType(Checkbox),
-    ));
+  for (final key in const ['register-privacy', 'register-terms']) {
+    final box = find.byKey(Key(key));
+    await tester.ensureVisible(box);
+    await tester.pumpAndSettle();
+    await tester.tap(box);
     await tester.pump();
   }
 }
 
 Future<void> _scrollToAndTapRegister(WidgetTester tester) async {
-  await tester.ensureVisible(find.widgetWithText(ElevatedButton, 'Register'));
-  await tester.tap(find.widgetWithText(ElevatedButton, 'Register'));
+  final submit = find.byKey(const Key('register-submit'));
+  await tester.ensureVisible(submit);
+  await tester.pumpAndSettle();
+  await tester.tap(submit);
   await tester.pumpAndSettle();
 }
 
@@ -123,7 +125,8 @@ void main() {
     ));
     await tester.pump();
 
-    expect(find.text('Invitation Code *'), findsOneWidget);
+    expect(find.byKey(const Key('register-invitation')), findsOneWidget);
+    expect(find.text('Invitation code'), findsOneWidget);
 
     // Empty invitation must block submit with a clear message.
     await _fillRequiredFields(tester);
@@ -141,7 +144,8 @@ void main() {
     ));
     await tester.pump();
 
-    expect(find.text('Invitation Code *'), findsNothing);
+    expect(find.byKey(const Key('register-invitation')), findsNothing);
+    expect(find.text('Invitation code'), findsNothing);
     expect(find.text('Enter your invitation code'), findsNothing);
   });
 
