@@ -60,8 +60,15 @@ class _AppButtonState extends State<AppButton> {
   }
 
   void _handleTap() {
-    HapticFeedback.lightImpact();
     widget.onPressed!();
+  }
+
+  /// Haptics land on touch-down so the press is acknowledged immediately, even
+  /// if the tap ends up failing validation before it ever reaches onTap.
+  void _setPressed(bool pressed) {
+    if (pressed == _pressed) return;
+    if (pressed) HapticFeedback.lightImpact();
+    setState(() => _pressed = pressed);
   }
 
   Color _hoverColor(EnclavdPalette palette, Color base) {
@@ -106,7 +113,7 @@ class _AppButtonState extends State<AppButton> {
       final hovered = _hoverColor(palette, background);
       if (_hovered) background = hovered;
       if (_pressed) {
-        background = Color.lerp(background, Colors.black, 0.14)!;
+        background = Color.lerp(background, Colors.black, 0.18)!;
       }
     }
 
@@ -171,14 +178,13 @@ class _AppButtonState extends State<AppButton> {
         onTap: _enabled ? _handleTap : null,
         onHover:
             _enabled ? (hovered) => setState(() => _hovered = hovered) : null,
-        onHighlightChanged:
-            _enabled ? (pressed) => setState(() => _pressed = pressed) : null,
+        onHighlightChanged: _enabled ? _setPressed : null,
         borderRadius: BorderRadius.circular(10),
         overlayColor: const WidgetStatePropertyAll(Colors.transparent),
         splashFactory: NoSplash.splashFactory,
         enableFeedback: false,
         child: AnimatedScale(
-          scale: _enabled && _pressed ? 0.985 : 1,
+          scale: _enabled && _pressed ? 0.97 : 1,
           duration: _pressed ? AppMotion.instant : AppMotion.fast,
           curve: _pressed ? AppMotion.exit : AppMotion.emphasized,
           child: widget.expand

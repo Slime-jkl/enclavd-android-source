@@ -21,6 +21,7 @@ class AuthScaffold extends StatelessWidget {
     this.footer,
     this.leading,
     this.maxWidth = 400,
+    this.scrollController,
   });
 
   final String title;
@@ -35,6 +36,10 @@ class AuthScaffold extends StatelessWidget {
 
   final double maxWidth;
 
+  /// Optional controller so callers can reset the scroll offset (e.g. when a
+  /// multi-step form swaps its content).
+  final ScrollController? scrollController;
+
   @override
   Widget build(BuildContext context) {
     final palette = context.enclavd;
@@ -47,6 +52,7 @@ class AuthScaffold extends StatelessWidget {
             const horizontal = 20.0;
             const vertical = 28.0;
             return SingleChildScrollView(
+              controller: scrollController,
               keyboardDismissBehavior:
                   ScrollViewKeyboardDismissBehavior.onDrag,
               padding: const EdgeInsets.symmetric(

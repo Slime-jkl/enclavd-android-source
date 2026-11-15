@@ -15,12 +15,20 @@ class ExpandedTapArea extends StatefulWidget {
     required this.onTap,
     this.horizontalPadding = 12,
     this.verticalPadding = 12,
+    this.coverChild = true,
   });
 
   final Widget child;
   final VoidCallback? onTap;
   final double horizontalPadding;
   final double verticalPadding;
+
+  /// Whether the transparent overlay also sits on top of [child].
+  ///
+  /// Leave it true for decorative children (a plain link label). Set it false
+  /// when the child has its own touch feedback and must receive the pointer
+  /// itself; the overlay then only covers the padding ring around it.
+  final bool coverChild;
 
   @override
   State<ExpandedTapArea> createState() => _ExpandedTapAreaState();
@@ -103,12 +111,53 @@ class _ExpandedTapAreaState extends State<ExpandedTapArea>
   Widget _buildEntry(BuildContext context) {
     final rect = _hitRect;
     if (rect == null) return const SizedBox.shrink();
+    if (widget.coverChild) {
+      return Positioned.fromRect(
+        rect: rect,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          child: const SizedBox.expand(),
+        ),
+      );
+    }
+
+    // Only the padding ring is covered, so a tap inside the child still
+    // reaches the child's own gesture recognizer.
+    final hitHeight = rect.height - widget.verticalPadding * 2;
+    Widget strip(double left, double top, double width, double height) {
+      return Positioned(
+        left: left,
+        top: top,
+        width: width,
+        height: height,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: widget.onTap,
+          child: const SizedBox.expand(),
+        ),
+      );
+    }
+
     return Positioned.fromRect(
       rect: rect,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: widget.onTap,
-        child: const SizedBox.expand(),
+      child: Stack(
+        children: [
+          strip(0, 0, rect.width, widget.verticalPadding),
+          strip(
+            0,
+            rect.height - widget.verticalPadding,
+            rect.width,
+            widget.verticalPadding,
+          ),
+          strip(0, widget.verticalPadding, widget.horizontalPadding, hitHeight),
+          strip(
+            rect.width - widget.horizontalPadding,
+            widget.verticalPadding,
+            widget.horizontalPadding,
+            hitHeight,
+          ),
+        ],
       ),
     );
   }

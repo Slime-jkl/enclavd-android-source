@@ -23,6 +23,7 @@ class AppInputField extends StatefulWidget {
     this.autofillHints,
     this.validator,
     this.errorText,
+    this.helperText,
     this.enabled = true,
     this.obscureText = false,
     this.showObscureToggle = false,
@@ -46,6 +47,9 @@ class AppInputField extends StatefulWidget {
 
   /// Server-side field error, cleared by the caller as the user edits.
   final String? errorText;
+
+  /// Steady guidance below the field; hidden while [errorText] is showing.
+  final String? helperText;
   final bool enabled;
   final bool obscureText;
 
@@ -93,9 +97,9 @@ class _AppInputFieldState extends State<AppInputField> {
         labelText: widget.label,
         hintText: widget.hintText,
         errorText: widget.errorText,
-        prefixIcon: widget.prefixIcon == null
-            ? null
-            : FieldIcon(widget.prefixIcon!),
+        helperText: widget.helperText,
+        prefixIcon:
+            widget.prefixIcon == null ? null : FieldIcon(widget.prefixIcon!),
         suffixIcon: hasToggle
             ? IconButton(
                 onPressed: widget.enabled

@@ -9,9 +9,17 @@ import '../api/api_client.dart';
 import '../config/app_config.dart';
 import '../main.dart';
 import '../theme/enclavd_theme.dart';
-import '../widgets/brand_logo.dart';
-import '../widgets/auth_password_field.dart';
+import '../widgets/auth/auth_scaffold.dart';
 import '../widgets/field_icon.dart';
+import '../widgets/ui/app_button.dart';
+import '../widgets/ui/app_checkbox.dart';
+import '../widgets/ui/app_date_picker.dart';
+import '../widgets/ui/app_input_field.dart';
+import '../widgets/ui/app_link_button.dart';
+import '../widgets/ui/app_option_sheet.dart';
+import '../widgets/ui/app_picker_field.dart';
+import '../widgets/ui/app_sheet.dart';
+import '../widgets/ui/app_surface.dart';
 import 'login_screen.dart';
 import 'verify_email_screen.dart';
 
@@ -37,8 +45,7 @@ class _GeoCountry {
 }
 
 class _GeoCity {
-  const _GeoCity(
-      {required this.id, required this.name, required this.regionId});
+  const _GeoCity({required this.id, required this.name, required this.regionId});
 
   final int id;
   final String name;
@@ -53,6 +60,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordConfirm = TextEditingController();
   final _invitation = TextEditingController();
 
+  final _usernameFocus = FocusNode();
+  final _emailFocus = FocusNode();
+  final _passwordFocus = FocusNode();
+  final _passwordConfirmFocus = FocusNode();
+  final _invitationFocus = FocusNode();
+  final _captchaFocus = FocusNode();
+
   bool _acceptPrivacy = false;
   bool _acceptTerms = false;
   bool _busy = false;
@@ -64,7 +78,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   RateLimitState? _rl;
   final _captcha = TextEditingController();
-  final _captchaFocus = FocusNode();
 
   final _privacyTap = TapGestureRecognizer();
   final _termsTap = TapGestureRecognizer();
@@ -155,6 +168,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
     _passwordConfirm.dispose();
     _invitation.dispose();
     _captcha.dispose();
+    _usernameFocus.dispose();
+    _emailFocus.dispose();
+    _passwordFocus.dispose();
+    _passwordConfirmFocus.dispose();
+    _invitationFocus.dispose();
     _captchaFocus.dispose();
     super.dispose();
   }
@@ -233,21 +251,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _pickBirthdate() async {
     final initial = _birthdate != null ? DateTime.tryParse(_birthdate!) : null;
-    final picked = await showDatePicker(
+    final picked = await showAppDatePicker(
       context: context,
       initialDate: initial ?? DateTime(2000, 1, 1),
       firstDate: DateTime(1900),
       lastDate: DateTime.now(),
-      helpText: 'Date of birth',
-      builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
-          datePickerTheme: DatePickerThemeData(
-            backgroundColor: context.enclavd.card,
-            surfaceTintColor: Colors.transparent,
-          ),
-        ),
-        child: child!,
-      ),
+      title: 'Date of birth',
     );
     if (picked == null || !mounted) return;
     setState(() {
@@ -255,6 +264,45 @@ class _RegisterScreenState extends State<RegisterScreen> {
           '${picked.month.toString().padLeft(2, '0')}-'
           '${picked.day.toString().padLeft(2, '0')}';
     });
+    _clearFieldError('birthdate');
+  }
+
+  String get _birthdateDisplay {
+    final raw = _birthdate;
+    if (raw == null) return '';
+    final parsed = DateTime.tryParse(raw);
+    if (parsed == null) return raw;
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', //
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${parsed.day} ${months[parsed.month - 1]} ${parsed.year}';
+  }
+
+  String get _genderDisplay {
+    switch (_gender) {
+      case 'MALE':
+        return 'Male';
+      case 'FEMALE':
+        return 'Female';
+      default:
+        return 'Prefer not to say';
+    }
+  }
+
+  Future<void> _pickGender() async {
+    final picked = await showAppOptionSheet<String>(
+      context: context,
+      title: 'Gender',
+      selected: _gender,
+      options: const [
+        AppOption(value: 'NONE', label: 'Prefer not to say'),
+        AppOption(value: 'MALE', label: 'Male'),
+        AppOption(value: 'FEMALE', label: 'Female'),
+      ],
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _gender = picked);
   }
 
   Future<void> _loadCountries() async {
@@ -303,13 +351,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Future<void> _pickCountry() async {
     await _loadCountries();
     if (!mounted) return;
-    final picked = await showModalBottomSheet<_GeoCountry>(
+    final picked = await showAppSheet<_GeoCountry>(
       context: context,
-      backgroundColor: context.enclavd.card,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => _GeoPickerSheet(countries: _countries),
+      title: 'Country',
+      subtitle: 'Where are you based?',
+      heightFactor: 0.72,
+      builder: (_) => _GeoPickerSheet(countries: _countries),
     );
     if (picked == null || !mounted) return;
     setState(() {
@@ -320,6 +367,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _cityName = '';
       _cities = const [];
     });
+    _clearFieldError('country');
     // Load the city list for the chosen country (lazy, like the site).
     await _loadCities(picked.id);
   }
@@ -329,13 +377,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (countryId == null) return;
     if (_cities.isEmpty) await _loadCities(countryId);
     if (!mounted) return;
-    final picked = await showModalBottomSheet<_GeoCity>(
+    final picked = await showAppSheet<_GeoCity>(
       context: context,
-      backgroundColor: context.enclavd.card,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => _CityPickerSheet(cities: _cities),
+      title: 'City',
+      subtitle: 'Cities in $_countryName',
+      heightFactor: 0.7,
+      builder: (_) => _CityPickerSheet(cities: _cities),
     );
     if (picked == null || !mounted) return;
     setState(() {
@@ -343,24 +390,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _regionId = picked.regionId;
       _cityName = picked.name;
     });
+    _clearFieldError('city');
   }
 
-  Widget _agreementTitle(
+  Widget _agreementLabel(
     String prefix,
     String linkText,
     TapGestureRecognizer recognizer,
   ) {
+    final palette = context.enclavd;
     return Text.rich(
       TextSpan(
-        style: TextStyle(fontSize: 14, color: context.enclavd.textPrimary),
+        style: TextStyle(fontSize: 13, height: 1.35, color: palette.textPrimary),
         children: [
           TextSpan(text: prefix),
           TextSpan(
             text: linkText,
             style: TextStyle(
-              color: context.enclavd.link,
+              color: palette.link,
               decoration: TextDecoration.underline,
-              decorationColor: context.enclavd.link,
+              decorationColor: palette.link,
             ),
             recognizer: recognizer,
           ),
@@ -369,372 +418,302 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  Widget _pickerField({
-    required String label,
-    required String value,
-    required FaIconData icon,
-    required VoidCallback onTap,
-    String? hint,
-  }) {
-    final empty = value.isEmpty;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: InputDecorator(
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: FieldIcon(icon),
-          suffixIcon: FieldIcon(FontAwesomeIcons.chevronDown,
-              size: 14, color: context.enclavd.textSecondary),
-        ),
-        child: Text(
-          empty ? (hint ?? 'Select') : value,
-          style: TextStyle(
-            color: empty
-                ? context.enclavd.textSecondary
-                : context.enclavd.textPrimary,
-            fontSize: 15,
-          ),
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        // Navy hero only over the dark theme; light mode goes flat so the
-        // form stays readable.
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: Theme.of(context).brightness == Brightness.light
-                ? [context.enclavd.background, context.enclavd.background]
-                : [const Color(0xFF0B1628), context.enclavd.background],
-          ),
-        ),
-        child: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, viewport) {
-              return SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: ConstrainedBox(
-                  constraints:
-                      BoxConstraints(minHeight: viewport.maxHeight - 48),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 440),
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: IconButton(
-                                onPressed: () => Navigator.of(context)
-                                    .pushReplacementNamed(
-                                        LoginScreen.routeName),
-                                tooltip: 'Back to login',
-                                icon: const FaIcon(FontAwesomeIcons.arrowLeft,
-                                    size: 20),
-                              ),
-                            ),
-                            const Center(child: BrandLogo(height: 42)),
-                            const SizedBox(height: 24),
-                            const Text(
-                              'Create your account',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                  fontSize: 26, fontWeight: FontWeight.w700),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              'Join the Enclavd network',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                  color: context.enclavd.textSecondary,
-                                  fontSize: 14),
-                            ),
-                            const SizedBox(height: 28),
-                            if (_error != null) ...[
-                              _Banner(message: _error!, isError: true),
-                              const SizedBox(height: 16),
-                            ],
-                            TextFormField(
-                              controller: _username,
-                              textInputAction: TextInputAction.next,
-                              decoration: InputDecoration(
-                                labelText: 'Username *',
-                                hintText: 'Choose a username',
-                                errorText: _fieldErrors['username'],
-                                prefixIcon:
-                                    const FieldIcon(FontAwesomeIcons.user),
-                              ),
-                              onChanged: (_) => _clearFieldError('username'),
-                              validator: (v) {
-                                final s = v?.trim() ?? '';
-                                if (s.isEmpty) return 'Username is required';
-                                if (!RegExp(r'^[a-zA-Z0-9_]{3,20}$')
-                                    .hasMatch(s)) {
-                                  return '3-20 characters, letters, numbers, underscores only';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 16),
-                            TextFormField(
-                              controller: _email,
-                              keyboardType: TextInputType.emailAddress,
-                              textInputAction: TextInputAction.next,
-                              decoration: InputDecoration(
-                                labelText: 'Email address *',
-                                hintText: 'you@example.com',
-                                errorText: _fieldErrors['email'],
-                                prefixIcon:
-                                    const FieldIcon(FontAwesomeIcons.envelope),
-                              ),
-                              onChanged: (_) => _clearFieldError('email'),
-                              validator: (v) {
-                                final s = v?.trim() ?? '';
-                                if (s.isEmpty) return 'Email is required';
-                                if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
-                                    .hasMatch(s)) {
-                                  return 'Enter a valid email address';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 16),
-                            AuthPasswordField(
-                              controller: _password,
-                              label: 'Password *',
-                              errorText: _fieldErrors['password'],
-                              onChanged: (_) => _clearFieldError('password'),
-                              validator: (v) {
-                                if (v == null || v.isEmpty) {
-                                  return 'Password is required';
-                                }
-                                if (v.length < 6) {
-                                  return 'At least 6 characters';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 16),
-                            AuthPasswordField(
-                              controller: _passwordConfirm,
-                              label: 'Confirm Password *',
-                              errorText: _fieldErrors['password_confirm'],
-                              onChanged: (_) =>
-                                  _clearFieldError('password_confirm'),
-                              validator: (v) => v != _password.text
-                                  ? 'Passwords do not match'
-                                  : null,
-                            ),
-                            if (_invitationRequired) ...[
-                              const SizedBox(height: 16),
-                              TextFormField(
-                                controller: _invitation,
-                                textInputAction: TextInputAction.next,
-                                decoration: InputDecoration(
-                                  labelText: 'Invitation Code *',
-                                  hintText: 'Enter your invitation code',
-                                  errorText: _fieldErrors['invitation'],
-                                  prefixIcon:
-                                      const FieldIcon(FontAwesomeIcons.ticket),
-                                ),
-                                onChanged: (_) =>
-                                    _clearFieldError('invitation'),
-                                validator: (_) => _invitation.text
-                                        .trim()
-                                        .isEmpty
-                                    ? 'An invitation code is required to join'
-                                    : null,
-                              ),
-                            ],
-                            const SizedBox(height: 16),
-                            _pickerField(
-                              label: 'Date of Birth',
-                              value: _birthdate ?? '',
-                              icon: FontAwesomeIcons.cakeCandles,
-                              hint: 'Select your date of birth',
-                              onTap: _pickBirthdate,
-                            ),
-                            const SizedBox(height: 16),
-                            DropdownButtonFormField<String>(
-                              initialValue: _gender,
-                              decoration: const InputDecoration(
-                                labelText: 'Gender',
-                                prefixIcon:
-                                    FieldIcon(FontAwesomeIcons.venusMars),
-                              ),
-                              items: const [
-                                DropdownMenuItem(
-                                    value: 'NONE',
-                                    child: Text('Prefer not to say')),
-                                DropdownMenuItem(
-                                    value: 'MALE', child: Text('Male')),
-                                DropdownMenuItem(
-                                    value: 'FEMALE', child: Text('Female')),
-                              ],
-                              onChanged: (v) =>
-                                  setState(() => _gender = v ?? 'NONE'),
-                            ),
-                            const SizedBox(height: 16),
-                            _pickerField(
-                              label: 'Country',
-                              value: _countryName,
-                              icon: FontAwesomeIcons.globe,
-                              hint: 'Select your country',
-                              onTap: _pickCountry,
-                            ),
-                            if (_countryId != null) ...[
-                              const SizedBox(height: 16),
-                              _pickerField(
-                                label: 'City',
-                                value: _cityName,
-                                icon: FontAwesomeIcons.city,
-                                hint: 'Select your city',
-                                onTap: _pickCity,
-                              ),
-                            ],
-                            const SizedBox(height: 16),
-                            CheckboxListTile(
-                              value: _acceptPrivacy,
-                              onChanged: (v) => setState(() {
-                                _acceptPrivacy = v ?? false;
-                                _checkboxError = null;
-                              }),
-                              title: _agreementTitle(
-                                'I accept the ',
-                                'Privacy Policy',
-                                _privacyTap,
-                              ),
-                              controlAffinity: ListTileControlAffinity.leading,
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                            CheckboxListTile(
-                              value: _acceptTerms,
-                              onChanged: (v) => setState(() {
-                                _acceptTerms = v ?? false;
-                                _checkboxError = null;
-                              }),
-                              title: _agreementTitle(
-                                'I accept the ',
-                                'Terms of Service',
-                                _termsTap,
-                              ),
-                              controlAffinity: ListTileControlAffinity.leading,
-                              contentPadding: EdgeInsets.zero,
-                            ),
-                            if (_checkboxError != null)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 8),
-                                child: Text(
-                                  _checkboxError!,
-                                  style: const TextStyle(
-                                      color: Color(0xFFF87171), fontSize: 13),
-                                ),
-                              ),
-                            const SizedBox(height: 24),
-                            if (_rl?.captchaRequired ?? false) ...[
-                              Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFFCD34D)
-                                      .withValues(alpha: 0.08),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                      color: const Color(0xFFFCD34D)
-                                          .withValues(alpha: 0.3)),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const FaIcon(FontAwesomeIcons.shieldHalved,
-                                        size: 16, color: Color(0xFFFCD34D)),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        _rl?.captchaQuestion ??
-                                            'Security question',
-                                        style: const TextStyle(fontSize: 13),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              TextFormField(
-                                controller: _captcha,
-                                focusNode: _captchaFocus,
-                                textInputAction: TextInputAction.done,
-                                onFieldSubmitted: (_) => _submit(),
-                                decoration: const InputDecoration(
-                                  labelText: 'Answer',
-                                  prefixIcon: FieldIcon(FontAwesomeIcons.key),
-                                ),
-                                validator: (_) =>
-                                    (_rl?.captchaRequired ?? false) &&
-                                            _captcha.text.trim().isEmpty
-                                        ? 'Answer the question above'
-                                        : null,
-                              ),
-                              const SizedBox(height: 16),
-                            ],
-                            ElevatedButton(
-                              onPressed: _busy ? null : _submit,
-                              child: _busy
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                          strokeWidth: 2, color: Colors.white),
-                                    )
-                                  : const Text('Register'),
-                            ),
-                            const SizedBox(height: 16),
-                            TextButton(
-                              onPressed: () {
-                                Navigator.of(context).pushReplacementNamed(
-                                    LoginScreen.routeName);
-                              },
-                              child: const Text('Sign in instead'),
-                            ),
-                          ],
-                        ),
-                      ),
+    final palette = context.enclavd;
+    return AuthScaffold(
+      title: 'Create your account',
+      subtitle: 'Join the Enclavd network',
+      leading: AppIconButton(
+        key: const Key('register-back'),
+        icon: FontAwesomeIcons.chevronLeft,
+        tooltip: 'Back to sign in',
+        onPressed: () =>
+            Navigator.of(context).pushReplacementNamed(LoginScreen.routeName),
+      ),
+      child: AutofillGroup(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (_error != null) ...[
+                AuthNotice(message: _error!),
+                const SizedBox(height: 16),
+              ],
+              AppInputField(
+                key: const Key('register-username'),
+                controller: _username,
+                focusNode: _usernameFocus,
+                label: 'Username',
+                hintText: 'Choose a username',
+                prefixIcon: FontAwesomeIcons.user,
+                textInputAction: TextInputAction.next,
+                autofillHints: const [AutofillHints.newUsername],
+                errorText: _fieldErrors['username'],
+                onChanged: (_) => _clearFieldError('username'),
+                onFieldSubmitted: (_) => _emailFocus.requestFocus(),
+                validator: (v) {
+                  final s = v?.trim() ?? '';
+                  if (s.isEmpty) return 'Username is required';
+                  if (!RegExp(r'^[a-zA-Z0-9_]{3,20}$').hasMatch(s)) {
+                    return '3-20 characters, letters, numbers, underscores only';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 14),
+              AppInputField(
+                key: const Key('register-email'),
+                controller: _email,
+                focusNode: _emailFocus,
+                label: 'Email address',
+                hintText: 'you@example.com',
+                prefixIcon: FontAwesomeIcons.envelope,
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                autofillHints: const [AutofillHints.email],
+                errorText: _fieldErrors['email'],
+                onChanged: (_) => _clearFieldError('email'),
+                onFieldSubmitted: (_) => _passwordFocus.requestFocus(),
+                validator: (v) {
+                  final s = v?.trim() ?? '';
+                  if (s.isEmpty) return 'Email is required';
+                  if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(s)) {
+                    return 'Enter a valid email address';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 14),
+              AppInputField(
+                key: const Key('register-password'),
+                controller: _password,
+                focusNode: _passwordFocus,
+                label: 'Password',
+                helperText: 'At least 6 characters',
+                prefixIcon: FontAwesomeIcons.lock,
+                obscureText: true,
+                showObscureToggle: true,
+                textInputAction: TextInputAction.next,
+                autofillHints: const [AutofillHints.newPassword],
+                errorText: _fieldErrors['password'],
+                onChanged: (_) => _clearFieldError('password'),
+                onFieldSubmitted: (_) => _passwordConfirmFocus.requestFocus(),
+                validator: (v) {
+                  if (v == null || v.isEmpty) return 'Password is required';
+                  if (v.length < 6) return 'At least 6 characters';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 14),
+              AppInputField(
+                key: const Key('register-password-confirm'),
+                controller: _passwordConfirm,
+                focusNode: _passwordConfirmFocus,
+                label: 'Confirm password',
+                prefixIcon: FontAwesomeIcons.lock,
+                obscureText: true,
+                showObscureToggle: true,
+                textInputAction: _invitationRequired
+                    ? TextInputAction.next
+                    : TextInputAction.done,
+                autofillHints: const [AutofillHints.newPassword],
+                errorText: _fieldErrors['password_confirm'],
+                onChanged: (_) => _clearFieldError('password_confirm'),
+                onFieldSubmitted: (_) {
+                  if (_invitationRequired) {
+                    _invitationFocus.requestFocus();
+                  } else {
+                    _submit();
+                  }
+                },
+                validator: (v) =>
+                    v != _password.text ? 'Passwords do not match' : null,
+              ),
+              if (_invitationRequired) ...[
+                const SizedBox(height: 14),
+                AppInputField(
+                  key: const Key('register-invitation'),
+                  controller: _invitation,
+                  focusNode: _invitationFocus,
+                  label: 'Invitation code',
+                  hintText: 'Enter your invitation code',
+                  prefixIcon: FontAwesomeIcons.ticket,
+                  textInputAction: TextInputAction.next,
+                  errorText: _fieldErrors['invitation'],
+                  onChanged: (_) => _clearFieldError('invitation'),
+                  onFieldSubmitted: (_) => _captchaFocus.requestFocus(),
+                  validator: (_) => _invitation.text.trim().isEmpty
+                      ? 'An invitation code is required to join'
+                      : null,
+                ),
+              ],
+              const SizedBox(height: 16),
+              AppPickerField(
+                key: const Key('register-dob'),
+                label: 'Date of birth',
+                value: _birthdateDisplay,
+                hintText: 'Select your date of birth',
+                prefixIcon: FontAwesomeIcons.cakeCandles,
+                onTap: _pickBirthdate,
+              ),
+              const SizedBox(height: 14),
+              AppPickerField(
+                key: const Key('register-gender'),
+                label: 'Gender',
+                value: _genderDisplay,
+                prefixIcon: FontAwesomeIcons.venusMars,
+                onTap: _pickGender,
+              ),
+              const SizedBox(height: 14),
+              AppPickerField(
+                key: const Key('register-country'),
+                label: 'Country',
+                value: _countryName,
+                hintText: 'Select your country',
+                prefixIcon: FontAwesomeIcons.globe,
+                onTap: _pickCountry,
+              ),
+              if (_countryId != null) ...[
+                const SizedBox(height: 14),
+                AppPickerField(
+                  key: const Key('register-city'),
+                  label: 'City',
+                  value: _cityName,
+                  hintText: 'Select your city',
+                  prefixIcon: FontAwesomeIcons.city,
+                  onTap: _pickCity,
+                ),
+              ],
+              const SizedBox(height: 16),
+              const AppDivider(),
+              const SizedBox(height: 10),
+              AppCheckbox(
+                key: const Key('register-privacy'),
+                value: _acceptPrivacy,
+                semanticLabel: 'I accept the Privacy Policy',
+                labelWidget: _agreementLabel(
+                  'I accept the ',
+                  'Privacy Policy',
+                  _privacyTap,
+                ),
+                onChanged: (v) => setState(() {
+                  _acceptPrivacy = v;
+                  _checkboxError = null;
+                }),
+              ),
+              const SizedBox(height: 2),
+              AppCheckbox(
+                key: const Key('register-terms'),
+                value: _acceptTerms,
+                semanticLabel: 'I accept the Terms of Service',
+                labelWidget: _agreementLabel(
+                  'I accept the ',
+                  'Terms of Service',
+                  _termsTap,
+                ),
+                onChanged: (v) => setState(() {
+                  _acceptTerms = v;
+                  _checkboxError = null;
+                }),
+              ),
+              if (_checkboxError != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4, left: 4),
+                  child: Text(
+                    _checkboxError!,
+                    style: TextStyle(
+                      color: palette.error,
+                      fontSize: 12.5,
+                      height: 1.35,
                     ),
                   ),
                 ),
-              );
-            },
+              const SizedBox(height: 20),
+              if (_rl?.captchaRequired ?? false) ...[
+                AppSurface(
+                  padding: const EdgeInsets.all(12),
+                  color: palette.warning.withValues(alpha: 0.07),
+                  borderColor: palette.warning.withValues(alpha: 0.28),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          FaIcon(FontAwesomeIcons.shieldHalved,
+                              size: 13, color: palette.warning),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _rl?.captchaQuestion ?? 'Security question',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                                height: 1.35,
+                                color: palette.warning,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      AppInputField(
+                        key: const Key('register-captcha'),
+                        controller: _captcha,
+                        focusNode: _captchaFocus,
+                        label: 'Answer',
+                        prefixIcon: FontAwesomeIcons.key,
+                        textInputAction: TextInputAction.done,
+                        errorText: _fieldErrors['captcha'],
+                        onFieldSubmitted: (_) => _submit(),
+                        validator: (_) =>
+                            (_rl?.captchaRequired ?? false) &&
+                                    _captcha.text.trim().isEmpty
+                                ? 'Answer the question above'
+                                : null,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+              AppButton(
+                key: const Key('register-submit'),
+                label: 'Register',
+                icon: FontAwesomeIcons.userPlus,
+                expand: true,
+                loading: _busy,
+                onPressed: _busy ? null : _submit,
+              ),
+              const SizedBox(height: 16),
+              const AppDivider(),
+              const SizedBox(height: 10),
+              Wrap(
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(
+                    'Already have an account?',
+                    style: TextStyle(
+                      color: palette.textSecondary,
+                      fontSize: 13,
+                    ),
+                  ),
+                  AppLinkButton(
+                    key: const Key('register-signin'),
+                    label: 'Sign in',
+                    fontSize: 12.5,
+                    onPressed: () => Navigator.of(context)
+                        .pushReplacementNamed(LoginScreen.routeName),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
-    );
-  }
-}
-
-class _Banner extends StatelessWidget {
-  const _Banner({required this.message, required this.isError});
-
-  final String message;
-  final bool isError;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isError ? const Color(0xFFF87171) : const Color(0xFF4ADE80);
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.25)),
-      ),
-      child: Text(message, style: TextStyle(color: color, fontSize: 13)),
     );
   }
 }
@@ -753,59 +732,47 @@ class _GeoPickerSheetState extends State<_GeoPickerSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.enclavd;
     final filtered = widget.countries
         .where((c) =>
             _query.isEmpty ||
             c.name.toLowerCase().contains(_query.toLowerCase()) ||
             c.code.toLowerCase().contains(_query.toLowerCase()))
         .toList();
-    return SafeArea(
-      child: SizedBox(
-        height: MediaQuery.of(context).size.height * 0.6,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: TextField(
-                autofocus: true,
-                style: TextStyle(color: context.enclavd.textPrimary),
-                decoration: InputDecoration(
-                  hintText: 'Search country',
-                  hintStyle: TextStyle(color: context.enclavd.textSecondary),
-                  prefixIcon: FieldIcon(FontAwesomeIcons.magnifyingGlass,
-                      size: 14, color: context.enclavd.textSecondary),
-                  filled: true,
-                  fillColor: context.enclavd.cardSecondary,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: context.enclavd.border),
-                  ),
-                ),
-                onChanged: (v) => setState(() => _query = v),
-              ),
-            ),
-            Expanded(
-              child: filtered.isEmpty
-                  ? Center(
-                      child: Text('No matches found',
-                          style:
-                              TextStyle(color: context.enclavd.textSecondary)))
-                  : ListView.builder(
-                      itemCount: filtered.length,
-                      itemBuilder: (context, i) {
-                        final c = filtered[i];
-                        return ListTile(
-                          dense: true,
-                          title: Text(c.name,
-                              style: const TextStyle(fontSize: 14)),
-                          onTap: () => Navigator.of(context).pop(c),
-                        );
-                      },
-                    ),
-            ),
-          ],
+    return Column(
+      children: [
+        TextField(
+          autofocus: true,
+          style: TextStyle(color: palette.textPrimary),
+          decoration: InputDecoration(
+            hintText: 'Search country',
+            hintStyle: TextStyle(color: palette.textSecondary),
+            prefixIcon: FieldIcon(FontAwesomeIcons.magnifyingGlass,
+                size: 14, color: palette.textSecondary),
+          ),
+          onChanged: (v) => setState(() => _query = v),
         ),
-      ),
+        const SizedBox(height: 10),
+        Expanded(
+          child: filtered.isEmpty
+              ? Center(
+                  child: Text('No matches found',
+                      style: TextStyle(color: palette.textSecondary)))
+              : ListView.builder(
+                  padding: EdgeInsets.zero,
+                  itemCount: filtered.length,
+                  itemBuilder: (context, i) {
+                    final c = filtered[i];
+                    return ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(c.name, style: const TextStyle(fontSize: 14)),
+                      onTap: () => Navigator.of(context).pop(c),
+                    );
+                  },
+                ),
+        ),
+      ],
     );
   }
 }
@@ -824,58 +791,45 @@ class _CityPickerSheetState extends State<_CityPickerSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = context.enclavd;
     final filtered = widget.cities
         .where((c) =>
-            _query.isEmpty ||
-            c.name.toLowerCase().contains(_query.toLowerCase()))
+            _query.isEmpty || c.name.toLowerCase().contains(_query.toLowerCase()))
         .toList();
-    return SafeArea(
-      child: SizedBox(
-        height: MediaQuery.of(context).size.height * 0.6,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: TextField(
-                autofocus: true,
-                style: TextStyle(color: context.enclavd.textPrimary),
-                decoration: InputDecoration(
-                  hintText: 'Search city',
-                  hintStyle: TextStyle(color: context.enclavd.textSecondary),
-                  prefixIcon: FieldIcon(FontAwesomeIcons.magnifyingGlass,
-                      size: 14, color: context.enclavd.textSecondary),
-                  filled: true,
-                  fillColor: context.enclavd.cardSecondary,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                    borderSide: BorderSide(color: context.enclavd.border),
-                  ),
-                ),
-                onChanged: (v) => setState(() => _query = v),
-              ),
-            ),
-            Expanded(
-              child: filtered.isEmpty
-                  ? Center(
-                      child: Text('No matches found',
-                          style:
-                              TextStyle(color: context.enclavd.textSecondary)))
-                  : ListView.builder(
-                      itemCount: filtered.length,
-                      itemBuilder: (context, i) {
-                        final c = filtered[i];
-                        return ListTile(
-                          dense: true,
-                          title: Text(c.name,
-                              style: const TextStyle(fontSize: 14)),
-                          onTap: () => Navigator.of(context).pop(c),
-                        );
-                      },
-                    ),
-            ),
-          ],
+    return Column(
+      children: [
+        TextField(
+          autofocus: true,
+          style: TextStyle(color: palette.textPrimary),
+          decoration: InputDecoration(
+            hintText: 'Search city',
+            hintStyle: TextStyle(color: palette.textSecondary),
+            prefixIcon: FieldIcon(FontAwesomeIcons.magnifyingGlass,
+                size: 14, color: palette.textSecondary),
+          ),
+          onChanged: (v) => setState(() => _query = v),
         ),
-      ),
+        const SizedBox(height: 10),
+        Expanded(
+          child: filtered.isEmpty
+              ? Center(
+                  child: Text('No matches found',
+                      style: TextStyle(color: palette.textSecondary)))
+              : ListView.builder(
+                  padding: EdgeInsets.zero,
+                  itemCount: filtered.length,
+                  itemBuilder: (context, i) {
+                    final c = filtered[i];
+                    return ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(c.name, style: const TextStyle(fontSize: 14)),
+                      onTap: () => Navigator.of(context).pop(c),
+                    );
+                  },
+                ),
+        ),
+      ],
     );
   }
 }

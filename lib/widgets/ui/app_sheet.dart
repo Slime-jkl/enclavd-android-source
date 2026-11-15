@@ -11,6 +11,9 @@ import 'app_motion.dart';
 Future<T?> showAppSheet<T>({
   required BuildContext context,
   required WidgetBuilder builder,
+  String? title,
+  String? subtitle,
+  Widget? footer,
   double? heightFactor,
   bool isDismissible = true,
   bool enableDrag = true,
@@ -24,11 +27,19 @@ Future<T?> showAppSheet<T>({
     backgroundColor: Colors.transparent,
     barrierColor: Colors.black.withValues(alpha: 0.6),
     builder: (sheetContext) {
-      final sheet = AppSheet(
-        heightFactor: heightFactor,
-        child: builder(sheetContext),
+      // The modal route pins the sheet to the screen edge and ignores the
+      // keyboard, so lift the whole sheet above it while typing.
+      final keyboardInset = MediaQuery.viewInsetsOf(sheetContext).bottom;
+      return Padding(
+        padding: EdgeInsets.only(bottom: keyboardInset),
+        child: AppSheet(
+          title: title,
+          subtitle: subtitle,
+          footer: footer,
+          heightFactor: heightFactor,
+          child: builder(sheetContext),
+        ),
       );
-      return sheet;
     },
   );
 }
@@ -58,15 +69,24 @@ class AppSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = context.enclavd;
-    final bottomInset = MediaQuery.paddingOf(context).bottom;
-    final maxHeight = MediaQuery.sizeOf(context).height * maxHeightFactor;
+    final media = MediaQuery.of(context);
+    final keyboardInset = media.viewInsets.bottom;
+    final availableHeight = media.size.height - keyboardInset;
+    // With a keyboard up the sheet uses the remaining height, so the search
+    // field and its results stay usable; otherwise honour the requested
+    // fraction.
+    final resolvedFactor = keyboardInset > 0 && heightFactor != null
+        ? maxHeightFactor
+        : heightFactor;
+    final bottomInset = keyboardInset > 0 ? 8.0 : media.padding.bottom;
+    final maxHeight = availableHeight * maxHeightFactor;
 
     final content = Container(
       width: double.infinity,
       constraints: BoxConstraints(
-        maxHeight: heightFactor == null
+        maxHeight: resolvedFactor == null
             ? maxHeight
-            : MediaQuery.sizeOf(context).height * heightFactor!,
+            : availableHeight * resolvedFactor,
       ),
       decoration: BoxDecoration(
         color: palette.card,
@@ -132,10 +152,10 @@ class AppSheet extends StatelessWidget {
       ),
     );
 
-    if (heightFactor == null) return content;
+    if (resolvedFactor == null) return content;
     return FractionallySizedBox(
       alignment: Alignment.bottomCenter,
-      heightFactor: heightFactor,
+      heightFactor: resolvedFactor,
       child: content,
     );
   }

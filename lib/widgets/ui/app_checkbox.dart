@@ -9,18 +9,26 @@ import 'app_motion.dart';
 ///
 /// The check is centred in the box (a bare `FaIcon` in a fixed-size container
 /// would otherwise sit top-left), and the whole row toggles it.
+///
+/// Use [labelWidget] instead of [label] when the label needs inline links
+/// (the register agreements) or other rich content; keep [semanticLabel] as
+/// the plain-text reading of that content.
 class AppCheckbox extends StatelessWidget {
   const AppCheckbox({
     super.key,
     required this.value,
     this.onChanged,
     this.label,
+    this.labelWidget,
     this.semanticLabel,
   });
 
   final bool value;
   final ValueChanged<bool>? onChanged;
   final String? label;
+
+  /// Rich replacement for [label]; rendered in the same slot.
+  final Widget? labelWidget;
   final String? semanticLabel;
 
   bool get _enabled => onChanged != null;
@@ -81,11 +89,14 @@ class AppCheckbox extends StatelessWidget {
                           )
                         : null,
                   ),
-                  if (label != null) ...[
+                  if (label != null || labelWidget != null) ...[
                     const SizedBox(width: 8),
-                    Text(
-                      label!,
-                      style: TextStyle(color: text, fontSize: 13),
+                    Flexible(
+                      child: labelWidget ??
+                          Text(
+                            label!,
+                            style: TextStyle(color: text, fontSize: 13),
+                          ),
                     ),
                   ],
                 ],
