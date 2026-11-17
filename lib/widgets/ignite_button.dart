@@ -101,7 +101,7 @@ class _IgniteButtonState extends State<IgniteButton> {
       onTap: _press,
       borderRadius: BorderRadius.circular(8),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -124,10 +124,14 @@ class _IgniteButtonState extends State<IgniteButton> {
               ),
             ),
             if (_count > 0) ...[
-              const SizedBox(width: 6),
+              const SizedBox(width: 5),
               Text('$_count',
                   key: const ValueKey('ignite-count'),
-                  style: TextStyle(color: context.enclavd.textSecondary)),
+                  style: TextStyle(
+                    color: context.enclavd.textSecondary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  )),
             ],
           ],
         ),

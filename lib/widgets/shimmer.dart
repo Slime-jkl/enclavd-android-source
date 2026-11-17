@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/enclavd_theme.dart';
+import 'ui/app_surface.dart';
 
 /// Pulsing placeholder block, styled like the site's card skeletons.
 class Shimmer extends StatefulWidget {
@@ -88,48 +89,53 @@ class ShimmerBox extends StatelessWidget {
   }
 }
 
-/// Full skeleton of a post card.
+/// Full skeleton of a post card, matching the card's final chrome so the
+/// list does not jump when real posts replace the placeholders.
 class PostCardSkeleton extends StatelessWidget {
   const PostCardSkeleton({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return const Card(
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Author row: avatar + name line
-            Row(
-              children: [
-                ShimmerBox(width: 35, height: 35, shape: BoxShape.circle),
-                SizedBox(width: 8),
-                ShimmerBox(width: 120, height: 14),
-              ],
-            ),
-            SizedBox(height: 14),
-            // Content lines
-            ShimmerBox(width: double.infinity, height: 13),
-            SizedBox(height: 8),
-            ShimmerBox(width: double.infinity, height: 13),
-            SizedBox(height: 8),
-            ShimmerBox(width: 200, height: 13),
-            SizedBox(height: 14),
-            // Image block
-            ShimmerBox(width: double.infinity, height: 140, borderRadius: 8),
-            SizedBox(height: 14),
-            // Action bar
-            Row(
-              children: [
-                ShimmerBox(width: 26, height: 22, borderRadius: 4),
-                SizedBox(width: 28),
-                ShimmerBox(width: 26, height: 22, borderRadius: 4),
-              ],
-            ),
-          ],
-        ),
+    return const AppSurface(
+      margin: EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.fromLTRB(14, 12, 14, 6),
+      radius: 12,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Author row: avatar + name line
+          Row(
+            children: [
+              ShimmerBox(width: 36, height: 36, shape: BoxShape.circle),
+              SizedBox(width: 10),
+              ShimmerBox(width: 120, height: 13),
+              Spacer(),
+              ShimmerBox(width: 26, height: 11),
+            ],
+          ),
+          SizedBox(height: 14),
+          // Content lines
+          ShimmerBox(width: double.infinity, height: 13),
+          SizedBox(height: 8),
+          ShimmerBox(width: double.infinity, height: 13),
+          SizedBox(height: 8),
+          ShimmerBox(width: 200, height: 13),
+          SizedBox(height: 14),
+          // Image block
+          ShimmerBox(width: double.infinity, height: 140, borderRadius: 10),
+          SizedBox(height: 14),
+          // Action bar
+          Row(
+            children: [
+              ShimmerBox(width: 18, height: 18, borderRadius: 4),
+              SizedBox(width: 30),
+              ShimmerBox(width: 18, height: 18, borderRadius: 4),
+              SizedBox(width: 30),
+              ShimmerBox(width: 18, height: 18, borderRadius: 4),
+            ],
+          ),
+          SizedBox(height: 8),
+        ],
       ),
     );
   }

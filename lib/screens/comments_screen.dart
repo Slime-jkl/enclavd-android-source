@@ -13,6 +13,8 @@ import '../widgets/comment_section.dart';
 import '../widgets/post_card.dart'
     show PostAuthorRow, PostContent, PostCarousel;
 import '../widgets/shimmer.dart';
+import '../widgets/ui/app_button.dart';
+import '../widgets/ui/app_empty_state.dart';
 
 /// Full-screen comments for a post with the composer pinned at the bottom.
 /// The post itself heads the list (author, body, image/carousel) so the
@@ -377,22 +379,32 @@ class _CommentsScreenState extends State<CommentsScreen> {
                 children: [
                   if (_post != null) ..._header(_post!),
                   if (_postLoading) const _HeaderSkeleton(),
-                  if (_comments.isEmpty &&
-                      !_commentsLoading &&
-                      _commentsError == null)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 24),
-                      child: Center(
-                        child: Text('No comments yet - start the discussion.',
-                            style: TextStyle(
-                                fontSize: 13,
-                                color: context.enclavd.textSecondary)),
-                      ),
+                  if (_commentsError != null && _comments.isEmpty)
+                    AppEmptyState(
+                      icon: FontAwesomeIcons.solidComments,
+                      title: 'Could not load comments',
+                      message: 'Check your connection and try again.',
+                      actionLabel: 'Try again',
+                      actionIcon: FontAwesomeIcons.rotateRight,
+                      onAction: _loadComments,
+                      compact: true,
+                    )
+                  else if (_comments.isEmpty && !_commentsLoading)
+                    AppEmptyState(
+                      icon: FontAwesomeIcons.solidCommentDots,
+                      title: 'No comments yet',
+                      message: 'Be the first to reply to this post.',
+                      actionLabel: 'Write a comment',
+                      actionIcon: FontAwesomeIcons.solidComment,
+                      onAction: _commentFocus.requestFocus,
+                      compact: true,
                     ),
                   CommentsSection(
                     comments: _comments,
                     loading: _commentsLoading,
-                    error: _commentsError,
+                    // The empty and error states above own the whole list;
+                    // the section only handles populated lists from here.
+                    error: null,
                     hasMore: _commentsHasMore,
                     loadingMore: _commentsLoadingMore,
                     onLoadMore: _loadMoreComments,
@@ -470,31 +482,43 @@ class _TopBar extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(8, 6, 16, 6),
       child: Row(
         children: [
-          IconButton(
+          AppIconButton(
+            icon: FontAwesomeIcons.chevronDown,
             onPressed: onClose,
-            icon: FaIcon(FontAwesomeIcons.chevronDown,
-                size: 18, color: context.enclavd.textPrimary),
             tooltip: 'Close',
+            size: 36,
           ),
           const SizedBox(width: 4),
           Text(
             'Comments',
             style: TextStyle(
-              fontSize: 15,
+              fontSize: 16,
               fontWeight: FontWeight.w700,
               color: context.enclavd.textPrimary,
             ),
           ),
           const Spacer(),
-          FaIcon(FontAwesomeIcons.comments,
-              size: 14, color: context.enclavd.textSecondary),
-          const SizedBox(width: 6),
-          Text(
-            '$commentCount',
-            style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: context.enclavd.textSecondary),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: context.enclavd.link.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FaIcon(FontAwesomeIcons.comments,
+                    size: 12, color: context.enclavd.link),
+                const SizedBox(width: 5),
+                Text(
+                  '$commentCount',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: context.enclavd.link),
+                ),
+              ],
+            ),
           ),
         ],
       ),

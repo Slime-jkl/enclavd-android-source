@@ -1295,22 +1295,11 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                       children: [
                         RankBadge(rank: reply.rank),
                         const Spacer(),
-                        // Reply/edit/delete sit just before the timestamp.
-                        CommentActionsBar(
-                          commentId: reply.id,
-                          canReply: !reply.isOwner,
-                          isOwner: reply.isOwner,
-                          iconSize: 15,
-                          onReply: () => widget.onReply(reply),
-                          onEdit: () => widget.onEdit(reply),
-                          onDelete: _confirmDelete,
-                        ),
-                        const SizedBox(width: 6),
                         Text(
                           relativeTime(reply.createdAtUtc),
                           style: TextStyle(
                               color: context.enclavd.textSecondary,
-                              fontSize: 11),
+                              fontSize: 11.5),
                         ),
                       ],
                     ),
@@ -1365,7 +1354,9 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
           Text.rich(
             TextSpan(children: _spans()),
             style: TextStyle(
-                color: context.enclavd.textPrimary, fontSize: 14, height: 1.4),
+                color: context.enclavd.textPrimary,
+                fontSize: 14.5,
+                height: 1.4),
           ),
           if (_body.length > _readMoreLimit)
             GestureDetector(
@@ -1382,6 +1373,20 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
                 ),
               ),
             ),
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: CommentActionsBar(
+                commentId: reply.id,
+                canReply: !reply.isOwner,
+                isOwner: reply.isOwner,
+                onReply: () => widget.onReply(reply),
+                onEdit: () => widget.onEdit(reply),
+                onDelete: _confirmDelete,
+              ),
+            ),
+          ),
           const SizedBox(height: 8),
           // The reply number sits at the bottom-right of the card body.
           Row(

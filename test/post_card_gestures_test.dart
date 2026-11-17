@@ -174,6 +174,25 @@ void main() {
       expect(find.text('Edit post'), findsNothing);
       expect(find.text('Delete post'), findsNothing);
     });
+
+    testWidgets('owners get a visible menu button that opens the drawer',
+        (tester) async {
+      await pumpOwned(tester, _post(id: 77, owner: true), onEdit: (_) {});
+      expect(find.byTooltip('Post options'), findsOneWidget,
+          reason: 'the gesture is not the only way into the drawer');
+
+      await tester.tap(find.byTooltip('Post options'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(find.text('Post #77'), findsOneWidget);
+      expect(find.text('Edit post'), findsOneWidget);
+    });
+
+    testWidgets('someone else\'s post has no menu button', (tester) async {
+      await pumpOwned(tester, _post(id: 9), onEdit: (_) {}, onDelete: (_) {});
+      expect(find.byTooltip('Post options'), findsNothing);
+    });
   });
 
   group('like gestures', () {
