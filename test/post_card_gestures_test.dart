@@ -41,10 +41,8 @@ Post _post({
 class _FakeSocial extends SocialService {
   _FakeSocial() : super(_noopClient());
 
-  static ApiClient _noopClient() => ApiClient(
-        store: _NoopStore(),
-        apiBaseUrl: 'https://example.com',
-      );
+  static ApiClient _noopClient() =>
+      ApiClient(store: _NoopStore(), apiBaseUrl: 'https://example.com');
 
   int toggleCalls = 0;
   bool respondLiked = true;
@@ -91,16 +89,18 @@ void main() {
 
   Future<_FakeSocial> pumpPost(WidgetTester tester, Post post) async {
     final social = _FakeSocial();
-    await tester.pumpWidget(MaterialApp(
-      theme: buildEnclavdTheme(),
-      home: Scaffold(
-        body: PostCard(
-          post: post,
-          apiBaseUrl: 'https://example.com',
-          social: social,
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildEnclavdTheme(),
+        home: Scaffold(
+          body: PostCard(
+            post: post,
+            apiBaseUrl: 'https://example.com',
+            social: social,
+          ),
         ),
       ),
-    ));
+    );
     return social;
   }
 
@@ -111,23 +111,26 @@ void main() {
       void Function(Post)? onEdit,
       void Function(Post)? onDelete,
     }) async {
-      await tester.pumpWidget(MaterialApp(
-        theme: buildEnclavdTheme(),
-        home: Scaffold(
-          body: PostCard(
-            post: post,
-            apiBaseUrl: 'https://example.com',
-            social: _FakeSocial(),
-            onEditPost: onEdit,
-            onDeletePost: onDelete,
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildEnclavdTheme(),
+          home: Scaffold(
+            body: PostCard(
+              post: post,
+              apiBaseUrl: 'https://example.com',
+              social: _FakeSocial(),
+              onEditPost: onEdit,
+              onDeletePost: onDelete,
+            ),
           ),
         ),
-      ));
+      );
       await tester.pump(const Duration(milliseconds: 50));
     }
 
-    testWidgets('long press opens the drawer with the id and both stamps',
-        (tester) async {
+    testWidgets('long press opens the drawer with the id and both stamps', (
+      tester,
+    ) async {
       Post? edited;
       Post? deleted;
       await pumpOwned(
@@ -163,8 +166,9 @@ void main() {
       expect(find.text('Delete post'), findsNothing); // no handler passed
     });
 
-    testWidgets('someone else\'s post gets the stamps and no actions',
-        (tester) async {
+    testWidgets('someone else\'s post gets the stamps and no actions', (
+      tester,
+    ) async {
       await pumpOwned(tester, _post(id: 9), onEdit: (_) {}, onDelete: (_) {});
       await tester.longPress(find.text('hello world'));
       await tester.pump();
@@ -175,11 +179,15 @@ void main() {
       expect(find.text('Delete post'), findsNothing);
     });
 
-    testWidgets('owners get a visible menu button that opens the drawer',
-        (tester) async {
+    testWidgets('owners get a visible menu button that opens the drawer', (
+      tester,
+    ) async {
       await pumpOwned(tester, _post(id: 77, owner: true), onEdit: (_) {});
-      expect(find.byTooltip('Post options'), findsOneWidget,
-          reason: 'the gesture is not the only way into the drawer');
+      expect(
+        find.byTooltip('Post options'),
+        findsOneWidget,
+        reason: 'the gesture is not the only way into the drawer',
+      );
 
       await tester.tap(find.byTooltip('Post options'));
       await tester.pump();
@@ -196,7 +204,9 @@ void main() {
   });
 
   group('like gestures', () {
-    testWidgets('tap on an UNLIKED heart likes it', (tester) async {
+    testWidgets('tap on an UNLIKED heart teaches the drag instead of liking', (
+      tester,
+    ) async {
       final social = await pumpPost(tester, _post());
 
       await tester.tap(heart());
@@ -205,27 +215,59 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 800));
 
-      expect(social.toggleCalls, 1,
-          reason: 'a plain tap on the heart is a like');
-      expect(find.text('Liked by 1'), findsOneWidget,
-          reason: 'optimistic count then reconcile');
+      expect(
+        social.toggleCalls,
+        0,
+        reason: 'a plain tap on the heart must never like; likes are dragged',
+      );
+      expect(
+        find.text('Drag the heart onto the post to like it'),
+        findsOneWidget,
+        reason: 'the tap shows the how-to-like hint',
+      );
+      expect(find.textContaining('Liked by'), findsNothing);
+
+      // The hint clears itself after the site's ~2.2s window.
+      await tester.pump(const Duration(milliseconds: 2300));
+      await tester.pump();
+      expect(
+        find.text('Drag the heart onto the post to like it'),
+        findsNothing,
+      );
     });
 
     testWidgets('tap on a LIKED heart unlikes', (tester) async {
-      final social =
-          await pumpPost(tester, _post(likeCount: 1, userLiked: true));
+      final social = await pumpPost(
+        tester,
+        _post(likeCount: 1, userLiked: true),
+      );
       social.respondLiked = false;
       social.respondCount = 0;
 
       await tester.tap(heart());
+      // Unlike is instant: it fires on pointer-up instead of waiting out the
+      // ancestor double-tap window.
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(
+        social.toggleCalls,
+        1,
+        reason: 'tap on a liked heart unlikes immediately',
+      );
+
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 800));
 
-      expect(social.toggleCalls, 1,
-          reason: 'tap on a liked heart toggles (unlike)');
-      expect(find.textContaining('Liked by'), findsNothing,
-          reason: 'count reconciled to 0');
+      expect(
+        social.toggleCalls,
+        1,
+        reason: 'the delayed arena tap must not toggle a second time',
+      );
+      expect(
+        find.textContaining('Liked by'),
+        findsNothing,
+        reason: 'count reconciled to 0',
+      );
     });
 
     testWidgets('double-tap on the post likes it', (tester) async {
@@ -241,10 +283,13 @@ void main() {
       expect(social.toggleCalls, 1, reason: 'double-tap likes (like-only)');
     });
 
-    testWidgets('double-tap on an already-liked post never unlikes',
-        (tester) async {
-      final social =
-          await pumpPost(tester, _post(likeCount: 1, userLiked: true));
+    testWidgets('double-tap on an already-liked post never unlikes', (
+      tester,
+    ) async {
+      final social = await pumpPost(
+        tester,
+        _post(likeCount: 1, userLiked: true),
+      );
 
       await tester.tap(find.byType(PostCard));
       await tester.pump(const Duration(milliseconds: 80));
@@ -253,61 +298,80 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 800));
 
-      expect(social.toggleCalls, 0,
-          reason: 'double-tap is like-only, never an unlike');
+      expect(
+        social.toggleCalls,
+        0,
+        reason: 'double-tap is like-only, never an unlike',
+      );
       expect(find.text('Liked by 1'), findsOneWidget);
     });
   });
 
   group('refresh reconciliation (feed cards are keyed by post id)', () {
-    testWidgets('a reloaded Post updates card counts and liked state',
-        (tester) async {
+    testWidgets('a reloaded Post updates card counts and liked state', (
+      tester,
+    ) async {
       final social = _FakeSocial();
       Future<void> pump(Post post) async {
-        await tester.pumpWidget(MaterialApp(
-          theme: buildEnclavdTheme(),
-          home: Scaffold(
-            body: PostCard(
-              // Same key the feed uses: a refresh reuses the State, so
-              // only didUpdateWidget can surface the fresh numbers.
-              key: ValueKey(post.id),
-              post: post,
-              apiBaseUrl: 'https://example.com',
-              social: social,
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: buildEnclavdTheme(),
+            home: Scaffold(
+              body: PostCard(
+                // Same key the feed uses: a refresh reuses the State, so
+                // only didUpdateWidget can surface the fresh numbers.
+                key: ValueKey(post.id),
+                post: post,
+                apiBaseUrl: 'https://example.com',
+                social: social,
+              ),
             ),
           ),
-        ));
+        );
       }
 
       await pump(_post(likeCount: 2, commentCount: 1));
       expect(find.text('Liked by 2'), findsOneWidget);
-      expect(tester.widget<FaIcon>(heart()).color,
-          EnclavdPalette.dark.textSecondary);
+      expect(
+        tester.widget<FaIcon>(heart()).color,
+        EnclavdPalette.dark.textSecondary,
+      );
 
       // Pull-to-refresh returns the same id with server-fresh numbers.
       await pump(_post(likeCount: 5, userLiked: true, commentCount: 3));
-      expect(find.text('Liked by 5'), findsOneWidget,
-          reason: 'fresh like count adopted after refresh');
-      expect(find.text('Liked by 2'), findsNothing);
-      expect(find.text('3'), findsOneWidget,
-          reason: 'fresh comment count adopted after refresh');
       expect(
-          tester.widget<FaIcon>(heart()).color, EnclavdPalette.dark.likeActive,
-          reason: 'fresh liked state adopted after refresh');
+        find.text('Liked by 5'),
+        findsOneWidget,
+        reason: 'fresh like count adopted after refresh',
+      );
+      expect(find.text('Liked by 2'), findsNothing);
+      expect(
+        find.text('3'),
+        findsOneWidget,
+        reason: 'fresh comment count adopted after refresh',
+      );
+      expect(
+        tester.widget<FaIcon>(heart()).color,
+        EnclavdPalette.dark.likeActive,
+        reason: 'fresh liked state adopted after refresh',
+      );
 
       // Another refresh: someone unliked meanwhile.
       await pump(_post(likeCount: 4, userLiked: false, commentCount: 3));
       expect(find.text('Liked by 4'), findsOneWidget);
       expect(find.text('Liked by 5'), findsNothing);
-      expect(tester.widget<FaIcon>(heart()).color,
-          EnclavdPalette.dark.textSecondary,
-          reason: 'fresh unliked state adopted after refresh');
+      expect(
+        tester.widget<FaIcon>(heart()).color,
+        EnclavdPalette.dark.textSecondary,
+        reason: 'fresh unliked state adopted after refresh',
+      );
     });
   });
 
   group('liked-by', () {
-    testWidgets('"Liked by N" shows when likes exist and opens the sheet',
-        (tester) async {
+    testWidgets('"Liked by N" shows when likes exist and opens the sheet', (
+      tester,
+    ) async {
       await pumpPost(tester, _post(likeCount: 3));
 
       expect(find.text('Liked by 3'), findsOneWidget);
@@ -316,82 +380,116 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
-      expect(find.text('Dev'), findsWidgets,
-          reason: 'likers sheet lists the liker');
+      expect(
+        find.text('Dev'),
+        findsWidgets,
+        reason: 'likers sheet lists the liker',
+      );
     });
 
     testWidgets(
-        '"Liked by N" sits INLINE opposite the buttons - same row, right '
-        'side (site justify-between)', (tester) async {
-      await pumpPost(tester, _post(likeCount: 3));
+      '"Liked by N" sits INLINE opposite the buttons - same row, right '
+      'side (site justify-between)',
+      (tester) async {
+        await pumpPost(tester, _post(likeCount: 3));
 
-      final heartCenter = tester.getCenter(heart());
-      final likedByCenter = tester.getCenter(find.text('Liked by 3'));
+        final heartCenter = tester.getCenter(heart());
+        final likedByCenter = tester.getCenter(find.text('Liked by 3'));
 
-      expect((likedByCenter.dy - heartCenter.dy).abs() < 12, isTrue,
+        expect(
+          (likedByCenter.dy - heartCenter.dy).abs() < 12,
+          isTrue,
           reason: 'same vertical line as the like/comment buttons (inline, '
-              'not a row below them)');
-      expect(likedByCenter.dx > heartCenter.dx + 100, isTrue,
+              'not a row below them)',
+        );
+        expect(
+          likedByCenter.dx > heartCenter.dx + 100,
+          isTrue,
           reason: 'on the OPPOSITE end of the row - buttons stay '
-              'left-aligned, Liked by goes right');
-    });
+              'left-aligned, Liked by goes right',
+        );
+      },
+    );
 
-    testWidgets('"Liked by" row hidden when there are no likes',
-        (tester) async {
+    testWidgets('"Liked by" row hidden when there are no likes', (
+      tester,
+    ) async {
       await pumpPost(tester, _post());
       expect(find.textContaining('Liked by'), findsNothing);
     });
   });
 
-// The expand hint is uniquely size 13 (FaIconData can't be compared to the
-// resolved IconData; the analyzer flags the ==).
+  // The expand hint is uniquely size 13 (FaIconData can't be compared to the
+  // resolved IconData; the analyzer flags the ==).
   Finder expandHint() => find.byWidgetPredicate(
-      (w) => w is FaIcon && w.size == 13 && w.color == Colors.white);
+        (w) => w is FaIcon && w.size == 13 && w.color == Colors.white,
+      );
 
   group('save image to device', () {
-    testWidgets('long-press on the post image offers Save to device',
-        (tester) async {
+    testWidgets('long-press on the post image offers Save to device', (
+      tester,
+    ) async {
       await pumpPost(tester, _post(image: 'x.jpg'));
 
-      expect(expandHint(), findsOneWidget,
-          reason: 'post image (with the expand hint) is rendered');
+      expect(
+        expandHint(),
+        findsOneWidget,
+        reason: 'post image (with the expand hint) is rendered',
+      );
 
       await tester.longPress(expandHint());
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
-      expect(find.text('Save image to device'), findsOneWidget,
-          reason: 'long-press opens the save sheet');
-      expect(find.textContaining('Enclavd folder'), findsOneWidget,
-          reason: 'sheet explains where the image lands');
+      expect(
+        find.text('Save image to device'),
+        findsOneWidget,
+        reason: 'long-press opens the save sheet',
+      );
+      expect(
+        find.textContaining('Enclavd folder'),
+        findsOneWidget,
+        reason: 'sheet explains where the image lands',
+      );
     });
 
-    testWidgets('posts without an image have no long-press save',
-        (tester) async {
+    testWidgets('posts without an image have no long-press save', (
+      tester,
+    ) async {
       await pumpPost(tester, _post());
       expect(expandHint(), findsNothing);
     });
   });
 
   group('youtube embeds', () {
-    testWidgets('posts with a YouTube link show the embed card',
-        (tester) async {
+    testWidgets('posts with a YouTube link show the embed card', (
+      tester,
+    ) async {
       // A 16:9 embed needs a phone-sized surface; the default viewport overflows.
       tester.view.physicalSize = const Size(1080, 2340);
       tester.view.devicePixelRatio = 3.0;
       addTearDown(tester.view.reset);
 
       await pumpPost(
-          tester, _post(content: 'watch https://youtu.be/dQw4w9WgXcQ here'));
+        tester,
+        _post(content: 'watch https://youtu.be/dQw4w9WgXcQ here'),
+      );
 
-      expect(find.byKey(const Key('youtube-play-button')), findsOneWidget,
-          reason: 'resting play button on the embed card');
-      expect(find.byType(AspectRatio), findsOneWidget,
-          reason: '16:9 embed frame');
+      expect(
+        find.byKey(const Key('youtube-play-button')),
+        findsOneWidget,
+        reason: 'resting play button on the embed card',
+      );
+      expect(
+        find.byType(AspectRatio),
+        findsOneWidget,
+        reason: '16:9 embed frame',
+      );
     });
 
-    testWidgets('posts without a YouTube link have no embed card',
-        (tester) async {
+    testWidgets('posts without a YouTube link have no embed card', (
+      tester,
+    ) async {
       await pumpPost(tester, _post());
       expect(find.byKey(const Key('youtube-play-button')), findsNothing);
     });
@@ -422,29 +520,38 @@ void main() {
           'domain_slug': 'music',
         });
 
-    testWidgets('domain posts show the charted badge + View in Domains row',
-        (tester) async {
+    testWidgets('domain posts show the charted badge + View in Domains row', (
+      tester,
+    ) async {
       await pumpPost(tester, domainPost());
 
-      expect(find.textContaining('charted this to', findRichText: true),
-          findsOneWidget,
-          reason: 'promotion banner text');
       expect(
-          find.textContaining('@BigMod', findRichText: true), findsOneWidget);
+        find.textContaining('charted this to', findRichText: true),
+        findsOneWidget,
+        reason: 'promotion banner text',
+      );
+      expect(
+        find.textContaining('@BigMod', findRichText: true),
+        findsOneWidget,
+      );
       expect(find.text('View in Domains (3 replies)'), findsOneWidget);
     });
 
-    testWidgets('plain posts show neither the badge nor the View row',
-        (tester) async {
+    testWidgets('plain posts show neither the badge nor the View row', (
+      tester,
+    ) async {
       await pumpPost(tester, _post());
 
-      expect(find.textContaining('charted this to', findRichText: true),
-          findsNothing);
+      expect(
+        find.textContaining('charted this to', findRichText: true),
+        findsNothing,
+      );
       expect(find.textContaining('View in Domains'), findsNothing);
     });
 
-    testWidgets('domain posts route the comment button to the forum thread',
-        (tester) async {
+    testWidgets('domain posts route the comment button to the forum thread', (
+      tester,
+    ) async {
       // _openDomainThread resolves AppServices lazily; with no container
       // it must not crash and must not open inline comments.
       await pumpPost(tester, domainPost());
@@ -457,8 +564,145 @@ void main() {
       expect(find.byType(TextField), findsNothing);
     });
   });
+
+  group('drag to like', () {
+    testWidgets(
+        'holding the heart shows the tray and dropping on the body '
+        'likes the post', (tester) async {
+      final social = await pumpPost(tester, _post());
+
+      final gesture = await tester.startGesture(tester.getCenter(heart()));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(
+        find.text('Drag the heart here to like'),
+        findsOneWidget,
+        reason: 'the hold arms the drop tray',
+      );
+
+      await gesture.moveTo(tester.getCenter(find.text('hello world')));
+      await tester.pump(const Duration(milliseconds: 16));
+      await gesture.up();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 800));
+      // The tray fades out, then removes itself on the next frame.
+      await tester.pump();
+
+      expect(social.toggleCalls, 1, reason: 'the drop creates a like');
+      expect(find.text('Liked by 1'), findsOneWidget);
+      expect(find.text('Drag the heart here to like'), findsNothing);
+    });
+
+    testWidgets('dropping outside the body cancels', (tester) async {
+      final social = await pumpPost(tester, _post());
+
+      final gesture = await tester.startGesture(tester.getCenter(heart()));
+      await tester.pump(const Duration(milliseconds: 400));
+      // The author row sits above the drop tray, so this is a cancel.
+      await gesture.moveTo(tester.getCenter(find.text('Dev')));
+      await tester.pump(const Duration(milliseconds: 16));
+      await gesture.up();
+      await tester.pump(const Duration(milliseconds: 800));
+
+      expect(social.toggleCalls, 0);
+      expect(find.textContaining('Liked by'), findsNothing);
+    });
+
+    testWidgets('the tray appears almost immediately on press', (tester) async {
+      final social = await pumpPost(tester, _post());
+
+      final gesture = await tester.startGesture(tester.getCenter(heart()));
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(find.text('Drag the heart here to like'), findsNothing);
+
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(
+        find.text('Drag the heart here to like'),
+        findsOneWidget,
+        reason: 'the tray appears within a few frames of the press',
+      );
+
+      await gesture.up();
+      await tester.pump(const Duration(milliseconds: 400));
+      // Releasing early is a plain tap: it teaches the drag instead of liking.
+      expect(social.toggleCalls, 0);
+      expect(
+        find.text('Drag the heart onto the post to like it'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a tap on a moving feed stops it without liking', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(800, 1400));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      final social = _FakeSocial();
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildEnclavdTheme(),
+          home: Scaffold(
+            body: ListView(
+              children: [
+                const SizedBox(height: 60),
+                PostCard(
+                  post: _post(),
+                  apiBaseUrl: 'https://example.com',
+                  social: social,
+                ),
+                const SizedBox(height: 2400),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.fling(find.text('hello world'), const Offset(0, -150), 2500);
+      await tester.pump();
+
+      final position =
+          tester.state<ScrollableState>(find.byType(Scrollable).first).position;
+      expect(position.isScrollingNotifier.value, isTrue);
+      // The card only shifts a little, so the heart is still on screen and
+      // the tap really lands on it mid-fling.
+      expect(tester.getCenter(heart()).dy, greaterThan(20));
+
+      await tester.tap(heart(), warnIfMissed: false);
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(position.isScrollingNotifier.value, isFalse);
+      final haltedAt = position.pixels;
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(position.pixels, haltedAt, reason: 'the tap halts the fling');
+      expect(
+        social.toggleCalls,
+        0,
+        reason: 'a tap that stops a scroll must not like the post',
+      );
+    });
+
+    testWidgets('a quick swipe that starts on the heart never arms the drag', (
+      tester,
+    ) async {
+      final social = await pumpPost(tester, _post());
+
+      final gesture = await tester.startGesture(tester.getCenter(heart()));
+      // A real flick has already moved past the slop radius within a frame
+      // or two, long before the hold window resolves.
+      await tester.pump(const Duration(milliseconds: 16));
+      await gesture.moveBy(const Offset(0, -60));
+      await tester.pump(const Duration(milliseconds: 400));
+      await gesture.up();
+      await tester.pump(const Duration(milliseconds: 800));
+
+      expect(find.text('Drag the heart here to like'), findsNothing);
+      expect(social.toggleCalls, 0);
+    });
+  });
 }
 
 /// FaIcon stores FaIconData as plain IconData; finders must compare code points (11.x quirk).
-Finder findFa(FaIconData icon) => find.byWidgetPredicate((w) =>
-    w is FaIcon && w.icon != null && w.icon!.codePoint == icon.codePoint);
+Finder findFa(FaIconData icon) => find.byWidgetPredicate(
+      (w) =>
+          w is FaIcon && w.icon != null && w.icon!.codePoint == icon.codePoint,
+    );
