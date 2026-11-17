@@ -29,6 +29,8 @@ import 'ignite_flame_overlay.dart';
 import 'likers_sheet.dart';
 import 'personality_chip.dart';
 import 'post_actions_sheet.dart';
+import 'ui/app_button.dart';
+import 'ui/app_surface.dart';
 
 class PostCard extends StatefulWidget {
   const PostCard({
@@ -240,7 +242,7 @@ class _PostCardState extends State<PostCard> with IgniteFlamePlayer<PostCard> {
     );
   }
 
-  Future<void> _openPostActions(LongPressStartDetails details) async {
+  Future<void> _openPostActions() async {
     final post = widget.post;
     final action = await showPostActions(
       context,
@@ -265,24 +267,33 @@ class _PostCardState extends State<PostCard> with IgniteFlamePlayer<PostCard> {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    // One surface per post, the same chrome every reworked screen uses.
+    // Long-press still opens the drawer; owners get a visible menu button so
+    // edit/delete is discoverable without knowing the gesture.
+    final canManage = widget.post.isOwner &&
+        (widget.onEditPost != null || widget.onDeletePost != null);
+    return AppSurface(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.zero,
+      radius: 12,
       clipBehavior: Clip.antiAlias,
       child: GestureDetector(
         // Double-tap likes (never unlikes); long press opens the post
         // drawer (id, stamps, and edit/delete on your own posts).
         behavior: HitTestBehavior.opaque,
         onDoubleTap: _likeFromGesture,
-        onLongPressStart: _openPostActions,
+        onLongPress: _openPostActions,
         child: Stack(
           children: [
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   PostAuthorRow(
                     post: widget.post,
                     apiBaseUrl: widget.apiBaseUrl,
+                    onOpenActions: canManage ? _openPostActions : null,
                   ),
                   if (widget.post.hasDomain &&
                       (widget.post.domainName?.isNotEmpty ?? false)) ...[
@@ -292,7 +303,7 @@ class _PostCardState extends State<PostCard> with IgniteFlamePlayer<PostCard> {
                       onTap: _openDomainThread,
                     ),
                   ],
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 10),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -303,13 +314,15 @@ class _PostCardState extends State<PostCard> with IgniteFlamePlayer<PostCard> {
                         _YouTubeEmbed(
                             videoId: id, apiBaseUrl: widget.apiBaseUrl),
                       if (widget.post.galleryImages.isNotEmpty) ...[
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 8),
                         PostCarousel(
                             post: widget.post, apiBaseUrl: widget.apiBaseUrl),
                       ],
                     ],
                   ),
-                  const Divider(height: 8),
+                  const SizedBox(height: 10),
+                  const AppDivider(),
+                  const SizedBox(height: 2),
                   _ActionRow(
                     liked: _liked,
                     likeCount: _likeCount,
@@ -321,26 +334,28 @@ class _PostCardState extends State<PostCard> with IgniteFlamePlayer<PostCard> {
                       postId: widget.post.id,
                       ignited: _ignited,
                       count: _igniteCount,
+                      size: 18,
                       social: widget.social,
                       onResult: _onIgniteResult,
                     ),
                   ),
                   if (widget.post.hasDomain) ...[
-                    const Divider(height: 12),
-                    Center(
+                    const AppDivider(),
+                    Align(
+                      alignment: Alignment.center,
                       child: InkWell(
                         onTap: _openDomainThread,
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(8),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
+                              horizontal: 10, vertical: 8),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               FaIcon(
                                 FontAwesomeIcons.arrowUpRightFromSquare,
                                 color: context.enclavd.link,
-                                size: 13,
+                                size: 12,
                               ),
                               const SizedBox(width: 6),
                               Text(
@@ -350,7 +365,7 @@ class _PostCardState extends State<PostCard> with IgniteFlamePlayer<PostCard> {
                                     : 'View in Domains',
                                 style: TextStyle(
                                   color: context.enclavd.link,
-                                  fontSize: 13,
+                                  fontSize: 12.5,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -409,10 +424,15 @@ class PostAuthorRow extends StatelessWidget {
     super.key,
     required this.post,
     required this.apiBaseUrl,
+    this.onOpenActions,
   });
 
   final Post post;
   final String apiBaseUrl;
+
+  /// Shows the overflow menu beside the timestamp when the viewer can act on
+  /// the post (owner edit/delete). Null keeps the row read-only.
+  final VoidCallback? onOpenActions;
 
   @override
   Widget build(BuildContext context) {
@@ -421,13 +441,13 @@ class PostAuthorRow extends StatelessWidget {
         GestureDetector(
           onTap: () => _openProfile(context, post.authorId),
           child: EnclavdAvatar(
-            size: 35,
+            size: 36,
             url:
                 resolveMediaUrl(apiBaseUrl, avatarPath: post.profilePictureUrl),
             rank: post.isBlocked ? 'Blocked' : post.rank,
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 10),
         Expanded(
           child: GestureDetector(
             onTap: () => _openProfile(context, post.authorId),
@@ -445,6 +465,7 @@ class PostAuthorRow extends StatelessWidget {
                           color: post.isBlocked
                               ? context.enclavd.rankName('Blocked')
                               : context.enclavd.rankName(post.rank),
+                          fontSize: 13.5,
                           fontWeight: FontWeight.w600,
                           decoration: post.isBlocked
                               ? TextDecoration.lineThrough
@@ -475,8 +496,18 @@ class PostAuthorRow extends StatelessWidget {
         const SizedBox(width: 8),
         Text(
           relativeTime(post.createdAt),
-          style: TextStyle(color: context.enclavd.textSecondary, fontSize: 12),
+          style:
+              TextStyle(color: context.enclavd.textSecondary, fontSize: 11.5),
         ),
+        if (onOpenActions != null) ...[
+          const SizedBox(width: 2),
+          AppIconButton(
+            icon: FontAwesomeIcons.ellipsis,
+            onPressed: onOpenActions,
+            tooltip: 'Post options',
+            size: 30,
+          ),
+        ],
       ],
     );
   }
@@ -581,8 +612,8 @@ class PostContentState extends State<PostContent> {
           maxLines: needs && !_expanded ? 4 : null,
           overflow: needs && !_expanded ? TextOverflow.ellipsis : null,
           style: TextStyle(
-            fontSize: 15,
-            height: 1.15,
+            fontSize: 14.5,
+            height: 1.42,
             color: context.enclavd.textPrimary,
           ),
         ),
@@ -590,9 +621,14 @@ class PostContentState extends State<PostContent> {
           TextButton(
             onPressed: () => setState(() => _expanded = !_expanded),
             style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              minimumSize: const Size(0, 32),
+              foregroundColor: context.enclavd.link,
+              padding: const EdgeInsets.only(top: 2),
+              minimumSize: const Size(0, 28),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              textStyle: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             child: Text(_expanded ? 'Show less' : 'Show more'),
           ),
@@ -717,7 +753,7 @@ class PostImageState extends State<PostImage> {
                     height: height,
                     fit: BoxFit.contain,
                     errorAsset: 'assets/images/no-image.jpg',
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                   const _ExpandHint(),
                 ],
@@ -810,7 +846,7 @@ class _PostCarouselState extends State<PostCarousel> {
                             height: height,
                             fit: BoxFit.contain,
                             errorAsset: 'assets/images/no-image.jpg',
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(10),
                           ),
                         ),
                         const _ExpandHint(),
@@ -1066,20 +1102,20 @@ class _DomainPromotionBanner extends StatelessWidget {
     final domainName = post.domainName ?? '';
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(8),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
         decoration: BoxDecoration(
           // Soft tint, no border; text scales to fit, never wraps.
           color: context.enclavd.link.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
           children: [
             FaIcon(FontAwesomeIcons.bullhorn,
-                color: context.enclavd.link, size: 12),
-            const SizedBox(width: 6),
+                color: context.enclavd.link, size: 11),
+            const SizedBox(width: 5),
             Expanded(
               child: FittedBox(
                 fit: BoxFit.scaleDown,
@@ -1088,8 +1124,8 @@ class _DomainPromotionBanner extends StatelessWidget {
                   TextSpan(
                     style: TextStyle(
                       color: context.enclavd.textSecondary,
-                      fontSize: 12,
-                      height: 1.2,
+                      fontSize: 11.5,
+                      height: 1.25,
                     ),
                     children: [
                       TextSpan(
@@ -1146,67 +1182,65 @@ class _ActionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Groups sit on a 40px touch target: the icons stay visually light but
+    // the row is comfortable to hit while scrolling.
     return Row(
       children: [
         Expanded(
           child: Row(
             children: [
-              InkWell(
+              _TapGroup(
                 onTap: onLike,
-                borderRadius: BorderRadius.circular(8),
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                  child: FaIcon(
-                    FontAwesomeIcons.solidHeart,
-                    key: const ValueKey('like-heart'),
+                child: FaIcon(
+                  FontAwesomeIcons.solidHeart,
+                  key: const ValueKey('like-heart'),
+                  color: liked
+                      ? context.enclavd.likeActive
+                      : context.enclavd.textSecondary,
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 2),
+              // Tappable -> the "Liked by" list.
+              _TapGroup(
+                onTap: onLikers,
+                child: Text(
+                  '$likeCount',
+                  style: TextStyle(
                     color: liked
                         ? context.enclavd.likeActive
                         : context.enclavd.textSecondary,
-                    size: 20,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
                   ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              _TapGroup(
+                onTap: onComments,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    FaIcon(
+                      commentCount > 0
+                          ? FontAwesomeIcons.solidComments
+                          : FontAwesomeIcons.solidComment,
+                      color: context.enclavd.textSecondary,
+                      size: 18,
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      '$commentCount',
+                      style: TextStyle(
+                        color: context.enclavd.textSecondary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(width: 6),
-              // Tappable -> the "Liked by" list.
-              InkWell(
-                onTap: onLikers,
-                borderRadius: BorderRadius.circular(8),
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                  child: Text('$likeCount',
-                      style: TextStyle(
-                          color: liked
-                              ? context.enclavd.likeActive
-                              : context.enclavd.textSecondary)),
-                ),
-              ),
-              const SizedBox(width: 20),
-              InkWell(
-                onTap: onComments,
-                borderRadius: BorderRadius.circular(8),
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                  child: Row(
-                    children: [
-                      FaIcon(
-                        commentCount > 0
-                            ? FontAwesomeIcons.solidComments
-                            : FontAwesomeIcons.solidComment,
-                        color: context.enclavd.textSecondary,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 6),
-                      Text('$commentCount',
-                          style:
-                              TextStyle(color: context.enclavd.textSecondary)),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 20),
               // Ignite: one a day, lit on the post that holds it.
               ignite,
             ],
@@ -1216,20 +1250,45 @@ class _ActionRow extends StatelessWidget {
         if (likeCount > 0)
           InkWell(
             onTap: onLikers,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(8),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
               child: Text(
                 'Liked by $likeCount',
                 style: TextStyle(
                   color: context.enclavd.link, // textLink: text-blue-400
-                  fontSize: 13,
+                  fontSize: 12.5,
                   fontWeight: FontWeight.w500,
                 ),
               ),
             ),
           ),
       ],
+    );
+  }
+}
+
+/// A 40px-tall touch target around a compact icon or count, so the action row
+/// stays visually quiet without shrinking the hit area below the 44px guideline
+/// once the card padding is included.
+class _TapGroup extends StatelessWidget {
+  const _TapGroup({required this.onTap, required this.child});
+
+  final VoidCallback onTap;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: SizedBox(
+          height: 40,
+          child: Center(widthFactor: 1, child: child),
+        ),
+      ),
     );
   }
 }

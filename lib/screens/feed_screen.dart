@@ -25,6 +25,9 @@ import '../widgets/error_view.dart';
 import '../widgets/post_card.dart';
 import '../widgets/shimmer.dart';
 import '../widgets/suggestion_row.dart';
+import '../widgets/ui/app_button.dart';
+import '../widgets/ui/app_empty_state.dart';
+import '../widgets/ui/app_surface.dart';
 import '../widgets/user_menu_drawer.dart';
 import 'compose_screen.dart';
 import 'articles_screen.dart';
@@ -1105,6 +1108,28 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
     if (_error != null && _posts.isEmpty) {
       return ErrorView(message: _error!, onRetry: _loadFirst);
     }
+    if (_initialLoadDone && _posts.isEmpty && !_loading) {
+      // Pull-to-refresh still works: the empty state lives in a ListView.
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        children: [
+          SizedBox(
+            height: MediaQuery.sizeOf(context).height * 0.6,
+            child: Center(
+              child: AppEmptyState(
+                icon: FontAwesomeIcons.solidNewspaper,
+                title: 'Your feed is empty',
+                message:
+                    'Follow a few people, or write the first post yourself.',
+                actionLabel: 'Write a post',
+                actionIcon: FontAwesomeIcons.pen,
+                onAction: _openComposer,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
     final suggestionsOffset = _suggestions.isNotEmpty ? 1 : 0;
     final bannerOffset = suggestionsOffset + (_showTestBanner ? 1 : 0);
     return Stack(
@@ -1289,38 +1314,34 @@ class _PersonalityTestBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: context.enclavd.card,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: context.enclavd.border),
-      ),
+    return AppSurface(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(16),
+      radius: 12,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Center(
             child: Container(
-              width: 52,
-              height: 52,
+              width: 48,
+              height: 48,
               decoration: BoxDecoration(
                 color: context.enclavd.warning.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: Center(
                 child: FaIcon(FontAwesomeIcons.triangleExclamation,
-                    color: context.enclavd.warning, size: 24),
+                    color: context.enclavd.warning, size: 21),
               ),
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           const Text(
             'Your profile is incomplete',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 5),
           Text(
             'Complete the personality test to unlock personalized '
             'recommendations and all restricted account features.',
@@ -1330,18 +1351,12 @@ class _PersonalityTestBanner extends StatelessWidget {
                 fontSize: 13,
                 height: 1.4),
           ),
-          const SizedBox(height: 16),
-          FilledButton(
+          const SizedBox(height: 14),
+          AppButton(
+            label: 'Take personality test',
             onPressed: onTakeTest,
-            style: FilledButton.styleFrom(
-              backgroundColor: context.enclavd.primaryButton,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
-              textStyle:
-                  const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-            ),
-            child: const Text('Take personality test'),
+            icon: FontAwesomeIcons.clipboardCheck,
+            expand: true,
           ),
         ],
       ),

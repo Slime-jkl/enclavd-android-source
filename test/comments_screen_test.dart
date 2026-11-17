@@ -479,11 +479,13 @@ void main() {
 
     // Locked for the cooldown, text back in the box: the spam tap is
     // refused (site: comments.js holds the button for 5s).
-    final sendBtn = tester.widget<IconButton>(find.ancestor(
-      of: find.byTooltip('Send comment'),
-      matching: find.byType(IconButton),
-    ));
-    expect(sendBtn.onPressed, isNull, reason: 'locked while cooling down');
+    final sendBtn = tester.widget<InkWell>(find
+        .descendant(
+          of: find.byTooltip('Send comment'),
+          matching: find.byType(InkWell),
+        )
+        .first);
+    expect(sendBtn.onTap, isNull, reason: 'locked while cooling down');
 
     await tester.enterText(find.byType(TextField), 'Agreed!');
     await tester.pump();
@@ -497,6 +499,28 @@ void main() {
     await tester.tap(find.byTooltip('Send comment'));
     await tester.pump(const Duration(milliseconds: 50));
     expect(social.sent, ['Agreed!', 'Second']);
+  });
+
+  testWidgets('an empty thread offers a write-a-comment action',
+      (tester) async {
+    final social = _FakeSocial(comments: const []);
+    await tester.pumpWidget(wrap(CommentsScreen(
+      postId: _post().id,
+      initialCount: 0,
+      social: social,
+      apiBaseUrl: 'https://example.com',
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('No comments yet'), findsOneWidget);
+    expect(find.text('Be the first to reply to this post.'), findsOneWidget);
+
+    await tester.tap(find.text('Write a comment'));
+    await tester.pump();
+
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.focusNode?.hasFocus, isTrue,
+        reason: 'the empty-state action arms the composer');
   });
 
   testWidgets('back button closes the screen and returns the count',
@@ -564,8 +588,7 @@ void main() {
     final social = _FakeSocial(comments: [
       _comment(1, 'Banned comment',
           username: 'Banned',
-          nameColor:
-              'text-neutral-500 line-through hover:text-neutral-400'),
+          nameColor: 'text-neutral-500 line-through hover:text-neutral-400'),
     ]);
     await tester.pumpWidget(wrap(CommentsScreen(
       postId: _post().id,

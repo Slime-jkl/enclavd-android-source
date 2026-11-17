@@ -197,8 +197,7 @@ Finder _highlightedCard() => find.byWidgetPredicate((w) =>
 
 /// Tap the visible [action] button ('reply' | 'edit' | 'delete') on the
 /// reply card [replyId]. Returns once whatever it opened has settled.
-Future<void> pickAction(
-    WidgetTester tester, int replyId, String action) async {
+Future<void> pickAction(WidgetTester tester, int replyId, String action) async {
   final button = find.byKey(Key('comment-$action-$replyId'));
   await tester.ensureVisible(button);
   await tester.pump(const Duration(milliseconds: 50));
@@ -560,7 +559,7 @@ void main() {
   testWidgets(
       'the reply a notification landed on is paged forward to and tinted',
       (tester) async {
-    tester.view.physicalSize = const Size(800, 3800);
+    tester.view.physicalSize = const Size(800, 4800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
@@ -589,7 +588,7 @@ void main() {
   testWidgets('a target already on the first page needs no extra fetch',
       (tester) async {
     // Tall viewport so the page's rows are all built and findable.
-    tester.view.physicalSize = const Size(800, 3800);
+    tester.view.physicalSize = const Size(800, 4800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
@@ -613,7 +612,7 @@ void main() {
       (tester) async {
     // Tall viewport: a full 20-card page must render without lazy
     // disposal, so every row and both pager bars stay findable.
-    tester.view.physicalSize = const Size(800, 3800);
+    tester.view.physicalSize = const Size(800, 4800);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
@@ -1040,8 +1039,7 @@ void main() {
     final social = _FakeSocial(replies: [
       _reply(1, 'Banned reply',
           username: 'Banned',
-          nameColor:
-              'text-neutral-500 line-through hover:text-neutral-400'),
+          nameColor: 'text-neutral-500 line-through hover:text-neutral-400'),
     ]);
     await tester.pumpWidget(wrap(DomainThreadScreen(
       domains: _FakeDomains(_detail()),
