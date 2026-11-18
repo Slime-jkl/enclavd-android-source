@@ -184,7 +184,7 @@ class _DomainCategoryScreenState extends State<DomainCategoryScreen> {
             padding: const EdgeInsets.all(32),
             child: Column(
               children: [
-                FaIcon(FontAwesomeIcons.comments,
+                FaIcon(FontAwesomeIcons.solidCommentDots,
                     color: context.enclavd.textSecondary, size: 28),
                 const SizedBox(height: 10),
                 Text('No discussions in this category yet',

@@ -161,7 +161,7 @@ class _DomainThreadRowState extends State<DomainThreadRow> {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        FaIcon(FontAwesomeIcons.comment,
+                        FaIcon(FontAwesomeIcons.solidCommentDots,
                             size: 14, color: context.enclavd.textSecondary),
                         const SizedBox(width: 5),
                         Text(

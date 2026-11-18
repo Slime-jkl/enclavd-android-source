@@ -458,8 +458,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             participantId: profile.id,
             participantName: profile.username,
             participantAvatar: profile.profilePictureUrl,
-            participantRank:
-                profile.isBlocked ? 'Blocked' : profile.rank,
+            participantRank: profile.isBlocked ? 'Blocked' : profile.rank,
             participantIsOnline: profile.isOnline,
           ),
         ),
@@ -1220,7 +1219,6 @@ class _ProfileHeader extends StatelessWidget {
   }
 }
 
-
 /// Footer text for the header hashtag link (web wording).
 String followedTagsLabel(Profile profile) {
   final count = profile.followedTags.length;
@@ -1383,8 +1381,7 @@ class _FeaturedPanel extends StatelessWidget {
             LayoutBuilder(
               builder: (context, constraints) {
                 const spacing = 6.0;
-                final width =
-                    (constraints.maxWidth - spacing * 2) / 3;
+                final width = (constraints.maxWidth - spacing * 2) / 3;
                 return Wrap(
                   spacing: spacing,
                   runSpacing: spacing,
@@ -1427,8 +1424,7 @@ class _FeaturedImageCell extends StatelessWidget {
             children: [
               Container(color: const Color(0xFF374151)),
               EnclavdImage(
-                resolveMediaUrl(AppConfig.apiBaseUrl,
-                    galleryName: image.image),
+                resolveMediaUrl(AppConfig.apiBaseUrl, galleryName: image.image),
                 fit: BoxFit.cover,
               ),
               Positioned(
@@ -1454,7 +1450,7 @@ class _FeaturedImageCell extends StatelessWidget {
                           style: const TextStyle(
                               color: Colors.white, fontSize: 10)),
                       const SizedBox(width: 8),
-                      const FaIcon(FontAwesomeIcons.solidComment,
+                      const FaIcon(FontAwesomeIcons.solidCommentDots,
                           size: 9, color: Colors.white),
                       const SizedBox(width: 3),
                       Text('${image.commentCount}',
@@ -1659,8 +1655,18 @@ String _memberSinceText(String raw) {
   final parsed = DateTime.tryParse(raw.replaceFirst(' ', 'T'));
   if (parsed == null) return 'Not set';
   const months = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
   ];
   return '${parsed.day} ${months[parsed.month - 1]} ${parsed.year}';
 }
@@ -1925,8 +1931,9 @@ class _PersonalityCompareCardState extends State<_PersonalityCompareCard>
   @override
   Widget build(BuildContext context) {
     final viewerType = widget.compat.myType;
-    final theirType =
-        widget.memberType.isNotEmpty ? widget.memberType : widget.compat.theirType;
+    final theirType = widget.memberType.isNotEmpty
+        ? widget.memberType
+        : widget.compat.theirType;
     final viewerColor = context.enclavd.personalityColor(viewerType) ??
         context.enclavd.textSecondary;
     final memberColor = context.enclavd.personalityColor(theirType) ??
@@ -2013,10 +2020,9 @@ class _PersonalityCompareCardState extends State<_PersonalityCompareCard>
                           child: Padding(
                             padding: const EdgeInsets.only(top: 22),
                             child: ScaleTransition(
-                              scale: Tween<double>(begin: 1, end: 1.1)
-                                  .animate(CurvedAnimation(
-                                      parent: _pulse,
-                                      curve: Curves.easeInOut)),
+                              scale: Tween<double>(begin: 1, end: 1.1).animate(
+                                  CurvedAnimation(
+                                      parent: _pulse, curve: Curves.easeInOut)),
                               child: Text.rich(
                                 TextSpan(
                                   children: [
@@ -2030,8 +2036,7 @@ class _PersonalityCompareCardState extends State<_PersonalityCompareCard>
                                     TextSpan(
                                       text: ' × ',
                                       style: TextStyle(
-                                          color:
-                                              context.enclavd.textSecondary,
+                                          color: context.enclavd.textSecondary,
                                           fontSize: 14,
                                           fontWeight: FontWeight.w600),
                                     ),
@@ -2086,8 +2091,7 @@ class _PersonalityCompareCardState extends State<_PersonalityCompareCard>
                               ColoredBox(color: context.enclavd.cardSecondary),
                               FractionallySizedBox(
                                 alignment: Alignment.centerLeft,
-                                widthFactor:
-                                    (percentage / 100).clamp(0.0, 1.0),
+                                widthFactor: (percentage / 100).clamp(0.0, 1.0),
                                 child: ColoredBox(color: bandColor),
                               ),
                             ],
@@ -2319,8 +2323,8 @@ class _ReasonCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: context.enclavd.cardSecondary.withValues(alpha: 0.45),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-            color: context.enclavd.border.withValues(alpha: 0.6)),
+        border:
+            Border.all(color: context.enclavd.border.withValues(alpha: 0.6)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2415,8 +2419,7 @@ class _PersonalityTypeInfoCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const WidgetSpan(
-                          child: SizedBox(width: 10, height: 0)),
+                      const WidgetSpan(child: SizedBox(width: 10, height: 0)),
                       TextSpan(
                         text: 'The ${info.title}',
                         style: const TextStyle(
@@ -2742,7 +2745,8 @@ class _TagsSheetState extends State<_TagsSheet> {
       });
       return;
     }
-    _debounce = Timer(const Duration(milliseconds: 350), () => _runSearch(query));
+    _debounce =
+        Timer(const Duration(milliseconds: 350), () => _runSearch(query));
   }
 
   Future<void> _runSearch(String query) async {
@@ -2834,8 +2838,7 @@ class _TagsSheetState extends State<_TagsSheet> {
                 ? (_results.isEmpty && !_searching
                     ? Text('No hashtags found.',
                         style: TextStyle(
-                            color: context.enclavd.textSecondary,
-                            fontSize: 13))
+                            color: context.enclavd.textSecondary, fontSize: 13))
                     : ListView.builder(
                         itemCount: _results.length,
                         itemBuilder: (context, index) {
@@ -2939,8 +2942,7 @@ class _TagChip extends StatelessWidget {
                     color: context.enclavd.textPrimary, fontSize: 12.5)),
             if (trailing != null) ...[
               const SizedBox(width: 6),
-              FaIcon(trailing!,
-                  size: 10, color: context.enclavd.textSecondary),
+              FaIcon(trailing!, size: 10, color: context.enclavd.textSecondary),
             ],
           ],
         ),
@@ -3308,9 +3310,7 @@ class _FollowButton extends StatelessWidget {
         : (profile.isFollowingYou ? 'Follow Back' : 'Follow');
     return AppButton(
       label: label,
-      icon: following
-          ? FontAwesomeIcons.userCheck
-          : FontAwesomeIcons.userPlus,
+      icon: following ? FontAwesomeIcons.userCheck : FontAwesomeIcons.userPlus,
       variant:
           following ? AppButtonVariant.secondary : AppButtonVariant.primary,
       loading: busy,

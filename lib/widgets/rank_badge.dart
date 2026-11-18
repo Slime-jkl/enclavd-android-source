@@ -40,15 +40,17 @@ class RankBadge extends StatelessWidget {
       icon: FontAwesomeIcons.flask, // fa-flask
     ),
     'Member': _RankBadgeStyle(
-      bg: Color(0xFF030712), // bg-gray-950
-      border: Color(0xFF1F2937), // border-gray-800
-      text: Color(0xFF6B7280), // text-gray-500
+      // The site's gray-950 pill disappears against the card; lift it one
+      // step so every rank reads as the same filled chip.
+      bg: Color(0xFF1F2937), // bg-gray-800
+      border: Color(0xFF374151), // border-gray-700
+      text: Color(0xFFD1D5DB), // text-gray-300
       icon: FontAwesomeIcons.user, // fa-user
     ),
     'Blocked': _RankBadgeStyle(
-      bg: Color(0xFF0A0A0A), // bg-neutral-950
-      border: Color(0xFF262626), // border-neutral-800
-      text: Color(0xFF737373), // text-neutral-500
+      bg: Color(0xFF171717), // neutral-900
+      border: Color(0xFF404040), // neutral-700
+      text: Color(0xFFA3A3A3), // neutral-400
       icon: FontAwesomeIcons.ban, // fa-ban
     ),
   };
@@ -57,7 +59,11 @@ class RankBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = _styles[rank] ?? _styles['Member']!;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+      // One fixed height for every rank, so a short label like "Member" is
+      // exactly the same chip as "Founding Member" - different width, same
+      // size and weight.
+      height: 18,
+      padding: const EdgeInsets.symmetric(horizontal: 6),
       decoration: BoxDecoration(
         color: style.bg,
         borderRadius: BorderRadius.circular(4), // rounded
@@ -65,6 +71,7 @@ class RankBadge extends StatelessWidget {
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           FaIcon(style.icon, size: 9, color: style.text),
           const SizedBox(width: 3),
@@ -72,7 +79,7 @@ class RankBadge extends StatelessWidget {
             rank,
             style: TextStyle(
               fontSize: 10,
-              height: 1.1,
+              height: 1,
               fontWeight: FontWeight.w600, // font-medium
               color: style.text,
             ),

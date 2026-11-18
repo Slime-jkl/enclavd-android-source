@@ -45,6 +45,8 @@ class _FakeSocial extends SocialService {
       ApiClient(store: _NoopStore(), apiBaseUrl: 'https://example.com');
 
   int toggleCalls = 0;
+  int likerCalls = 0;
+  int igniteCalls = 0;
   bool respondLiked = true;
   int respondCount = 1;
 
@@ -58,16 +60,25 @@ class _FakeSocial extends SocialService {
   }
 
   @override
-  Future<List<Liker>> likers(int postId) async => [
-        const Liker(
-          id: 1,
-          username: 'Dev',
-          profilePictureUrl: '/a.png',
-          personalityType: null,
-          rank: 'Member',
-          likedAt: 'August 20, 2026 at 9:00 AM',
-        ),
-      ];
+  Future<IgniteResult> ignite(int postId) async {
+    igniteCalls++;
+    return const IgniteResult(status: 'ignited', igniteCount: 1);
+  }
+
+  @override
+  Future<List<Liker>> likers(int postId) async {
+    likerCalls++;
+    return [
+      const Liker(
+        id: 1,
+        username: 'Dev',
+        profilePictureUrl: '/a.png',
+        personalityType: null,
+        rank: 'Member',
+        likedAt: 'August 20, 2026 at 9:00 AM',
+      ),
+    ];
+  }
 }
 
 class _NoopStore implements SessionStore {
@@ -225,7 +236,7 @@ void main() {
         findsOneWidget,
         reason: 'the tap shows the how-to-like hint',
       );
-      expect(find.textContaining('Liked by'), findsNothing);
+      expect(find.textContaining('Likes'), findsNothing);
 
       // The hint clears itself after the site's ~2.2s window.
       await tester.pump(const Duration(milliseconds: 2300));
@@ -264,7 +275,7 @@ void main() {
         reason: 'the delayed arena tap must not toggle a second time',
       );
       expect(
-        find.textContaining('Liked by'),
+        find.textContaining('Likes'),
         findsNothing,
         reason: 'count reconciled to 0',
       );
@@ -303,7 +314,7 @@ void main() {
         0,
         reason: 'double-tap is like-only, never an unlike',
       );
-      expect(find.text('Liked by 1'), findsOneWidget);
+      expect(find.text('1 Likes'), findsOneWidget);
     });
   });
 
@@ -331,7 +342,7 @@ void main() {
       }
 
       await pump(_post(likeCount: 2, commentCount: 1));
-      expect(find.text('Liked by 2'), findsOneWidget);
+      expect(find.text('2 Likes'), findsOneWidget);
       expect(
         tester.widget<FaIcon>(heart()).color,
         EnclavdPalette.dark.textSecondary,
@@ -340,11 +351,11 @@ void main() {
       // Pull-to-refresh returns the same id with server-fresh numbers.
       await pump(_post(likeCount: 5, userLiked: true, commentCount: 3));
       expect(
-        find.text('Liked by 5'),
+        find.text('5 Likes'),
         findsOneWidget,
         reason: 'fresh like count adopted after refresh',
       );
-      expect(find.text('Liked by 2'), findsNothing);
+      expect(find.text('2 Likes'), findsNothing);
       expect(
         find.text('3'),
         findsOneWidget,
@@ -358,8 +369,8 @@ void main() {
 
       // Another refresh: someone unliked meanwhile.
       await pump(_post(likeCount: 4, userLiked: false, commentCount: 3));
-      expect(find.text('Liked by 4'), findsOneWidget);
-      expect(find.text('Liked by 5'), findsNothing);
+      expect(find.text('4 Likes'), findsOneWidget);
+      expect(find.text('5 Likes'), findsNothing);
       expect(
         tester.widget<FaIcon>(heart()).color,
         EnclavdPalette.dark.textSecondary,
@@ -369,14 +380,14 @@ void main() {
   });
 
   group('liked-by', () {
-    testWidgets('"Liked by N" shows when likes exist and opens the sheet', (
+    testWidgets('"N Likes" shows when likes exist and opens the sheet', (
       tester,
     ) async {
       await pumpPost(tester, _post(likeCount: 3));
 
-      expect(find.text('Liked by 3'), findsOneWidget);
+      expect(find.text('3 Likes'), findsOneWidget);
 
-      await tester.tap(find.text('Liked by 3'));
+      await tester.tap(find.text('3 Likes'));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
@@ -387,14 +398,42 @@ void main() {
       );
     });
 
+    testWidgets('the count next to the heart is not a likers link', (
+      tester,
+    ) async {
+      final social = await pumpPost(tester, _post(likeCount: 3));
+
+      await tester.tap(find.text('3'));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 800));
+
+      expect(
+        social.likerCalls,
+        0,
+        reason: 'the likers list lives behind "N Likes", not the count',
+      );
+      expect(
+        find.text('Drag the heart onto the post to like it'),
+        findsOneWidget,
+        reason: 'the count is part of the like control, so a tap teaches the '
+            'drag instead of opening a second likers list',
+      );
+      expect(
+        social.toggleCalls,
+        0,
+        reason: 'tapping the count must not like the post',
+      );
+    });
+
     testWidgets(
-      '"Liked by N" sits INLINE opposite the buttons - same row, right '
+      '"N Likes" sits INLINE opposite the buttons - same row, right '
       'side (site justify-between)',
       (tester) async {
         await pumpPost(tester, _post(likeCount: 3));
 
         final heartCenter = tester.getCenter(heart());
-        final likedByCenter = tester.getCenter(find.text('Liked by 3'));
+        final likedByCenter = tester.getCenter(find.text('3 Likes'));
 
         expect(
           (likedByCenter.dy - heartCenter.dy).abs() < 12,
@@ -406,16 +445,16 @@ void main() {
           likedByCenter.dx > heartCenter.dx + 100,
           isTrue,
           reason: 'on the OPPOSITE end of the row - buttons stay '
-              'left-aligned, Liked by goes right',
+              'left-aligned, the likes label goes right',
         );
       },
     );
 
-    testWidgets('"Liked by" row hidden when there are no likes', (
+    testWidgets('"Likes" row hidden when there are no likes', (
       tester,
     ) async {
       await pumpPost(tester, _post());
-      expect(find.textContaining('Liked by'), findsNothing);
+      expect(find.textContaining('Likes'), findsNothing);
     });
   });
 
@@ -556,12 +595,120 @@ void main() {
       // it must not crash and must not open inline comments.
       await pumpPost(tester, domainPost());
 
-      await tester.tap(findFa(FontAwesomeIcons.solidComments));
+      await tester.tap(findFa(FontAwesomeIcons.solidCommentDots));
       await tester.pump(const Duration(milliseconds: 400));
 
       expect(find.text('View in Domains (3 replies)'), findsOneWidget);
       // Inline comment composer never appears for domain posts.
       expect(find.byType(TextField), findsNothing);
+    });
+  });
+
+  // The row's icons stay small; a square tap target around each control
+  // (debug-painted neon green, see _TapZone) takes the hit instead, while the
+  // empty row space stays inert.
+  group('action tap zones', () {
+    Finder commentIcon() => findFa(FontAwesomeIcons.solidCommentDots);
+    Finder flameIcon() => findFa(FontAwesomeIcons.fire);
+
+    testWidgets('the like square teaches the drag instead of liking', (
+      tester,
+    ) async {
+      final social = await pumpPost(tester, _post());
+      await tester.pump(); // publish the measured zones
+
+      final heartCenter = tester.getCenter(heart());
+      await tester.tapAt(Offset(heartCenter.dx, heartCenter.dy - 22));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(social.toggleCalls, 0);
+      expect(
+        find.text('Drag the heart onto the post to like it'),
+        findsOneWidget,
+        reason: 'the square runs the heart\'s gesture, not an instant like',
+      );
+      expect(find.text('0 Likes'), findsNothing);
+    });
+
+    testWidgets('holding the like square arms the drag', (tester) async {
+      final social = await pumpPost(tester, _post());
+      await tester.pump(); // publish the measured zones
+
+      final heartCenter = tester.getCenter(heart());
+      final squarePoint = Offset(heartCenter.dx, heartCenter.dy - 22);
+      final gesture = await tester.startGesture(squarePoint);
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.text('Drag the heart here to like'), findsOneWidget);
+
+      final body = tester.getCenter(find.text('hello world'));
+      await gesture.moveTo(body);
+      await tester.pump(const Duration(milliseconds: 100));
+      await gesture.up();
+      // Drain the drop's burst animation before the test ends.
+      await tester.pump(const Duration(milliseconds: 800));
+
+      expect(social.toggleCalls, 1);
+      expect(find.text('1 Likes'), findsOneWidget);
+    });
+
+    testWidgets('the like square unlikes a liked post', (tester) async {
+      final social =
+          await pumpPost(tester, _post(likeCount: 3, userLiked: true));
+      social.respondLiked = false;
+      social.respondCount = 2;
+      await tester.pump();
+
+      final heartCenter = tester.getCenter(heart());
+      await tester.tapAt(Offset(heartCenter.dx, heartCenter.dy - 22));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(social.toggleCalls, 1);
+      expect(find.text('2 Likes'), findsOneWidget);
+    });
+
+    testWidgets('the zone above the comment icon opens the comments', (
+      tester,
+    ) async {
+      await pumpPost(tester, _post(commentCount: 3));
+      await tester.pump();
+
+      final iconCenter = tester.getCenter(commentIcon());
+      await tester.tapAt(Offset(iconCenter.dx, iconCenter.dy - 22));
+      // Let the double-tap window expire, then let the route build a frame.
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text('Comments'), findsOneWidget);
+    });
+
+    testWidgets('the zone above the flame ignites the post', (tester) async {
+      final social = await pumpPost(tester, _post());
+      await tester.pump();
+
+      final flameCenter = tester.getCenter(flameIcon());
+      await tester.tapAt(Offset(flameCenter.dx, flameCenter.dy - 22));
+      // The tap resolves after the card's double-tap window.
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(social.igniteCalls, 1);
+    });
+
+    testWidgets('empty row space does nothing', (tester) async {
+      final social = await pumpPost(tester, _post(likeCount: 6));
+      await tester.pump();
+
+      final rowCenterY = tester.getCenter(commentIcon()).dy;
+      await tester.tapAt(Offset(300, rowCenterY));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump();
+
+      expect(social.toggleCalls, 0, reason: 'no band may reach the whitespace');
+      expect(social.igniteCalls, 0);
+      expect(find.text('Comments'), findsNothing);
+      expect(
+          find.text('Drag the heart onto the post to like it'), findsNothing);
     });
   });
 
@@ -589,7 +736,7 @@ void main() {
       await tester.pump();
 
       expect(social.toggleCalls, 1, reason: 'the drop creates a like');
-      expect(find.text('Liked by 1'), findsOneWidget);
+      expect(find.text('1 Likes'), findsOneWidget);
       expect(find.text('Drag the heart here to like'), findsNothing);
     });
 
@@ -605,7 +752,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 800));
 
       expect(social.toggleCalls, 0);
-      expect(find.textContaining('Liked by'), findsNothing);
+      expect(find.textContaining('Likes'), findsNothing);
     });
 
     testWidgets('the tray appears almost immediately on press', (tester) async {
