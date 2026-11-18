@@ -298,21 +298,50 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    // Cancel keeps the thread intact (nested reply still behind its toggle).
-    await pickAction(tester, 1, 'delete');
-    expect(find.text('Delete this comment?'), findsOneWidget);
+    // Delete lives behind a long press on your own comment: the list blurs
+    // away and only that comment stays legible with the destructive action.
+    await tester.longPress(find.text('My comment'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('My comment'), findsNWidgets(2));
+    expect(find.text('Delete'), findsOneWidget);
     await tester.tap(find.text('Cancel'));
-    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
     expect(find.text('My comment'), findsOneWidget);
     expect(find.text('1 reply'), findsOneWidget);
 
     // Confirming removes the comment and its replies together.
-    await pickAction(tester, 1, 'delete');
-    await tester.tap(find.descendant(
-        of: find.byType(AlertDialog), matching: find.text('Delete')));
-    await tester.pump(const Duration(milliseconds: 50));
+    await tester.longPress(find.text('My comment'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('Delete'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
     expect(find.text('My comment'), findsNothing);
     expect(find.text('1 reply'), findsNothing);
+  });
+
+  testWidgets('an own comment offers Reply first, Edit second, no Delete',
+      (tester) async {
+    final social =
+        _FakeSocial(comments: [_comment(1, 'My comment', own: true)]);
+    await tester.pumpWidget(wrap(CommentsScreen(
+      postId: _post().id,
+      initialCount: _post().commentCount,
+      social: social,
+      apiBaseUrl: 'https://example.com',
+    )));
+    await tester.pump(const Duration(milliseconds: 50));
+
+    final reply = find.byKey(const Key('comment-reply-1'));
+    final edit = find.byKey(const Key('comment-edit-1'));
+    expect(reply, findsOneWidget);
+    expect(edit, findsOneWidget);
+    expect(find.byKey(const Key('comment-delete-1')), findsNothing);
+    expect(tester.getCenter(reply).dx < tester.getCenter(edit).dx, isTrue,
+        reason: 'Reply comes before Edit');
   });
 
   testWidgets('an own comment can be edited in place', (tester) async {
@@ -574,7 +603,7 @@ void main() {
       ),
     )));
 
-    await tester.tap(findFa(FontAwesomeIcons.comments).first);
+    await tester.tap(findFa(FontAwesomeIcons.solidCommentDots).first);
     // Double-tap detector delays the tap ~300ms, then the zoom route.
     await tester.pump(const Duration(milliseconds: 400));
     await tester.pump(const Duration(milliseconds: 400));
