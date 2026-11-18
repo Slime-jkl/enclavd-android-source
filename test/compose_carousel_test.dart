@@ -37,7 +37,7 @@ Future<void> _pump(
 ) async {
   await tester.pumpWidget(MaterialApp(
     theme: buildEnclavdTheme(),
-    home: ComposeScreen(pickImages: picker),
+    home: Scaffold(body: ComposeScreen(pickImages: picker)),
   ));
   await tester.pump();
 }
@@ -51,7 +51,8 @@ void main() {
   group('composer carousel', () {
     testWidgets('several picked images land in the strip in order',
         (tester) async {
-      await _pump(tester, () async => [_file('a.png'), _file('b.png'), _file('c.png')]);
+      await _pump(
+          tester, () async => [_file('a.png'), _file('b.png'), _file('c.png')]);
 
       await _pick(tester, 'Add Image');
 
@@ -64,7 +65,8 @@ void main() {
     });
 
     testWidgets('removing a slide drops it from the strip', (tester) async {
-      await _pump(tester, () async => [_file('a.png'), _file('b.png'), _file('c.png')]);
+      await _pump(
+          tester, () async => [_file('a.png'), _file('b.png'), _file('c.png')]);
       await _pick(tester, 'Add Image');
 
       await tester.tap(findFa(FontAwesomeIcons.xmark).first);
@@ -91,9 +93,7 @@ void main() {
       var call = 0;
       await _pump(tester, () async {
         call++;
-        return call == 1
-            ? [_file('a.png'), _file('b.png')]
-            : [_file('c.png')];
+        return call == 1 ? [_file('a.png'), _file('b.png')] : [_file('c.png')];
       });
 
       await _pick(tester, 'Add Image');

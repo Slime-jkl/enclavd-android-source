@@ -629,38 +629,15 @@ class _PostCardState extends State<PostCard> with IgniteFlamePlayer<PostCard> {
                   ),
                   if (widget.post.hasDomain) ...[
                     const AppDivider(),
-                    Align(
-                      alignment: Alignment.center,
-                      child: InkWell(
-                        onTap: _openDomainThread,
-                        borderRadius: BorderRadius.circular(8),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 8,
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              FaIcon(
-                                FontAwesomeIcons.arrowUpRightFromSquare,
-                                color: context.enclavd.link,
-                                size: 12,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                _commentCount > 0
-                                    ? 'View in Domains ($_commentCount '
-                                        '${_commentCount == 1 ? 'reply' : 'replies'})'
-                                    : 'View in Domains',
-                                style: TextStyle(
-                                  color: context.enclavd.link,
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8, bottom: 2),
+                      child: Center(
+                        child: AppButton(
+                          variant: AppButtonVariant.secondary,
+                          size: AppButtonSize.small,
+                          icon: FontAwesomeIcons.solidComments,
+                          label: 'See thread',
+                          onPressed: _openDomainThread,
                         ),
                       ),
                     ),
@@ -1576,14 +1553,17 @@ class _DomainPromotionBanner extends StatelessWidget {
     final domainName = post.domainName ?? '';
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(10),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
-          // Soft tint, no border; text scales to fit, never wraps.
-          color: context.enclavd.link.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(8),
+          // A quiet tinted strip: the domain is the only thing that pops.
+          color: context.enclavd.link.withValues(alpha: 0.07),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: context.enclavd.link.withValues(alpha: 0.18),
+          ),
         ),
         child: Row(
           children: [
@@ -1592,42 +1572,44 @@ class _DomainPromotionBanner extends StatelessWidget {
               color: context.enclavd.link,
               size: 11,
             ),
-            const SizedBox(width: 5),
+            const SizedBox(width: 7),
             Expanded(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: Text.rich(
-                  TextSpan(
-                    style: TextStyle(
-                      color: context.enclavd.textSecondary,
-                      fontSize: 11.5,
-                      height: 1.25,
+              child: Text.rich(
+                TextSpan(
+                  style: TextStyle(
+                    color: context.enclavd.textSecondary,
+                    fontSize: 12,
+                    height: 1.3,
+                  ),
+                  children: [
+                    TextSpan(
+                      text: '@$promoter',
+                      style: TextStyle(
+                        color: context.enclavd.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                    children: [
+                    const TextSpan(text: ' charted this to '),
+                    if (domainName.isNotEmpty)
                       TextSpan(
-                        text: '@$promoter ',
+                        text: domainName,
                         style: TextStyle(
-                          color: context.enclavd.textPrimary,
+                          color: context.enclavd.link,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
-                      const TextSpan(text: 'charted this to '),
-                      if (domainName.isNotEmpty)
-                        TextSpan(
-                          text: domainName,
-                          style: TextStyle(
-                            color: context.enclavd.link,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      const TextSpan(text: ' Domain.'),
-                    ],
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                    const TextSpan(text: ' Domain'),
+                  ],
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
+            ),
+            const SizedBox(width: 4),
+            FaIcon(
+              FontAwesomeIcons.chevronRight,
+              color: context.enclavd.link.withValues(alpha: 0.75),
+              size: 10,
             ),
           ],
         ),

@@ -703,9 +703,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _openComposer() async {
-    final created = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => const ComposeScreen()),
-    );
+    final created = await ComposeScreen.open(context);
     if (created == true && mounted) {
       // The new post is score-ranked, so a first-page refetch surfaces it.
       _loadFirst();
@@ -713,9 +711,7 @@ class _FeedScreenState extends State<FeedScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _editPost(Post post) async {
-    final saved = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => ComposeScreen(post: post)),
-    );
+    final saved = await ComposeScreen.open(context, post: post);
     if (saved == true && mounted) _loadFirst();
   }
 

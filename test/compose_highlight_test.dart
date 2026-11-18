@@ -9,7 +9,7 @@ void main() {
         (tester) async {
       await tester.pumpWidget(MaterialApp(
         theme: buildEnclavdTheme(),
-        home: const ComposeScreen(),
+        home: const Scaffold(body: ComposeScreen()),
       ));
 
       // Exactly ONE TextField: no transparent input + highlight layer stack anymore.
@@ -28,7 +28,7 @@ void main() {
         (tester) async {
       await tester.pumpWidget(MaterialApp(
         theme: buildEnclavdTheme(),
-        home: const ComposeScreen(),
+        home: const Scaffold(body: ComposeScreen()),
       ));
 
       final field = tester.widget<TextField>(find.byType(TextField));
@@ -46,7 +46,7 @@ void main() {
     testWidgets('carries the site\'s Quill placeholder', (tester) async {
       await tester.pumpWidget(MaterialApp(
         theme: buildEnclavdTheme(),
-        home: const ComposeScreen(),
+        home: const Scaffold(body: ComposeScreen()),
       ));
       final field = tester.widget<TextField>(find.byType(TextField));
       expect(field.decoration?.hintText, 'Write post..');
@@ -55,7 +55,7 @@ void main() {
     testWidgets('character counter still updates', (tester) async {
       await tester.pumpWidget(MaterialApp(
         theme: buildEnclavdTheme(),
-        home: const ComposeScreen(),
+        home: const Scaffold(body: ComposeScreen()),
       ));
       await tester.enterText(find.byType(TextField), '12345');
       await tester.pump();

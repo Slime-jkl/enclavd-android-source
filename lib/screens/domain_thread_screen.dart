@@ -404,9 +404,7 @@ class _DomainThreadScreenState extends State<DomainThreadScreen> {
   }
 
   Future<void> _editPost(Post post) async {
-    final saved = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => ComposeScreen(post: post)),
-    );
+    final saved = await ComposeScreen.open(context, post: post);
     if (saved == true && mounted) _load();
   }
 
