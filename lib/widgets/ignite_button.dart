@@ -16,6 +16,7 @@ class IgniteButton extends StatefulWidget {
     super.key,
     required this.postId,
     required this.ignited,
+    this.contentKey,
     this.count = 0,
     required this.social,
     this.size = 22,
@@ -23,6 +24,9 @@ class IgniteButton extends StatefulWidget {
   });
 
   final int postId;
+
+  /// The flame+count row, measured by the host for overlay tap squares.
+  final Key? contentKey;
 
   final bool ignited;
   final int count;
@@ -35,10 +39,12 @@ class IgniteButton extends StatefulWidget {
   final void Function(IgniteResult result)? onResult;
 
   @override
-  State<IgniteButton> createState() => _IgniteButtonState();
+  State<IgniteButton> createState() => IgniteButtonState();
 }
 
-class _IgniteButtonState extends State<IgniteButton> {
+/// Public so a card overlay (e.g. PostCard's tap zones) can trigger the
+/// same ignite action as the visible flame.
+class IgniteButtonState extends State<IgniteButton> {
   late bool _ignited = widget.ignited;
   late int _count = widget.count;
   bool _busy = false;
@@ -54,6 +60,9 @@ class _IgniteButtonState extends State<IgniteButton> {
       _count = widget.count;
     }
   }
+
+  /// Runs the ignite action exactly as tapping the flame would.
+  Future<void> trigger() => _press();
 
   Future<void> _press() async {
     if (_busy) return;
@@ -101,39 +110,47 @@ class _IgniteButtonState extends State<IgniteButton> {
       onTap: _press,
       borderRadius: BorderRadius.circular(8),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: widget.size,
-              height: widget.size,
-              child: Center(
-                child: _ignited
-                    ? IgniteFlame(
-                        key: const ValueKey('ignite-flame'),
-                        size: widget.size,
-                        color: context.enclavd.igniteActive,
-                      )
-                    : FaIcon(
-                        FontAwesomeIcons.fire,
-                        key: const ValueKey('ignite-fire'),
+        // Matches the like/comment groups so all five metrics share one
+        // rhythm: 8px side padding, 6px icon-to-count gap, 40px touch height.
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: SizedBox(
+          height: 40,
+          child: KeyedSubtree(
+            key: widget.contentKey,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: widget.size,
+                  height: widget.size,
+                  child: Center(
+                    child: _ignited
+                        ? IgniteFlame(
+                            key: const ValueKey('ignite-flame'),
+                            size: widget.size,
+                            color: context.enclavd.igniteActive,
+                          )
+                        : FaIcon(
+                            FontAwesomeIcons.fire,
+                            key: const ValueKey('ignite-fire'),
+                            color: context.enclavd.textSecondary,
+                            size: widget.size * 0.9,
+                          ),
+                  ),
+                ),
+                if (_count > 0) ...[
+                  const SizedBox(width: 6),
+                  Text('$_count',
+                      key: const ValueKey('ignite-count'),
+                      style: TextStyle(
                         color: context.enclavd.textSecondary,
-                        size: widget.size * 0.9,
-                      ),
-              ),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      )),
+                ],
+              ],
             ),
-            if (_count > 0) ...[
-              const SizedBox(width: 5),
-              Text('$_count',
-                  key: const ValueKey('ignite-count'),
-                  style: TextStyle(
-                    color: context.enclavd.textSecondary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  )),
-            ],
-          ],
+          ),
         ),
       ),
     );

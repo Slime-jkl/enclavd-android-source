@@ -16,6 +16,9 @@ import '../utils/submit_lock.dart';
 import '../widgets/emoji_picker_sheet.dart';
 import '../widgets/enclavd_image.dart';
 import '../widgets/shimmer.dart';
+import '../widgets/ui/app_button.dart';
+import '../widgets/ui/app_sheet.dart';
+import '../widgets/ui/app_surface.dart';
 import 'image_editor_screen.dart';
 import '../services/analytics_service.dart';
 
@@ -32,7 +35,7 @@ class _ComposeSlide {
 }
 
 class ComposeScreen extends StatefulWidget {
-  const ComposeScreen({super.key, this.post, this.pickImages});
+  const ComposeScreen({super.key, this.post, this.pickImages, this.bake});
 
   /// Null = create a new post; set = edit that post's content.
   final Post? post;
@@ -40,7 +43,26 @@ class ComposeScreen extends StatefulWidget {
   /// Test seam: replaces the platform picker.
   final Future<List<XFile>> Function()? pickImages;
 
+  /// Test seam: replaces the decode/standardise step.
+  final Future<Uint8List> Function(Uint8List bytes)? bake;
+
   static const routeName = '/compose';
+
+  /// Opens the composer as the app's standard bottom sheet, so it reads as a
+  /// drawer over the feed instead of an empty full screen. Resolves to `true`
+  /// when a post was created or updated, so callers can refresh their list.
+  static Future<bool?> open(
+    BuildContext context, {
+    Post? post,
+    Future<List<XFile>> Function()? pickImages,
+  }) {
+    return showAppSheet<bool>(
+      context: context,
+      title: post == null ? 'Create post' : 'Edit post',
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+      builder: (_) => ComposeScreen(post: post, pickImages: pickImages),
+    );
+  }
 
   /// Slides one post may carry (the server's cap).
   static const int maxImages = 6;
@@ -95,12 +117,14 @@ class _ComposeScreenState extends State<ComposeScreen> {
     if (picked.isEmpty || !mounted) return;
 
     if (_slides.length + picked.length > ComposeScreen.maxImages) {
-      setState(() => _error =
-          'Up to ${ComposeScreen.maxImages} images per post.');
+      setState(
+          () => _error = 'Up to ${ComposeScreen.maxImages} images per post.');
       return;
     }
 
-    final placeholders = [for (final f in picked) _ComposeSlide(sourcePath: f.path)];
+    final placeholders = [
+      for (final f in picked) _ComposeSlide(sourcePath: f.path)
+    ];
     setState(() {
       _baking = true;
       _bakeDone = 0;
@@ -114,7 +138,7 @@ class _ComposeScreenState extends State<ComposeScreen> {
       final slide = placeholders[i];
       try {
         final bytes = await picked[i].readAsBytes();
-        final baked = await bakePickedBytes(bytes);
+        final baked = await (widget.bake ?? bakePickedBytes)(bytes);
         if (!mounted) return;
         // The slide may have been removed while its file was decoding.
         if (!_slides.contains(slide)) continue;
@@ -238,102 +262,72 @@ class _ComposeScreenState extends State<ComposeScreen> {
   @override
   Widget build(BuildContext context) {
     final post = widget.post;
-    return Scaffold(
-      appBar: AppBar(title: Text(_isEdit ? 'Edit Post' : 'Create Post')),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _composerField(),
-              AnimatedSize(
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(top: 4, bottom: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _composerField(),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              child: _errorBanner(),
+            ),
+          ),
+          // Image area: picker + preview in create mode, read-only existing
+          // images in edit mode.
+          if (!_isEdit) ...[
+            const SizedBox(height: 12),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 240),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOutCubic,
-                alignment: Alignment.topCenter,
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 200),
-                  switchInCurve: Curves.easeOutCubic,
-                  switchOutCurve: Curves.easeInCubic,
-                  child: _errorBanner(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Image area: picker + preview in create mode, read-only
-              // existing images in edit mode.
-              if (!_isEdit) ...[
-                AnimatedSize(
-                  duration: const Duration(milliseconds: 240),
-                  curve: Curves.easeOutCubic,
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                layoutBuilder: (current, previous) => Stack(
                   alignment: Alignment.topCenter,
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 220),
-                    switchInCurve: Curves.easeOutCubic,
-                    switchOutCurve: Curves.easeInCubic,
-                    layoutBuilder: (current, previous) => Stack(
-                      alignment: Alignment.topCenter,
-                      children: [...previous, if (current != null) current],
-                    ),
-                    child: _attachmentArea(),
-                  ),
+                  children: [...previous, if (current != null) current],
                 ),
-                if (_slides.isEmpty || _canAddMore) ...[
-                  if (_slides.isNotEmpty) const SizedBox(height: 10),
-                  OutlinedButton.icon(
-                    onPressed: (_busy || _baking) ? null : _pickImages,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: context.enclavd.textPrimary,
-                      side: BorderSide(color: context.enclavd.border),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    icon: _baking
-                        ? SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: context.enclavd.textSecondary),
-                          )
-                        : FaIcon(FontAwesomeIcons.image,
-                            size: 16, color: context.enclavd.textSecondary),
-                    label: Text(_baking
-                        ? 'Preparing...'
-                        : (_slides.isEmpty ? 'Add Image' : 'Add More')),
-                  ),
-                ],
-              ] else if (post != null && post.galleryImages.isNotEmpty) ...[
-                _ReadOnlyImages(post: post),
-              ],
-              const SizedBox(height: 20),
-              ElevatedButton.icon(
-                onPressed: (_busy || _baking || _submitLock.locked)
-                    ? null
-                    : _submit,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                icon: _busy
-                    ? SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: context.enclavd.primaryButtonText),
-                      )
-                    : FaIcon(
-                        _isEdit
-                            ? FontAwesomeIcons.floppyDisk
-                            : FontAwesomeIcons.paperPlane,
-                        size: 15,
-                        color: context.enclavd.primaryButtonText,
-                      ),
-                label: Text(_busy
-                    ? (_isEdit ? 'Saving...' : 'Posting...')
-                    : (_isEdit ? 'Save' : 'Post')),
+                child: _attachmentArea(),
+              ),
+            ),
+            if (_slides.isEmpty || _canAddMore) ...[
+              const SizedBox(height: 10),
+              // Deliberately static while a pick is being prepared: only the
+              // preview shimmers, the control just greys out.
+              AppButton(
+                variant: AppButtonVariant.secondary,
+                expand: true,
+                icon: FontAwesomeIcons.image,
+                label: _slides.isEmpty ? 'Add Image' : 'Add More',
+                onPressed: (_busy || _baking) ? null : _pickImages,
               ),
             ],
+          ] else if (post != null && post.galleryImages.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _ReadOnlyImages(post: post),
+          ],
+          const SizedBox(height: 16),
+          AppButton(
+            expand: true,
+            loading: _busy,
+            icon: _isEdit
+                ? FontAwesomeIcons.floppyDisk
+                : FontAwesomeIcons.paperPlane,
+            label: _busy
+                ? (_isEdit ? 'Saving...' : 'Posting...')
+                : (_isEdit ? 'Save' : 'Post'),
+            onPressed:
+                (_busy || _baking || _submitLock.locked) ? null : _submit,
           ),
-        ),
+        ],
       ),
     );
   }
@@ -396,13 +390,9 @@ class _ComposeScreenState extends State<ComposeScreen> {
       fontSize: 16,
       height: 1.5,
     );
-    return Container(
+    return AppSurface(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: context.enclavd.cardSecondary,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: context.enclavd.border),
-      ),
+      color: context.enclavd.cardSecondary,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -537,8 +527,7 @@ class _PendingPreview extends StatelessWidget {
                     width: 22,
                     height: 22,
                     child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        color: context.enclavd.textSecondary),
+                        strokeWidth: 2.5, color: context.enclavd.textSecondary),
                   ),
                   const SizedBox(height: 10),
                   Text(
@@ -596,8 +585,7 @@ class _ImageStrip extends StatelessWidget {
                 return const SizedBox(
                   width: 88,
                   height: 88,
-                  child: ShimmerBox(
-                      width: 88, height: 88, borderRadius: 8),
+                  child: ShimmerBox(width: 88, height: 88, borderRadius: 8),
                 );
               }
               return _Thumb(
@@ -617,7 +605,8 @@ class _ImageStrip extends StatelessWidget {
                 ? 'Preparing $progress of $total...'
                 : '${slides.length}/${ComposeScreen.maxImages} images - tap to edit',
             key: ValueKey(baking && total > 0),
-            style: TextStyle(color: context.enclavd.textSecondary, fontSize: 12),
+            style:
+                TextStyle(color: context.enclavd.textSecondary, fontSize: 12),
           ),
         ),
       ],

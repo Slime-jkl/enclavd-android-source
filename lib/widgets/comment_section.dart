@@ -8,10 +8,10 @@ import '../api/social_service.dart';
 import '../main.dart'; // AppServices.current (mention -> profile resolution)
 import '../screens/profile_screen.dart';
 import '../theme/enclavd_theme.dart';
-import '../utils/confirm_dialog.dart';
 import '../utils/content_spans.dart';
 import '../utils/db_time.dart';
 import 'comment_actions.dart';
+import 'comment_owner_menu.dart';
 import 'comment_quote_card.dart';
 import 'emoji_picker_sheet.dart';
 import 'enclavd_avatar.dart';
@@ -532,17 +532,6 @@ class _CommentRowState extends State<CommentRow> {
     }
   }
 
-  Future<void> _confirmDelete() async {
-    final confirmed = await confirmDelete(
-      context,
-      title: 'Delete this comment?',
-      body: 'This cannot be undone. The comment and any replies '
-          'under it will be permanently removed.',
-    );
-    if (!confirmed || !mounted) return;
-    widget.onDelete(comment);
-  }
-
   CommentQuote? _parsedQuote;
   CommentQuote? get _quote =>
       _parsedQuote ??= parseCommentQuote(comment.content);
@@ -620,113 +609,123 @@ class _CommentRowState extends State<CommentRow> {
     final nameColor = blocked
         ? context.enclavd.rankName('Blocked')
         : context.enclavd.rankNameFromCss(comment.nameColor);
-    final row = Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          GestureDetector(
-            onTap: () => _openProfile(context, comment.userId),
-            child: EnclavdAvatar(
-              size: 28,
-              url: resolveMediaUrl(widget.apiBaseUrl,
-                  avatarPath: comment.profilePictureUrl),
-              rank: blocked ? 'Blocked' : comment.rank,
+    final row = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onLongPress: comment.isOwner
+          ? () => showCommentOwnerMenu(
+                context,
+                comment: comment,
+                apiBaseUrl: widget.apiBaseUrl,
+                onDelete: () => widget.onDelete(comment),
+              )
+          : null,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            GestureDetector(
+              onTap: () => _openProfile(context, comment.userId),
+              child: EnclavdAvatar(
+                size: 28,
+                url: resolveMediaUrl(widget.apiBaseUrl,
+                    avatarPath: comment.profilePictureUrl),
+                rank: blocked ? 'Blocked' : comment.rank,
+              ),
             ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => _openProfile(context, comment.userId),
-                        child: Text(
-                          comment.username,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: nameColor,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 13.5,
-                            decoration:
-                                blocked ? TextDecoration.lineThrough : null,
-                            decorationColor: nameColor,
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => _openProfile(context, comment.userId),
+                          child: Text(
+                            comment.username,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: nameColor,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13.5,
+                              decoration:
+                                  blocked ? TextDecoration.lineThrough : null,
+                              decorationColor: nameColor,
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    // Timestamp closes the header; the actions moved below
-                    // the body where they have room to be labelled.
-                    Text(
-                      relativeTime(comment.createdAtUtc),
-                      style: TextStyle(
-                          color: context.enclavd.textSecondary, fontSize: 11.5),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                if (_quote != null) ...[
-                  CommentQuoteCard(quote: _quote!),
-                  const SizedBox(height: 6),
-                ] else if (widget.replyToUsername case final target?)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 2),
-                    child: Text(
-                      'Replying to @$target',
-                      style: TextStyle(
-                        color: context.enclavd.link,
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
+                      const SizedBox(width: 8),
+                      // Timestamp closes the header; the actions moved below
+                      // the body where they have room to be labelled.
+                      Text(
+                        relativeTime(comment.createdAtUtc),
+                        style: TextStyle(
+                            color: context.enclavd.textSecondary,
+                            fontSize: 11.5),
                       ),
-                    ),
+                    ],
                   ),
-                Text.rich(
-                  TextSpan(children: _spans()),
-                  style: TextStyle(
-                    color: context.enclavd.textPrimary,
-                    fontSize: 14.5,
-                    height: 1.4,
-                  ),
-                ),
-                if (_body.length > _readMoreLimit)
-                  GestureDetector(
-                    onTap: widget.onToggle,
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 4),
+                  const SizedBox(height: 2),
+                  if (_quote != null) ...[
+                    CommentQuoteCard(quote: _quote!),
+                    const SizedBox(height: 6),
+                  ] else if (widget.replyToUsername case final target?)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
                       child: Text(
-                        _expanded ? 'Show less' : 'Read more',
+                        'Replying to @$target',
                         style: TextStyle(
                           color: context.enclavd.link,
-                          fontSize: 12.5,
+                          fontSize: 11.5,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
-                  ),
-                // Reply anyone, edit/delete your own.
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: CommentActionsBar(
-                      commentId: comment.id,
-                      canReply: !comment.isOwner,
-                      isOwner: comment.isOwner,
-                      onReply: () => widget.onReply(comment),
-                      onEdit: () => widget.onEdit(comment),
-                      onDelete: _confirmDelete,
+                  Text.rich(
+                    TextSpan(children: _spans()),
+                    style: TextStyle(
+                      color: context.enclavd.textPrimary,
+                      fontSize: 14.5,
+                      height: 1.4,
                     ),
                   ),
-                ),
-              ],
+                  if (_body.length > _readMoreLimit)
+                    GestureDetector(
+                      onTap: widget.onToggle,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          _expanded ? 'Show less' : 'Read more',
+                          style: TextStyle(
+                            color: context.enclavd.link,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  // Reply anyone, edit/delete your own.
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: CommentActionsBar(
+                        commentId: comment.id,
+                        isOwner: comment.isOwner,
+                        onReply: () => widget.onReply(comment),
+                        onEdit: () => widget.onEdit(comment),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
     if (!widget.highlighted) return row;

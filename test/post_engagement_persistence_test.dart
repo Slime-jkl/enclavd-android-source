@@ -166,7 +166,7 @@ void main() {
       await pumpList(tester, posts, controller, report: (_) {});
 
       await likeViaDrag(tester, 1);
-      expect(find.text('Liked by 1'), findsOneWidget);
+      expect(find.text('1 Likes'), findsOneWidget);
 
       // Out of view: ListView drops the element and its State, so the card has
       // to rebuild from the list's copy on the way back.
@@ -175,7 +175,7 @@ void main() {
           reason: 'the card really is disposed off screen');
 
       await scrollTo(tester, controller, 0);
-      expect(find.text('Liked by 1'), findsOneWidget,
+      expect(find.text('1 Likes'), findsOneWidget,
           reason: 'rebuilt card restores the like');
       expect(tester.widget<FaIcon>(heart(1)).color,
           EnclavdPalette.dark.likeActive);
@@ -190,13 +190,13 @@ void main() {
       await pumpList(tester, posts, controller);
 
       await likeViaDrag(tester, 1);
-      expect(find.text('Liked by 1'), findsOneWidget);
+      expect(find.text('1 Likes'), findsOneWidget);
 
       await scrollTo(tester, controller, controller.position.maxScrollExtent);
       await scrollTo(tester, controller, 0);
 
       // Pinned so the guard above cannot pass by construction.
-      expect(find.text('Liked by 1'), findsNothing,
+      expect(find.text('1 Likes'), findsNothing,
           reason: 'without the callback the card reseeds from the load-time '
               'post and the like appears to vanish');
       expect(tester.widget<FaIcon>(heart(1)).color,
@@ -213,7 +213,7 @@ void main() {
       await pumpList(tester, posts, controller, report: (_) {}, social: social);
 
       await tapLike(tester, 1);
-      expect(find.textContaining('Liked by'), findsNothing);
+      expect(find.textContaining('Likes'), findsNothing);
 
       expect(posts.single.userLiked, isFalse);
       expect(posts.single.likeCount, 0);

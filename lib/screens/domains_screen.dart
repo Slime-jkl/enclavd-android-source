@@ -259,7 +259,7 @@ class _DomainsScreenState extends State<DomainsScreen> {
       padding: const EdgeInsets.symmetric(vertical: 48),
       child: Column(
         children: [
-          FaIcon(FontAwesomeIcons.comments,
+          FaIcon(FontAwesomeIcons.solidCommentDots,
               color: context.enclavd.textSecondary, size: 28),
           const SizedBox(height: 10),
           Text(

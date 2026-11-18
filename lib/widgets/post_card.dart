@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -32,6 +33,7 @@ import 'personality_chip.dart';
 import 'post_actions_sheet.dart';
 import 'ui/app_button.dart';
 import 'ui/app_motion.dart';
+import 'ui/app_sheet.dart';
 import 'ui/app_surface.dart';
 
 class PostCard extends StatefulWidget {
@@ -87,6 +89,20 @@ class _PostCardState extends State<PostCard> with IgniteFlamePlayer<PostCard> {
   Rect? _dropRect; // post body in the card's Stack space
   final GlobalKey _stackKey = GlobalKey();
   final GlobalKey _dropTargetKey = GlobalKey();
+
+  // Overlay tap targets for the action row: the icons stay small, the hit
+  // areas do not. Measured into the card's Stack space every layout so they
+  // scroll with the post (an OverlayEntry would go stale mid-scroll) and can
+  // never cover the app bar.
+  final GlobalKey _actionRowKey = GlobalKey();
+  final GlobalKey _likeGroupKey = GlobalKey();
+  final GlobalKey _commentGroupKey = GlobalKey();
+  final GlobalKey _igniteGroupKey = GlobalKey();
+  final GlobalKey _likesLabelKey = GlobalKey();
+  final GlobalKey<IgniteButtonState> _igniteButtonKey =
+      GlobalKey<IgniteButtonState>();
+  List<_ActionZone> _actionZones = const [];
+  bool _zoneSyncScheduled = false;
 
   // Drag-to-like interaction state. The heart lifts the instant the finger
   // lands (zero-delay acknowledgement); the drop tray and the drag itself arm
@@ -412,13 +428,10 @@ class _PostCardState extends State<PostCard> with IgniteFlamePlayer<PostCard> {
   }
 
   void _openLikers() {
-    showModalBottomSheet<void>(
+    showAppSheet<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: context.enclavd.card,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
+      title: 'Liked by',
+      padding: EdgeInsets.zero,
       builder: (_) => LikersSheet(
         postId: widget.post.id,
         social: widget.social,
@@ -502,6 +515,7 @@ class _PostCardState extends State<PostCard> with IgniteFlamePlayer<PostCard> {
     // edit/delete is discoverable without knowing the gesture.
     final canManage = widget.post.isOwner &&
         (widget.onEditPost != null || widget.onDeletePost != null);
+    _scheduleZoneSync();
     return AppSurface(
       margin: const EdgeInsets.only(bottom: 8),
       padding: EdgeInsets.zero,
@@ -571,29 +585,38 @@ class _PostCardState extends State<PostCard> with IgniteFlamePlayer<PostCard> {
                   Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      _ActionRow(
-                        liked: _liked,
-                        likeCount: _likeCount,
-                        commentCount: _commentCount,
-                        onLike: _onHeartTap,
-                        onLikers: _openLikers,
-                        onComments: _openComments,
-                        pressed: _pressHeld,
-                        onLikePressStart: _onLikePointerDown,
-                        onLikePressEnd: _onLikePointerUp,
-                        onLikePressCancel: _onLikePointerCancel,
-                        onLikeDragArm: _armLikeDrag,
-                        onLikeDragMove: _updateLikeDrag,
-                        onLikeDragDrop: _endLikeDrag,
-                        onLikeDragCancel: _cancelLikeDrag,
-                        dragEnabled: () => !_liked && !_likeBusy,
-                        ignite: IgniteButton(
-                          postId: widget.post.id,
-                          ignited: _ignited,
-                          count: _igniteCount,
-                          size: 18,
-                          social: widget.social,
-                          onResult: _onIgniteResult,
+                      KeyedSubtree(
+                        key: _actionRowKey,
+                        child: _ActionRow(
+                          likeKey: _likeGroupKey,
+                          commentKey: _commentGroupKey,
+                          igniteKey: _igniteGroupKey,
+                          likesKey: _likesLabelKey,
+                          liked: _liked,
+                          likeCount: _likeCount,
+                          commentCount: _commentCount,
+                          onLike: _onHeartTap,
+                          onLikers: _openLikers,
+                          onComments: _openComments,
+                          pressed: _pressHeld,
+                          onLikePressStart: _onLikePointerDown,
+                          onLikePressEnd: _onLikePointerUp,
+                          onLikePressCancel: _onLikePointerCancel,
+                          onLikeDragArm: _armLikeDrag,
+                          onLikeDragMove: _updateLikeDrag,
+                          onLikeDragDrop: _endLikeDrag,
+                          onLikeDragCancel: _cancelLikeDrag,
+                          dragEnabled: () => !_liked && !_likeBusy,
+                          ignite: IgniteButton(
+                            key: _igniteButtonKey,
+                            contentKey: _igniteGroupKey,
+                            postId: widget.post.id,
+                            ignited: _ignited,
+                            count: _igniteCount,
+                            size: 18,
+                            social: widget.social,
+                            onResult: _onIgniteResult,
+                          ),
                         ),
                       ),
                       if (_likeHintVisible)
@@ -645,6 +668,26 @@ class _PostCardState extends State<PostCard> with IgniteFlamePlayer<PostCard> {
                 ],
               ),
             ),
+            // Big invisible hit areas around the row controls: the icons can
+            // stay small while the target stays comfortable. Debug builds
+            // paint them neon green so their size is visible on device.
+            for (final zone in _actionZones)
+              if (zone.dragLike)
+                _LikeDragSquare(
+                  rect: zone.rect,
+                  pressed: _pressHeld,
+                  onTap: _onHeartTap,
+                  onPressStart: _onLikePointerDown,
+                  onPressEnd: _onLikePointerUp,
+                  onPressCancel: _onLikePointerCancel,
+                  onDragArm: _armLikeDrag,
+                  onDragMove: _updateLikeDrag,
+                  onDragDrop: _endLikeDrag,
+                  onDragCancel: _cancelLikeDrag,
+                  dragEnabled: () => !_liked && !_likeBusy,
+                )
+              else
+                _TapZone(zone: zone),
             // Heart burst on double-tap (site's showHeartAnimation).
             if (_burst)
               const Positioned.fill(
@@ -704,6 +747,96 @@ class _PostCardState extends State<PostCard> with IgniteFlamePlayer<PostCard> {
         ),
       ),
     );
+  }
+
+  void _scheduleZoneSync() {
+    if (_zoneSyncScheduled) return;
+    _zoneSyncScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _zoneSyncScheduled = false;
+      if (!mounted) return;
+      _syncActionZones();
+    });
+  }
+
+  /// Measures the action row and its three controls, then publishes one
+  /// square tap target per control. Each square is centred on its control and
+  /// larger than the glyph, so the icons can stay small without shrinking the
+  /// hit area; the squares never grow into the empty row space, so tapping
+  /// whitespace does nothing.
+  void _syncActionZones() {
+    final stackBox = _stackKey.currentContext?.findRenderObject() as RenderBox?;
+    if (stackBox == null || !stackBox.hasSize) return;
+    Rect? rectOf(GlobalKey key) {
+      final box = key.currentContext?.findRenderObject() as RenderBox?;
+      if (box == null || !box.hasSize) return null;
+      return stackBox.globalToLocal(box.localToGlobal(Offset.zero)) & box.size;
+    }
+
+    final stackSize = stackBox.size;
+    final row = rectOf(_actionRowKey);
+    final like = rectOf(_likeGroupKey);
+    final comments = rectOf(_commentGroupKey);
+    final ignite = rectOf(_igniteGroupKey);
+    if (row == null || like == null || comments == null || ignite == null) {
+      return;
+    }
+
+    final centers = [like.center.dx, comments.center.dx, ignite.center.dx];
+    final rowCenterY = (row.top + row.bottom) / 2;
+
+    /// 46px is a comfortable square target; neighbouring squares must never
+    /// overlap, so a wide count (e.g. 1,234) trims the square rather than
+    /// swallowing the next control.
+    double squareSide(double center) {
+      var nearest = double.infinity;
+      for (final other in centers) {
+        if ((other - center).abs() < 0.5) continue;
+        nearest = math.min(nearest, (other - center).abs());
+      }
+      final cap = nearest.isFinite ? nearest * 2 - 6 : 46.0;
+      return math.min(46.0, cap);
+    }
+
+    Rect squareFor(Rect content) {
+      final side = squareSide(content.center.dx);
+      final top = (rowCenterY - side / 2).clamp(0.0, stackSize.height);
+      final bottom = math.min(
+        rowCenterY + side / 2,
+        widget.post.hasDomain ? row.bottom + 2 : stackSize.height,
+      );
+      return Rect.fromLTRB(
+        (content.center.dx - side / 2).clamp(0.0, stackSize.width),
+        top,
+        (content.center.dx + side / 2).clamp(0.0, stackSize.width),
+        math.max(bottom, top + 1),
+      );
+    }
+
+    final zones = <_ActionZone>[
+      _ActionZone(
+          rect: squareFor(like),
+          hole: like,
+          onTap: _onHeartTap,
+          dragLike: true),
+      _ActionZone(
+          rect: squareFor(comments), hole: comments, onTap: _openComments),
+      _ActionZone(
+        rect: squareFor(ignite),
+        hole: ignite,
+        onTap: () => _igniteButtonKey.currentState?.trigger(),
+      ),
+    ];
+    if (_zonesMatch(zones, _actionZones)) return;
+    setState(() => _actionZones = zones);
+  }
+
+  bool _zonesMatch(List<_ActionZone> a, List<_ActionZone> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].rect != b[i].rect || a[i].hole != b[i].hole) return false;
+    }
+    return true;
   }
 
   @override
@@ -1505,6 +1638,10 @@ class _DomainPromotionBanner extends StatelessWidget {
 
 class _ActionRow extends StatelessWidget {
   const _ActionRow({
+    this.likeKey,
+    this.commentKey,
+    this.igniteKey,
+    this.likesKey,
     required this.liked,
     required this.likeCount,
     required this.commentCount,
@@ -1522,6 +1659,12 @@ class _ActionRow extends StatelessWidget {
     required this.dragEnabled,
     required this.ignite,
   });
+
+  /// Keys the card uses to measure each control for the overlay tap zones.
+  final Key? likeKey;
+  final Key? commentKey;
+  final Key? igniteKey;
+  final Key? likesKey;
 
   final bool liked;
   final int likeCount;
@@ -1550,14 +1693,21 @@ class _ActionRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Groups sit on a 40px touch target: the icons stay visually light but
-    // the row is comfortable to hit while scrolling.
+    // Groups sit on a 40px touch target and share one slot width, so the
+    // spacing between like / comments / ignite is identical even when the
+    // ignite count is hidden at zero.
+    Widget slot(Widget child) => ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 48),
+          child: Center(widthFactor: 1, child: child),
+        );
+
     return Row(
       children: [
         Expanded(
           child: Row(
             children: [
-              _LikeDragTarget(
+              slot(_LikeDragTarget(
+                contentKey: likeKey,
                 liked: liked,
                 likeCount: likeCount,
                 pressed: pressed,
@@ -1565,62 +1715,218 @@ class _ActionRow extends StatelessWidget {
                 onPressEnd: onLikePressEnd,
                 onPressCancel: onLikePressCancel,
                 onTapHeart: onLike,
-                onTapCount: onLikers,
                 onDragArm: onLikeDragArm,
                 onDragMove: onLikeDragMove,
                 onDragDrop: onLikeDragDrop,
                 onDragCancel: onLikeDragCancel,
                 dragEnabled: dragEnabled,
-              ),
-              const SizedBox(width: 10),
-              _TapGroup(
+              )),
+              const SizedBox(width: 4),
+              slot(_TapGroup(
                 onTap: onComments,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    FaIcon(
-                      commentCount > 0
-                          ? FontAwesomeIcons.solidComments
-                          : FontAwesomeIcons.solidComment,
-                      color: context.enclavd.textSecondary,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      '$commentCount',
-                      style: TextStyle(
+                child: KeyedSubtree(
+                  key: commentKey,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      FaIcon(
+                        // comment-dots, the site's comment glyph.
+                        FontAwesomeIcons.solidCommentDots,
                         color: context.enclavd.textSecondary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
+                        size: 18,
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 6),
+                      Text(
+                        '$commentCount',
+                        style: TextStyle(
+                          color: context.enclavd.textSecondary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 6),
+              )),
+              const SizedBox(width: 4),
               // Ignite: one a day, lit on the post that holds it.
-              ignite,
+              slot(ignite),
             ],
           ),
         ),
-        // "Liked by N" opposite the buttons; count also opens the likers sheet.
+        // "N Likes" opposite the buttons; opens the likers list.
         if (likeCount > 0)
-          InkWell(
-            onTap: onLikers,
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-              child: Text(
-                'Liked by $likeCount',
-                style: TextStyle(
-                  color: context.enclavd.link, // textLink: text-blue-400
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w500,
+          KeyedSubtree(
+            key: likesKey,
+            child: InkWell(
+              onTap: onLikers,
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                child: Text(
+                  '$likeCount Likes',
+                  style: TextStyle(
+                    color: context.enclavd.link, // textLink: text-blue-400
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ),
           ),
       ],
+    );
+  }
+}
+
+/// One measured overlay band over the action row. [hole] is the control's own
+/// box: the band is drawn as strips around it so the control still receives
+/// its press, drag and tap pointers.
+class _ActionZone {
+  const _ActionZone({
+    required this.rect,
+    required this.hole,
+    required this.onTap,
+    this.dragLike = false,
+  });
+
+  final Rect rect;
+  final Rect hole;
+  final VoidCallback onTap;
+
+  /// The like control's square runs the heart's press/hold/drag pipeline
+  /// instead of a plain tap, so dragging worked from the whole target.
+  final bool dragLike;
+}
+
+/// The like control's square overlay. Pressing anywhere inside it starts the
+/// same lift → hold → drag → drop gesture as the heart itself, so the drag is
+/// reachable from the whole target instead of only the 18px glyph. A plain tap
+/// keeps the heart's tap semantics: it teaches the drag on an unliked post and
+/// unlikes a liked one. Debug builds paint it neon green like the tap squares.
+class _LikeDragSquare extends StatelessWidget {
+  const _LikeDragSquare({
+    required this.rect,
+    required this.pressed,
+    required this.onTap,
+    required this.onPressStart,
+    required this.onPressEnd,
+    required this.onPressCancel,
+    required this.onDragArm,
+    required this.onDragMove,
+    required this.onDragDrop,
+    required this.onDragCancel,
+    required this.dragEnabled,
+  });
+
+  final Rect rect;
+  final bool pressed;
+  final VoidCallback onTap;
+  final ValueChanged<PointerDownEvent> onPressStart;
+  final ValueChanged<PointerUpEvent> onPressEnd;
+  final ValueChanged<PointerCancelEvent> onPressCancel;
+  final ValueChanged<Offset> onDragArm;
+  final ValueChanged<Offset> onDragMove;
+  final ValueChanged<Offset> onDragDrop;
+  final VoidCallback onDragCancel;
+  final bool Function() dragEnabled;
+
+  @override
+  Widget build(BuildContext context) {
+    if (rect.isEmpty) return const SizedBox.shrink();
+    return Positioned.fromRect(
+      rect: rect,
+      child: Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: onPressStart,
+        onPointerUp: onPressEnd,
+        onPointerCancel: onPressCancel,
+        child: RawGestureDetector(
+          behavior: HitTestBehavior.opaque,
+          gestures: <Type, GestureRecognizerFactory>{
+            _HoldToLikeGestureRecognizer: GestureRecognizerFactoryWithHandlers<
+                _HoldToLikeGestureRecognizer>(
+              () => _HoldToLikeGestureRecognizer(
+                enabled: dragEnabled,
+                onArm: onDragArm,
+                onMove: onDragMove,
+                onDrop: onDragDrop,
+                onCancel: onDragCancel,
+              ),
+              (recognizer) {},
+            ),
+          },
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            child: kDebugMode
+                ? const DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Color(0x4D00FF66),
+                      borderRadius: BorderRadius.all(Radius.circular(10)),
+                    ),
+                  )
+                : const SizedBox.expand(),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TapZone extends StatelessWidget {
+  const _TapZone({required this.zone});
+
+  final _ActionZone zone;
+
+  @override
+  Widget build(BuildContext context) {
+    final rect = zone.rect;
+    if (rect.isEmpty) return const SizedBox.shrink();
+    final hole = zone.hole.intersect(rect);
+    final local = hole.shift(-rect.topLeft);
+    final w = rect.width;
+    final h = rect.height;
+
+    Widget strip(Rect r) {
+      if (r.isEmpty) return const SizedBox.shrink();
+      return Positioned.fromRect(
+        rect: r,
+        child: ExcludeSemantics(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: zone.onTap,
+            child: const SizedBox.expand(),
+          ),
+        ),
+      );
+    }
+
+    return Positioned.fromRect(
+      rect: rect,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // Debug-only: one tinted square shows the whole target at a glance.
+          if (kDebugMode)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: const Color(0x4D00FF66),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+            ),
+          // Transparent hit strips around the control: its own pointer area
+          // (press, drag, tap) stays untouched.
+          strip(Rect.fromLTRB(0, 0, w, local.top)),
+          strip(Rect.fromLTRB(0, local.bottom, w, h)),
+          strip(Rect.fromLTRB(0, local.top, local.left, local.bottom)),
+          strip(Rect.fromLTRB(local.right, local.top, w, local.bottom)),
+        ],
+      ),
     );
   }
 }
@@ -1894,6 +2200,7 @@ class _PlayerOverlayButton extends StatelessWidget {
 /// sheet, exactly like the site's separate count link.
 class _LikeDragTarget extends StatelessWidget {
   const _LikeDragTarget({
+    this.contentKey,
     required this.liked,
     required this.likeCount,
     required this.pressed,
@@ -1901,13 +2208,15 @@ class _LikeDragTarget extends StatelessWidget {
     required this.onPressEnd,
     required this.onPressCancel,
     required this.onTapHeart,
-    required this.onTapCount,
     required this.onDragArm,
     required this.onDragMove,
     required this.onDragDrop,
     required this.onDragCancel,
     required this.dragEnabled,
   });
+
+  /// Icon+count row, measured by the card for its overlay tap square.
+  final Key? contentKey;
 
   final bool liked;
   final int likeCount;
@@ -1916,7 +2225,6 @@ class _LikeDragTarget extends StatelessWidget {
   final ValueChanged<PointerUpEvent> onPressEnd;
   final ValueChanged<PointerCancelEvent> onPressCancel;
   final VoidCallback onTapHeart;
-  final VoidCallback onTapCount;
   final ValueChanged<Offset> onDragArm;
   final ValueChanged<Offset> onDragMove;
   final ValueChanged<Offset> onDragDrop;
@@ -1927,37 +2235,38 @@ class _LikeDragTarget extends StatelessWidget {
   Widget build(BuildContext context) {
     final color =
         liked ? context.enclavd.likeActive : context.enclavd.textSecondary;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Listener(
-          onPointerDown: onPressStart,
-          onPointerUp: onPressEnd,
-          onPointerCancel: onPressCancel,
-          child: RawGestureDetector(
-            behavior: HitTestBehavior.opaque,
-            gestures: <Type, GestureRecognizerFactory>{
-              _HoldToLikeGestureRecognizer:
-                  GestureRecognizerFactoryWithHandlers<
-                      _HoldToLikeGestureRecognizer>(
-                () => _HoldToLikeGestureRecognizer(
-                  enabled: dragEnabled,
-                  onArm: onDragArm,
-                  onMove: onDragMove,
-                  onDrop: onDragDrop,
-                  onCancel: onDragCancel,
-                ),
-                (recognizer) {},
-              ),
-            },
-            child: _TapGroup(
-              onTap: onTapHeart,
-              child: AnimatedScale(
-                scale: pressed ? 1.18 : 1,
-                duration: AppMotion.instant,
-                curve: AppMotion.emphasized,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 2),
+    return Listener(
+      onPointerDown: onPressStart,
+      onPointerUp: onPressEnd,
+      onPointerCancel: onPressCancel,
+      child: RawGestureDetector(
+        behavior: HitTestBehavior.opaque,
+        gestures: <Type, GestureRecognizerFactory>{
+          _HoldToLikeGestureRecognizer: GestureRecognizerFactoryWithHandlers<
+              _HoldToLikeGestureRecognizer>(
+            () => _HoldToLikeGestureRecognizer(
+              enabled: dragEnabled,
+              onArm: onDragArm,
+              onMove: onDragMove,
+              onDrop: onDragDrop,
+              onCancel: onDragCancel,
+            ),
+            (recognizer) {},
+          ),
+        },
+        // The count sits inside the like target, not on its own: the likers
+        // list already has "Liked by N", so the number is not a second link.
+        child: _TapGroup(
+          onTap: onTapHeart,
+          child: KeyedSubtree(
+            key: contentKey,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedScale(
+                  scale: pressed ? 1.18 : 1,
+                  duration: AppMotion.instant,
+                  curve: AppMotion.emphasized,
                   child: FaIcon(
                     FontAwesomeIcons.solidHeart,
                     key: const ValueKey('like-heart'),
@@ -1965,24 +2274,20 @@ class _LikeDragTarget extends StatelessWidget {
                     size: 18,
                   ),
                 ),
-              ),
+                const SizedBox(width: 6),
+                Text(
+                  '$likeCount',
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
-        const SizedBox(width: 2),
-        // Tappable -> the "Liked by" list.
-        _TapGroup(
-          onTap: onTapCount,
-          child: Text(
-            '$likeCount',
-            style: TextStyle(
-              color: color,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-      ],
+      ),
     );
   }
 }

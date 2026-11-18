@@ -17,6 +17,7 @@ Future<T?> showAppSheet<T>({
   double? heightFactor,
   bool isDismissible = true,
   bool enableDrag = true,
+  EdgeInsetsGeometry? padding,
 }) {
   return showModalBottomSheet<T>(
     context: context,
@@ -37,6 +38,7 @@ Future<T?> showAppSheet<T>({
           subtitle: subtitle,
           footer: footer,
           heightFactor: heightFactor,
+          padding: padding ?? const EdgeInsets.fromLTRB(16, 0, 16, 0),
           child: builder(sheetContext),
         ),
       );

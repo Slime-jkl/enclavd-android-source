@@ -6,8 +6,8 @@ import 'app_button.dart';
 
 /// The one empty/error state used across the app.
 ///
-/// A quiet icon in a tinted circle, one line of what happened, one line of
-/// what to do next, and at most one action. Keeping every empty list on this
+/// A quiet icon, one line of what happened, one line of what to do next,
+/// and at most one action. Keeping every empty list on this
 /// shape means "nothing here yet" always looks intentional and always offers
 /// a next step instead of a blank screen.
 class AppEmptyState extends StatelessWidget {
@@ -46,20 +46,10 @@ class AppEmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            width: compact ? 44 : 52,
-            height: compact ? 44 : 52,
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: 0.09),
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: FaIcon(
-                icon,
-                size: compact ? 18 : 21,
-                color: accent,
-              ),
-            ),
+          FaIcon(
+            icon,
+            size: compact ? 22 : 26,
+            color: accent,
           ),
           SizedBox(height: compact ? 12 : 14),
           Text(
