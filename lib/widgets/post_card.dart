@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
@@ -30,6 +32,8 @@ import 'likers_sheet.dart';
 import 'personality_chip.dart';
 import 'post_actions_sheet.dart';
 import 'ui/app_button.dart';
+import 'ui/app_motion.dart';
+import 'ui/app_sheet.dart';
 import 'ui/app_surface.dart';
 
 class PostCard extends StatefulWidget {
@@ -74,6 +78,50 @@ class _PostCardState extends State<PostCard> with IgniteFlamePlayer<PostCard> {
   // Heart-burst overlay on double-tap.
   bool _burst = false;
 
+  // --- Drag-to-like (site parity) -----------------------------------------
+  // Hold the heart until it arms, then drag it over the post body and drop
+  // it there to like. The drop target is only claimed after the hold, so a
+  // swipe that starts on the heart still scrolls the feed: the long-press
+  // recognizer steps aside as soon as the finger leaves touch slop.
+  bool _dragActive = false;
+  bool _dragOverDrop = false;
+  Offset? _dragPosition; // pointer in the card's Stack space
+  Rect? _dropRect; // post body in the card's Stack space
+  final GlobalKey _stackKey = GlobalKey();
+  final GlobalKey _dropTargetKey = GlobalKey();
+
+  // Overlay tap targets for the action row: the icons stay small, the hit
+  // areas do not. Measured into the card's Stack space every layout so they
+  // scroll with the post (an OverlayEntry would go stale mid-scroll) and can
+  // never cover the app bar.
+  final GlobalKey _actionRowKey = GlobalKey();
+  final GlobalKey _likeGroupKey = GlobalKey();
+  final GlobalKey _commentGroupKey = GlobalKey();
+  final GlobalKey _igniteGroupKey = GlobalKey();
+  final GlobalKey _likesLabelKey = GlobalKey();
+  final GlobalKey<IgniteButtonState> _igniteButtonKey =
+      GlobalKey<IgniteButtonState>();
+  List<_ActionZone> _actionZones = const [];
+  bool _zoneSyncScheduled = false;
+
+  // Drag-to-like interaction state. The heart lifts the instant the finger
+  // lands (zero-delay acknowledgement); the drop tray and the drag itself arm
+  // after a ~3-frame still hold, and any movement past the slop radius hands
+  // the gesture straight back to the scroll view.
+  bool _pressHeld = false;
+  bool _likeTrayVisible = false;
+  bool _suppressTapLike = false;
+  Offset? _dragOrigin;
+  Offset? _pressStart;
+  bool _tapHandled = false;
+  Timer? _trayClearTimer;
+  Timer? _suppressResetTimer;
+
+  // The site's "how to like" nudge: a plain tap on an unliked heart must not
+  // like, it has to teach the drag instead.
+  bool _likeHintVisible = false;
+  Timer? _likeHintTimer;
+
   @override
   void initState() {
     super.initState();
@@ -109,13 +157,15 @@ class _PostCardState extends State<PostCard> with IgniteFlamePlayer<PostCard> {
   /// Mirror what this card shows into the list that owns the post. A card
   /// scrolled past the cache extent is disposed; the rebuild reads the list.
   void _reportUp() {
-    widget.onPostUpdated?.call(widget.post.copyWithEngagement(
-      likeCount: _likeCount,
-      commentCount: _commentCount,
-      userLiked: _liked,
-      igniteCount: _igniteCount,
-      userIgnited: _ignited,
-    ));
+    widget.onPostUpdated?.call(
+      widget.post.copyWithEngagement(
+        likeCount: _likeCount,
+        commentCount: _commentCount,
+        userLiked: _liked,
+        igniteCount: _igniteCount,
+        userIgnited: _ignited,
+      ),
+    );
   }
 
   Future<void> _toggleLike() async {
@@ -158,7 +208,203 @@ class _PostCardState extends State<PostCard> with IgniteFlamePlayer<PostCard> {
   }
 
   void _onHeartTap() {
-    _toggleLike();
+    // A tap that stopped a moving feed never likes and never nags.
+    if (_suppressTapLike) {
+      _suppressTapLike = false;
+      _suppressResetTimer?.cancel();
+      return;
+    }
+    // The pointer-up handler already toggled the unlike for instant feedback;
+    // swallow the arena-resolved tap that follows ~300ms later.
+    if (_tapHandled) {
+      _tapHandled = false;
+      return;
+    }
+    if (_liked) {
+      _toggleLike();
+      return;
+    }
+    // Likes are made by dragging the heart onto the post (site parity); a tap
+    // on an unliked heart teaches the gesture instead of liking.
+    _showLikeHint();
+  }
+
+  /// The site's tooltip for a tap on an unliked heart: "Drag the heart onto
+  /// the post to like it", near the heart, for a couple of seconds.
+  void _showLikeHint() {
+    _likeHintTimer?.cancel();
+    if (!_likeHintVisible) setState(() => _likeHintVisible = true);
+    _likeHintTimer = Timer(const Duration(milliseconds: 2200), () {
+      if (mounted) setState(() => _likeHintVisible = false);
+    });
+  }
+
+  // --- Drag-to-like ---------------------------------------------------------
+
+  /// The heart lifts the instant the finger lands (zero-delay feedback); the
+  /// drag itself arms after a tiny still window. A scroll that merely begins
+  /// on the heart moves past the slop radius first and keeps the feed
+  /// scrolling.
+  void _onLikePointerDown(PointerDownEvent event) {
+    _pressStart = event.position;
+    _tapHandled = false;
+    final scroll = Scrollable.maybeOf(context)?.position;
+    final scrolling = scroll?.isScrollingNotifier.value ?? false;
+    if (scrolling) {
+      // Tapping a moving feed should stop it, never like a post.
+      scroll!.jumpTo(scroll.pixels);
+      _suppressTapLike = true;
+      // If the finger then drifts instead of tapping, no tap will fire to
+      // consume the flag; clear it shortly after so later taps still like.
+      _suppressResetTimer?.cancel();
+      _suppressResetTimer = Timer(const Duration(milliseconds: 600), () {
+        _suppressTapLike = false;
+      });
+      return;
+    }
+    if (_likeBusy) return;
+    setState(() => _pressHeld = true);
+    _trayClearTimer?.cancel();
+  }
+
+  void _onLikePointerUp(PointerUpEvent event) {
+    final start = _pressStart;
+    _pressStart = null;
+    final travelled = start == null ? 0.0 : (event.position - start).distance;
+    if (_pressHeld) setState(() => _pressHeld = false);
+    if (!_dragActive && _likeTrayVisible) {
+      setState(() => _likeTrayVisible = false);
+      _scheduleTrayClear();
+    }
+    // Unlike is a plain tap even on a liked post — and it must feel instant,
+    // so it fires here instead of waiting out the ancestor double-tap window.
+    if (_liked &&
+        !_dragActive &&
+        !_suppressTapLike &&
+        !_likeBusy &&
+        travelled < 10) {
+      _tapHandled = true;
+      _toggleLike();
+    }
+  }
+
+  void _onLikePointerCancel(PointerCancelEvent event) {
+    _pressStart = null;
+    if (_pressHeld) setState(() => _pressHeld = false);
+  }
+
+  /// Keeps the overlay mounted just long enough to fade out, then drops it so
+  /// hidden tray content can never be found by semantics or tests.
+  void _scheduleTrayClear() {
+    _trayClearTimer?.cancel();
+    _trayClearTimer = Timer(AppMotion.fast, () {
+      if (mounted && !_likeTrayVisible) {
+        setState(() => _dropRect = null);
+      }
+    });
+  }
+
+  void _armLikeDrag(Offset globalPosition) {
+    // A tap that stopped a moving feed must never grow into a like, and a
+    // liked post only supports tap-to-unlike (same as the site).
+    if (_suppressTapLike || _liked || _likeBusy) {
+      if (_likeTrayVisible) {
+        setState(() => _likeTrayVisible = false);
+        _scheduleTrayClear();
+      }
+      return;
+    }
+    final position = _toStackSpace(globalPosition);
+    final rect = _measureDropRect();
+    if (position == null || rect == null) return;
+    _trayClearTimer?.cancel();
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _dragActive = true;
+      _dragOverDrop = false;
+      _dragOrigin = position;
+      _dragPosition = position;
+      _dropRect = rect;
+      _likeTrayVisible = true;
+      _likeHintVisible = false;
+    });
+    _likeHintTimer?.cancel();
+  }
+
+  void _updateLikeDrag(Offset globalPosition) {
+    if (!_dragActive) return;
+    final position = _toStackSpace(globalPosition);
+    if (position == null) return;
+    final over = _dropRect?.contains(position) ?? false;
+    if (over != _dragOverDrop) HapticFeedback.selectionClick();
+    setState(() {
+      _dragPosition = position;
+      _dragOverDrop = over;
+    });
+  }
+
+  void _endLikeDrag(Offset globalPosition) {
+    if (!_dragActive) return;
+    final position = _toStackSpace(globalPosition);
+    final dropped =
+        position != null && (_dropRect?.contains(position) ?? false);
+    final travelled = position != null && _dragOrigin != null
+        ? (position - _dragOrigin!).distance
+        : 0.0;
+    setState(() {
+      _dragActive = false;
+      _dragOverDrop = false;
+      _dragPosition = null;
+      _likeTrayVisible = false;
+    });
+    _scheduleTrayClear();
+    if (_liked) return;
+    if (_suppressTapLike) {
+      _suppressTapLike = false;
+      return;
+    }
+    if (dropped) {
+      HapticFeedback.mediumImpact();
+      _likeFromGesture();
+    } else if (travelled < 12) {
+      // A press that never moved is a tap, and a tap on an unliked heart
+      // teaches the drag — it never likes.
+      _showLikeHint();
+    }
+  }
+
+  void _cancelLikeDrag() {
+    if (!_dragActive && !_likeTrayVisible && !_pressHeld) return;
+    setState(() {
+      _dragActive = false;
+      _dragOverDrop = false;
+      _dragPosition = null;
+      _likeTrayVisible = false;
+      _pressHeld = false;
+    });
+    _scheduleTrayClear();
+  }
+
+  /// The drop tray covers the post body (text, embed, media) exactly like the
+  /// site's combined content bounds. Null until the card has been laid out.
+  Rect? _measureDropRect() {
+    final stackBox = _stackKey.currentContext?.findRenderObject() as RenderBox?;
+    final targetBox =
+        _dropTargetKey.currentContext?.findRenderObject() as RenderBox?;
+    if (stackBox == null || targetBox == null || !targetBox.hasSize) {
+      return null;
+    }
+    final topLeft = stackBox.globalToLocal(
+      targetBox.localToGlobal(Offset.zero),
+    );
+    // Exactly the content bounds, like the site's tray: text, embed, media.
+    return topLeft & targetBox.size;
+  }
+
+  Offset? _toStackSpace(Offset globalPosition) {
+    final stackBox = _stackKey.currentContext?.findRenderObject() as RenderBox?;
+    if (stackBox == null) return null;
+    return stackBox.globalToLocal(globalPosition);
   }
 
   /// The ignite lights itself; the card takes the like it carried and plays
@@ -182,13 +428,10 @@ class _PostCardState extends State<PostCard> with IgniteFlamePlayer<PostCard> {
   }
 
   void _openLikers() {
-    showModalBottomSheet<void>(
+    showAppSheet<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: context.enclavd.card,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
+      title: 'Liked by',
+      padding: EdgeInsets.zero,
       builder: (_) => LikersSheet(
         postId: widget.post.id,
         social: widget.social,
@@ -272,6 +515,7 @@ class _PostCardState extends State<PostCard> with IgniteFlamePlayer<PostCard> {
     // edit/delete is discoverable without knowing the gesture.
     final canManage = widget.post.isOwner &&
         (widget.onEditPost != null || widget.onDeletePost != null);
+    _scheduleZoneSync();
     return AppSurface(
       margin: const EdgeInsets.only(bottom: 8),
       padding: EdgeInsets.zero,
@@ -284,6 +528,8 @@ class _PostCardState extends State<PostCard> with IgniteFlamePlayer<PostCard> {
         onDoubleTap: _likeFromGesture,
         onLongPress: _openPostActions,
         child: Stack(
+          key: _stackKey,
+          clipBehavior: Clip.none,
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
@@ -304,40 +550,82 @@ class _PostCardState extends State<PostCard> with IgniteFlamePlayer<PostCard> {
                     ),
                   ],
                   const SizedBox(height: 10),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      PostContent(post: widget.post),
-                      // First YouTube link in the post renders between
-                      // the text and the image.
-                      if (extractYouTubeId(widget.post.content) case final id?)
-                        _YouTubeEmbed(
-                            videoId: id, apiBaseUrl: widget.apiBaseUrl),
-                      if (widget.post.galleryImages.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        PostCarousel(
-                            post: widget.post, apiBaseUrl: widget.apiBaseUrl),
-                      ],
-                    ],
+                  KeyedSubtree(
+                    key: _dropTargetKey,
+                    // Full width, even for a one-line post: the tray and the
+                    // drop zone should span the card like they do on the site.
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          PostContent(post: widget.post),
+                          // First YouTube link in the post renders between
+                          // the text and the image.
+                          if (extractYouTubeId(widget.post.content)
+                              case final id?)
+                            _YouTubeEmbed(
+                              videoId: id,
+                              apiBaseUrl: widget.apiBaseUrl,
+                            ),
+                          if (widget.post.galleryImages.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            PostCarousel(
+                              post: widget.post,
+                              apiBaseUrl: widget.apiBaseUrl,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 10),
                   const AppDivider(),
                   const SizedBox(height: 2),
-                  _ActionRow(
-                    liked: _liked,
-                    likeCount: _likeCount,
-                    commentCount: _commentCount,
-                    onLike: _onHeartTap,
-                    onLikers: _openLikers,
-                    onComments: _openComments,
-                    ignite: IgniteButton(
-                      postId: widget.post.id,
-                      ignited: _ignited,
-                      count: _igniteCount,
-                      size: 18,
-                      social: widget.social,
-                      onResult: _onIgniteResult,
-                    ),
+                  Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      KeyedSubtree(
+                        key: _actionRowKey,
+                        child: _ActionRow(
+                          likeKey: _likeGroupKey,
+                          commentKey: _commentGroupKey,
+                          igniteKey: _igniteGroupKey,
+                          likesKey: _likesLabelKey,
+                          liked: _liked,
+                          likeCount: _likeCount,
+                          commentCount: _commentCount,
+                          onLike: _onHeartTap,
+                          onLikers: _openLikers,
+                          onComments: _openComments,
+                          pressed: _pressHeld,
+                          onLikePressStart: _onLikePointerDown,
+                          onLikePressEnd: _onLikePointerUp,
+                          onLikePressCancel: _onLikePointerCancel,
+                          onLikeDragArm: _armLikeDrag,
+                          onLikeDragMove: _updateLikeDrag,
+                          onLikeDragDrop: _endLikeDrag,
+                          onLikeDragCancel: _cancelLikeDrag,
+                          dragEnabled: () => !_liked && !_likeBusy,
+                          ignite: IgniteButton(
+                            key: _igniteButtonKey,
+                            contentKey: _igniteGroupKey,
+                            postId: widget.post.id,
+                            ignited: _ignited,
+                            count: _igniteCount,
+                            size: 18,
+                            social: widget.social,
+                            onResult: _onIgniteResult,
+                          ),
+                        ),
+                      ),
+                      if (_likeHintVisible)
+                        const Positioned(
+                          left: 0,
+                          bottom: 46,
+                          child: IgnorePointer(child: _LikeHintBubble()),
+                        ),
+                    ],
                   ),
                   if (widget.post.hasDomain) ...[
                     const AppDivider(),
@@ -348,7 +636,9 @@ class _PostCardState extends State<PostCard> with IgniteFlamePlayer<PostCard> {
                         borderRadius: BorderRadius.circular(8),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 8),
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -378,22 +668,183 @@ class _PostCardState extends State<PostCard> with IgniteFlamePlayer<PostCard> {
                 ],
               ),
             ),
+            // Big invisible hit areas around the row controls: the icons can
+            // stay small while the target stays comfortable. Debug builds
+            // paint them neon green so their size is visible on device.
+            for (final zone in _actionZones)
+              if (zone.dragLike)
+                _LikeDragSquare(
+                  rect: zone.rect,
+                  pressed: _pressHeld,
+                  onTap: _onHeartTap,
+                  onPressStart: _onLikePointerDown,
+                  onPressEnd: _onLikePointerUp,
+                  onPressCancel: _onLikePointerCancel,
+                  onDragArm: _armLikeDrag,
+                  onDragMove: _updateLikeDrag,
+                  onDragDrop: _endLikeDrag,
+                  onDragCancel: _cancelLikeDrag,
+                  dragEnabled: () => !_liked && !_likeBusy,
+                )
+              else
+                _TapZone(zone: zone),
             // Heart burst on double-tap (site's showHeartAnimation).
             if (_burst)
               const Positioned.fill(
-                child: IgnorePointer(
-                  child: Center(child: _HeartBurst()),
-                ),
+                child: IgnorePointer(child: Center(child: _HeartBurst())),
               ),
             // The site's ignite flame, over the card it was played on.
             if (flamePlaying)
+              Positioned.fill(child: IgnorePointer(child: flameLayer)),
+            // Drag-to-like: darken the card, show the dashed tray over the
+            // post body, and let the heart follow the finger. The fades keep
+            // a cancelled gesture (a scroll, a stray touch) from popping.
+            if (_dropRect != null) ...[
               Positioned.fill(
-                child: IgnorePointer(child: flameLayer),
+                child: IgnorePointer(
+                  child: AnimatedOpacity(
+                    opacity: _likeTrayVisible ? 1 : 0,
+                    duration: AppMotion.fast,
+                    curve: AppMotion.enter,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: ColoredBox(
+                        color: Colors.black.withValues(alpha: 0.55),
+                      ),
+                    ),
+                  ),
+                ),
               ),
+              Positioned.fromRect(
+                rect: _dropRect!,
+                child: IgnorePointer(
+                  child: AnimatedOpacity(
+                    opacity: _likeTrayVisible ? 1 : 0,
+                    duration: AppMotion.fast,
+                    curve: AppMotion.enter,
+                    child: AnimatedScale(
+                      scale: _likeTrayVisible ? 1 : 0.97,
+                      duration: AppMotion.normal,
+                      curve: AppMotion.spring,
+                      child: _LikeDropTray(active: _dragOverDrop),
+                    ),
+                  ),
+                ),
+              ),
+              if (_dragPosition != null && _dropRect != null)
+                Positioned(
+                  left: _dragPosition!.dx - 24,
+                  top: _dragPosition!.dy - 24,
+                  child: IgnorePointer(
+                    child: _DragHeart(
+                      position: _dragPosition!,
+                      rect: _dropRect!,
+                    ),
+                  ),
+                ),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  void _scheduleZoneSync() {
+    if (_zoneSyncScheduled) return;
+    _zoneSyncScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _zoneSyncScheduled = false;
+      if (!mounted) return;
+      _syncActionZones();
+    });
+  }
+
+  /// Measures the action row and its three controls, then publishes one
+  /// square tap target per control. Each square is centred on its control and
+  /// larger than the glyph, so the icons can stay small without shrinking the
+  /// hit area; the squares never grow into the empty row space, so tapping
+  /// whitespace does nothing.
+  void _syncActionZones() {
+    final stackBox = _stackKey.currentContext?.findRenderObject() as RenderBox?;
+    if (stackBox == null || !stackBox.hasSize) return;
+    Rect? rectOf(GlobalKey key) {
+      final box = key.currentContext?.findRenderObject() as RenderBox?;
+      if (box == null || !box.hasSize) return null;
+      return stackBox.globalToLocal(box.localToGlobal(Offset.zero)) & box.size;
+    }
+
+    final stackSize = stackBox.size;
+    final row = rectOf(_actionRowKey);
+    final like = rectOf(_likeGroupKey);
+    final comments = rectOf(_commentGroupKey);
+    final ignite = rectOf(_igniteGroupKey);
+    if (row == null || like == null || comments == null || ignite == null) {
+      return;
+    }
+
+    final centers = [like.center.dx, comments.center.dx, ignite.center.dx];
+    final rowCenterY = (row.top + row.bottom) / 2;
+
+    /// 46px is a comfortable square target; neighbouring squares must never
+    /// overlap, so a wide count (e.g. 1,234) trims the square rather than
+    /// swallowing the next control.
+    double squareSide(double center) {
+      var nearest = double.infinity;
+      for (final other in centers) {
+        if ((other - center).abs() < 0.5) continue;
+        nearest = math.min(nearest, (other - center).abs());
+      }
+      final cap = nearest.isFinite ? nearest * 2 - 6 : 46.0;
+      return math.min(46.0, cap);
+    }
+
+    Rect squareFor(Rect content) {
+      final side = squareSide(content.center.dx);
+      final top = (rowCenterY - side / 2).clamp(0.0, stackSize.height);
+      final bottom = math.min(
+        rowCenterY + side / 2,
+        widget.post.hasDomain ? row.bottom + 2 : stackSize.height,
+      );
+      return Rect.fromLTRB(
+        (content.center.dx - side / 2).clamp(0.0, stackSize.width),
+        top,
+        (content.center.dx + side / 2).clamp(0.0, stackSize.width),
+        math.max(bottom, top + 1),
+      );
+    }
+
+    final zones = <_ActionZone>[
+      _ActionZone(
+          rect: squareFor(like),
+          hole: like,
+          onTap: _onHeartTap,
+          dragLike: true),
+      _ActionZone(
+          rect: squareFor(comments), hole: comments, onTap: _openComments),
+      _ActionZone(
+        rect: squareFor(ignite),
+        hole: ignite,
+        onTap: () => _igniteButtonKey.currentState?.trigger(),
+      ),
+    ];
+    if (_zonesMatch(zones, _actionZones)) return;
+    setState(() => _actionZones = zones);
+  }
+
+  bool _zonesMatch(List<_ActionZone> a, List<_ActionZone> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].rect != b[i].rect || a[i].hole != b[i].hole) return false;
+    }
+    return true;
+  }
+
+  @override
+  void dispose() {
+    _trayClearTimer?.cancel();
+    _suppressResetTimer?.cancel();
+    _likeHintTimer?.cancel();
+    super.dispose();
   }
 }
 
@@ -413,8 +864,11 @@ class _HeartBurst extends StatelessWidget {
           child: Transform.scale(scale: scale, child: child),
         );
       },
-      child: const FaIcon(FontAwesomeIcons.heart,
-          color: Color(0xFFF87171), size: 64), // text-red-500 text-6xl
+      child: const FaIcon(
+        FontAwesomeIcons.heart,
+        color: Color(0xFFF87171),
+        size: 64,
+      ), // text-red-500 text-6xl
     );
   }
 }
@@ -442,8 +896,10 @@ class PostAuthorRow extends StatelessWidget {
           onTap: () => _openProfile(context, post.authorId),
           child: EnclavdAvatar(
             size: 36,
-            url:
-                resolveMediaUrl(apiBaseUrl, avatarPath: post.profilePictureUrl),
+            url: resolveMediaUrl(
+              apiBaseUrl,
+              avatarPath: post.profilePictureUrl,
+            ),
             rank: post.isBlocked ? 'Blocked' : post.rank,
           ),
         ),
@@ -480,12 +936,19 @@ class PostAuthorRow extends StatelessWidget {
                     ],
                     if (post.warningCount > 0) ...[
                       const SizedBox(width: 6),
-                      FaIcon(FontAwesomeIcons.triangleExclamation,
-                          color: context.enclavd.warning, size: 14),
+                      FaIcon(
+                        FontAwesomeIcons.triangleExclamation,
+                        color: context.enclavd.warning,
+                        size: 14,
+                      ),
                       const SizedBox(width: 3),
-                      Text('${post.warningCount}',
-                          style: TextStyle(
-                              color: context.enclavd.warning, fontSize: 10)),
+                      Text(
+                        '${post.warningCount}',
+                        style: TextStyle(
+                          color: context.enclavd.warning,
+                          fontSize: 10,
+                        ),
+                      ),
                     ],
                   ],
                 ),
@@ -496,8 +959,10 @@ class PostAuthorRow extends StatelessWidget {
         const SizedBox(width: 8),
         Text(
           relativeTime(post.createdAt),
-          style:
-              TextStyle(color: context.enclavd.textSecondary, fontSize: 11.5),
+          style: TextStyle(
+            color: context.enclavd.textSecondary,
+            fontSize: 11.5,
+          ),
         ),
         if (onOpenActions != null) ...[
           const SizedBox(width: 2),
@@ -579,9 +1044,8 @@ class PostContentState extends State<PostContent> {
   }
 
   void _openHashtag(String tag) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => HashtagScreen(tag: tag)),
-    );
+    Navigator.of(context)
+        .push(MaterialPageRoute<void>(builder: (_) => HashtagScreen(tag: tag)));
   }
 
   Future<void> _openUrl(String url) async {
@@ -710,11 +1174,7 @@ class _AspectProbeState extends State<_AspectProbe> {
 
 /// Post image, capped at half the viewport height; tap -> fullscreen viewer.
 class PostImage extends StatefulWidget {
-  const PostImage({
-    super.key,
-    required this.post,
-    required this.apiBaseUrl,
-  });
+  const PostImage({super.key, required this.post, required this.apiBaseUrl});
 
   final Post post;
   final String apiBaseUrl;
@@ -770,11 +1230,7 @@ class PostImageState extends State<PostImage> {
 /// from before the carousel) renders through [PostImage] unchanged, so the
 /// single-image card keeps its exact layout.
 class PostCarousel extends StatefulWidget {
-  const PostCarousel({
-    super.key,
-    required this.post,
-    required this.apiBaseUrl,
-  });
+  const PostCarousel({super.key, required this.post, required this.apiBaseUrl});
 
   final Post post;
   final String apiBaseUrl;
@@ -824,8 +1280,11 @@ class _PostCarouselState extends State<PostCarousel> {
                   width: contentWidth,
                   height: height,
                   child: GestureDetector(
-                    onTap: () => showPostImageViewer(context, urls,
-                        initialIndex: _index),
+                    onTap: () => showPostImageViewer(
+                      context,
+                      urls,
+                      initialIndex: _index,
+                    ),
                     onLongPress: () =>
                         _showImageSaveSheet(context, urls[_index]),
                     child: Stack(
@@ -927,8 +1386,11 @@ class _ExpandHint extends StatelessWidget {
           color: Colors.black.withValues(alpha: 0.45),
           borderRadius: BorderRadius.circular(6),
         ),
-        child: const FaIcon(FontAwesomeIcons.expand,
-            size: 13, color: Colors.white),
+        child: const FaIcon(
+          FontAwesomeIcons.expand,
+          size: 13,
+          color: Colors.white,
+        ),
       ),
     );
   }
@@ -967,8 +1429,9 @@ class _ImageViewer extends StatefulWidget {
 }
 
 class _ImageViewerState extends State<_ImageViewer> {
-  late final PageController _controller =
-      PageController(initialPage: widget.initialIndex);
+  late final PageController _controller = PageController(
+    initialPage: widget.initialIndex,
+  );
   late int _index = widget.initialIndex;
 
   @override
@@ -1011,8 +1474,11 @@ class _ImageViewerState extends State<_ImageViewer> {
           right: 24,
           child: IconButton(
             onPressed: () => Navigator.of(context).pop(),
-            icon: const FaIcon(FontAwesomeIcons.xmark,
-                color: Colors.white, size: 22),
+            icon: const FaIcon(
+              FontAwesomeIcons.xmark,
+              color: Colors.white,
+              size: 22,
+            ),
           ),
         ),
         if (urls.length > 1)
@@ -1063,13 +1529,22 @@ void _showImageSaveSheet(BuildContext context, String url) {
     ),
     builder: (sheetContext) => SafeArea(
       child: ListTile(
-        leading: FaIcon(FontAwesomeIcons.download,
-            color: context.enclavd.link, size: 18),
-        title: const Text('Save image to device',
-            style: TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text('Saves to the Enclavd folder in your gallery',
-            style: TextStyle(
-                color: context.enclavd.textSecondary, fontSize: 12.5)),
+        leading: FaIcon(
+          FontAwesomeIcons.download,
+          color: context.enclavd.link,
+          size: 18,
+        ),
+        title: const Text(
+          'Save image to device',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
+        subtitle: Text(
+          'Saves to the Enclavd folder in your gallery',
+          style: TextStyle(
+            color: context.enclavd.textSecondary,
+            fontSize: 12.5,
+          ),
+        ),
         onTap: () {
           Navigator.of(sheetContext).pop();
           _saveImageToDevice(context, url);
@@ -1082,10 +1557,9 @@ void _showImageSaveSheet(BuildContext context, String url) {
 Future<void> _saveImageToDevice(BuildContext context, String url) async {
   final messenger = ScaffoldMessenger.of(context);
   final message = await GallerySaver().saveImage(url);
-  messenger.showSnackBar(SnackBar(
-    content: Text(message),
-    duration: const Duration(seconds: 3),
-  ));
+  messenger.showSnackBar(
+    SnackBar(content: Text(message), duration: const Duration(seconds: 3)),
+  );
 }
 
 class _DomainPromotionBanner extends StatelessWidget {
@@ -1113,8 +1587,11 @@ class _DomainPromotionBanner extends StatelessWidget {
         ),
         child: Row(
           children: [
-            FaIcon(FontAwesomeIcons.bullhorn,
-                color: context.enclavd.link, size: 11),
+            FaIcon(
+              FontAwesomeIcons.bullhorn,
+              color: context.enclavd.link,
+              size: 11,
+            ),
             const SizedBox(width: 5),
             Expanded(
               child: FittedBox(
@@ -1161,14 +1638,33 @@ class _DomainPromotionBanner extends StatelessWidget {
 
 class _ActionRow extends StatelessWidget {
   const _ActionRow({
+    this.likeKey,
+    this.commentKey,
+    this.igniteKey,
+    this.likesKey,
     required this.liked,
     required this.likeCount,
     required this.commentCount,
     required this.onLike,
     required this.onLikers,
     required this.onComments,
+    required this.pressed,
+    required this.onLikePressStart,
+    required this.onLikePressEnd,
+    required this.onLikePressCancel,
+    required this.onLikeDragArm,
+    required this.onLikeDragMove,
+    required this.onLikeDragDrop,
+    required this.onLikeDragCancel,
+    required this.dragEnabled,
     required this.ignite,
   });
+
+  /// Keys the card uses to measure each control for the overlay tap zones.
+  final Key? likeKey;
+  final Key? commentKey;
+  final Key? igniteKey;
+  final Key? likesKey;
 
   final bool liked;
   final int likeCount;
@@ -1177,93 +1673,260 @@ class _ActionRow extends StatelessWidget {
   final VoidCallback onLikers;
   final VoidCallback onComments;
 
+  /// Drag-to-like: the heart lifts the moment it is pressed, and the drag
+  /// arms after a very short still hold so scrolling keeps priority.
+  final bool pressed;
+  final ValueChanged<PointerDownEvent> onLikePressStart;
+  final ValueChanged<PointerUpEvent> onLikePressEnd;
+  final ValueChanged<PointerCancelEvent> onLikePressCancel;
+  final ValueChanged<Offset> onLikeDragArm;
+  final ValueChanged<Offset> onLikeDragMove;
+  final ValueChanged<Offset> onLikeDragDrop;
+  final VoidCallback onLikeDragCancel;
+
+  /// A liked post can only be unliked by tapping, so the drag recognizer must
+  /// stay out of the arena entirely and let the tap win.
+  final bool Function() dragEnabled;
+
   /// The shared ignite control, built by the card (it carries its own state).
   final Widget ignite;
 
   @override
   Widget build(BuildContext context) {
-    // Groups sit on a 40px touch target: the icons stay visually light but
-    // the row is comfortable to hit while scrolling.
+    // Groups sit on a 40px touch target and share one slot width, so the
+    // spacing between like / comments / ignite is identical even when the
+    // ignite count is hidden at zero.
+    Widget slot(Widget child) => ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 48),
+          child: Center(widthFactor: 1, child: child),
+        );
+
     return Row(
       children: [
         Expanded(
           child: Row(
             children: [
-              _TapGroup(
-                onTap: onLike,
-                child: FaIcon(
-                  FontAwesomeIcons.solidHeart,
-                  key: const ValueKey('like-heart'),
-                  color: liked
-                      ? context.enclavd.likeActive
-                      : context.enclavd.textSecondary,
-                  size: 18,
-                ),
-              ),
-              const SizedBox(width: 2),
-              // Tappable -> the "Liked by" list.
-              _TapGroup(
-                onTap: onLikers,
-                child: Text(
-                  '$likeCount',
-                  style: TextStyle(
-                    color: liked
-                        ? context.enclavd.likeActive
-                        : context.enclavd.textSecondary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
+              slot(_LikeDragTarget(
+                contentKey: likeKey,
+                liked: liked,
+                likeCount: likeCount,
+                pressed: pressed,
+                onPressStart: onLikePressStart,
+                onPressEnd: onLikePressEnd,
+                onPressCancel: onLikePressCancel,
+                onTapHeart: onLike,
+                onDragArm: onLikeDragArm,
+                onDragMove: onLikeDragMove,
+                onDragDrop: onLikeDragDrop,
+                onDragCancel: onLikeDragCancel,
+                dragEnabled: dragEnabled,
+              )),
+              const SizedBox(width: 4),
+              slot(_TapGroup(
+                onTap: onComments,
+                child: KeyedSubtree(
+                  key: commentKey,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      FaIcon(
+                        // comment-dots, the site's comment glyph.
+                        FontAwesomeIcons.solidCommentDots,
+                        color: context.enclavd.textSecondary,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '$commentCount',
+                        style: TextStyle(
+                          color: context.enclavd.textSecondary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              _TapGroup(
-                onTap: onComments,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    FaIcon(
-                      commentCount > 0
-                          ? FontAwesomeIcons.solidComments
-                          : FontAwesomeIcons.solidComment,
-                      color: context.enclavd.textSecondary,
-                      size: 18,
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      '$commentCount',
-                      style: TextStyle(
-                        color: context.enclavd.textSecondary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 6),
+              )),
+              const SizedBox(width: 4),
               // Ignite: one a day, lit on the post that holds it.
-              ignite,
+              slot(ignite),
             ],
           ),
         ),
-        // "Liked by N" opposite the buttons; count also opens the likers sheet.
+        // "N Likes" opposite the buttons; opens the likers list.
         if (likeCount > 0)
-          InkWell(
-            onTap: onLikers,
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-              child: Text(
-                'Liked by $likeCount',
-                style: TextStyle(
-                  color: context.enclavd.link, // textLink: text-blue-400
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w500,
+          KeyedSubtree(
+            key: likesKey,
+            child: InkWell(
+              onTap: onLikers,
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                child: Text(
+                  '$likeCount Likes',
+                  style: TextStyle(
+                    color: context.enclavd.link, // textLink: text-blue-400
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ),
           ),
       ],
+    );
+  }
+}
+
+/// One measured overlay band over the action row. [hole] is the control's own
+/// box: the band is drawn as strips around it so the control still receives
+/// its press, drag and tap pointers.
+class _ActionZone {
+  const _ActionZone({
+    required this.rect,
+    required this.hole,
+    required this.onTap,
+    this.dragLike = false,
+  });
+
+  final Rect rect;
+  final Rect hole;
+  final VoidCallback onTap;
+
+  /// The like control's square runs the heart's press/hold/drag pipeline
+  /// instead of a plain tap, so dragging worked from the whole target.
+  final bool dragLike;
+}
+
+/// The like control's square overlay. Pressing anywhere inside it starts the
+/// same lift → hold → drag → drop gesture as the heart itself, so the drag is
+/// reachable from the whole target instead of only the 18px glyph. A plain tap
+/// keeps the heart's tap semantics: it teaches the drag on an unliked post and
+/// unlikes a liked one. Debug builds paint it neon green like the tap squares.
+class _LikeDragSquare extends StatelessWidget {
+  const _LikeDragSquare({
+    required this.rect,
+    required this.pressed,
+    required this.onTap,
+    required this.onPressStart,
+    required this.onPressEnd,
+    required this.onPressCancel,
+    required this.onDragArm,
+    required this.onDragMove,
+    required this.onDragDrop,
+    required this.onDragCancel,
+    required this.dragEnabled,
+  });
+
+  final Rect rect;
+  final bool pressed;
+  final VoidCallback onTap;
+  final ValueChanged<PointerDownEvent> onPressStart;
+  final ValueChanged<PointerUpEvent> onPressEnd;
+  final ValueChanged<PointerCancelEvent> onPressCancel;
+  final ValueChanged<Offset> onDragArm;
+  final ValueChanged<Offset> onDragMove;
+  final ValueChanged<Offset> onDragDrop;
+  final VoidCallback onDragCancel;
+  final bool Function() dragEnabled;
+
+  @override
+  Widget build(BuildContext context) {
+    if (rect.isEmpty) return const SizedBox.shrink();
+    return Positioned.fromRect(
+      rect: rect,
+      child: Listener(
+        behavior: HitTestBehavior.opaque,
+        onPointerDown: onPressStart,
+        onPointerUp: onPressEnd,
+        onPointerCancel: onPressCancel,
+        child: RawGestureDetector(
+          behavior: HitTestBehavior.opaque,
+          gestures: <Type, GestureRecognizerFactory>{
+            _HoldToLikeGestureRecognizer: GestureRecognizerFactoryWithHandlers<
+                _HoldToLikeGestureRecognizer>(
+              () => _HoldToLikeGestureRecognizer(
+                enabled: dragEnabled,
+                onArm: onDragArm,
+                onMove: onDragMove,
+                onDrop: onDragDrop,
+                onCancel: onDragCancel,
+              ),
+              (recognizer) {},
+            ),
+          },
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            child: kDebugMode
+                ? const DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Color(0x4D00FF66),
+                      borderRadius: BorderRadius.all(Radius.circular(10)),
+                    ),
+                  )
+                : const SizedBox.expand(),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TapZone extends StatelessWidget {
+  const _TapZone({required this.zone});
+
+  final _ActionZone zone;
+
+  @override
+  Widget build(BuildContext context) {
+    final rect = zone.rect;
+    if (rect.isEmpty) return const SizedBox.shrink();
+    final hole = zone.hole.intersect(rect);
+    final local = hole.shift(-rect.topLeft);
+    final w = rect.width;
+    final h = rect.height;
+
+    Widget strip(Rect r) {
+      if (r.isEmpty) return const SizedBox.shrink();
+      return Positioned.fromRect(
+        rect: r,
+        child: ExcludeSemantics(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: zone.onTap,
+            child: const SizedBox.expand(),
+          ),
+        ),
+      );
+    }
+
+    return Positioned.fromRect(
+      rect: rect,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // Debug-only: one tinted square shows the whole target at a glance.
+          if (kDebugMode)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: const Color(0x4D00FF66),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+            ),
+          // Transparent hit strips around the control: its own pointer area
+          // (press, drag, tap) stays untouched.
+          strip(Rect.fromLTRB(0, 0, w, local.top)),
+          strip(Rect.fromLTRB(0, local.bottom, w, h)),
+          strip(Rect.fromLTRB(0, local.top, local.left, local.bottom)),
+          strip(Rect.fromLTRB(local.right, local.top, w, local.bottom)),
+        ],
+      ),
     );
   }
 }
@@ -1326,15 +1989,18 @@ class _YouTubeEmbedState extends State<_YouTubeEmbed> {
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0xFF0F172A))
       ..setNavigationDelegate(
-          NavigationDelegate(onNavigationRequest: _onNavigationRequest));
+        NavigationDelegate(onNavigationRequest: _onNavigationRequest),
+      );
     final platform = controller.platform;
     if (platform is AndroidWebViewController) {
       // Default blocks autoplay=1; flip so the tap starts the video.
       platform.setMediaPlaybackRequiresUserGesture(false);
     }
     controller.loadRequest(
-      Uri.parse('https://www.youtube-nocookie.com/embed/${widget.videoId}'
-          '?playsinline=1&rel=0&autoplay=1'),
+      Uri.parse(
+        'https://www.youtube-nocookie.com/embed/${widget.videoId}'
+        '?playsinline=1&rel=0&autoplay=1',
+      ),
       headers: {
         'Referer': widget.apiBaseUrl,
         'Referrer-Policy': 'strict-origin-when-cross-origin',
@@ -1351,8 +2017,10 @@ class _YouTubeEmbedState extends State<_YouTubeEmbed> {
       return NavigationDecision.navigate;
     }
     if (url.contains('youtube.com') || url.contains('youtu.be')) {
-      launchUrl(Uri.parse(request.url.toString()),
-          mode: LaunchMode.externalApplication);
+      launchUrl(
+        Uri.parse(request.url.toString()),
+        mode: LaunchMode.externalApplication,
+      );
     }
     return NavigationDecision.prevent;
   }
@@ -1367,8 +2035,9 @@ class _YouTubeEmbedState extends State<_YouTubeEmbed> {
   Future<void> _openExternal() async {
     try {
       await launchUrl(
-          Uri.parse('https://www.youtube.com/watch?v=${widget.videoId}'),
-          mode: LaunchMode.externalApplication);
+        Uri.parse('https://www.youtube.com/watch?v=${widget.videoId}'),
+        mode: LaunchMode.externalApplication,
+      );
     } catch (_) {
       // Never let a launcher failure break the feed.
     }
@@ -1408,9 +2077,7 @@ class _YouTubeEmbedState extends State<_YouTubeEmbed> {
                           errorAsset: 'assets/images/no-image.jpg',
                         ),
                         // Scrim so the red button pops on any thumbnail.
-                        ColoredBox(
-                          color: Colors.black.withValues(alpha: 0.25),
-                        ),
+                        ColoredBox(color: Colors.black.withValues(alpha: 0.25)),
                         const Center(
                           child: _YouTubePlayButton(
                             key: Key('youtube-play-button'),
@@ -1522,4 +2189,400 @@ class _PlayerOverlayButton extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The heart + count as one target. A tap keeps its old meaning (like /
+/// open the likers list); holding arms the drag without stealing a scroll,
+/// because the long-press recognizer bows out the moment the finger leaves
+/// the tight pre-accept slop.
+/// The heart lifts the moment it is pressed; the drag arms after a short
+/// still hold. The count next to it stays a plain tap target for the likers
+/// sheet, exactly like the site's separate count link.
+class _LikeDragTarget extends StatelessWidget {
+  const _LikeDragTarget({
+    this.contentKey,
+    required this.liked,
+    required this.likeCount,
+    required this.pressed,
+    required this.onPressStart,
+    required this.onPressEnd,
+    required this.onPressCancel,
+    required this.onTapHeart,
+    required this.onDragArm,
+    required this.onDragMove,
+    required this.onDragDrop,
+    required this.onDragCancel,
+    required this.dragEnabled,
+  });
+
+  /// Icon+count row, measured by the card for its overlay tap square.
+  final Key? contentKey;
+
+  final bool liked;
+  final int likeCount;
+  final bool pressed;
+  final ValueChanged<PointerDownEvent> onPressStart;
+  final ValueChanged<PointerUpEvent> onPressEnd;
+  final ValueChanged<PointerCancelEvent> onPressCancel;
+  final VoidCallback onTapHeart;
+  final ValueChanged<Offset> onDragArm;
+  final ValueChanged<Offset> onDragMove;
+  final ValueChanged<Offset> onDragDrop;
+  final VoidCallback onDragCancel;
+  final bool Function() dragEnabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final color =
+        liked ? context.enclavd.likeActive : context.enclavd.textSecondary;
+    return Listener(
+      onPointerDown: onPressStart,
+      onPointerUp: onPressEnd,
+      onPointerCancel: onPressCancel,
+      child: RawGestureDetector(
+        behavior: HitTestBehavior.opaque,
+        gestures: <Type, GestureRecognizerFactory>{
+          _HoldToLikeGestureRecognizer: GestureRecognizerFactoryWithHandlers<
+              _HoldToLikeGestureRecognizer>(
+            () => _HoldToLikeGestureRecognizer(
+              enabled: dragEnabled,
+              onArm: onDragArm,
+              onMove: onDragMove,
+              onDrop: onDragDrop,
+              onCancel: onDragCancel,
+            ),
+            (recognizer) {},
+          ),
+        },
+        // The count sits inside the like target, not on its own: the likers
+        // list already has "Liked by N", so the number is not a second link.
+        child: _TapGroup(
+          onTap: onTapHeart,
+          child: KeyedSubtree(
+            key: contentKey,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AnimatedScale(
+                  scale: pressed ? 1.18 : 1,
+                  duration: AppMotion.instant,
+                  curve: AppMotion.emphasized,
+                  child: FaIcon(
+                    FontAwesomeIcons.solidHeart,
+                    key: const ValueKey('like-heart'),
+                    color: color,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '$likeCount',
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Arms the drag instantly after a short still hold, and steps out of the way
+/// the moment the finger leaves the slop radius: a flick that merely starts on
+/// the heart therefore scrolls the feed without ever lifting the tray, while a
+/// deliberate press-and-hold grabs the heart almost immediately.
+class _HoldToLikeGestureRecognizer extends OneSequenceGestureRecognizer {
+  _HoldToLikeGestureRecognizer({
+    required this.enabled,
+    required this.onArm,
+    required this.onMove,
+    required this.onDrop,
+    required this.onCancel,
+  }) : super(debugOwner: 'PostCard like drag');
+
+  /// Liked posts do not support the drag at all: letting this recognizer join
+  /// the arena would swallow the tap that unlikes them.
+  final bool Function() enabled;
+  final ValueChanged<Offset> onArm;
+  final ValueChanged<Offset> onMove;
+  final ValueChanged<Offset> onDrop;
+  final VoidCallback onCancel;
+
+  /// Two to three frames at 60 Hz: long enough for a flick to declare itself,
+  /// short enough to feel like the drag starts the moment the finger lands.
+  static const Duration _hold = Duration(milliseconds: 50);
+
+  /// The finger leaving this radius before the hold resolves is a scroll, not
+  /// a grab (10 px sits just inside the platform's ~18 px touch slop).
+  static const double _slop = 10;
+
+  /// A pre-arm move this fast is an unambiguous flick: hand off immediately,
+  /// even if it is still inside the slop radius.
+  static const double _flickVelocity = 1400;
+
+  Timer? _timer;
+  int? _pointer;
+  Offset _origin = Offset.zero;
+  Offset _lastPosition = Offset.zero;
+  Duration _lastTime = Duration.zero;
+  bool _armed = false;
+
+  @override
+  void addAllowedPointer(PointerDownEvent event) {
+    if (_pointer != null) return;
+    if (!enabled()) {
+      resolve(GestureDisposition.rejected);
+      return;
+    }
+    _pointer = event.pointer;
+    _origin = event.position;
+    _lastPosition = event.position;
+    _lastTime = event.timeStamp;
+    startTrackingPointer(event.pointer, event.transform);
+    _timer = Timer(_hold, () {
+      if (_armed || _pointer == null) return;
+      _armed = true;
+      resolve(GestureDisposition.accepted);
+      onArm(_origin);
+    });
+  }
+
+  @override
+  void handleEvent(PointerEvent event) {
+    if (event.pointer != _pointer) return;
+    if (event is PointerMoveEvent) {
+      if (!_armed) {
+        // Distance decides first: leave the slop radius and the scroll view
+        // keeps the gesture. Velocity is the second opinion — a fast flick
+        // that is still inside the radius is equally clearly a scroll.
+        final travelled = (event.position - _origin).distance;
+        final dt = event.timeStamp - _lastTime;
+        final speed = dt > Duration.zero
+            ? (event.position - _lastPosition).distance /
+                (dt.inMicroseconds / 1e6)
+            : 0.0;
+        _lastPosition = event.position;
+        _lastTime = event.timeStamp;
+        if (travelled > _slop || speed > _flickVelocity) {
+          _timer?.cancel();
+          _timer = null;
+          resolve(GestureDisposition.rejected);
+          stopTrackingPointer(event.pointer);
+        }
+        return;
+      }
+      onMove(event.position);
+    } else if (event is PointerUpEvent) {
+      if (_armed) {
+        onDrop(event.position);
+      } else {
+        resolve(GestureDisposition.rejected);
+      }
+      _finish();
+    } else if (event is PointerCancelEvent) {
+      if (_armed) onCancel();
+      _finish();
+    }
+  }
+
+  void _finish() {
+    _timer?.cancel();
+    _timer = null;
+    final pointer = _pointer;
+    _pointer = null;
+    _armed = false;
+    if (pointer != null) stopTrackingPointer(pointer);
+  }
+
+  @override
+  void rejectGesture(int pointer) {
+    _timer?.cancel();
+    _timer = null;
+    onCancel();
+    _finish();
+    super.rejectGesture(pointer);
+  }
+
+  @override
+  void didStopTrackingLastPointer(int pointer) {}
+
+  @override
+  String get debugDescription => 'hold-to-like';
+}
+
+/// The dashed red tray the site paints over the post body while dragging.
+class _LikeDropTray extends StatelessWidget {
+  const _LikeDropTray({required this.active});
+
+  /// True when the dragged heart is over the tray (release will like).
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: AppMotion.fast,
+      decoration: BoxDecoration(
+        // Opaque enough to read the label over the post text it covers.
+        color: active
+            ? Color.alphaBlend(
+                context.enclavd.likeActive.withValues(alpha: 0.16),
+                const Color(0xFA0F172A),
+              )
+            : const Color(0xFA0F172A),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: CustomPaint(
+        painter: _DashedBorderPainter(
+          color: const Color(0xFFF87171).withValues(alpha: active ? 1 : 0.9),
+        ),
+        // CustomPaint sizes to its child; without this the dashed border
+        // would trace the label instead of the drop zone.
+        child: const SizedBox.expand(
+          child: Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12),
+              child: Text(
+                'Drag the heart here to like',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Color(0xFFFECACA),
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The site's tooltip for a tap on an unliked heart: a small bubble above the
+/// action row that says how likes are actually made. Fades in fast so the tap
+/// itself still feels acknowledged.
+class _LikeHintBubble extends StatelessWidget {
+  const _LikeHintBubble();
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: AppMotion.fast,
+      curve: AppMotion.enter,
+      builder: (context, t, child) => Opacity(
+        opacity: t,
+        child:
+            Transform.translate(offset: Offset(0, 4 * (1 - t)), child: child),
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: const Color(0xF20F172A),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: context.enclavd.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.35),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const FaIcon(
+              FontAwesomeIcons.solidHeart,
+              color: Color(0xFFF87171),
+              size: 11,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'Drag the heart onto the post to like it',
+              style: TextStyle(
+                color: context.enclavd.textPrimary,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The heart that follows the finger, scaling up and fading slightly with
+/// distance from the tray centre (the site's distance feedback).
+class _DragHeart extends StatelessWidget {
+  const _DragHeart({required this.position, required this.rect});
+
+  final Offset position;
+  final Rect rect;
+
+  @override
+  Widget build(BuildContext context) {
+    final normalized = math.min((position - rect.center).distance / 240, 1.0);
+    final scale = 1 + 0.45 * normalized;
+    final opacity = 1 - 0.45 * normalized;
+    return Opacity(
+      opacity: opacity,
+      child: Transform.scale(
+        scale: scale,
+        child: const SizedBox(
+          width: 48,
+          height: 48,
+          child: Center(
+            child: FaIcon(
+              FontAwesomeIcons.solidHeart,
+              color: Color(0xFFF87171), // text-red-500
+              size: 44,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DashedBorderPainter extends CustomPainter {
+  const _DashedBorderPainter({required this.color});
+
+  final Color color;
+  static const double radius = 12;
+  static const double strokeWidth = 2;
+  static const double dash = 6;
+  static const double gap = 5;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final path = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(
+          Offset.zero & size,
+          const Radius.circular(radius),
+        ),
+      );
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth;
+    for (final metric in path.computeMetrics()) {
+      var start = 0.0;
+      while (start < metric.length) {
+        final end = math.min(start + dash, metric.length);
+        canvas.drawPath(metric.extractPath(start, end), paint);
+        start = end + gap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashedBorderPainter old) => old.color != color;
 }

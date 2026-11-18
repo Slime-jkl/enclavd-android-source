@@ -381,7 +381,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
                   if (_postLoading) const _HeaderSkeleton(),
                   if (_commentsError != null && _comments.isEmpty)
                     AppEmptyState(
-                      icon: FontAwesomeIcons.solidComments,
+                      icon: FontAwesomeIcons.solidCommentDots,
                       title: 'Could not load comments',
                       message: 'Check your connection and try again.',
                       actionLabel: 'Try again',
@@ -395,7 +395,7 @@ class _CommentsScreenState extends State<CommentsScreen> {
                       title: 'No comments yet',
                       message: 'Be the first to reply to this post.',
                       actionLabel: 'Write a comment',
-                      actionIcon: FontAwesomeIcons.solidComment,
+                      actionIcon: FontAwesomeIcons.solidCommentDots,
                       onAction: _commentFocus.requestFocus,
                       compact: true,
                     ),
@@ -498,26 +498,16 @@ class _TopBar extends StatelessWidget {
             ),
           ),
           const Spacer(),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            decoration: BoxDecoration(
-              color: context.enclavd.link.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                FaIcon(FontAwesomeIcons.comments,
-                    size: 12, color: context.enclavd.link),
-                const SizedBox(width: 5),
-                Text(
-                  '$commentCount',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: context.enclavd.link),
-                ),
-              ],
+          // Plain icon + count: no tinted pill around it.
+          FaIcon(FontAwesomeIcons.solidCommentDots,
+              size: 14, color: context.enclavd.textSecondary),
+          const SizedBox(width: 6),
+          Text(
+            '$commentCount',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: context.enclavd.textSecondary,
             ),
           ),
         ],

@@ -360,22 +360,29 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 50));
 
-    // The card carries its actions: edit and delete on an own reply, no
-    // reply button (you cannot answer yourself).
-    expect(find.byKey(const Key('comment-reply-2')), findsNothing);
+    // The card carries Reply first and Edit second; delete moved behind a
+    // long press on your own reply.
+    expect(find.byKey(const Key('comment-reply-2')), findsOneWidget);
     expect(find.byKey(const Key('comment-edit-2')), findsOneWidget);
-    expect(find.byKey(const Key('comment-delete-2')), findsOneWidget);
-    await pickAction(tester, 2, 'delete');
-    expect(find.text('Delete this reply?'), findsOneWidget);
+    expect(find.byKey(const Key('comment-delete-2')), findsNothing);
+
+    await tester.longPress(find.text('My own reply'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Delete'), findsOneWidget);
     await tester.tap(find.text('Cancel'));
-    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
     expect(find.text('My own reply'), findsOneWidget);
 
-    // Confirming removes it. The dialog's own button.
-    await pickAction(tester, 2, 'delete');
-    await tester.tap(find.descendant(
-        of: find.byType(AlertDialog), matching: find.text('Delete')));
-    await tester.pump(const Duration(milliseconds: 50));
+    await tester.longPress(find.text('My own reply'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('Delete'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
 
     expect(find.text('My own reply'), findsNothing);
     expect(find.text('First reply'), findsOneWidget);

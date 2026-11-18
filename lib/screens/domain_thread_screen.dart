@@ -14,13 +14,13 @@ import '../main.dart'; // AppServices (edit/delete need posts + social)
 import '../services/analytics_service.dart';
 import '../services/sound_service.dart';
 import '../theme/enclavd_theme.dart';
-import '../utils/confirm_dialog.dart';
 import '../utils/content_spans.dart'; // postContentSpans + commentContentSpans
 import '../utils/db_time.dart';
 import '../utils/submit_lock.dart';
 import '../widgets/enclavd_avatar.dart';
 import '../widgets/comment_actions.dart';
 import '../widgets/comment_editor_sheet.dart';
+import '../widgets/comment_owner_menu.dart';
 import '../widgets/comment_quote_card.dart';
 import '../widgets/emoji_picker_sheet.dart';
 import '../widgets/error_view.dart';
@@ -954,7 +954,7 @@ class _ForumPostCardState extends State<_ForumPostCard>
                 ),
               ),
               const SizedBox(width: 18),
-              FaIcon(FontAwesomeIcons.comments,
+              FaIcon(FontAwesomeIcons.solidCommentDots,
                   size: 15, color: context.enclavd.textSecondary),
               const SizedBox(width: 6),
               Text(
@@ -1142,17 +1142,6 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
     }
   }
 
-  Future<void> _confirmDelete() async {
-    final confirmed = await confirmDelete(
-      context,
-      title: 'Delete this reply?',
-      body: 'This cannot be undone. The reply and any replies '
-          'under it will be permanently removed.',
-    );
-    if (!confirmed || !mounted) return;
-    widget.onDelete(reply);
-  }
-
   CommentQuote? _parsedQuote;
   bool _quoteResolved = false;
 
@@ -1251,158 +1240,168 @@ class _ForumReplyCardState extends State<_ForumReplyCard> {
     final nameColor = blocked
         ? context.enclavd.rankName('Blocked')
         : context.enclavd.rankNameFromCss(reply.nameColor);
-    final card = Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        // The reply a notification landed on wears the tint + the accent
-        // border; every other card keeps the plain border.
-        color: widget.highlighted
-            ? Color.alphaBlend(const Color(0x1A3B82F6), context.enclavd.card)
-            : context.enclavd.card,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
+    final card = GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onLongPress: reply.isOwner
+          ? () => showCommentOwnerMenu(
+                context,
+                comment: reply,
+                apiBaseUrl: widget.apiBaseUrl,
+                onDelete: () => widget.onDelete(reply),
+              )
+          : null,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          // The reply a notification landed on wears the tint + the accent
+          // border; every other card keeps the plain border.
           color: widget.highlighted
-              ? context.enclavd.link
-              : context.enclavd.border,
+              ? Color.alphaBlend(const Color(0x1A3B82F6), context.enclavd.card)
+              : context.enclavd.card,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: widget.highlighted
+                ? context.enclavd.link
+                : context.enclavd.border,
+          ),
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header: avatar + identity block, like the OP card.
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              GestureDetector(
-                onTap: () => _openProfile(context, reply.userId),
-                child: EnclavdAvatar(
-                  size: 48,
-                  url: resolveMediaUrl(widget.apiBaseUrl,
-                      avatarPath: reply.profilePictureUrl),
-                  rank: reply.isBlocked ? 'Blocked' : reply.rank,
-                  square: true,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header: avatar + identity block, like the OP card.
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                GestureDetector(
+                  onTap: () => _openProfile(context, reply.userId),
+                  child: EnclavdAvatar(
+                    size: 48,
+                    url: resolveMediaUrl(widget.apiBaseUrl,
+                        avatarPath: reply.profilePictureUrl),
+                    rank: reply.isBlocked ? 'Blocked' : reply.rank,
+                    square: true,
+                  ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Rank line with the time in the card's top-right
-                    // corner, above the username.
-                    Row(
-                      children: [
-                        RankBadge(rank: reply.rank),
-                        const Spacer(),
-                        Text(
-                          relativeTime(reply.createdAtUtc),
-                          style: TextStyle(
-                              color: context.enclavd.textSecondary,
-                              fontSize: 11.5),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    // Username (rank color); warnings hug the name.
-                    Row(
-                      children: [
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: () => _openProfile(context, reply.userId),
-                            child: Row(
-                              children: [
-                                Flexible(
-                                  child: Text(
-                                    reply.username,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: nameColor,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 13.5,
-                                      decoration: blocked
-                                          ? TextDecoration.lineThrough
-                                          : null,
-                                      decorationColor: nameColor,
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Rank line with the time in the card's top-right
+                      // corner, above the username.
+                      Row(
+                        children: [
+                          RankBadge(rank: reply.rank),
+                          const Spacer(),
+                          Text(
+                            relativeTime(reply.createdAtUtc),
+                            style: TextStyle(
+                                color: context.enclavd.textSecondary,
+                                fontSize: 11.5),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      // Username (rank color); warnings hug the name.
+                      Row(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => _openProfile(context, reply.userId),
+                              child: Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      reply.username,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: nameColor,
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13.5,
+                                        decoration: blocked
+                                            ? TextDecoration.lineThrough
+                                            : null,
+                                        decorationColor: nameColor,
+                                      ),
                                     ),
                                   ),
-                                ),
-                                if (reply.hasWarnings) ...[
-                                  const SizedBox(width: 6),
-                                  FaIcon(FontAwesomeIcons.triangleExclamation,
-                                      color: context.enclavd.warning, size: 12),
+                                  if (reply.hasWarnings) ...[
+                                    const SizedBox(width: 6),
+                                    FaIcon(FontAwesomeIcons.triangleExclamation,
+                                        color: context.enclavd.warning,
+                                        size: 12),
+                                  ],
                                 ],
-                              ],
+                              ),
                             ),
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // Quoted context renders as its own block; the reply's own
+            // text follows (read-more clamps only the reply).
+            if (_quote != null) ...[
+              CommentQuoteCard(quote: _quote!),
+              const SizedBox(height: 8),
             ],
-          ),
-          const SizedBox(height: 12),
-          // Quoted context renders as its own block; the reply's own
-          // text follows (read-more clamps only the reply).
-          if (_quote != null) ...[
-            CommentQuoteCard(quote: _quote!),
-            const SizedBox(height: 8),
-          ],
-          Text.rich(
-            TextSpan(children: _spans()),
-            style: TextStyle(
-                color: context.enclavd.textPrimary,
-                fontSize: 14.5,
-                height: 1.4),
-          ),
-          if (_body.length > _readMoreLimit)
-            GestureDetector(
-              onTap: widget.onToggle,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 3),
-                child: Text(
-                  _expanded ? 'Show less' : 'Read more',
-                  style: TextStyle(
-                    color: context.enclavd.link,
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w600,
+            Text.rich(
+              TextSpan(children: _spans()),
+              style: TextStyle(
+                  color: context.enclavd.textPrimary,
+                  fontSize: 14.5,
+                  height: 1.4),
+            ),
+            if (_body.length > _readMoreLimit)
+              GestureDetector(
+                onTap: widget.onToggle,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 3),
+                  child: Text(
+                    _expanded ? 'Show less' : 'Read more',
+                    style: TextStyle(
+                      color: context.enclavd.link,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
-            ),
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: CommentActionsBar(
-                commentId: reply.id,
-                canReply: !reply.isOwner,
-                isOwner: reply.isOwner,
-                onReply: () => widget.onReply(reply),
-                onEdit: () => widget.onEdit(reply),
-                onDelete: _confirmDelete,
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          // The reply number sits at the bottom-right of the card body.
-          Row(
-            children: [
-              const Spacer(),
-              Text(
-                '#${widget.number}',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontFamily: 'monospace',
-                  color: context.enclavd.textSecondary,
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: CommentActionsBar(
+                  commentId: reply.id,
+                  isOwner: reply.isOwner,
+                  onReply: () => widget.onReply(reply),
+                  onEdit: () => widget.onEdit(reply),
                 ),
               ),
-            ],
-          ),
-        ],
+            ),
+            const SizedBox(height: 8),
+            // The reply number sits at the bottom-right of the card body.
+            Row(
+              children: [
+                const Spacer(),
+                Text(
+                  '#${widget.number}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontFamily: 'monospace',
+                    color: context.enclavd.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
     return card;

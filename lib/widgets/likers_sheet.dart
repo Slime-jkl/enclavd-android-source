@@ -12,7 +12,7 @@ import 'personality_chip.dart';
 import 'rank_badge.dart';
 import 'shimmer.dart';
 
-/// "Liked by" list: the site's showLikers modal as a bottom sheet.
+/// "Liked by" list: the site's showLikers modal inside our reusable sheet.
 class LikersSheet extends StatefulWidget {
   const LikersSheet({
     super.key,
@@ -62,36 +62,7 @@ class _LikersSheetState extends State<LikersSheet> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final maxHeight = MediaQuery.sizeOf(context).height * 0.8;
-    return ConstrainedBox(
-      constraints: BoxConstraints(maxHeight: maxHeight),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Header (site: "Liked by" + fa-times close).
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-            child: Row(
-              children: [
-                const Text('Liked by',
-                    style:
-                        TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-                const Spacer(),
-                IconButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  icon: FaIcon(FontAwesomeIcons.xmark,
-                      size: 18, color: context.enclavd.textSecondary),
-                ),
-              ],
-            ),
-          ),
-          Divider(height: 1, color: context.enclavd.divider),
-          Flexible(child: _buildBody()),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => _buildBody();
 
   Widget _buildBody() {
     if (_loading) {
@@ -105,19 +76,25 @@ class _LikersSheetState extends State<LikersSheet> {
       );
     }
     if (_error != null) {
-      return ErrorView(message: _error!, onRetry: _load);
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 32),
+        child: ErrorView(message: _error!, onRetry: _load),
+      );
     }
     final likers = _likers ?? const [];
     if (likers.isEmpty) {
-      return Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          FaIcon(FontAwesomeIcons.heart,
-              size: 40, color: context.enclavd.textSecondary),
-          const SizedBox(height: 12),
-          Text('No likes yet',
-              style: TextStyle(color: context.enclavd.textSecondary)),
-        ],
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 48),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            FaIcon(FontAwesomeIcons.heart,
+                size: 40, color: context.enclavd.textSecondary),
+            const SizedBox(height: 12),
+            Text('No likes yet',
+                style: TextStyle(color: context.enclavd.textSecondary)),
+          ],
+        ),
       );
     }
     return ListView.separated(
@@ -150,7 +127,7 @@ class _LikerRow extends StatelessWidget {
         ));
       },
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Row(
           children: [
             // Rank border, matching the website's likers modal.
@@ -164,16 +141,23 @@ class _LikerRow extends StatelessWidget {
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Rank on top, then the name with its personality right
+                  // after it; a long name truncates, never pushes the chip out.
+                  RankBadge(rank: liker.rank),
+                  const SizedBox(height: 3),
                   Row(
                     children: [
                       Flexible(
                         child: Text(
                           liker.username,
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: rankColor,
-                            fontWeight: FontWeight.w600, // feed author row
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
@@ -181,28 +165,19 @@ class _LikerRow extends StatelessWidget {
                         const SizedBox(width: 6),
                         PersonalityChip(type: liker.personalityType!),
                       ],
-                      const SizedBox(width: 6),
-                      // Rank badge: the site's getRankStyles() chip.
-                      RankBadge(rank: liker.rank),
-                      // Igniters carry the fire, right of the name and rank.
-                      if (liker.ignited) ...[
-                        const SizedBox(width: 6),
-                        const Tooltip(
-                          message: 'Ignited this post',
-                          child: IgniteFlameIcon(size: 20),
-                        ),
-                      ],
                     ],
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    liker.likedAt,
-                    style: TextStyle(
-                        color: context.enclavd.textSecondary, fontSize: 13),
                   ),
                 ],
               ),
             ),
+            // Igniters carry the fire on the trailing edge.
+            if (liker.ignited) ...[
+              const SizedBox(width: 8),
+              const Tooltip(
+                message: 'Ignited this post',
+                child: IgniteFlameIcon(size: 20),
+              ),
+            ],
           ],
         ),
       ),
@@ -225,9 +200,11 @@ class _LikerRowSkeleton extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ShimmerBox(width: 120, height: 14),
-                SizedBox(height: 6),
-                ShimmerBox(width: 180, height: 12),
+                ShimmerBox(width: 52, height: 15),
+                SizedBox(height: 5),
+                ShimmerBox(width: 120, height: 13),
+                SizedBox(height: 5),
+                ShimmerBox(width: 44, height: 13),
               ],
             ),
           ),
