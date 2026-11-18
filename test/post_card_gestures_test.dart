@@ -559,7 +559,7 @@ void main() {
           'domain_slug': 'music',
         });
 
-    testWidgets('domain posts show the charted badge + View in Domains row', (
+    testWidgets('domain posts show the charted badge + See thread button', (
       tester,
     ) async {
       await pumpPost(tester, domainPost());
@@ -573,10 +573,10 @@ void main() {
         find.textContaining('@BigMod', findRichText: true),
         findsOneWidget,
       );
-      expect(find.text('View in Domains (3 replies)'), findsOneWidget);
+      expect(find.text('See thread'), findsOneWidget);
     });
 
-    testWidgets('plain posts show neither the badge nor the View row', (
+    testWidgets('plain posts show neither the badge nor the thread button', (
       tester,
     ) async {
       await pumpPost(tester, _post());
@@ -585,7 +585,7 @@ void main() {
         find.textContaining('charted this to', findRichText: true),
         findsNothing,
       );
-      expect(find.textContaining('View in Domains'), findsNothing);
+      expect(find.text('See thread'), findsNothing);
     });
 
     testWidgets('domain posts route the comment button to the forum thread', (
@@ -598,7 +598,7 @@ void main() {
       await tester.tap(findFa(FontAwesomeIcons.solidCommentDots));
       await tester.pump(const Duration(milliseconds: 400));
 
-      expect(find.text('View in Domains (3 replies)'), findsOneWidget);
+      expect(find.text('See thread'), findsOneWidget);
       // Inline comment composer never appears for domain posts.
       expect(find.byType(TextField), findsNothing);
     });
