@@ -273,13 +273,13 @@ class CommentComposer extends StatelessWidget {
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) => onSend(),
                 // 1000-char cap enforced silently, no counter UI.
-                style:
-                    TextStyle(fontSize: 14, color: context.enclavd.textPrimary),
+                style: TextStyle(
+                    fontSize: 14.5, color: context.enclavd.textPrimary),
                 cursorColor: context.enclavd.link,
                 decoration: InputDecoration(
                   hintText: 'Add a comment...',
                   hintStyle: TextStyle(
-                      color: context.enclavd.textSecondary, fontSize: 14),
+                      color: context.enclavd.textSecondary, fontSize: 14.5),
                   filled: true,
                   fillColor: context.enclavd.background,
                   isDense: true,
@@ -287,15 +287,15 @@ class CommentComposer extends StatelessWidget {
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   border: OutlineInputBorder(
-                    borderRadius: const BorderRadius.all(Radius.circular(10)),
+                    borderRadius: const BorderRadius.all(Radius.circular(12)),
                     borderSide: BorderSide(color: context.enclavd.border),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: const BorderRadius.all(Radius.circular(10)),
+                    borderRadius: const BorderRadius.all(Radius.circular(12)),
                     borderSide: BorderSide(color: context.enclavd.border),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: const BorderRadius.all(Radius.circular(10)),
+                    borderRadius: const BorderRadius.all(Radius.circular(12)),
                     borderSide:
                         BorderSide(color: context.enclavd.link, width: 2),
                   ),
@@ -308,20 +308,11 @@ class CommentComposer extends StatelessWidget {
               focusNode: focusNode,
               maxLength: 1000,
             ),
-            IconButton(
-              onPressed: locked ? null : onSend,
-              icon: sending
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : FaIcon(FontAwesomeIcons.paperPlane,
-                      size: 18,
-                      color: locked
-                          ? context.enclavd.textSecondary
-                          : context.enclavd.link),
-              tooltip: 'Send comment',
+            const SizedBox(width: 4),
+            _SendButton(
+              onSend: onSend,
+              sending: sending,
+              locked: locked,
             ),
           ],
         ),
@@ -643,7 +634,7 @@ class _CommentRowState extends State<CommentRow> {
               rank: blocked ? 'Blocked' : comment.rank,
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -660,7 +651,7 @@ class _CommentRowState extends State<CommentRow> {
                           style: TextStyle(
                             color: nameColor,
                             fontWeight: FontWeight.w600,
-                            fontSize: 13,
+                            fontSize: 13.5,
                             decoration:
                                 blocked ? TextDecoration.lineThrough : null,
                             decorationColor: nameColor,
@@ -668,23 +659,13 @@ class _CommentRowState extends State<CommentRow> {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 6),
-                    // Reply anyone, edit/delete your own, just before the
-                    // timestamp.
-                    CommentActionsBar(
-                      commentId: comment.id,
-                      canReply: !comment.isOwner,
-                      isOwner: comment.isOwner,
-                      iconSize: 15,
-                      onReply: () => widget.onReply(comment),
-                      onEdit: () => widget.onEdit(comment),
-                      onDelete: _confirmDelete,
-                    ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 8),
+                    // Timestamp closes the header; the actions moved below
+                    // the body where they have room to be labelled.
                     Text(
                       relativeTime(comment.createdAtUtc),
                       style: TextStyle(
-                          color: context.enclavd.textSecondary, fontSize: 11),
+                          color: context.enclavd.textSecondary, fontSize: 11.5),
                     ),
                   ],
                 ),
@@ -707,13 +688,16 @@ class _CommentRowState extends State<CommentRow> {
                 Text.rich(
                   TextSpan(children: _spans()),
                   style: TextStyle(
-                      color: context.enclavd.textPrimary, fontSize: 14),
+                    color: context.enclavd.textPrimary,
+                    fontSize: 14.5,
+                    height: 1.4,
+                  ),
                 ),
                 if (_body.length > _readMoreLimit)
                   GestureDetector(
                     onTap: widget.onToggle,
                     child: Padding(
-                      padding: const EdgeInsets.only(top: 2),
+                      padding: const EdgeInsets.only(top: 4),
                       child: Text(
                         _expanded ? 'Show less' : 'Read more',
                         style: TextStyle(
@@ -724,6 +708,21 @@ class _CommentRowState extends State<CommentRow> {
                       ),
                     ),
                   ),
+                // Reply anyone, edit/delete your own.
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: CommentActionsBar(
+                      commentId: comment.id,
+                      canReply: !comment.isOwner,
+                      isOwner: comment.isOwner,
+                      onReply: () => widget.onReply(comment),
+                      onEdit: () => widget.onEdit(comment),
+                      onDelete: _confirmDelete,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -746,6 +745,63 @@ class _CommentRowState extends State<CommentRow> {
     if (authorId <= 0) return;
     Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => ProfileScreen(userId: authorId)),
+    );
+  }
+}
+
+/// Circular primary send control. Replaces the bare IconButton so the
+/// composer has the same emphasis as every other primary action, and keeps
+/// the tooltip the tests (and screen readers) look for.
+class _SendButton extends StatelessWidget {
+  const _SendButton({
+    required this.onSend,
+    required this.sending,
+    required this.locked,
+  });
+
+  final VoidCallback onSend;
+  final bool sending;
+  final bool locked;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.enclavd;
+    final background = locked ? palette.cardSecondary : palette.primaryButton;
+    final foreground =
+        locked ? palette.textSecondary : palette.primaryButtonText;
+    return Tooltip(
+      message: 'Send comment',
+      child: Semantics(
+        button: true,
+        label: 'Send comment',
+        enabled: !locked,
+        child: InkWell(
+          onTap: locked ? null : onSend,
+          borderRadius: BorderRadius.circular(999),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: background,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: sending
+                  ? SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: foreground,
+                      ),
+                    )
+                  : FaIcon(FontAwesomeIcons.paperPlane,
+                      size: 16, color: foreground),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

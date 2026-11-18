@@ -3,11 +3,12 @@ import 'package:flutter/material.dart';
 
 import '../theme/enclavd_theme.dart';
 
-/// The reply / edit / delete controls that sit on a comment row.
+/// The reply / edit / delete controls that sit under a comment body.
 ///
 /// These used to hide behind a long press on the row, which nobody found.
-/// They are plain icon buttons on the row now: reply on anyone's comment,
-/// edit and delete on your own.
+/// They were then icon-only buttons crammed onto the header line, which made
+/// the header noisy and the targets tiny. They are now small labelled actions
+/// under the body, matching the website's comment footer.
 class CommentActionsBar extends StatelessWidget {
   const CommentActionsBar({
     super.key,
@@ -17,7 +18,6 @@ class CommentActionsBar extends StatelessWidget {
     required this.onReply,
     required this.onEdit,
     required this.onDelete,
-    this.iconSize = 13,
   });
 
   /// Row id, only used to key the buttons so a test (or a host) can aim at
@@ -28,13 +28,12 @@ class CommentActionsBar extends StatelessWidget {
   final VoidCallback onReply;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
-  final double iconSize;
 
   @override
   Widget build(BuildContext context) {
     final palette = context.enclavd;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    return Wrap(
+      spacing: 12,
       children: [
         if (canReply)
           _button(Key('comment-reply-$commentId'), FontAwesomeIcons.reply,
@@ -42,25 +41,46 @@ class CommentActionsBar extends StatelessWidget {
         if (isOwner) ...[
           _button(Key('comment-edit-$commentId'), FontAwesomeIcons.pen, 'Edit',
               palette.textSecondary, onEdit),
-          _button(Key('comment-delete-$commentId'),
-              FontAwesomeIcons.solidTrashCan, 'Delete', palette.likeActive,
+          _button(
+              Key('comment-delete-$commentId'),
+              FontAwesomeIcons.solidTrashCan,
+              'Delete',
+              palette.likeActive,
               onDelete),
         ],
       ],
     );
   }
 
-  Widget _button(Key key, FaIconData icon, String label, Color color,
-      VoidCallback onTap) {
-    return Tooltip(
-      message: label,
-      child: InkWell(
-        key: key,
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          child: FaIcon(icon, size: iconSize, color: color),
+  Widget _button(
+      Key key, FaIconData icon, String label, Color color, VoidCallback onTap) {
+    return Semantics(
+      button: true,
+      label: label,
+      child: Tooltip(
+        message: label,
+        child: InkWell(
+          key: key,
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(6),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FaIcon(icon, size: 11, color: color),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

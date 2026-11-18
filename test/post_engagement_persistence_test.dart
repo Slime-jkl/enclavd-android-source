@@ -37,7 +37,8 @@ Post _post({
     });
 
 class _FakeSocial extends SocialService {
-  _FakeSocial() : super(ApiClient(store: _NoopStore(), apiBaseUrl: 'https://x'));
+  _FakeSocial()
+      : super(ApiClient(store: _NoopStore(), apiBaseUrl: 'https://x'));
 
   int toggleCalls = 0;
   bool respondLiked = true;
@@ -129,15 +130,28 @@ void main() {
     ));
   }
 
-  Future<void> tapLike(WidgetTester tester, int postId) async {
-    await tester.tap(heart(postId));
-    // The card's double-tap recognizer delays a single tap ~300ms.
+  /// Likes now come from dragging the heart onto the post, so a plain tap
+  /// only teaches the gesture. Hold briefly so the drag arms, then drop.
+  Future<void> likeViaDrag(WidgetTester tester, int postId) async {
+    final gesture = await tester.startGesture(tester.getCenter(heart(postId)));
     await tester.pump(const Duration(milliseconds: 400));
+    await gesture.moveTo(tester.getCenter(find.text('post $postId')));
+    await tester.pump(const Duration(milliseconds: 16));
+    await gesture.up();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 800));
   }
 
-  Future<void> scrollTo(WidgetTester tester, ScrollController c, double px) async {
+  /// Unliking is still a single tap and fires on pointer-up.
+  Future<void> tapLike(WidgetTester tester, int postId) async {
+    await tester.tap(heart(postId));
+    await tester.pump(const Duration(milliseconds: 16));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 800));
+  }
+
+  Future<void> scrollTo(
+      WidgetTester tester, ScrollController c, double px) async {
     c.jumpTo(px);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 800));
@@ -151,7 +165,7 @@ void main() {
       addTearDown(controller.dispose);
       await pumpList(tester, posts, controller, report: (_) {});
 
-      await tapLike(tester, 1);
+      await likeViaDrag(tester, 1);
       expect(find.text('Liked by 1'), findsOneWidget);
 
       // Out of view: ListView drops the element and its State, so the card has
@@ -167,14 +181,15 @@ void main() {
           EnclavdPalette.dark.likeActive);
     });
 
-    testWidgets('a screen that never wires the report loses the like (the '
+    testWidgets(
+        'a screen that never wires the report loses the like (the '
         'reported bug)', (tester) async {
       final posts = [for (var i = 1; i <= 8; i++) _post(id: i)];
       final controller = ScrollController();
       addTearDown(controller.dispose);
       await pumpList(tester, posts, controller);
 
-      await tapLike(tester, 1);
+      await likeViaDrag(tester, 1);
       expect(find.text('Liked by 1'), findsOneWidget);
 
       await scrollTo(tester, controller, controller.position.maxScrollExtent);
