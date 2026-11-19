@@ -37,10 +37,24 @@ void main() {
         reason: 'titles are escaped - never raw HTML');
     expect(html, contains('src="/public/articles/c.jpg"'));
     expect(html, contains('Continue Reading'));
-    expect(html, contains("url('assets/fonts/Montserrat/"),
-        reason: 'the site font is self-hosted under assets/fonts');
+    expect(html, contains("font-family: 'Montserrat'"),
+        reason: 'the body uses the bundled site font');
     expect(html, contains('EnclavdBridge'),
         reason: 'the auto-height measurement script ships with every doc');
+  });
+
+  test('embeds the supplied inlined font CSS', () {
+    const fontCss = "@font-face{font-family:'Montserrat';font-style:normal;"
+        "font-weight:100 900;"
+        "src:url(data:font/woff2;base64,AAAA) format('woff2');}";
+    final html = buildArticleHtml(
+      contentHtml: '<p>x</p>',
+      related: const [],
+      baseUrl: 'https://enclavd.com',
+      fontCss: fontCss,
+    );
+    expect(html, contains(fontCss),
+        reason: 'the inlined @font-face rules are embedded verbatim');
   });
 
   test('omits the Continue Reading section when there is nothing related',
