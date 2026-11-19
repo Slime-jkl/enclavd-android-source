@@ -66,14 +66,21 @@ const List<_Face> _faces = [
   ),
 ];
 
-Future<String>? _cssFuture;
+String? _css;
 
 /// `@font-face` rules for Montserrat with the bundled woff2 files inlined.
 ///
 /// The article WebView gets its document through `loadHtmlString`, whose base
 /// URL is the API host, so the WebView cannot fetch `assets/...` URLs. Reading
 /// the bundled font bytes and inlining them keeps the app font in the page.
-Future<String> montserratWebFontCss() => _cssFuture ??= _buildCss();
+///
+/// Only the resolved string is cached, not the [Future]: a future created in
+/// one zone (e.g. a widget test) never completes for awaiters in another.
+Future<String> montserratWebFontCss() async {
+  final cached = _css;
+  if (cached != null) return cached;
+  return _css = await _buildCss();
+}
 
 Future<String> _buildCss() async {
   final buffer = StringBuffer();
