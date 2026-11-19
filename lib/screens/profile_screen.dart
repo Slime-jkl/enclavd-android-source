@@ -126,8 +126,9 @@ class _ProfileScreenState extends State<ProfileScreen>
       if (!mounted) return;
       setState(() {
         _profileLoading = false;
-        _profileError =
-            e.status == 404 ? 'This member does not exist.' : e.message;
+        _profileError = e.status == 404
+            ? 'This member does not exist.'
+            : e.message;
       });
       if (e.status == 401) {
         await _services.apiClient.clearSession();
@@ -317,9 +318,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     final user = item.user;
     if (user != null && !user.isOwn) {
       Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => ProfileScreen(userId: user.id),
-        ),
+        MaterialPageRoute<void>(builder: (_) => ProfileScreen(userId: user.id)),
       );
     }
   }
@@ -353,8 +352,10 @@ class _ProfileScreenState extends State<ProfileScreen>
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Delete this post?'),
-        content: const Text('This cannot be undone. The post and its image '
-            '(if any) will be permanently removed.'),
+        content: const Text(
+          'This cannot be undone. The post and its image '
+          '(if any) will be permanently removed.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -362,8 +363,10 @@ class _ProfileScreenState extends State<ProfileScreen>
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            child: Text('Delete',
-                style: TextStyle(color: context.enclavd.likeActive)),
+            child: Text(
+              'Delete',
+              style: TextStyle(color: context.enclavd.likeActive),
+            ),
           ),
         ],
       ),
@@ -387,7 +390,8 @@ class _ProfileScreenState extends State<ProfileScreen>
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-            const SnackBar(content: Text('Could not delete the post.')));
+          const SnackBar(content: Text('Could not delete the post.')),
+        );
     }
   }
 
@@ -411,8 +415,11 @@ class _ProfileScreenState extends State<ProfileScreen>
       setState(() => _followBusy = false);
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(
-            content: Text('Could not update follow. ${friendlyErrorText(e)}')));
+        ..showSnackBar(
+          SnackBar(
+            content: Text('Could not update follow. ${friendlyErrorText(e)}'),
+          ),
+        );
     }
   }
 
@@ -471,7 +478,8 @@ class _ProfileScreenState extends State<ProfileScreen>
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
-            const SnackBar(content: Text('Could not start a conversation.')));
+          const SnackBar(content: Text('Could not start a conversation.')),
+        );
     } finally {
       if (mounted) setState(() => _messageBusy = false);
     }
@@ -481,18 +489,14 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   void _openPost(int postId) {
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => PostDetailScreen(postId: postId),
-      ),
+      MaterialPageRoute<void>(builder: (_) => PostDetailScreen(postId: postId)),
     );
   }
 
   void _openProfile(int userId) {
     if (userId == widget.userId) return;
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => ProfileScreen(userId: userId),
-      ),
+      MaterialPageRoute<void>(builder: (_) => ProfileScreen(userId: userId)),
     );
   }
 
@@ -545,10 +549,8 @@ class _ProfileScreenState extends State<ProfileScreen>
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _FeaturedPickerSheet(
-        profile: profile,
-        service: _services.profile,
-      ),
+      builder: (_) =>
+          _FeaturedPickerSheet(profile: profile, service: _services.profile),
     );
     if (saved == true && mounted) await _loadProfile();
   }
@@ -607,15 +609,16 @@ class _ProfileScreenState extends State<ProfileScreen>
       itemBuilder: (context, index) {
         if (index == 0) {
           return _ProfileHeader(
-              profile: profile!,
-              onFollow: _toggleFollow,
-              followBusy: _followBusy,
-              onMessage: _openConversation,
-              messageBusy: _messageBusy,
-              onFollowersTap: () => _openFollowList(FollowListKind.followers),
-              onFollowingTap: () => _openFollowList(FollowListKind.following),
-              onEditBio: _editBio,
-              onTagsTap: _openTags);
+            profile: profile!,
+            onFollow: _toggleFollow,
+            followBusy: _followBusy,
+            onMessage: _openConversation,
+            messageBusy: _messageBusy,
+            onFollowersTap: () => _openFollowList(FollowListKind.followers),
+            onFollowingTap: () => _openFollowList(FollowListKind.following),
+            onEditBio: _editBio,
+            onTagsTap: _openTags,
+          );
         }
         if (index == 1) {
           return _ProfileInfoSection(
@@ -643,7 +646,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                 labelColor: context.enclavd.textPrimary,
                 unselectedLabelColor: context.enclavd.textSecondary,
                 labelStyle: const TextStyle(
-                    fontSize: 13.5, fontWeight: FontWeight.w600),
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w600,
+                ),
                 tabs: const [
                   Tab(
                     icon: FaIcon(FontAwesomeIcons.fileLines, size: 15),
@@ -659,8 +664,10 @@ class _ProfileScreenState extends State<ProfileScreen>
           }
           return const Padding(
             padding: EdgeInsets.only(top: 12, bottom: 4),
-            child: Text('Posts',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            child: Text(
+              'Posts',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
           );
         }
         if (index >= 3 + listLength) {
@@ -727,12 +734,16 @@ class _ProfileScreenState extends State<ProfileScreen>
         padding: const EdgeInsets.symmetric(vertical: 24),
         child: Column(
           children: [
-            Text(_postsError!,
-                textAlign: TextAlign.center,
-                style: TextStyle(color: context.enclavd.textSecondary)),
+            Text(
+              _postsError!,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: context.enclavd.textSecondary),
+            ),
             const SizedBox(height: 12),
             ElevatedButton(
-                onPressed: _loadFirstPosts, child: const Text('Retry')),
+              onPressed: _loadFirstPosts,
+              child: const Text('Retry'),
+            ),
           ],
         ),
       );
@@ -746,8 +757,10 @@ class _ProfileScreenState extends State<ProfileScreen>
         child: Center(
           child: Text(
             own ? 'No posts yet.' : 'This user has no posts.',
-            style:
-                TextStyle(color: context.enclavd.textSecondary, fontSize: 14),
+            style: TextStyle(
+              color: context.enclavd.textSecondary,
+              fontSize: 14,
+            ),
           ),
         ),
       );
@@ -786,12 +799,16 @@ class _ProfileScreenState extends State<ProfileScreen>
         padding: const EdgeInsets.symmetric(vertical: 24),
         child: Column(
           children: [
-            Text(_activityError!,
-                textAlign: TextAlign.center,
-                style: TextStyle(color: context.enclavd.textSecondary)),
+            Text(
+              _activityError!,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: context.enclavd.textSecondary),
+            ),
             const SizedBox(height: 12),
             ElevatedButton(
-                onPressed: _loadFirstActivity, child: const Text('Retry')),
+              onPressed: _loadFirstActivity,
+              child: const Text('Retry'),
+            ),
           ],
         ),
       );
@@ -801,13 +818,18 @@ class _ProfileScreenState extends State<ProfileScreen>
         padding: const EdgeInsets.symmetric(vertical: 32),
         child: Column(
           children: [
-            FaIcon(FontAwesomeIcons.clockRotateLeft,
-                color: context.enclavd.textSecondary, size: 30),
+            FaIcon(
+              FontAwesomeIcons.clockRotateLeft,
+              color: context.enclavd.textSecondary,
+              size: 30,
+            ),
             const SizedBox(height: 12),
             Text(
               'No activity yet',
-              style:
-                  TextStyle(color: context.enclavd.textSecondary, fontSize: 15),
+              style: TextStyle(
+                color: context.enclavd.textSecondary,
+                fontSize: 15,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
@@ -815,7 +837,9 @@ class _ProfileScreenState extends State<ProfileScreen>
               'will show up here.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                  color: context.enclavd.textSecondary, fontSize: 12.5),
+                color: context.enclavd.textSecondary,
+                fontSize: 12.5,
+              ),
             ),
           ],
         ),
@@ -889,8 +913,10 @@ class _ProfileHeader extends StatelessWidget {
                     children: [
                       EnclavdAvatar(
                         size: 64,
-                        url: resolveMediaUrl(AppConfig.apiBaseUrl,
-                            avatarPath: profile.profilePictureUrl),
+                        url: resolveMediaUrl(
+                          AppConfig.apiBaseUrl,
+                          avatarPath: profile.profilePictureUrl,
+                        ),
                         rank: profile.isBlocked ? 'Blocked' : profile.rank,
                       ),
                       if (!profile.isOwn)
@@ -906,7 +932,9 @@ class _ProfileHeader extends StatelessWidget {
                                   ? const Color(0xFF22C55E) // green-500
                                   : const Color(0xFF6B7280), // gray-500
                               border: Border.all(
-                                  color: context.enclavd.card, width: 2),
+                                color: context.enclavd.card,
+                                width: 2,
+                              ),
                             ),
                           ),
                         ),
@@ -943,102 +971,138 @@ class _ProfileHeader extends StatelessWidget {
                             ],
                             if (profile.warningCount > 0) ...[
                               const SizedBox(width: 6),
-                              FaIcon(FontAwesomeIcons.triangleExclamation,
-                                  color: context.enclavd.warning, size: 14),
+                              FaIcon(
+                                FontAwesomeIcons.triangleExclamation,
+                                color: context.enclavd.warning,
+                                size: 14,
+                              ),
                               const SizedBox(width: 3),
                               Text(
                                 '${profile.warningCount}',
                                 style: TextStyle(
-                                    color: context.enclavd.warning,
-                                    fontSize: 11),
+                                  color: context.enclavd.warning,
+                                  fontSize: 11,
+                                ),
                               ),
                             ],
                           ],
                         ),
                         if (profile.fullName.isNotEmpty) ...[
                           const SizedBox(height: 2),
-                          Text(profile.fullName,
-                              style: TextStyle(
-                                  color: context.enclavd.textSecondary,
-                                  fontSize: 13)),
+                          Text(
+                            profile.fullName,
+                            style: TextStyle(
+                              color: context.enclavd.textSecondary,
+                              fontSize: 13,
+                            ),
+                          ),
                         ],
                         const SizedBox(height: 10),
                         // Follow stats; each count opens the connections
                         // screen (blocked profiles keep a plain read-only row).
-                        Row(
-                          children: [
-                            InkWell(
-                              onTap: profile.isBlocked ? null : onFollowersTap,
-                              borderRadius: BorderRadius.circular(6),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 4, vertical: 2),
-                                child: Row(
-                                  children: [
-                                    Text('${profile.followerCount}',
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Row(
+                            children: [
+                              InkWell(
+                                onTap: profile.isBlocked
+                                    ? null
+                                    : onFollowersTap,
+                                borderRadius: BorderRadius.circular(6),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                    vertical: 2,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Text(
+                                        '${profile.followerCount}',
                                         style: TextStyle(
-                                            color: context.enclavd.textPrimary,
-                                            fontSize: 14)),
-                                    const SizedBox(width: 4),
-                                    Text('Followers',
+                                          color: context.enclavd.textPrimary,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Followers',
                                         style: TextStyle(
-                                            color:
-                                                context.enclavd.textSecondary,
-                                            fontSize: 14)),
-                                  ],
+                                          color: context.enclavd.textSecondary,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text('-',
+                              const SizedBox(width: 8),
+                              Text(
+                                '-',
                                 style: TextStyle(
-                                    color: context.enclavd.textSecondary,
-                                    fontSize: 14)),
-                            const SizedBox(width: 8),
-                            InkWell(
-                              onTap: profile.isBlocked ? null : onFollowingTap,
-                              borderRadius: BorderRadius.circular(6),
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 4, vertical: 2),
-                                child: Row(
-                                  children: [
-                                    Text('${profile.followingCount}',
-                                        style: TextStyle(
-                                            color: context.enclavd.textPrimary,
-                                            fontSize: 14)),
-                                    const SizedBox(width: 4),
-                                    Text('Following',
-                                        style: TextStyle(
-                                            color:
-                                                context.enclavd.textSecondary,
-                                            fontSize: 14)),
-                                  ],
+                                  color: context.enclavd.textSecondary,
+                                  fontSize: 14,
                                 ),
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 8),
+                              InkWell(
+                                onTap: profile.isBlocked
+                                    ? null
+                                    : onFollowingTap,
+                                borderRadius: BorderRadius.circular(6),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                    vertical: 2,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Text(
+                                        '${profile.followingCount}',
+                                        style: TextStyle(
+                                          color: context.enclavd.textPrimary,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Following',
+                                        style: TextStyle(
+                                          color: context.enclavd.textSecondary,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                         if (!profile.isOwn) ...[
                           const SizedBox(height: 12),
-                          // Follow + Message in one row; message disables when blocked.
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              _FollowButton(
-                                profile: profile,
-                                busy: followBusy,
-                                onPressed: onFollow,
-                              ),
-                              if (AppConfig.enableChat) ...[
-                                const SizedBox(width: 8),
-                                _MessageButton(
+                          // Follow + Message stay on one line: scale the pair
+                          // down rather than stacking or clipping.
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _FollowButton(
                                   profile: profile,
-                                  busy: messageBusy,
-                                  onPressed: onMessage,
+                                  busy: followBusy,
+                                  onPressed: onFollow,
                                 ),
+                                if (AppConfig.enableChat) ...[
+                                  const SizedBox(width: 8),
+                                  _MessageButton(
+                                    profile: profile,
+                                    busy: messageBusy,
+                                    onPressed: onMessage,
+                                  ),
+                                ],
                               ],
-                            ],
+                            ),
                           ),
                         ],
                       ],
@@ -1056,13 +1120,18 @@ class _ProfileHeader extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      FaIcon(FontAwesomeIcons.hashtag,
-                          size: 12, color: context.enclavd.link),
+                      FaIcon(
+                        FontAwesomeIcons.hashtag,
+                        size: 12,
+                        color: context.enclavd.link,
+                      ),
                       const SizedBox(width: 6),
                       Text(
                         followedTagsLabel(profile),
                         style: TextStyle(
-                            color: context.enclavd.link, fontSize: 12.5),
+                          color: context.enclavd.link,
+                          fontSize: 12.5,
+                        ),
                       ),
                     ],
                   ),
@@ -1081,13 +1150,21 @@ class _ProfileHeader extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 6),
-                  Text('Prestige',
-                      style: TextStyle(
-                          color: context.enclavd.textSecondary, fontSize: 12)),
+                  Text(
+                    'Prestige',
+                    style: TextStyle(
+                      color: context.enclavd.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
                   const Spacer(),
-                  Text(formatPrestige(profile.prestige),
-                      style: TextStyle(
-                          color: context.enclavd.textSecondary, fontSize: 12)),
+                  Text(
+                    formatPrestige(profile.prestige),
+                    style: TextStyle(
+                      color: context.enclavd.textSecondary,
+                      fontSize: 12,
+                    ),
+                  ),
                   const SizedBox(width: 6),
                   Container(
                     width: 8,
@@ -1161,11 +1238,14 @@ class _ProfileHeader extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          Text('Bio',
-                              style: TextStyle(
-                                  color: context.enclavd.textPrimary,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14)),
+                          Text(
+                            'Bio',
+                            style: TextStyle(
+                              color: context.enclavd.textPrimary,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
                           if (profile.isOwn) ...[
                             const Spacer(),
                             InkWell(
@@ -1173,16 +1253,24 @@ class _ProfileHeader extends StatelessWidget {
                               borderRadius: BorderRadius.circular(6),
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(
-                                    horizontal: 4, vertical: 2),
+                                  horizontal: 4,
+                                  vertical: 2,
+                                ),
                                 child: Row(
                                   children: [
-                                    FaIcon(FontAwesomeIcons.penToSquare,
-                                        size: 11, color: context.enclavd.link),
+                                    FaIcon(
+                                      FontAwesomeIcons.penToSquare,
+                                      size: 11,
+                                      color: context.enclavd.link,
+                                    ),
                                     const SizedBox(width: 4),
-                                    Text('Edit',
-                                        style: TextStyle(
-                                            color: context.enclavd.link,
-                                            fontSize: 12.5)),
+                                    Text(
+                                      'Edit',
+                                      style: TextStyle(
+                                        color: context.enclavd.link,
+                                        fontSize: 12.5,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
@@ -1194,11 +1282,12 @@ class _ProfileHeader extends StatelessWidget {
                       Text(
                         profile.bio.isEmpty ? 'No bio yet.' : profile.bio,
                         style: TextStyle(
-                            color: profile.bio.isEmpty
-                                ? context.enclavd.textSecondary
-                                : context.enclavd.textPrimary,
-                            fontSize: 14,
-                            height: 1.3),
+                          color: profile.bio.isEmpty
+                              ? context.enclavd.textSecondary
+                              : context.enclavd.textPrimary,
+                          fontSize: 14,
+                          height: 1.3,
+                        ),
                       ),
                     ],
                   ),
@@ -1341,11 +1430,14 @@ class _FeaturedPanel extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text('Featured',
-                  style: TextStyle(
-                      color: context.enclavd.textPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600)),
+              Text(
+                'Featured',
+                style: TextStyle(
+                  color: context.enclavd.textPrimary,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const Spacer(),
               if (profile.isOwn)
                 AppButton(
@@ -1363,13 +1455,19 @@ class _FeaturedPanel extends StatelessWidget {
               child: Center(
                 child: Column(
                   children: [
-                    FaIcon(FontAwesomeIcons.star,
-                        size: 28, color: context.enclavd.textSecondary),
+                    FaIcon(
+                      FontAwesomeIcons.star,
+                      size: 28,
+                      color: context.enclavd.textSecondary,
+                    ),
                     const SizedBox(height: 8),
-                    Text('No featured posts',
-                        style: TextStyle(
-                            color: context.enclavd.textSecondary,
-                            fontSize: 13)),
+                    Text(
+                      'No featured posts',
+                      style: TextStyle(
+                        color: context.enclavd.textSecondary,
+                        fontSize: 13,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1430,8 +1528,10 @@ class _FeaturedImageCell extends StatelessWidget {
                 right: 0,
                 bottom: 0,
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 4,
+                  ),
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
@@ -1441,19 +1541,33 @@ class _FeaturedImageCell extends StatelessWidget {
                   ),
                   child: Row(
                     children: [
-                      const FaIcon(FontAwesomeIcons.solidHeart,
-                          size: 9, color: Colors.white),
+                      const FaIcon(
+                        FontAwesomeIcons.solidHeart,
+                        size: 9,
+                        color: Colors.white,
+                      ),
                       const SizedBox(width: 3),
-                      Text('${image.likeCount}',
-                          style: const TextStyle(
-                              color: Colors.white, fontSize: 10)),
+                      Text(
+                        '${image.likeCount}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                        ),
+                      ),
                       const SizedBox(width: 8),
-                      const FaIcon(FontAwesomeIcons.solidCommentDots,
-                          size: 9, color: Colors.white),
+                      const FaIcon(
+                        FontAwesomeIcons.solidCommentDots,
+                        size: 9,
+                        color: Colors.white,
+                      ),
                       const SizedBox(width: 3),
-                      Text('${image.commentCount}',
-                          style: const TextStyle(
-                              color: Colors.white, fontSize: 10)),
+                      Text(
+                        '${image.commentCount}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1482,7 +1596,8 @@ class _AboutPanel extends StatelessWidget {
     final flag = location == null ? null : _flagEmoji(location.countryCode);
     final locationPlace = location?.displayText ?? '';
     final locationVisible = profile.privacyLocation && locationPlace.isNotEmpty;
-    final genderVisible = profile.privacyGender &&
+    final genderVisible =
+        profile.privacyGender &&
         (profile.gender == 'MALE' || profile.gender == 'FEMALE');
     final birthdayVisible =
         profile.privacyBirthday && (profile.birthdate ?? '').isNotEmpty;
@@ -1509,10 +1624,12 @@ class _AboutPanel extends StatelessWidget {
                       label: 'Location',
                       child: profile.privacyLocation
                           ? (locationVisible
-                              ? Text(flag == null
-                                  ? locationPlace
-                                  : '$flag $locationPlace')
-                              : const Text('Not set'))
+                                ? Text(
+                                    flag == null
+                                        ? locationPlace
+                                        : '$flag $locationPlace',
+                                  )
+                                : const Text('Not set'))
                           : const _RedactedBadge(),
                     ),
                   ],
@@ -1540,9 +1657,9 @@ class _AboutPanel extends StatelessWidget {
                                       : const Color(0xFFF472B6), // pink-400
                                 ),
                                 const SizedBox(width: 5),
-                                Text(profile.gender == 'MALE'
-                                    ? 'Male'
-                                    : 'Female'),
+                                Text(
+                                  profile.gender == 'MALE' ? 'Male' : 'Female',
+                                ),
                               ],
                             )
                           : const _RedactedBadge(),
@@ -1577,8 +1694,10 @@ class _AboutPanel extends StatelessWidget {
             _AboutItem(
               icon: FontAwesomeIcons.envelopeOpenText,
               label: 'Invited by',
-              child: Text('Not set',
-                  style: TextStyle(color: context.enclavd.textSecondary)),
+              child: Text(
+                'Not set',
+                style: TextStyle(color: context.enclavd.textSecondary),
+              ),
             ),
         ],
       ),
@@ -1609,10 +1728,11 @@ class _AboutItem extends StatelessWidget {
             Text(
               label.toUpperCase(),
               style: TextStyle(
-                  color: context.enclavd.textSecondary,
-                  fontSize: 10,
-                  letterSpacing: 0.6,
-                  fontWeight: FontWeight.w600),
+                color: context.enclavd.textSecondary,
+                fontSize: 10,
+                letterSpacing: 0.6,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),
@@ -1640,10 +1760,11 @@ class _RedactedBadge extends StatelessWidget {
       child: const Text(
         '[REDACTED]',
         style: TextStyle(
-            color: Colors.black,
-            fontSize: 9.5,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.4),
+          color: Colors.black,
+          fontSize: 9.5,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.4,
+        ),
       ),
     );
   }
@@ -1713,8 +1834,9 @@ class _PersonalityPanelState extends State<_PersonalityPanel> {
       _error = null;
     });
     try {
-      final personalityFuture =
-          widget.services.personality.fetchPersonality(widget.profile.id);
+      final personalityFuture = widget.services.personality.fetchPersonality(
+        widget.profile.id,
+      );
       final configFuture = widget.services.siteConfig
           .fetch()
           .then<SiteConfig?>((c) => c)
@@ -1830,10 +1952,7 @@ class _PersonalityPanelState extends State<_PersonalityPanel> {
           ),
           const SizedBox(height: 12),
         ],
-        _PersonalityTypeInfoCard(
-          type: data.personalityType,
-          info: data.info,
-        ),
+        _PersonalityTypeInfoCard(type: data.personalityType, info: data.info),
         if (data.traits != null) ...[
           const SizedBox(height: 12),
           _TraitBalanceCard(traits: data.traits!),
@@ -1882,14 +2001,22 @@ class _PersonalityCompareCardState extends State<_PersonalityCompareCard>
   @override
   void initState() {
     super.initState();
-    _drift =
-        AnimationController(vsync: this, duration: const Duration(seconds: 9));
+    _drift = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 9),
+    );
     _pulse = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 1400));
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    );
     _trace = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 5200));
+      vsync: this,
+      duration: const Duration(milliseconds: 5200),
+    );
     _entry = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 520));
+      vsync: this,
+      duration: const Duration(milliseconds: 520),
+    );
     _drift.repeat(reverse: true);
     _pulse.repeat(reverse: true);
     _trace.repeat();
@@ -1932,18 +2059,20 @@ class _PersonalityCompareCardState extends State<_PersonalityCompareCard>
     final theirType = widget.memberType.isNotEmpty
         ? widget.memberType
         : widget.compat.theirType;
-    final viewerColor = context.enclavd.personalityColor(viewerType) ??
+    final viewerColor =
+        context.enclavd.personalityColor(viewerType) ??
         context.enclavd.textSecondary;
-    final memberColor = context.enclavd.personalityColor(theirType) ??
+    final memberColor =
+        context.enclavd.personalityColor(theirType) ??
         context.enclavd.textSecondary;
     final percentage = widget.compat.percentage;
     final bandColor = percentage == null
         ? context.enclavd.textSecondary
         : percentage >= 70
-            ? const Color(0xFF22C55E)
-            : percentage >= 40
-                ? const Color(0xFFEAB308)
-                : const Color(0xFFEF4444);
+        ? const Color(0xFF22C55E)
+        : percentage >= 40
+        ? const Color(0xFFEAB308)
+        : const Color(0xFFEF4444);
     final differentTypes = viewerType != theirType;
 
     final strengths = <String>[
@@ -2019,31 +2148,37 @@ class _PersonalityCompareCardState extends State<_PersonalityCompareCard>
                             padding: const EdgeInsets.only(top: 22),
                             child: ScaleTransition(
                               scale: Tween<double>(begin: 1, end: 1.1).animate(
-                                  CurvedAnimation(
-                                      parent: _pulse, curve: Curves.easeInOut)),
+                                CurvedAnimation(
+                                  parent: _pulse,
+                                  curve: Curves.easeInOut,
+                                ),
+                              ),
                               child: Text.rich(
                                 TextSpan(
                                   children: [
                                     TextSpan(
                                       text: viewerType,
                                       style: TextStyle(
-                                          color: viewerColor,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w800),
+                                        color: viewerColor,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                      ),
                                     ),
                                     TextSpan(
                                       text: ' × ',
                                       style: TextStyle(
-                                          color: context.enclavd.textSecondary,
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w600),
+                                        color: context.enclavd.textSecondary,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
                                     TextSpan(
                                       text: theirType,
                                       style: TextStyle(
-                                          color: memberColor,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w800),
+                                        color: memberColor,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w800,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -2064,17 +2199,19 @@ class _PersonalityCompareCardState extends State<_PersonalityCompareCard>
                           Text(
                             'Synergy',
                             style: TextStyle(
-                                color: context.enclavd.textSecondary,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500),
+                              color: context.enclavd.textSecondary,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                           const Spacer(),
                           Text(
                             '$percentage%',
                             style: TextStyle(
-                                color: bandColor,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800),
+                              color: bandColor,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
                         ],
                       ),
@@ -2321,8 +2458,9 @@ class _ReasonCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: context.enclavd.cardSecondary.withValues(alpha: 0.45),
         borderRadius: BorderRadius.circular(8),
-        border:
-            Border.all(color: context.enclavd.border.withValues(alpha: 0.6)),
+        border: Border.all(
+          color: context.enclavd.border.withValues(alpha: 0.6),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2334,17 +2472,22 @@ class _ReasonCard extends StatelessWidget {
               Text(
                 title,
                 style: TextStyle(
-                    color: context.enclavd.textSecondary,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600),
+                  color: context.enclavd.textSecondary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),
           const SizedBox(height: 7),
           if (items.isEmpty)
-            Text('—',
-                style: TextStyle(
-                    color: context.enclavd.textSecondary, fontSize: 12))
+            Text(
+              '—',
+              style: TextStyle(
+                color: context.enclavd.textSecondary,
+                fontSize: 12,
+              ),
+            )
           else
             for (final item in items)
               Padding(
@@ -2392,26 +2535,33 @@ class _PersonalityTypeInfoCard extends StatelessWidget {
                         alignment: PlaceholderAlignment.middle,
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 5),
+                            horizontal: 8,
+                            vertical: 5,
+                          ),
                           decoration: BoxDecoration(
                             color: color.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
-                                color: color.withValues(alpha: 0.40)),
+                              color: color.withValues(alpha: 0.40),
+                            ),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              FaIcon(FontAwesomeIcons.brain,
-                                  size: 11, color: color),
+                              FaIcon(
+                                FontAwesomeIcons.brain,
+                                size: 11,
+                                color: color,
+                              ),
                               const SizedBox(width: 6),
                               Text(
                                 type,
                                 style: TextStyle(
-                                    color: color,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 1.2),
+                                  color: color,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1.2,
+                                ),
                               ),
                             ],
                           ),
@@ -2421,9 +2571,10 @@ class _PersonalityTypeInfoCard extends StatelessWidget {
                       TextSpan(
                         text: 'The ${info.title}',
                         style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            height: 1.35),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          height: 1.35,
+                        ),
                       ),
                     ],
                   ),
@@ -2432,9 +2583,10 @@ class _PersonalityTypeInfoCard extends StatelessWidget {
                 Text(
                   info.description,
                   style: TextStyle(
-                      color: context.enclavd.textSecondary,
-                      fontSize: 13.5,
-                      height: 1.5),
+                    color: context.enclavd.textSecondary,
+                    fontSize: 13.5,
+                    height: 1.5,
+                  ),
                 ),
                 const SizedBox(height: 14),
                 Container(
@@ -2445,9 +2597,10 @@ class _PersonalityTypeInfoCard extends StatelessWidget {
                 Text(
                   'Strengths',
                   style: TextStyle(
-                      color: context.enclavd.textSecondary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600),
+                    color: context.enclavd.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 BulletList(
@@ -2459,9 +2612,10 @@ class _PersonalityTypeInfoCard extends StatelessWidget {
                 Text(
                   'Growth areas',
                   style: TextStyle(
-                      color: context.enclavd.textSecondary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600),
+                    color: context.enclavd.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 BulletList(
@@ -2529,9 +2683,10 @@ class _TraitBalanceCard extends StatelessWidget {
           Text(
             'Trait balance',
             style: TextStyle(
-                color: context.enclavd.textSecondary,
-                fontSize: 11,
-                fontWeight: FontWeight.w600),
+              color: context.enclavd.textSecondary,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 12),
           LayoutBuilder(
@@ -2682,14 +2837,16 @@ InlineSpan _highlightTypes(
     final color = code == viewerType
         ? viewerColor
         : code == memberType
-            ? memberColor
-            : null;
-    spans.add(TextSpan(
-      text: code,
-      style: color == null
-          ? null
-          : TextStyle(color: color, fontWeight: FontWeight.w700),
-    ));
+        ? memberColor
+        : null;
+    spans.add(
+      TextSpan(
+        text: code,
+        style: color == null
+            ? null
+            : TextStyle(color: color, fontWeight: FontWeight.w700),
+      ),
+    );
     start = match.end;
   }
   if (start < text.length) {
@@ -2743,8 +2900,10 @@ class _TagsSheetState extends State<_TagsSheet> {
       });
       return;
     }
-    _debounce =
-        Timer(const Duration(milliseconds: 350), () => _runSearch(query));
+    _debounce = Timer(
+      const Duration(milliseconds: 350),
+      () => _runSearch(query),
+    );
   }
 
   Future<void> _runSearch(String query) async {
@@ -2793,9 +2952,11 @@ class _TagsSheetState extends State<_TagsSheet> {
     final isOwn = widget.profile.isOwn;
     final searching = _search.text.trim().isNotEmpty;
     final names = _followed.keys.toList()
-      ..sort((a, b) => (_followed[a] ?? '')
-          .toLowerCase()
-          .compareTo((_followed[b] ?? '').toLowerCase()));
+      ..sort(
+        (a, b) => (_followed[a] ?? '').toLowerCase().compareTo(
+          (_followed[b] ?? '').toLowerCase(),
+        ),
+      );
     return AppSheet(
       heightFactor: 0.78,
       title: isOwn
@@ -2813,8 +2974,10 @@ class _TagsSheetState extends State<_TagsSheet> {
                   padding: EdgeInsets.only(left: 12, right: 8),
                   child: FaIcon(FontAwesomeIcons.magnifyingGlass, size: 13),
                 ),
-                prefixIconConstraints:
-                    const BoxConstraints(minWidth: 0, minHeight: 0),
+                prefixIconConstraints: const BoxConstraints(
+                  minWidth: 0,
+                  minHeight: 0,
+                ),
                 isDense: true,
                 filled: true,
                 fillColor: context.enclavd.cardSecondary,
@@ -2834,72 +2997,77 @@ class _TagsSheetState extends State<_TagsSheet> {
           Flexible(
             child: searching
                 ? (_results.isEmpty && !_searching
-                    ? Text('No hashtags found.',
-                        style: TextStyle(
-                            color: context.enclavd.textSecondary, fontSize: 13))
-                    : ListView.builder(
-                        itemCount: _results.length,
-                        itemBuilder: (context, index) {
-                          final tag = _results[index];
-                          final following = _followed.containsKey(tag.id);
-                          return ListTile(
-                            dense: true,
-                            contentPadding: EdgeInsets.zero,
-                            title: Text('#${tag.tagName}'),
-                            trailing: _busy.contains(tag.id)
-                                ? const AppSpinner(size: 16)
-                                : Text(
-                                    following ? 'Following' : 'Follow',
-                                    style: TextStyle(
+                      ? Text(
+                          'No hashtags found.',
+                          style: TextStyle(
+                            color: context.enclavd.textSecondary,
+                            fontSize: 13,
+                          ),
+                        )
+                      : ListView.builder(
+                          itemCount: _results.length,
+                          itemBuilder: (context, index) {
+                            final tag = _results[index];
+                            final following = _followed.containsKey(tag.id);
+                            return ListTile(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              title: Text('#${tag.tagName}'),
+                              trailing: _busy.contains(tag.id)
+                                  ? const AppSpinner(size: 16)
+                                  : Text(
+                                      following ? 'Following' : 'Follow',
+                                      style: TextStyle(
                                         color: following
                                             ? context.enclavd.textSecondary
                                             : context.enclavd.link,
                                         fontSize: 12.5,
-                                        fontWeight: FontWeight.w600),
-                                  ),
-                            onTap: () => _toggle(tag.id, tag.tagName),
-                          );
-                        },
-                      ))
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                              onTap: () => _toggle(tag.id, tag.tagName),
+                            );
+                          },
+                        ))
                 : (names.isEmpty
-                    ? Center(
-                        child: Text(
-                          isOwn
-                              ? 'You are not following any hashtags yet.'
-                              : 'This user is not following any hashtags yet.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
+                      ? Center(
+                          child: Text(
+                            isOwn ? 'You are not following any hashtags yet.' : 'This user is not following any hashtags yet.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
                               color: context.enclavd.textSecondary,
-                              fontSize: 13),
-                        ),
-                      )
-                    : SingleChildScrollView(
-                        child: Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: [
-                            for (final id in names)
-                              _TagChip(
-                                label: '#${_followed[id]}',
-                                busy: _busy.contains(id),
-                                onTap: isOwn
-                                    ? () => _toggle(id, _followed[id]!)
-                                    : () {
-                                        Navigator.of(context).pop();
-                                        Navigator.of(context).push(
-                                          MaterialPageRoute<void>(
-                                            builder: (_) => HashtagScreen(
-                                                tag: _followed[id]!),
-                                          ),
-                                        );
-                                      },
-                                trailing: isOwn
-                                    ? FontAwesomeIcons.xmark
-                                    : FontAwesomeIcons.chevronRight,
-                              ),
-                          ],
-                        ),
-                      )),
+                              fontSize: 13,
+                            ),
+                          ),
+                        )
+                      : SingleChildScrollView(
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              for (final id in names)
+                                _TagChip(
+                                  label: '#${_followed[id]}',
+                                  busy: _busy.contains(id),
+                                  onTap: isOwn
+                                      ? () => _toggle(id, _followed[id]!)
+                                      : () {
+                                          Navigator.of(context).pop();
+                                          Navigator.of(context).push(
+                                            MaterialPageRoute<void>(
+                                              builder: (_) => HashtagScreen(
+                                                tag: _followed[id]!,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                  trailing: isOwn
+                                      ? FontAwesomeIcons.xmark
+                                      : FontAwesomeIcons.chevronRight,
+                                ),
+                            ],
+                          ),
+                        )),
           ),
         ],
       ),
@@ -2935,9 +3103,13 @@ class _TagChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(label,
-                style: TextStyle(
-                    color: context.enclavd.textPrimary, fontSize: 12.5)),
+            Text(
+              label,
+              style: TextStyle(
+                color: context.enclavd.textPrimary,
+                fontSize: 12.5,
+              ),
+            ),
             if (trailing != null) ...[
               const SizedBox(width: 6),
               FaIcon(trailing!, size: 10, color: context.enclavd.textSecondary),
@@ -3012,9 +3184,13 @@ class _FeaturedPickerSheetState extends State<_FeaturedPickerSheet> {
       subtitle: 'Choose up to 6 images',
       footer: Row(
         children: [
-          Text('${_selected.length} / 6 selected',
-              style: TextStyle(
-                  color: context.enclavd.textSecondary, fontSize: 12.5)),
+          Text(
+            '${_selected.length} / 6 selected',
+            style: TextStyle(
+              color: context.enclavd.textSecondary,
+              fontSize: 12.5,
+            ),
+          ),
           const Spacer(),
           AppButton(
             label: 'Save',
@@ -3030,7 +3206,9 @@ class _FeaturedPickerSheetState extends State<_FeaturedPickerSheet> {
                 'No gallery images yet. Post a photo first.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                    color: context.enclavd.textSecondary, fontSize: 13),
+                  color: context.enclavd.textSecondary,
+                  fontSize: 13,
+                ),
               ),
             )
           : GridView.builder(
@@ -3052,8 +3230,10 @@ class _FeaturedPickerSheetState extends State<_FeaturedPickerSheet> {
                       fit: StackFit.expand,
                       children: [
                         EnclavdImage(
-                          resolveMediaUrl(AppConfig.apiBaseUrl,
-                              galleryName: image.image),
+                          resolveMediaUrl(
+                            AppConfig.apiBaseUrl,
+                            galleryName: image.image,
+                          ),
                           fit: BoxFit.cover,
                         ),
                         if (selected)
@@ -3061,7 +3241,9 @@ class _FeaturedPickerSheetState extends State<_FeaturedPickerSheet> {
                             decoration: BoxDecoration(
                               color: Colors.black.withValues(alpha: 0.25),
                               border: Border.all(
-                                  color: context.enclavd.link, width: 2),
+                                color: context.enclavd.link,
+                                width: 2,
+                              ),
                               borderRadius: BorderRadius.circular(8),
                             ),
                           ),
@@ -3076,8 +3258,10 @@ class _FeaturedPickerSheetState extends State<_FeaturedPickerSheet> {
                               color: selected
                                   ? context.enclavd.link
                                   : Colors.black.withValues(alpha: 0.35),
-                              border:
-                                  Border.all(color: Colors.white70, width: 1),
+                              border: Border.all(
+                                color: Colors.white70,
+                                width: 1,
+                              ),
                             ),
                             alignment: Alignment.center,
                             child: selected
@@ -3111,8 +3295,9 @@ class _BioDialog extends StatefulWidget {
 }
 
 class _BioDialogState extends State<_BioDialog> {
-  late final TextEditingController _controller =
-      TextEditingController(text: widget.initialBio);
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initialBio,
+  );
 
   @override
   void dispose() {
@@ -3137,11 +3322,14 @@ class _BioDialogState extends State<_BioDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Edit bio',
-                style: TextStyle(
-                    color: palette.textPrimary,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w600)),
+            Text(
+              'Edit bio',
+              style: TextStyle(
+                color: palette.textPrimary,
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
             const SizedBox(height: 12),
             AppTextField(
               controller: _controller,
@@ -3192,8 +3380,11 @@ class _BlockedBanner extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const FaIcon(FontAwesomeIcons.ban,
-              color: Color(0xFFF87171), size: 15), // red-400
+          const FaIcon(
+            FontAwesomeIcons.ban,
+            color: Color(0xFFF87171),
+            size: 15,
+          ), // red-400
           const SizedBox(width: 10),
           Expanded(
             child: Text(
@@ -3201,9 +3392,10 @@ class _BlockedBanner extends StatelessWidget {
                   ? 'This user has been blocked: $reason'
                   : 'This user has been blocked.',
               style: const TextStyle(
-                  color: Color(0xFFFECACA), // red-200
-                  fontSize: 13,
-                  height: 1.35),
+                color: Color(0xFFFECACA), // red-200
+                fontSize: 13,
+                height: 1.35,
+              ),
             ),
           ),
         ],
@@ -3225,14 +3417,18 @@ class _WarningCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0x14FACC15), // bg-yellow-400/8
         borderRadius: BorderRadius.circular(12),
-        border:
-            Border.all(color: const Color(0x4DA16207)), // border-yellow-700/30
+        border: Border.all(
+          color: const Color(0x4DA16207),
+        ), // border-yellow-700/30
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          FaIcon(FontAwesomeIcons.triangleExclamation,
-              color: context.enclavd.warning, size: 14),
+          FaIcon(
+            FontAwesomeIcons.triangleExclamation,
+            color: context.enclavd.warning,
+            size: 14,
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -3240,9 +3436,13 @@ class _WarningCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    Text('Warning from ',
-                        style: TextStyle(
-                            color: context.enclavd.warning, fontSize: 13)),
+                    Text(
+                      'Warning from ',
+                      style: TextStyle(
+                        color: context.enclavd.warning,
+                        fontSize: 13,
+                      ),
+                    ),
                     Flexible(
                       child: GestureDetector(
                         onTap: () {
@@ -3257,9 +3457,10 @@ class _WarningCard extends StatelessWidget {
                           '@${warning.adminUsername}',
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                              color: context.enclavd.link,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600),
+                            color: context.enclavd.link,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),
@@ -3270,7 +3471,9 @@ class _WarningCard extends StatelessWidget {
                   Text(
                     warning.reason,
                     style: TextStyle(
-                        color: context.enclavd.textSecondary, fontSize: 13),
+                      color: context.enclavd.textSecondary,
+                      fontSize: 13,
+                    ),
                   ),
                 ],
                 const SizedBox(height: 2),
@@ -3278,7 +3481,9 @@ class _WarningCard extends StatelessWidget {
                 Text(
                   '${warning.daysLeft}d left',
                   style: const TextStyle(
-                      color: Color(0xFF6B7280), fontSize: 12), // gray-500
+                    color: Color(0xFF6B7280),
+                    fontSize: 12,
+                  ), // gray-500
                 ),
               ],
             ),
@@ -3309,8 +3514,9 @@ class _FollowButton extends StatelessWidget {
     return AppButton(
       label: label,
       icon: following ? FontAwesomeIcons.userCheck : FontAwesomeIcons.userPlus,
-      variant:
-          following ? AppButtonVariant.secondary : AppButtonVariant.primary,
+      variant: following
+          ? AppButtonVariant.secondary
+          : AppButtonVariant.primary,
       loading: busy,
       onPressed: busy ? null : onPressed,
     );
