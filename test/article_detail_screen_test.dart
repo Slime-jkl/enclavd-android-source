@@ -135,8 +135,10 @@ void main() {
     expect(html, contains('Continue Reading'));
     expect(html, contains('/article/older-post'));
     expect(html, contains('Older Post'));
-    expect(html, contains("url('assets/fonts/Montserrat/"),
-        reason: 'the site font is loaded for the body');
+    expect(html, contains("@font-face{font-family:'Montserrat'"),
+        reason: 'the site font faces are inlined for the body');
+    expect(html, contains('url(data:font/woff2;base64,'),
+        reason: 'the WebView cannot fetch assets/ URLs, so fonts are data URIs');
     expect(html, contains('EnclavdBridge'),
         reason: 'the auto-height measurement script ships with the doc');
   });
