@@ -219,7 +219,9 @@ jobs:
       # with the pipe's build is unaffected (the pipe strips identically via
       # tool/fdroid_build.sh).
       - name: Strip AGP dependency metadata (F-Droid pipe)
-        if: matrix.flavor == 'fdroid'
+        # Release-only: a debug dispatch produces app-<flavor>-debug.apk, and
+        # the glob below only matches the split-per-abi release names.
+        if: matrix.flavor == 'fdroid' && github.event.inputs.build_type != 'debug'
         run: |
           # Split-per-abi build -> one APK per ABI; strip the signing-block
           # entry from each (the pipe strips identically via tool/fdroid_build.sh).
@@ -232,7 +234,7 @@ jobs:
       # play-services references and fail the build if any survive the
       # flavor exclusions.
       - name: Verify fdroid APK is GMS-free
-        if: matrix.flavor == 'fdroid'
+        if: matrix.flavor == 'fdroid' && github.event.inputs.build_type != 'debug'
         run: |
           # Split-per-abi: scan EVERY per-ABI APK (app-<abi>-fdroid-release.apk).
           FAILED=0
