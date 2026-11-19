@@ -50,6 +50,7 @@ import 'services/social_notification_source.dart';
 import 'services/social_notifications.dart';
 import 'theme/enclavd_theme.dart';
 import 'widgets/cached_image.dart';
+
 // microdot off
 // import 'widgets/microdot_overlay.dart';
 
@@ -69,8 +70,10 @@ Future<void> main(List<String> args) async {
   // an error before AppServices.create, changes nothing the user sees.
   FlutterError.onError = (details) {
     FlutterError.presentError(details);
-    AnalyticsService.instance
-        ?.error(details.exceptionAsString(), stack: details.stack?.toString());
+    AnalyticsService.instance?.error(
+      details.exceptionAsString(),
+      stack: details.stack?.toString(),
+    );
   };
   WidgetsBinding.instance.platformDispatcher.onError = (error, stack) {
     AnalyticsService.instance?.error(error.toString(), stack: stack.toString());
@@ -95,7 +98,8 @@ Future<void> main(List<String> args) async {
     // Widget rate taps: register the headless callback that records the
     // rating; it wakes its own isolate even when the app is killed.
     unawaited(
-        HomeWidget.registerInteractivityCallback(quoteWidgetRateCallback));
+      HomeWidget.registerInteractivityCallback(quoteWidgetRateCallback),
+    );
     // Widget data can go stale in the background (Doze may delay the
     // daily slot for hours); every foreground return is a cheap,
     // date-gated catch-up.
@@ -125,7 +129,8 @@ class QuoteDeepLink {
     if (nav != null && nav.mounted) {
       pending = false;
       nav.push(
-          MaterialPageRoute<void>(builder: (_) => const QuoteSettingsScreen()));
+        MaterialPageRoute<void>(builder: (_) => const QuoteSettingsScreen()),
+      );
     }
   }
 
@@ -146,28 +151,29 @@ class _QuoteResumeRefresh with WidgetsBindingObserver {
 /// Simple service container - no DI framework, constructor injection only.
 class AppServices {
   AppServices._(
-      this.apiClient,
-      this.auth,
-      this.feed,
-      this.social,
-      this.profile,
-      this.posts,
-      this.messages,
-      this.notifications,
-      this.search,
-      this.realtime,
-      this.messageAlerts,
-      this.articles,
-      this.domains,
-      this.results,
-      this.invitations,
-      this.reports,
-      this.personalityTest,
-      this.personality,
-      this.siteConfig,
-      this.votes,
-      this.diary,
-      this.activity);
+    this.apiClient,
+    this.auth,
+    this.feed,
+    this.social,
+    this.profile,
+    this.posts,
+    this.messages,
+    this.notifications,
+    this.search,
+    this.realtime,
+    this.messageAlerts,
+    this.articles,
+    this.domains,
+    this.results,
+    this.invitations,
+    this.reports,
+    this.personalityTest,
+    this.personality,
+    this.siteConfig,
+    this.votes,
+    this.diary,
+    this.activity,
+  );
 
   final ApiClient apiClient;
   final AuthService auth;
@@ -224,9 +230,7 @@ class AppServices {
         // Late-bound: resolve the CURRENT container at ping time, or a
         // closure capturing `api` would freeze the first (pre-login,
         // empty jar) client and 401 every live-path fetch.
-        messagesFactory: () async => MessagesService(
-          current?.apiClient ?? api,
-        ),
+        messagesFactory: () async => MessagesService(current?.apiClient ?? api),
       );
       MessageNotifications.instance = notifications;
       unawaited(notifications.init());
@@ -236,43 +240,45 @@ class AppServices {
     if (social == null) {
       social = SocialNotifications(
         notifier: notifier,
-        notificationsFactory: () async => NotificationsService(
-          current?.apiClient ?? api,
-        ),
+        notificationsFactory: () async =>
+            NotificationsService(current?.apiClient ?? api),
       );
       SocialNotifications.instance = social;
       unawaited(social.init());
     }
     final services = AppServices._(
-        api,
-        auth,
-        FeedService(api),
-        SocialService(api),
-        ProfileService(api),
-        PostsService(api),
-        MessagesService(api),
-        NotificationsService(api),
-        SearchService(api),
-        RealtimeService(api),
-        notifications,
-        ArticlesService(api),
-        DomainsService(api),
-        ResultsService(api),
-        InvitationsService(api),
-        ReportsService(api),
-        PersonalityTestService(api),
-        PersonalityService(api),
-        SiteConfigService(api),
-        VotesService(api),
-        DiaryService(api),
-        ActivityService(api));
+      api,
+      auth,
+      FeedService(api),
+      SocialService(api),
+      ProfileService(api),
+      PostsService(api),
+      MessagesService(api),
+      NotificationsService(api),
+      SearchService(api),
+      RealtimeService(api),
+      notifications,
+      ArticlesService(api),
+      DomainsService(api),
+      ResultsService(api),
+      InvitationsService(api),
+      ReportsService(api),
+      PersonalityTestService(api),
+      PersonalityService(api),
+      SiteConfigService(api),
+      VotesService(api),
+      DiaryService(api),
+      ActivityService(api),
+    );
     current = services;
     // Background push: resolve the best transport for this build/device
     // (FCM -> Unified Push -> 15-minute polling) and register the token,
     // late-bound to the CURRENT container.
-    unawaited(PushManager.ensureResolved(
-      PushRegistrationService(() async => current?.apiClient ?? api),
-    ));
+    unawaited(
+      PushManager.ensureResolved(
+        PushRegistrationService(() async => current?.apiClient ?? api),
+      ),
+    );
     // Refresh the quote widget once per day when the session is live;
     // own client from prefs, as the container's may predate the login.
     unawaited(DailyQuoteService.refreshWidgetIfStale());
@@ -308,13 +314,12 @@ class EnclavdApp extends StatelessWidget {
         // A different ThemeData instance per brightness makes every
         // Theme.of()/palette read repaint as soon as the switch flips.
         theme: buildEnclavdTheme(light: lightMode),
-        // microdot off
-        // builder: (context, child) => Stack(
-        //   children: [
-        //     if (child != null) child,
-        //     const MicrodotOverlay(),
-        //   ],
-        // ),
+        // The phone's font-size / display-size accessibility override must not
+        // reflow the app: screens are laid out for Montserrat at its designed
+        // sizes, so pin the text scaler at 1.0 for every route and dialog.
+        builder: (context, child) => MediaQuery.withNoTextScaling(
+          child: child ?? const SizedBox.shrink(),
+        ),
         home: const SplashScreen(),
         routes: {
           LoginScreen.routeName: (_) => const LoginScreen(),

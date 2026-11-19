@@ -13,22 +13,11 @@ String buildArticleHtml({
   required String contentHtml,
   required List<ArticleSummary> related,
   required String baseUrl,
+  String fontCss = '',
 }) {
-  const css = '''
-    @font-face {
-      font-family: 'Montserrat';
-      src: url('assets/fonts/Montserrat/Montserrat-VariableFont_wght.ttf') format('truetype');
-      font-weight: 100 900;
-      font-style: normal;
-      font-display: swap;
-    }
-    @font-face {
-      font-family: 'Montserrat';
-      src: url('assets/fonts/Montserrat/Montserrat-Italic-VariableFont_wght.ttf') format('truetype');
-      font-weight: 100 900;
-      font-style: italic;
-      font-display: swap;
-    }
+  final css =
+      '''
+    $fontCss
     body {
       margin: 0;
       padding: 14px 16px 24px;
@@ -124,9 +113,7 @@ $relatedHtml
 }
 
 String _relatedCard(ArticleSummary a) {
-  final cover = a.cover.isEmpty
-      ? ''
-      : '<img src="${_esc(a.cover)}" alt="">';
+  final cover = a.cover.isEmpty ? '' : '<img src="${_esc(a.cover)}" alt="">';
   return '''
 <a class="rel-card" href="/article/${_esc(a.slug)}">
   $cover

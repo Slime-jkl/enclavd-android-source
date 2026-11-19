@@ -63,6 +63,7 @@ flutter:
     - assets/images/enclavd-logo-white.png
     - assets/images/enclavd-logo-dark.png
     - assets/images/quote-widget-logo-dark.png
+    - assets/fonts/Montserrat/web/
     - assets/animations/
     - assets/sounds/
     - assets/gifs/emojis/

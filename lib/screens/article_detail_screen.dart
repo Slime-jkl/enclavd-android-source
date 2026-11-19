@@ -10,6 +10,7 @@ import '../config/app_config.dart';
 import '../theme/enclavd_theme.dart';
 import '../widgets/error_view.dart';
 import '../utils/article_html.dart';
+import '../utils/web_font.dart';
 import '../widgets/enclavd_avatar.dart';
 import '../widgets/enclavd_image.dart';
 import '../widgets/personality_chip.dart';
@@ -40,6 +41,7 @@ class ArticleDetailScreen extends StatefulWidget {
 class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
   Article? _article;
   String? _error;
+  String _fontCss = '';
 
   // Like state: optimistic mirror of the server row.
   bool _liked = false;
@@ -57,9 +59,11 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
     if (mounted) setState(() => _error = null);
     try {
       final article = await widget.articles.fetch(widget.slug);
+      final fontCss = await montserratWebFontCss();
       if (!mounted) return;
       setState(() {
         _article = article;
+        _fontCss = fontCss;
         _liked = article.liked;
         _likeCount = article.likeCount;
       });
@@ -79,8 +83,9 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
       _likeCount += _liked ? 1 : -1;
     });
     try {
-      final (liked, count) =
-          await widget.articles.toggleLike(article.summary.id);
+      final (liked, count) = await widget.articles.toggleLike(
+        article.summary.id,
+      );
       if (!mounted) return;
       // Reconcile with the server's truth.
       setState(() {
@@ -104,13 +109,15 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
 
   void _openRelatedBySlug(String slug) {
     if (!mounted) return;
-    Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => ArticleDetailScreen(
-        articles: widget.articles,
-        slug: slug,
-        bodyBuilder: widget.bodyBuilder,
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ArticleDetailScreen(
+          articles: widget.articles,
+          slug: slug,
+          bodyBuilder: widget.bodyBuilder,
+        ),
       ),
-    ));
+    );
   }
 
   @override
@@ -118,8 +125,11 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
     final title = _article?.summary.title;
     return Scaffold(
       appBar: AppBar(
-        title: Text(title ?? 'Article',
-            maxLines: 1, overflow: TextOverflow.ellipsis),
+        title: Text(
+          title ?? 'Article',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
       ),
       body: SafeArea(child: _buildBody()),
     );
@@ -137,6 +147,7 @@ class _ArticleDetailScreenState extends State<ArticleDetailScreen> {
       contentHtml: article.content,
       related: article.related,
       baseUrl: AppConfig.apiBaseUrl,
+      fontCss: _fontCss,
     );
     // The whole page scrolls as one; the WebView is sized to its content.
     return ListView(
@@ -187,10 +198,7 @@ class _ArticleHero extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (a.pinned) ...[
-              const PinnedBadge(),
-              const SizedBox(height: 10),
-            ],
+            if (a.pinned) ...[const PinnedBadge(), const SizedBox(height: 10)],
             Text(
               a.title,
               style: TextStyle(
@@ -251,8 +259,11 @@ class _ArticleHero extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  FaIcon(FontAwesomeIcons.eye,
-                      size: 12, color: context.enclavd.textPrimary),
+                  FaIcon(
+                    FontAwesomeIcons.eye,
+                    size: 12,
+                    color: context.enclavd.textPrimary,
+                  ),
                   const SizedBox(width: 6),
                   Text(
                     formatViews(a.views),
@@ -281,9 +292,7 @@ class _ArticleHero extends StatelessWidget {
                 fontWeight: FontWeight.w700,
                 color: Colors.white,
                 height: 1.25,
-                shadows: [
-                  Shadow(color: Colors.black54, blurRadius: 8),
-                ],
+                shadows: [Shadow(color: Colors.black54, blurRadius: 8)],
               ),
             ),
           ),
@@ -366,7 +375,9 @@ class _AuthorRow extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                      fontSize: 11, color: context.enclavd.textSecondary),
+                    fontSize: 11,
+                    color: context.enclavd.textSecondary,
+                  ),
                 ),
               ],
             ),
@@ -433,13 +444,18 @@ class _TagChips extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  FaIcon(FontAwesomeIcons.hashtag,
-                      size: 10, color: context.enclavd.link),
+                  FaIcon(
+                    FontAwesomeIcons.hashtag,
+                    size: 10,
+                    color: context.enclavd.link,
+                  ),
                   const SizedBox(width: 5),
                   Text(
                     tag,
                     style: TextStyle(
-                        fontSize: 11, color: context.enclavd.textPrimary),
+                      fontSize: 11,
+                      color: context.enclavd.textPrimary,
+                    ),
                   ),
                 ],
               ),
@@ -474,10 +490,12 @@ class _ArticleBodyWebViewState extends State<_ArticleBodyWebView> {
     ..setJavaScriptMode(JavaScriptMode.unrestricted)
     ..setBackgroundColor(context.enclavd.background)
     ..addJavaScriptChannel('EnclavdBridge', onMessageReceived: _onMeasure)
-    ..setNavigationDelegate(NavigationDelegate(
-      onPageFinished: (_) => _measure(),
-      onNavigationRequest: _onNavigationRequest,
-    ))
+    ..setNavigationDelegate(
+      NavigationDelegate(
+        onPageFinished: (_) => _measure(),
+        onNavigationRequest: _onNavigationRequest,
+      ),
+    )
     ..loadHtmlString(widget.html, baseUrl: widget.baseUrl);
 
   void _onMeasure(JavaScriptMessage message) {
@@ -491,13 +509,14 @@ class _ArticleBodyWebViewState extends State<_ArticleBodyWebView> {
     _controller
         .runJavaScriptReturningResult('document.documentElement.scrollHeight')
         .then((value) {
-      var raw = '$value'.trim();
-      if (raw.length >= 2 && raw.startsWith('"') && raw.endsWith('"')) {
-        raw = raw.substring(1, raw.length - 1);
-      }
-      final h = int.tryParse(raw);
-      if (h != null && h > 0) _onMeasure(JavaScriptMessage(message: '$h'));
-    }).catchError((_) {});
+          var raw = '$value'.trim();
+          if (raw.length >= 2 && raw.startsWith('"') && raw.endsWith('"')) {
+            raw = raw.substring(1, raw.length - 1);
+          }
+          final h = int.tryParse(raw);
+          if (h != null && h > 0) _onMeasure(JavaScriptMessage(message: '$h'));
+        })
+        .catchError((_) {});
   }
 
   NavigationDecision _onNavigationRequest(NavigationRequest request) {
@@ -601,11 +620,11 @@ String formatDateFull(String dbUtc) {
   final suffix = switch (d % 100) {
     11 || 12 || 13 => 'th',
     _ => switch (d % 10) {
-        1 => 'st',
-        2 => 'nd',
-        3 => 'rd',
-        _ => 'th',
-      },
+      1 => 'st',
+      2 => 'nd',
+      3 => 'rd',
+      _ => 'th',
+    },
   };
   final h12 = t.hour % 12 == 0 ? 12 : t.hour % 12;
   final ampm = t.hour < 12 ? 'AM' : 'PM';
